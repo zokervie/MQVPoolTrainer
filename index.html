@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>MQV Pool Trainer</title>
+  <meta name="description" content="Tập bi-a pool 3D: vật lý chân thật, bài tập ngắm, điều bi và hệ thống nút số kèm công thức.">
+  <meta name="theme-color" content="#182128">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Noto+Serif:ital,wght@0,600;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="src/style.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body class="hand-right">
+  <canvas id="view" aria-label="Bàn bi-a 3D"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" hidden>
+    <header class="topbar">
+      <button class="ibtn" id="btnMenu" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="title">
+        <div id="hudTitle">Tập tự do</div>
+        <div id="hudSub" class="sub"></div>
+      </div>
+      <div class="tools">
+        <button class="ibtn" id="btnFormula" aria-label="Công thức" hidden><span class="fx">ƒ</span></button>
+        <button class="ibtn" id="btnHint" aria-label="Gợi ý hệ thống" hidden><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg></button>
+        <button class="ibtn" id="btnDemo" aria-label="Xem cú mẫu" hidden><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="ibtn" id="btnHand" aria-label="Đặt bi cái" hidden><svg viewBox="0 0 24 24"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5m0-6.5a1.5 1.5 0 0 1 3 0V11m0-4a1.5 1.5 0 0 1 3 0v6a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3 14.5a1.5 1.5 0 0 1 2.4-1.8L8 15"/></svg></button>
+        <button class="ibtn" id="btnGuide" aria-label="Hỗ trợ ngắm"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span class="badge" id="guideBadge">1</span></button>
+        <button class="ibtn" id="btnView" aria-label="Đổi góc nhìn 2D/3D"><span id="viewLbl">3D</span></button>
+        <button class="ibtn" id="btnReset" aria-label="Làm lại"><svg viewBox="0 0 24 24"><path d="M4 4v6h6M20 12a8 8 0 1 1-2.3-5.7L20 9"/></svg></button>
+      </div>
+    </header>
+
+    <div id="ballStrip" class="ballstrip"></div>
+    <div id="sysInfo" class="sysinfo" hidden></div>
+
+    <!-- tay trái (mặc định): điểm đánh + độ nâng cơ -->
+    <section class="cluster spin" aria-label="Điểm đánh">
+      <div class="elev">
+        <input type="range" id="elev" min="0" max="30" step="1" value="0" aria-label="Độ nâng cơ">
+        <span id="elevVal">0°</span>
+      </div>
+      <div id="spinPad" class="spinpad" role="slider" aria-label="Điểm đánh trên bi cái" tabindex="0">
+        <div class="tipzone"></div>
+        <div id="spinDot" class="spindot"></div>
+      </div>
+      <div id="spinVal" class="spinval">Tâm bi</div>
+    </section>
+
+    <!-- giữa: khoá đường cơ + vi chỉnh -->
+    <section class="cluster center">
+      <button id="btnLock" class="lock" aria-pressed="false" aria-label="Khoá đường cơ">
+        <svg viewBox="0 0 24 24" class="ico-open"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.8-1.2"/></svg>
+        <svg viewBox="0 0 24 24" class="ico-closed"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <span id="lockLbl">Khoá cơ</span>
+      </button>
+      <div class="fine">
+        <button class="fbtn" id="fineL" aria-label="Xoay trái">‹</button>
+        <div id="fineStrip" class="finestrip" aria-label="Vi chỉnh hướng cơ"><div class="ticks"></div></div>
+        <button class="fbtn" id="fineR" aria-label="Xoay phải">›</button>
+      </div>
+      <div id="aimVal" class="aimval"></div>
+    </section>
+
+    <!-- tay phải: đẩy lực -->
+    <section class="cluster power" aria-label="Lực đánh">
+      <div id="powerPad" class="powerpad">
+        <div class="track"><div id="pullFill" class="pull"></div><div id="powFill" class="pow"></div><div class="startline"></div></div>
+        <div class="padtext"><b>Kéo xuống</b><span>rồi đẩy lên để đánh</span></div>
+      </div>
+      <div id="powVal" class="powval">Lực —</div>
+      <div id="sliderMode" class="slidermode" hidden>
+        <input type="range" id="powSlider" min="0" max="100" value="35" aria-label="Lực">
+        <button id="btnShoot" class="shoot">Đánh</button>
+      </div>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <!-- MENU CHÍNH -->
+  <main id="menu" class="menu">
+    <div class="menu-inner">
+      <div class="brand">
+        <svg viewBox="0 0 64 64" class="logo" aria-hidden="true"><circle cx="32" cy="32" r="28" fill="#f2b705"/><circle cx="32" cy="32" r="13" fill="#f7f3ea"/><text x="32" y="38" text-anchor="middle" font-size="17" font-weight="800" fill="#111">9</text></svg>
+        <div>
+          <h1>MQV Pool Trainer</h1>
+          <p>Bàn 9 ft, vật lý trượt – lăn – xoáy thật. Mỗi bài có công thức và sơ đồ trước khi tập.</p>
+        </div>
+      </div>
+      <div class="play">
+        <button class="bigbtn" data-free="8"><b>Tập tự do 8 bi</b><span>Xếp 15 bi, phá và dọn bàn</span></button>
+        <button class="bigbtn" data-free="9"><b>Tập tự do 9 bi</b><span>Luật chạm bi nhỏ nhất trước</span></button>
+      </div>
+      <nav id="catList" class="cats" aria-label="Nhóm bài tập"></nav>
+      <section id="drillList" class="drills"></section>
+      <footer class="menu-foot">
+        <button id="btnSettings" class="linkbtn">Cài đặt</button>
+        <button id="btnHelp" class="linkbtn">Cách điều khiển</button>
+        <button id="btnSources" class="linkbtn">Nguồn tham khảo</button>
+      </footer>
+    </div>
+  </main>
+
+  <!-- PHIẾU BÀI TẬP / HỘP THOẠI -->
+  <dialog id="card" class="card"></dialog>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
