@@ -1,8 +1,12 @@
+import UniformTypeIdentifiers
 import SwiftUI
 
 struct MenuView: View {
     @ObservedObject var g: Game
     @State private var cat: Category = .aim
+    @State private var importing = false
+    @State private var powerLevel = 3
+    @State private var libTick = 0
 
     var body: some View {
         ScrollView {
@@ -15,9 +19,40 @@ struct MenuView: View {
                             .font(.subheadline).foregroundColor(.white.opacity(0.75))
                     }
                 }
+                Button { g.card = .tables } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "rectangle.inset.filled").font(.system(size: 18))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Bàn: \(g.settings.table.brand) \(g.settings.table.model)").font(.system(size: 15, weight: .bold))
+                            Text("\(g.settings.table.sizeName) · lỗ góc \(inchStr(g.settings.table.cornerMouth))″ · lỗ giữa \(inchStr(g.settings.table.sideMouth))″ · nỉ \(g.settings.table.clothName)")
+                                .font(.system(size: 12)).opacity(0.75)
+                        }
+                        Spacer()
+                        Text("Đổi bàn").font(.system(size: 13, weight: .semibold)).foregroundColor(accent)
+                    }
+                    .padding(12).background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.07)))
+                }.buttonStyle(.plain)
                 HStack(spacing: 12) {
                     bigButton("Tập tự do 8 bi", "Xếp 15 bi, phá và dọn bàn") { g.startFree("8") }
                     bigButton("Tập tự do 9 bi", "Luật chạm bi nhỏ nhất trước") { g.startFree("9") }
+                }
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Thử thách ổn định lực").font(.system(size: 16, weight: .heavy))
+                        Text("10 cú cùng một mức lực, đo độ phân tán tốc độ").font(.system(size: 12)).opacity(0.75)
+                        HStack {
+                            Stepper("Mức \(powerLevel)/7 · \(vn(SpeedScale.speed(level: powerLevel))) m/s", value: $powerLevel, in: 1...7).font(.system(size: 13))
+                            Button("Bắt đầu") { g.startChallenge(.challengePower, level: powerLevel) }.buttonStyle(PrimaryButton())
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(Color(hex: 0x3a2a5c, alpha: 0.85)))
+                    Button { g.startChallenge(.challengeAim) } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Kiểm tra ngắm").font(.system(size: 16, weight: .heavy))
+                            Text("10 cú cắt ngẫu nhiên, không đường ngắm – đo sai số góc và thiên lệch trái/phải").font(.system(size: 12)).opacity(0.75)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(Color(hex: 0x5c2a3a, alpha: 0.85)))
+                    }.buttonStyle(.plain)
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -31,10 +66,20 @@ struct MenuView: View {
                         }
                     }
                 }
-                Text(cat.desc).font(.footnote).foregroundColor(.white.opacity(0.6))
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 12)], spacing: 12) {
-                    ForEach(DRILLS.filter { $0.cat == cat }) { d in drillTile(d) }
+                HStack {
+                    Text(cat.desc).font(.footnote).foregroundColor(.white.opacity(0.6))
+                    Spacer()
+                    if cat == .custom {
+                        Button { importing = true } label: { Label("Nhập file JSON", systemImage: "square.and.arrow.down") }
+                            .font(.system(size: 13, weight: .semibold)).foregroundColor(accent)
+                    }
                 }
+                if cat == .custom && !DrillLibrary.errors.isEmpty {
+                    Text(DrillLibrary.errors.joined(separator: "\n")).font(.caption).foregroundColor(Color(hex: 0xef476f))
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 12)], spacing: 12) {
+                    ForEach((cat == .custom ? DrillLibrary.custom : DRILLS.filter { $0.cat == cat })) { d in drillTile(d) }
+                }.id(libTick)
                 HStack(spacing: 20) {
                     Button("Cài đặt") { g.card = .settings }
                     Button("Cách điều khiển") { g.card = .help }
@@ -47,6 +92,19 @@ struct MenuView: View {
         }
         .foregroundColor(.white)
         .background(LinearGradient(colors: [Color(hex: 0x0b1116, alpha: 0.92), Color(hex: 0x0b1116, alpha: 0.75)], startPoint: .top, endPoint: .bottom))
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json], allowsMultipleSelection: true) { r in
+            guard case .success(let urls) = r else { return }
+            var ok = 0, errs: [String] = []
+            for u in urls {
+                let acc = u.startAccessingSecurityScopedResource()
+                defer { if acc { u.stopAccessingSecurityScopedResource() } }
+                do { try DrillLibrary.importFile(u); ok += 1 } catch { errs.append("\(u.lastPathComponent): \(error.localizedDescription)") }
+            }
+            DrillLibrary.reload(bundleDir: Bundle.main.url(forResource: "Drills", withExtension: nil))
+            DrillLibrary.errors += errs
+            libTick += 1
+            g.showToast(errs.isEmpty ? "Đã nhập \(ok) bài" : "Nhập \(ok) bài, lỗi \(errs.count)", errs.isEmpty ? .ok : .bad)
+        }
     }
 
     private func bigButton(_ t: String, _ s: String, _ a: @escaping () -> Void) -> some View {
@@ -124,6 +182,10 @@ struct DrillCardView: View {
                     Link(destination: url) { Label("Tìm video hướng dẫn miễn phí trên YouTube", systemImage: "play.rectangle.fill") }.foregroundColor(accent)
                 }
                 if let s = g.stats[drill.id] { Text("Kết quả của bạn: \(s.ok)/\(s.att) thành công · chuỗi tốt nhất \(s.best)").font(.footnote).opacity(0.75) }
+                if drill.generate == nil, let url = jsonShareURL(drill) {
+                    ShareLink(item: url) { Label(drill.cat == .custom ? "Chia sẻ file JSON" : "Xuất bài sang JSON (để chỉnh / chia sẻ)", systemImage: "square.and.arrow.up") }
+                        .font(.footnote).foregroundColor(accent)
+                }
                 HStack {
                     if inGame {
                         Button("Tiếp tục tập") { g.card = nil }.buttonStyle(PrimaryButton())
@@ -233,6 +295,16 @@ struct SettingsView: View {
                     Picker("Cách chỉnh lực", selection: $g.settings.swipePower) { Text("Vuốt đẩy (theo tốc độ tay)").tag(true); Text("Thanh lực + nút Đánh").tag(false) }
                     Picker("Độ nhạy", selection: $g.settings.sens) { Text("Thấp").tag(0.6); Text("Vừa").tag(1.0); Text("Cao").tag(1.4) }
                 }
+                Section(footer: Text("Luyện thật: tắt đường ngắm, bi ma, số độ, gợi ý hệ thống – chỉ xem số liệu sau cú đánh, giống tập ở bàn thật.")) {
+                    Button { g.card = .tables } label: { HStack { Text("Bàn tập"); Spacer(); Text("\(g.settings.table.brand) \(g.settings.table.model)").foregroundColor(.secondary) } }
+                    Toggle("Chế độ luyện thật", isOn: $g.settings.realistic)
+                    Toggle("Bảng số liệu sau mỗi cú", isOn: $g.settings.feedback)
+                    Toggle("Hiện đường đi cú trước (bóng ma)", isOn: $g.settings.ghostTrail)
+                    Toggle("Vuốt lệch / ngắt cơ ảnh hưởng cú đánh", isOn: $g.settings.strokeErrors)
+                }
+                Section(footer: Text("Tự động: theo bộ nhớ máy, tự hạ một mức khi máy nóng.")) {
+                    Picker("Chất lượng đồ hoạ", selection: $g.settings.quality) { Text("Tự động").tag(0); Text("Thấp (tiết kiệm pin)").tag(1); Text("Trung bình").tag(2); Text("Cao").tag(3) }
+                }
                 Section("Vật lý & hỗ trợ") {
                     Toggle("Lệch hướng khi đánh english (squirt)", isOn: $g.settings.squirt)
                     Picker("Hỗ trợ ngắm", selection: $g.settings.guide) { Text("Tắt").tag(0); Text("Cơ bản").tag(1); Text("Đầy đủ (dự đoán vật lý)").tag(2) }
@@ -265,6 +337,10 @@ struct HelpView: View {
         ("Hỗ trợ ngắm", "Biểu tượng con mắt: Tắt / Cơ bản (tới điểm chạm, hướng bi mục tiêu) / Đầy đủ (dự đoán vật lý cả xoáy, băng). Dự đoán dùng lực của cú trước."),
         ("Bi trong tay", "Khi phạm lỗi hoặc bài cho phép, kéo bi cái tới chỗ mới (hoặc bấm biểu tượng bàn tay)."),
         ("Chậm & thông số", "Nút rùa phát chậm 5 lần để quan sát xoáy; bảng thông số (bật trong Cài đặt) hiện tốc độ, tỉ số ωR/v, xoáy ngang và trạng thái trượt/lăn."),
+        ("Bàn tập", "Chọn bàn theo hãng (Predator, Diamond, Rasson, Mr Sung, Brunswick, WPA…) hoặc tự nhập số đo bàn của bạn: cỡ bàn, miệng lỗ, góc cắt, kệ lỗ, độ nảy băng, độ nhanh nỉ."),
+        ("Luyện thật", "Biểu tượng hồng tâm: tắt đường ngắm, số độ và gợi ý – chỉ xem số liệu SAU cú đánh. Ngắm tinh bằng hai ngón kéo ngang."),
+        ("Sau cú đánh", "Bảng số liệu: tốc độ và mức lực 1–7, độ thẳng cú vuốt, ngắt cơ, lệch hướng ngắm, throw, bi mục tiêu lệch bao nhiêu mm ở lỗ, chạm băng ở nút số mấy. Nút ↺ phát lại chậm; đường mờ là cú trước."),
+        ("Bài JSON", "Nhóm “Bài tự soạn”: nhập file JSON theo toạ độ kim cương (định dạng trong ios/Drills), chia sẻ qua AirDrop; mọi bài có sẵn đều xuất được sang JSON."),
     ]
     var body: some View {
         NavigationStack {

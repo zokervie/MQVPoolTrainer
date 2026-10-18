@@ -4,8 +4,8 @@ import Foundation
 // "Khung nút": dx 0..8 (trái → phải), dz 0..4 (băng dưới → băng trên) đo trên ĐƯỜNG NÚT (mặt gỗ, lùi sau mũi băng).
 
 let DIAMOND_OFF = 0.094
-private let DXs = (TL + 2 * DIAMOND_OFF) / 8
-private let DZs = (TW + 2 * DIAMOND_OFF) / 4
+private var DXs: Double { (TL + 2 * DIAMOND_OFF) / 8 }
+private var DZs: Double { (TW + 2 * DIAMOND_OFF) / 4 }
 
 func railPoint(_ dx: Double, _ dz: Double) -> P2 { P2(-TL / 2 - DIAMOND_OFF + dx * DXs, TW / 2 + DIAMOND_OFF - dz * DZs) }
 func toRailFrame(_ p: P2) -> (dx: Double, dz: Double) { ((p.x + TL / 2 + DIAMOND_OFF) / DXs, (TW / 2 + DIAMOND_OFF - p.z) / DZs) }

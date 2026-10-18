@@ -46,11 +46,15 @@ final class PoolScene {
     weak var view: SCNView?
 
     private let tableRoot = SCNNode(), ballRoot = SCNNode(), guides = SCNNode(), labelRoot = SCNNode(), zoneRoot = SCNNode()
-    private let cue = SCNNode(), ghost = SCNNode(), lamp = SCNNode()
+    private let cue = SCNNode(), ghost = SCNNode(), lamp = SCNNode(), markerRoot = SCNNode()
+    private var keyLight: SCNLight? = nil
+    private var qualitySetting = 0
+    private(set) var qualityLevel = 3
     private var ballNodes: [Int: SCNNode] = [:]
     private var drops: [Int: (t: Double, from: P2)] = [:]
     private var camPos = SIMD3<Float>(0, 3, 0), camLook = SIMD3<Float>(0, 0, 0)
     private var clothHex: UInt32 = 0
+    private var builtTable: TableSpec? = nil
     private var lights: [(SCNLight, CGFloat)] = []
     private var envBase: CGFloat = 0.35
 
@@ -69,8 +73,12 @@ final class PoolScene {
         s.background.contents = UIColor(hex: 0x10161c)
         s.fogStartDistance = 6; s.fogEndDistance = 14; s.fogColor = UIColor(hex: 0x10161c)
         s.lightingEnvironment.contents = envImage(); s.lightingEnvironment.intensity = 0.35
-        [tableRoot, ballRoot, guides, labelRoot, zoneRoot, lamp].forEach { s.rootNode.addChildNode($0) }
-        buildLights(); buildRoom(); setCloth(0x1f5d9e); buildCue()
+        [tableRoot, ballRoot, guides, labelRoot, zoneRoot, lamp, markerRoot].forEach { s.rootNode.addChildNode($0) }
+        NotificationCenter.default.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            self.setQuality(self.qualitySetting)
+        }
+        buildLights(); buildRoom(); setTable(TABLE, clothHex: 0x1f5d9e); buildCue()
         // bi ma
         let gs = SCNSphere(radius: R); gs.segmentCount = 32; gs.materials = [flat(.white, alpha: 0.28)]
         ghost.geometry = gs; ghost.castsShadow = false; ghost.renderingOrder = 4
@@ -110,7 +118,7 @@ final class PoolScene {
         key.shadowRadius = 3; key.shadowColor = UIColor(white: 0, alpha: 0.6); key.shadowMode = .deferred
         key.automaticallyAdjustsShadowProjection = false; key.orthographicScale = 1.7; key.zNear = 0.5; key.zFar = 6; key.shadowBias = 0.6
         let kn = SCNNode(); kn.light = key; kn.position = v3(0.3, 3.2, 0.5); kn.simdLook(at: .zero)
-        scene.rootNode.addChildNode(kn); lights.append((key, key.intensity))
+        scene.rootNode.addChildNode(kn); lights.append((key, key.intensity)); keyLight = key
         for x in [-0.85, 0, 0.85] {
             let p = SCNLight(); p.type = .omni; p.intensity = 95; p.color = UIColor(hex: 0xffe7c2)
             p.attenuationStartDistance = 0.3; p.attenuationEndDistance = 3.5; p.attenuationFalloffExponent = 2
@@ -152,9 +160,11 @@ final class PoolScene {
         return n
     }
 
-    func setCloth(_ hex: UInt32) {
-        guard hex != clothHex else { return }
-        clothHex = hex
+    /// Dựng lại bàn khi đổi hồ sơ bàn hoặc màu nỉ.
+    func setTable(_ spec: TableSpec, clothHex hex: UInt32) {
+        guard hex != clothHex || spec != builtTable else { return }
+        clothHex = hex; builtTable = spec
+        updateOrtho()
         tableRoot.childNodes.forEach { $0.removeFromParentNode() }
         let t = tableRoot
         let clothImg = Textures.cloth(hex)
@@ -163,10 +173,18 @@ final class PoolScene {
         clothMat.diffuse.wrapS = .repeat; clothMat.diffuse.wrapT = .repeat; clothMat.diffuse.contentsTransform = SCNMatrix4MakeScale(18, 9, 1)
         let cushMat = SCNMaterial(); cushMat.lightingModel = .lambert; cushMat.diffuse.contents = clothImg; cushMat.multiply.contents = UIColor(white: 0.88, alpha: 1)
         cushMat.diffuse.wrapS = .repeat; cushMat.diffuse.wrapT = .repeat; cushMat.diffuse.contentsTransform = SCNMatrix4MakeScale(30, 2, 1)
-        let woodMat = pbr(Textures.wood(0x4a2b17), rough: 0.6)
-        woodMat.multiply.contents = UIColor(hex: 0xb08a70)
-        woodMat.clearCoat.contents = 0.12; woodMat.clearCoatRoughness.contents = 0.45
-        let darkWood = pbr(Textures.wood(0x2e1d12), rough: 0.5)
+        let woodMat: SCNMaterial, darkWood: SCNMaterial
+        if spec.railWood {
+            woodMat = pbr(Textures.wood(spec.railHex), rough: 0.6)
+            woodMat.multiply.contents = UIColor(hex: 0xb08a70)
+            woodMat.clearCoat.contents = 0.12; woodMat.clearCoatRoughness.contents = 0.45
+            darkWood = pbr(Textures.wood(0x2e1d12), rough: 0.5)
+        } else {
+            // khung laminate / sơn mờ (Predator, Rasson, Diamond…)
+            woodMat = pbr(UIColor(hex: spec.railHex), rough: 0.62)
+            woodMat.clearCoat.contents = 0.05
+            darkWood = pbr(UIColor(hex: spec.railHex).withAlphaComponent(1), rough: 0.7)
+        }
         let hole = SCNMaterial(); hole.lightingModel = .constant; hole.diffuse.contents = UIColor(hex: 0x050506); hole.isDoubleSided = true
 
         let HLc = TL / 2, HWc = TW / 2
@@ -367,6 +385,52 @@ final class PoolScene {
         }
         guard !idx.isEmpty else { return nil }
         return SCNGeometry(sources: [SCNGeometrySource(vertices: verts)], elements: [SCNGeometryElement(indices: idx, primitiveType: .triangles)])
+    }
+
+    /// Đánh dấu dán trên nỉ (bài JSON): vòng vị trí bi, điểm trên đường nút.
+    func setMarkers(_ ms: [StageMarker]) {
+        markerRoot.childNodes.forEach { $0.removeFromParentNode() }
+        for m in ms {
+            switch m {
+            case .ballSpot(let p):
+                let n = SCNNode(geometry: SCNTube(innerRadius: R * 1.08, outerRadius: R * 1.22, height: 0.0004))
+                n.geometry?.materials = [flat(.white, alpha: 0.55)]; n.position = v3(p.x, 0.0011, p.z)
+                n.castsShadow = false; n.renderingOrder = 3; markerRoot.addChildNode(n)
+            case .railPoint(let p):
+                let n = SCNNode(geometry: SCNCylinder(radius: 0.014, height: 0.001))
+                n.geometry?.materials = [flat(UIColor(hex: 0xff9f1c), alpha: 0.95)]; n.position = v3(p.x, WOOD_TOP + 0.003, p.z)
+                n.castsShadow = false; n.renderingOrder = 6; markerRoot.addChildNode(n)
+            }
+        }
+    }
+
+    /// Mức chất lượng: 0 tự động (theo RAM máy, hạ khi máy nóng) · 1 thấp · 2 trung bình · 3 cao.
+    func setQuality(_ q: Int) {
+        qualitySetting = q
+        var lv = q
+        if q == 0 {
+            let gb = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
+            lv = gb >= 5.5 ? 3 : (gb >= 3.5 ? 2 : 1)
+        }
+        switch ProcessInfo.processInfo.thermalState {
+        case .serious: lv = max(1, lv - 1)
+        case .critical: lv = 1
+        default: break
+        }
+        qualityLevel = lv
+        if let c = camNode.camera {
+            c.screenSpaceAmbientOcclusionIntensity = lv >= 3 ? 0.5 : 0
+            c.wantsHDR = lv >= 2
+            c.bloomIntensity = lv >= 3 ? 0.12 : 0
+            c.vignettingIntensity = lv >= 2 ? 0.35 : 0
+        }
+        orthoNode.camera?.wantsHDR = lv >= 2
+        if let k = keyLight {
+            let sz: CGFloat = lv >= 3 ? 2048 : (lv == 2 ? 1024 : 512)
+            k.shadowMapSize = CGSize(width: sz, height: sz)
+            k.shadowSampleCount = lv >= 3 ? 8 : (lv == 2 ? 4 : 1)
+        }
+        view?.antialiasingMode = lv >= 3 ? .multisampling4X : (lv == 2 ? .multisampling2X : .none)
     }
 
     func setZones(_ zones: [Zone]) {

@@ -13,8 +13,9 @@ struct HUDView: View {
                     .background(Capsule().fill(Color(hex: 0xff9f1c, alpha: 0.9))).foregroundColor(.black)
             }
             HStack(alignment: .top) {
-                if g.settings.telemetry { TelemetryView(t: g.telemetry) }
+                if g.settings.telemetry && !g.settings.realistic { TelemetryView(t: g.telemetry) }
                 Spacer()
+                if let fb = g.feedback { FeedbackPanel(g: g, fb: fb).transition(.move(edge: .trailing).combined(with: .opacity)) }
             }
             Spacer()
             if let t = g.toast {
@@ -27,6 +28,7 @@ struct HUDView: View {
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
         .animation(.easeOut(duration: 0.2), value: g.toast)
+        .animation(.easeOut(duration: 0.25), value: g.feedback)
     }
 
     private var topBar: some View {
@@ -41,10 +43,14 @@ struct HUDView: View {
             if g.mode == .drill, let d = g.drill {
                 IconButton(system: "function") { g.card = .drill(d, inGame: true) }
                 IconButton(system: "lightbulb", on: g.hintOn) { g.toggleHint() }
-                if g.hasDemo { IconButton(system: "play.fill") { g.playDemo() } }
+                if g.hasDemo && !g.settings.realistic { IconButton(system: "play.fill") { g.playDemo() } }
             }
             if g.ballInHand { IconButton(system: "hand.raised", on: g.phase == .placing) { g.toggleHand() } }
-            IconButton(system: "eye", badge: ["Tắt", "1", "Đủ"][g.settings.guide]) { g.cycleGuide() }
+            if g.lastShot != nil { IconButton(system: "gobackward") { g.replay() }.disabled(!g.canReplay) }
+            IconButton(system: "scope", on: g.settings.realistic) { g.toggleRealistic() }
+            if !g.settings.realistic {
+                IconButton(system: "eye", badge: ["Tắt", "1", "Đủ"][g.settings.guide]) { g.cycleGuide() }
+            }
             IconButton(system: "tortoise", on: g.slow) { g.slow.toggle(); g.showToast(g.slow ? "Phát chậm ×5" : "Tốc độ thường") }
             IconButton(system: nil, text: g.settings.view3D ? "3D" : "2D") { g.toggleView() }
             IconButton(system: "arrow.counterclockwise") { g.reset() }
@@ -66,7 +72,9 @@ struct HUDView: View {
     // gọn, sát đáy màn hình để không che bi cái
     private var centerCluster: some View {
         VStack(spacing: 4) {
-            Text(g.aimText).font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundColor(.white.opacity(0.8))
+            if !g.settings.realistic {
+                Text(g.aimText).font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundColor(.white.opacity(0.8))
+            }
             HStack(spacing: 8) {
                 Button { g.toggleLock() } label: {
                     Label(g.locked ? "Đã khoá" : "Khoá cơ", systemImage: g.locked ? "lock.fill" : "lock.open")
@@ -89,7 +97,9 @@ struct HUDView: View {
 
     private var powerText: String {
         guard let p = g.shownPower ?? (g.settings.swipePower ? nil : g.lastPower) else { return "Lực —" }
-        return "Lực \(Int((p * 100).rounded()))% · \(vn(Game.powerToSpeed(p))) m/s"
+        let v = Game.powerToSpeed(p)
+        if g.settings.realistic && g.phase != .rolling && g.feedback == nil { return "Lực —" }
+        return "\(vn(v)) m/s · mức \(vn(SpeedScale.level(speed: v)))/7"
     }
 
     private var bottom: some View {

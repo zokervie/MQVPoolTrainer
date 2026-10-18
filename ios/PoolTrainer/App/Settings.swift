@@ -16,12 +16,27 @@ struct Settings: Codable, Equatable {
     var sound = true
     var haptics = true
     var telemetry = false       // bảng thông số bi cái (tốc độ, xoáy, trượt/lăn)
+    var tableId = "std"         // hồ sơ bàn (TableSpec.presets hoặc "custom")
+    var customTable: TableSpec? = nil
+    var realistic = false       // luyện thật: không đường ngắm, không số độ, không gợi ý hệ thống
+    var feedback = true         // bảng phân tích sau mỗi cú
+    var strokeErrors = false    // vuốt lệch / ngắt cơ ảnh hưởng thật tới cú đánh
+    var ghostTrail = true       // hiện mờ đường đi của cú trước để so sánh
+    var quality = 0             // 0 tự động · 1 thấp · 2 trung bình · 3 cao
 
     static let clothColors: [(id: String, name: String, hex: UInt32)] = [
         ("blue", "Xanh giải đấu", 0x1f5d9e), ("green", "Xanh lá", 0x1d6e45), ("teal", "Xanh ngọc", 0x156b70),
         ("red", "Đỏ rượu", 0x8e2430), ("grey", "Xám", 0x5d6670),
+        ("tournament", "Xanh Tournament (giải đấu)", 0x1662b3), ("electric", "Xanh điện (Electric blue)", 0x0d74d1),
     ]
     var clothHex: UInt32 { Settings.clothColors.first { $0.id == cloth }?.hex ?? 0x1f5d9e }
+    /// Hồ sơ bàn đang chọn.
+    var table: TableSpec {
+        if tableId == "custom", let c = customTable { return c }
+        return TableSpec.preset(tableId) ?? .standard
+    }
+    /// Hỗ trợ ngắm thực tế đang bật (chế độ luyện thật tắt hết).
+    var effectiveGuide: Int { realistic ? 0 : guide }
 
     init() {}
     // giải mã khoan dung: thiếu khoá (bản cũ) thì lấy mặc định
@@ -40,6 +55,13 @@ struct Settings: Codable, Equatable {
         sound = (try? c.decode(Bool.self, forKey: .sound)) ?? d.sound
         haptics = (try? c.decode(Bool.self, forKey: .haptics)) ?? d.haptics
         telemetry = (try? c.decode(Bool.self, forKey: .telemetry)) ?? d.telemetry
+        tableId = (try? c.decode(String.self, forKey: .tableId)) ?? d.tableId
+        customTable = try? c.decode(TableSpec.self, forKey: .customTable)
+        realistic = (try? c.decode(Bool.self, forKey: .realistic)) ?? d.realistic
+        feedback = (try? c.decode(Bool.self, forKey: .feedback)) ?? d.feedback
+        strokeErrors = (try? c.decode(Bool.self, forKey: .strokeErrors)) ?? d.strokeErrors
+        ghostTrail = (try? c.decode(Bool.self, forKey: .ghostTrail)) ?? d.ghostTrail
+        quality = (try? c.decode(Int.self, forKey: .quality)) ?? d.quality
     }
 }
 
@@ -75,7 +97,3 @@ enum BallColors {
     static func hex(_ id: Int) -> UInt32 { id == 0 ? ivory : solid[id > 8 ? id - 8 : id]! }
 }
 
-/// Định dạng số kiểu Việt Nam (dấu phẩy thập phân).
-func vn(_ v: Double, _ digits: Int = 1) -> String {
-    String(format: "%.\(digits)f", v).replacingOccurrences(of: ".", with: ",")
-}

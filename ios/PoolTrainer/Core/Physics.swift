@@ -20,8 +20,9 @@ struct PhysParams {
 var PHYS = PhysParams()
 
 private let I = 0.4 * R * R                    // mômen quán tính / khối lượng (m = 1)
-private let SIN_T = (CUSHION_H - R) / R
-private let COS_T = (1 - SIN_T * SIN_T).squareRoot()
+// điểm chạm băng cao hơn tâm bi: sinθ = (h − R)/R (đổi theo chiều cao mũi băng của hồ sơ bàn)
+private var SIN_T: Double { (CUSHION_H - R) / R }
+private var COS_T: Double { (1 - SIN_T * SIN_T).squareRoot() }
 
 struct V3: Equatable {
     var x: Double, y: Double, z: Double

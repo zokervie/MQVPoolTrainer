@@ -46,6 +46,7 @@ struct Stage {
     var ballInHand = false
     var rack: String? = nil
     var place: (cut: Double, dist: Double, side: Double)? = nil
+    var markers: [StageMarker] = []
 }
 
 enum FormulaBlock {
@@ -55,14 +56,15 @@ enum FormulaBlock {
 }
 
 enum Category: String, CaseIterable, Identifiable {
-    case aim, cue, sys, game
+    case aim, cue, sys, game, custom
     var id: String { rawValue }
-    var title: String { ["aim": "Ngắm bi & góc cắt", "cue": "Điều bi cái", "sys": "Hệ thống nút số", "game": "Vào trận"][rawValue]! }
+    var title: String { ["aim": "Ngắm bi & góc cắt", "cue": "Điều bi cái", "sys": "Hệ thống nút số", "game": "Vào trận", "custom": "Bài tự soạn (JSON)"][rawValue]! }
     var desc: String {
         ["aim": "Bi ma, độ chồng bi, góc cắt, bi sát băng", "cue": "Dừng, kéo, theo, quy tắc 90°/30°, lực, chạy vị trí",
-         "sys": "Gương, chia đôi, bank, phản chiếu góc, Corner-5", "game": "Phá bi, dọn bàn theo mẫu"][rawValue]!
+         "sys": "Gương, chia đôi, bank, phản chiếu góc, Corner-5", "game": "Phá bi, dọn bàn theo mẫu",
+         "custom": "Bài tập dạng JSON theo toạ độ kim cương – nhập từ Tệp, chia sẻ qua AirDrop"][rawValue]!
     }
-    var icon: String { ["aim": "scope", "cue": "circle.circle", "sys": "diamond", "game": "trophy"][rawValue]! }
+    var icon: String { ["aim": "scope", "cue": "circle.circle", "sys": "diamond", "game": "trophy", "custom": "doc.text"][rawValue]! }
 }
 
 struct Drill: Identifiable {
@@ -78,6 +80,9 @@ struct Drill: Identifiable {
     var labels: LabelKind? = nil
     var stages: [Stage] = []
     var generate: ((UInt32) -> Stage)? = nil
+    var repeats = 1                  // số lần lặp một chặng (bài JSON: so_lan)
+    var jitter = 0.0                 // lệch ngẫu nhiên vị trí bi (đơn vị kim cương)
+    var source: JDrill? = nil        // JSON gốc (bài tự soạn)
 
     var stageCount: Int { generate != nil ? 1 : stages.count }
 }
@@ -376,17 +381,46 @@ let DRILLS: [Drill] = [
                          hint: .ghost(ball: 1, pocket: nil), demo: nil, ballInHand: true)]),
 ]
 
-func drillById(_ id: String) -> Drill? { DRILLS.first { $0.id == id } }
+func drillById(_ id: String) -> Drill? { DRILLS.first { $0.id == id } ?? DrillLibrary.custom.first { $0.id == id } }
 
 /// Dựng chặng: đủ toạ độ (xếp bi, đặt bi cái cho bài bank, sinh ngẫu nhiên).
 func buildStage(_ drill: Drill, _ idx: Int, seed: UInt32 = UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970 * 1000))) -> Stage {
-    var st = drill.generate?(seed) ?? drill.stages[idx]
+    var st = drill.generate?(seed) ?? adaptToTable(drill.stages[idx])
     if let rk = st.rack { st.balls = rackBalls(rk) }
+    if drill.jitter > 0 {   // lệch ngẫu nhiên (bài JSON: lech_ngau_nhien, đơn vị kim cương)
+        var r = LCG(seed)
+        func jit(_ p: P2) -> P2 {
+            let q = P2(p.x + (r.next() * 2 - 1) * drill.jitter * DIAMOND, p.z + (r.next() * 2 - 1) * drill.jitter * TW / 4)
+            return P2(max(-TL / 2 + R + 0.003, min(TL / 2 - R - 0.003, q.x)), max(-TW / 2 + R + 0.003, min(TW / 2 - R - 0.003, q.z)))
+        }
+        st.cue = st.cue.map(jit)
+        st.balls = st.balls.map { BallSpec(id: $0.id, p: jit($0.p)) }
+    }
     if st.cue == nil, let pl = st.place, case .bank(let bid, let rail, let pocket) = st.hint,
        let ob = st.balls.first(where: { $0.id == bid }) {
         let img = mirrorPoint(pocketAimPoint(pocketById(pocket)!), rail)
         st.cue = placeForCut(ob.p, img, pl.cut, pl.dist, pl.side)
     }
+    return st
+}
+
+/// Bài tập được dựng trên bàn chuẩn 9 ft (2,54 × 1,27 m). Với bàn khác: quy đổi theo đơn vị kim cương,
+/// riêng bi/vùng sát băng giữ nguyên khe hở tới băng (bi dính băng vẫn dính băng).
+private let STD_L = 2.54, STD_W = 1.27
+func adaptPoint(_ p: P2) -> P2 {
+    func axis(_ v: Double, _ halfOld: Double, _ halfNew: Double) -> Double {
+        let gap = halfOld - abs(v)
+        if gap < R + 0.012 { return (v < 0 ? -1 : 1) * (halfNew - gap) }
+        return v * halfNew / halfOld
+    }
+    return P2(axis(p.x, STD_L / 2, TL / 2), axis(p.z, STD_W / 2, TW / 2))
+}
+func adaptToTable(_ st0: Stage) -> Stage {
+    if abs(TL - STD_L) < 1e-12 && abs(TW - STD_W) < 1e-12 { return st0 }
+    var st = st0
+    st.cue = st.cue.map(adaptPoint)
+    st.balls = st.balls.map { BallSpec(id: $0.id, p: adaptPoint($0.p)) }
+    if let z = st.goal.cueZone { st.goal.cueZone = Zone(c: adaptPoint(z.c), r: z.r * min(1, TL / STD_L)) }
     return st
 }
 

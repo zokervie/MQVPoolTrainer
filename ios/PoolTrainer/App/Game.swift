@@ -4,8 +4,30 @@ import QuartzCore
 
 // Điều phối: vòng lặp game, luồng bài tập, luật chơi tự do, dự đoán đường đi (giống src/main.js).
 
-enum Phase { case menu, aim, placing, rolling, result, demo }
-enum GameMode { case free8, free9, drill }
+enum Phase { case menu, aim, placing, rolling, result, demo, replay }
+enum GameMode { case free8, free9, drill, challengePower, challengeAim }
+
+/// Một cú đã đánh: đủ dữ liệu để phân tích và phát lại y hệt.
+struct ShotRecord {
+    var before: [Ball]
+    var params: ShotParams
+    var stroke: StrokeInfo?
+    var idealDir: Double?
+    var targetBall: Int?
+    var targetPoint: P2?
+    var predictedRail: P2?
+    var zone: Zone?
+}
+
+/// Trạng thái thử thách (ổn định lực / kiểm tra ngắm).
+struct Challenge {
+    var level = 3                 // ổn định lực: mức cần đạt
+    var total = 10
+    var speeds: [Double] = []     // ổn định lực
+    var errors: [Double] = []     // kiểm tra ngắm: sai số góc (độ, + = lệch trái)
+    var hits = 0
+    var seed: UInt32 = 1
+}
 
 struct Toast: Equatable { var msg: String; var kind: Kind; var id = UUID()
     enum Kind { case info, ok, bad }
@@ -15,7 +37,7 @@ struct Toast: Equatable { var msg: String; var kind: Kind; var id = UUID()
 enum Card: Identifiable {
     case drill(Drill, inGame: Bool)
     case finished(title: String, lead: String, stats: String?, again: String)
-    case settings, help, sources
+    case settings, help, sources, tables, tableEditor
     var id: String {
         switch self {
         case .drill(let d, let g): return "d-\(d.id)-\(g)"
@@ -23,6 +45,8 @@ enum Card: Identifiable {
         case .settings: return "settings"
         case .help: return "help"
         case .sources: return "sources"
+        case .tables: return "tables"
+        case .tableEditor: return "tableEditor"
         }
     }
 }
@@ -49,6 +73,16 @@ final class Game: NSObject, ObservableObject {
     @Published var tick = 0                 // tăng mỗi khi danh sách bi đổi (dải bi)
     @Published var telemetry = Telemetry()
     @Published var slow = false
+    @Published var feedback: ShotFeedback? = nil      // bảng số liệu sau cú đánh
+    @Published var feedbackPending = false            // đang chờ người chơi bấm "Tiếp" để sang chặng/lần sau
+    @Published var challenge: Challenge? = nil
+    @Published var attempt = 0                        // lần thứ mấy (bài lặp nhiều lần)
+    @Published var attemptOK = 0
+    private(set) var lastShot: ShotRecord? = nil
+    private var postShot: [Ball] = []
+    private var trailNow: [Int: [P2]] = [:], trailPrev: [Int: [P2]] = [:]
+    private var pendingAdvance: (() -> Void)? = nil
+    var pendingStroke: StrokeInfo? = nil
 
     // ngắm
     @Published var dir = 0.0 { didSet { if dir != oldValue { previewDirty = true } } }
@@ -117,6 +151,12 @@ final class Game: NSObject, ObservableObject {
                 case "guide": self.settings.guide = Int(parts[1]) ?? 1
                 case "light": self.scene.setLightScale(Double(parts[1]) ?? 1, env: parts.count > 2 ? Double(parts[2]) : nil)
                 case "hdr": self.scene.setHDR(parts[1] == "1")
+                case "table": if let t = TableSpec.preset(parts[1]) { self.selectTable(t) }
+                case "realistic": self.settings.realistic = parts.count > 1 ? parts[1] == "1" : true
+                case "challenge": self.startChallenge(parts[1] == "aim" ? .challengeAim : .challengePower, level: 3)
+                case "tables": self.card = .tables
+                case "next": self.continueAfterFeedback()
+                case "replay": self.replay()
                 case "spin": self.spinA = Double(parts[1]) ?? 0; self.spinB = Double(parts[2]) ?? 0
                 default: break
                 }
@@ -128,7 +168,14 @@ final class Game: NSObject, ObservableObject {
     // MARK: - cài đặt
     private func applySettings(old: Settings?) {
         Store.save("mqv-settings", settings)
-        scene.setCloth(settings.clothHex)
+        let tableChanged = old == nil || old!.table != settings.table
+        if tableChanged {
+            applyTable(settings.table)
+            scene.syncBalls(sim.balls)
+        }
+        scene.setTable(settings.table, clothHex: settings.clothHex)
+        if tableChanged && old != nil { reloadAfterTableChange() }
+        scene.setQuality(settings.quality)
         if old?.view3D != settings.view3D { scene.setMode3D(settings.view3D); scene.snapCamera(cueBall) }
         SoundFX.shared.enabled = settings.sound
         SoundFX.shared.haptics = settings.haptics
@@ -141,6 +188,31 @@ final class Game: NSObject, ObservableObject {
         showToast(["Tắt hỗ trợ ngắm", "Hỗ trợ ngắm: cơ bản (tới điểm chạm)", "Hỗ trợ ngắm: đầy đủ (dự đoán vật lý)"][settings.guide])
     }
     func toggleView() { settings.view3D.toggle() }
+    func toggleRealistic() {
+        settings.realistic.toggle()
+        showToast(settings.realistic ? "Luyện thật: không đường ngắm, không số độ, chỉ số liệu sau cú" : "Tắt chế độ luyện thật")
+    }
+
+    /// Đổi bàn khi đang tập: dựng lại thế bi trên bàn mới.
+    private func reloadAfterTableChange() {
+        switch mode {
+        case .drill: loadStage()
+        case .free8, .free9: if let f = free { startFree(f.kind) }
+        case .challengePower, .challengeAim: nextChallengeShot()
+        case nil: setupBalls(fromDiamond(2, 2), rackBalls("9"))
+        }
+        refreshLabels()
+    }
+
+    /// Chọn hồ sơ bàn (màu nỉ theo hồ sơ).
+    func selectTable(_ t: TableSpec) {
+        var s = settings
+        if t.id == "custom" { s.customTable = t }
+        s.tableId = t.id
+        s.cloth = t.clothColor
+        settings = s
+        showToast("Bàn: \(t.brand) \(t.model)")
+    }
     func toggleHint() { hintOn.toggle(); previewDirty = true; showToast(hintOn ? "Hiện đường hệ thống" : "Ẩn đường hệ thống") }
 
     // MARK: - dựng bàn
@@ -242,7 +314,8 @@ final class Game: NSObject, ObservableObject {
     func drillStat(_ id: String) -> DrillStat { stats[id] ?? DrillStat() }
 
     func startDrill(_ d: Drill, stage idx: Int = 0) {
-        mode = .drill; drill = d; stageIdx = idx; free = nil
+        mode = .drill; drill = d; stageIdx = idx; free = nil; challenge = nil
+        attempt = 0; attemptOK = 0; trailPrev = [:]; trailNow = [:]; lastShot = nil
         loadStage()
         showGame(d.title)
     }
@@ -254,6 +327,8 @@ final class Game: NSObject, ObservableObject {
         setupBalls(st.cue, st.balls)
         ballInHand = st.ballInHand
         scene.setZones(st.goal.cueZone.map { [$0] } ?? [])
+        scene.setMarkers(st.markers)
+        feedback = nil; feedbackPending = false; pendingAdvance = nil
         spinA = 0; spinB = 0; elev = 0
         aimAtDefault()
         scene.cam.yaw = dir
@@ -302,35 +377,72 @@ final class Game: NSObject, ObservableObject {
         resultToken += 1
         let token = resultToken
         let last = stageIdx >= d.stageCount - 1
-        DispatchQueue.main.asyncAfter(deadline: .now() + (res.ok ? 1.3 : 1.7)) { [weak self] in
-            guard let self, self.phase == .result, self.resultToken == token else { return }
-            if res.ok && !last {
+        let advance: () -> Void = { [weak self] in
+            guard let self, self.resultToken == token else { return }
+            if d.repeats > 1 {
+                // bài lặp nhiều lần (so_lan): đếm số lần đạt
+                self.attempt += 1; if res.ok { self.attemptOK += 1 }
+                if self.attempt >= d.repeats {
+                    self.card = .finished(title: "Xong \(d.repeats) lần!", lead: "\(d.title): đạt \(self.attemptOK)/\(d.repeats) (\(Int((Double(self.attemptOK) / Double(d.repeats) * 100).rounded()))%).",
+                                          stats: "Tổng: \(s.ok)/\(s.att) · chuỗi tốt nhất \(s.best)", again: "Tập lại")
+                    self.attempt = 0; self.attemptOK = 0
+                }
+                self.loadStage()
+            } else if res.ok && !last {
                 self.stageIdx += 1; self.loadStage(); self.showToast("Chặng \(self.stageIdx + 1)/\(d.stageCount)")
             } else if res.ok && last && d.stageCount > 1 {
                 self.card = .finished(title: "Hoàn thành bài!", lead: "\(d.title) – cả \(d.stageCount) chặng.",
                                       stats: "Tổng: \(s.ok)/\(s.att) lần thành công · chuỗi tốt nhất \(s.best)", again: "Tập lại từ đầu")
             } else { self.loadStage() }
         }
+        if settings.feedback {
+            // chờ người chơi xem số liệu / phát lại rồi bấm "Tiếp"
+            pendingAdvance = advance; feedbackPending = true
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + (res.ok ? 1.3 : 1.7)) { [weak self] in
+                guard let self, self.phase == .result else { return }
+                advance()
+            }
+        }
+    }
+
+    /// Nút "Tiếp" trên bảng phản hồi.
+    func continueAfterFeedback() {
+        feedbackPending = false
+        if let a = pendingAdvance { pendingAdvance = nil; a() } else { feedback = nil; markPreviewDirty() }
     }
 
     /// Nút trên phiếu kết thúc: tập lại.
     func again() {
-        if mode == .drill { stageIdx = 0; loadStage() } else if let f = free { startFree(f.kind) }
+        if mode == .drill { stageIdx = 0; attempt = 0; attemptOK = 0; loadStage() }
+        else if let f = free { startFree(f.kind) }
+        else if mode == .challengePower || mode == .challengeAim { startChallenge(mode!, level: challenge?.level ?? 3) }
     }
 
     func reset() {
         if mode == .drill { loadStage() } else if let f = free { startFree(f.kind) }
+        else if mode == .challengePower || mode == .challengeAim { nextChallengeShot() }
     }
 
     // MARK: - đánh
     static func powerToSpeed(_ p: Double) -> Double { 0.25 + 8.75 * p * p }
 
-    func shoot(_ power0: Double) {
+    func shoot(_ power0: Double, stroke: StrokeInfo? = nil) {
         guard phase == .aim || phase == .placing, let cb = cueBall, !cb.pocketed else { return }
         let power = min(1, max(0.02, power0))
         lastPower = power
+        // lỗi cú vuốt thật (không ngẫu nhiên): vuốt lệch ngang → lệch hướng cơ + xoáy ngang ngoài ý muốn
+        var d = dir, a = spinA
+        if settings.strokeErrors, let st = stroke {
+            d += st.lateralRatio * 0.05
+            a = max(-0.6, min(0.6, a + st.lateralRatio * 0.3))
+        }
+        let params = ShotParams(dir: d, speed: Game.powerToSpeed(power), a: a, b: spinB, elev: elev * .pi / 180, squirt: settings.squirt ? 0.02 : 0)
+        lastShot = makeRecord(params, stroke: stroke)
+        trailPrev = trailNow; trailNow = [:]
+        feedback = nil; feedbackPending = false
         sim.events = []
-        sim.strike(0, dir: dir, speed: Game.powerToSpeed(power), a: spinA, b: spinB, elev: elev * .pi / 180, squirt: settings.squirt ? 0.02 : 0)
+        sim.strike(0, dir: params.dir, speed: params.speed, a: params.a, b: params.b, elev: params.elev, squirt: params.squirt)
         SoundFX.shared.cue(power)
         phase = .rolling
         ballInHand = false
@@ -343,7 +455,170 @@ final class Game: NSObject, ObservableObject {
     private func onShotEnd() {
         let events = sim.events
         if phase == .demo { endDemo(); return }
-        if mode == .drill { drillAfterShot(events) } else { freeAfterShot(events) }
+        if phase == .replay { finishReplay(); return }
+        postShot = sim.balls.map { $0.clone() }
+        if let rec = lastShot, settings.feedback || mode == .challengeAim || mode == .challengePower { analyze(rec) }
+        switch mode {
+        case .drill: drillAfterShot(events)
+        case .challengePower, .challengeAim: challengeAfterShot(events)
+        default: freeAfterShot(events)
+        }
+    }
+
+    // MARK: - phân tích, phát lại, bóng ma cú trước
+    private func makeRecord(_ p: ShotParams, stroke: StrokeInfo?) -> ShotRecord {
+        var rec = ShotRecord(before: sim.balls.map { $0.clone() }, params: p, stroke: stroke)
+        if mode == .challengeAim, let t = aimTarget { rec.idealDir = t.dir; rec.targetBall = 1; rec.targetPoint = t.point; return rec }
+        if let h = currentHint() {
+            var isDir = false
+            if let hh = stage?.hint, case .dir = hh { isDir = true }
+            if !isDir { rec.idealDir = h.dir }
+            if let ob = h.lines.first(where: { $0.2 == .ob }) { rec.targetPoint = ob.1; rec.targetBall = stage?.hint.ball ?? currentHintBall() }
+            rec.predictedRail = h.marks.first(where: { $0.kind == .contact })?.p
+        }
+        rec.zone = stage?.goal.cueZone
+        return rec
+    }
+
+    private func currentHintBall() -> Int? {
+        guard let st = stage else { return nil }
+        if let clear = st.goal.clear { return clear.first { id in sim.ball(id).map { !$0.pocketed } ?? false } }
+        return st.hint.ball
+    }
+
+    private func analyze(_ rec: ShotRecord) {
+        let rb = rec
+        DispatchQueue.global(qos: .userInitiated).async {
+            var fb = analyzeShot(before: rb.before, params: rb.params, idealDir: rb.idealDir, targetBall: rb.targetBall,
+                                 targetPoint: rb.targetPoint, predictedRail: rb.predictedRail, zone: rb.zone)
+            fb.stroke = rb.stroke
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.lastShot?.params == rb.params else { return }
+                if self.settings.feedback { self.feedback = fb; self.showTrails() }
+                if self.mode == .challengeAim, var c = self.challenge, let e = fb.aimErrorDeg, c.errors.count < c.total {
+                    c.errors.append(e); self.challenge = c; self.checkChallengeDone()
+                }
+            }
+        }
+    }
+
+    /// Đường đi của cú vừa đánh (sáng) và cú trước (mờ) để so sánh.
+    private func showTrails() {
+        guard settings.ghostTrail else { return }
+        var paths: [GuidePath] = []
+        for (id, pts) in trailPrev where pts.count > 1 {
+            paths.append(GuidePath(pts: pts, color: UIColor(white: 0.75, alpha: 1), width: 0.004, opacity: 0.45, dash: (0.015, 0.012)))
+            _ = id
+        }
+        for (id, pts) in trailNow where pts.count > 1 {
+            paths.append(GuidePath(pts: pts, color: id == 0 ? .white : UIColor(hex: 0xffd166), width: 0.005, opacity: 0.85))
+        }
+        scene.setPaths(paths); scene.setGhost(nil)
+    }
+
+    private var replayRestore: [Ball] = []
+    private var phaseBeforeReplay: Phase = .aim
+    var canReplay: Bool { lastShot != nil && (phase == .aim || phase == .placing || phase == .result) }
+
+    /// Phát lại cú vừa đánh (chậm), xong trả bàn về trạng thái hiện tại.
+    func replay() {
+        guard let rec = lastShot, canReplay else { return }
+        replayRestore = sim.balls.map { $0.clone() }
+        phaseBeforeReplay = phase
+        sim = Simulation(rec.before.map { $0.clone() })
+        scene.syncBalls(sim.balls)
+        sim.strike(0, dir: rec.params.dir, speed: rec.params.speed, a: rec.params.a, b: rec.params.b, elev: rec.params.elev, squirt: rec.params.squirt)
+        scene.setPaths([]); scene.setGhost(nil)
+        phase = .replay
+        SoundFX.shared.cue(min(1, rec.params.speed / 8))
+    }
+    private func finishReplay() {
+        sim = Simulation(replayRestore)
+        scene.syncBalls(sim.balls)
+        scene.updateBalls(sim.balls, dt: 0)
+        phase = phaseBeforeReplay
+        showTrails()
+        tick += 1
+    }
+
+    // MARK: - thử thách
+    private var aimTarget: (dir: Double, point: P2)? = nil
+
+    func startChallenge(_ m: GameMode, level: Int = 3) {
+        mode = m; drill = nil; stage = nil; free = nil
+        challenge = Challenge(level: level, seed: UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970)))
+        trailPrev = [:]; trailNow = [:]; lastShot = nil
+        scene.setZones([]); scene.setMarkers([])
+        showGame(m == .challengePower ? "Ổn định lực – mức \(level)/7" : "Kiểm tra ngắm")
+        nextChallengeShot()
+        showToast(m == .challengePower ? "Đánh 10 cú cùng mức \(level) (≈ \(vn(SpeedScale.speed(level: level))) m/s). Số liệu hiện sau mỗi cú."
+                                         : "10 cú cắt ngẫu nhiên, không có đường ngắm. Đo sai số góc và thiên lệch trái/phải.")
+    }
+
+    func nextChallengeShot() {
+        guard var c = challenge else { return }
+        feedback = nil; feedbackPending = false
+        if mode == .challengePower {
+            setupBalls(fromDiamond(1, 2), [])
+            dir = 0; aimTarget = nil
+        } else {
+            var r = LCG(c.seed &+ UInt32(c.errors.count * 7919))
+            let ids = [POCKET_IDS.TR, POCKET_IDS.TL, POCKET_IDS.BR, POCKET_IDS.BL]
+            var placed = false
+            for _ in 0..<100 {
+                let ob = fromDiamond(2 + r.next() * 4, 0.9 + r.next() * 2.2)
+                let pk = pocketById(ids[Int(r.next() * 4) % 4])!
+                let tgt = pocketAimPoint(pk)
+                let cue = placeForCut(ob, tgt, r.next() * 45, 0.4 + r.next() * 0.7, r.next() < 0.5 ? -1 : 1)
+                guard abs(cue.x) < TL / 2 - 0.08, abs(cue.z) < TW / 2 - 0.08 else { continue }
+                setupBalls(cue, [BallSpec(id: 1, p: ob)])
+                let g = ghostBall(ob, tgt)
+                aimTarget = (atan2(g.z - cue.z, g.x - cue.x), tgt)
+                // hướng xuất phát: thẳng vào tâm bi (người chơi tự ngắm)
+                dir = atan2(ob.z - cue.z, ob.x - cue.x)
+                placed = true; break
+            }
+            if !placed { setupBalls(fromDiamond(3, 2), [BallSpec(id: 1, p: fromDiamond(6, 3))]) }
+        }
+        c.seed = c.seed &+ 1
+        challenge = c
+        ballInHand = false
+        spinA = 0; spinB = 0; elev = 0
+        scene.cam.yaw = dir
+        enterAim()
+    }
+
+    private func challengeAfterShot(_ events: [SimEvent]) {
+        guard var c = challenge, let rec = lastShot else { return }
+        if mode == .challengePower {
+            c.speeds.append(rec.params.speed)
+            let lv = SpeedScale.level(speed: rec.params.speed)
+            showToast("Cú \(c.speeds.count)/\(c.total): \(vn(rec.params.speed, 2)) m/s – mức \(vn(lv))", abs(lv - Double(c.level)) < 0.35 ? .ok : .info)
+        } else if events.pottedIds.contains(1) { c.hits += 1 }
+        challenge = c
+        phase = .result
+        if mode == .challengePower { checkChallengeDone() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self, self.phase == .result, self.card == nil, let c = self.challenge else { return }
+            if (self.mode == .challengePower ? c.speeds.count : c.errors.count) < c.total { self.nextChallengeShot() }
+        }
+    }
+
+    private func checkChallengeDone() {
+        guard let c = challenge else { return }
+        if mode == .challengePower, c.speeds.count >= c.total {
+            let st = Stats1D(values: c.speeds), target = SpeedScale.speed(level: c.level)
+            card = .finished(title: "Ổn định lực – mức \(c.level)",
+                             lead: "Trung bình \(vn(st.mean, 2)) m/s (mục tiêu \(vn(target, 2))) · độ lệch chuẩn \(vn(st.sd, 2)) m/s (\(vn(st.sd / max(st.mean, 0.01) * 100))%).",
+                             stats: c.speeds.map { vn($0, 2) }.joined(separator: " · "), again: "Làm lại")
+        }
+        if mode == .challengeAim, c.errors.count >= c.total {
+            let st = Stats1D(values: c.errors)
+            let bias = st.mean
+            card = .finished(title: "Kiểm tra ngắm",
+                             lead: "Vào \(c.hits)/\(c.total) · sai số trung bình \(vn(st.meanAbs, 2))° · thiên lệch \(abs(bias) < 0.05 ? "không đáng kể" : (bias > 0 ? "sang phải" : "sang trái")) \(vn(abs(bias), 2))°.",
+                             stats: c.errors.map { ($0 >= 0 ? "+" : "") + vn($0, 2) + "°" }.joined(separator: " · "), again: "Làm lại")
+        }
     }
 
     // MARK: - cú mẫu
@@ -383,11 +658,11 @@ final class Game: NSObject, ObservableObject {
         var paths: [GuidePath] = []
         var ghost: P2? = nil
         let aiming = phase == .aim || phase == .placing
-        if settings.guide > 0, aiming, let cb = cueBall, !cb.pocketed {
+        if settings.effectiveGuide > 0, aiming, mode != .challengeAim, let cb = cueBall, !cb.pocketed {
             let s = sim.clone()
             s.events = []
             s.strike(0, dir: dir, speed: Game.powerToSpeed(lastPower), a: spinA, b: spinB, elev: elev * .pi / 180, squirt: settings.squirt ? 0.02 : 0)
-            let full = settings.guide == 2
+            let full = settings.effectiveGuide == 2
             var cbPts = [cb.pos], obPts: [P2] = []
             var hitId: Int? = nil, hitT = 0.0, cbEvents = 0, obEvents = 0, k = 0
             let scb = s.ball(0)!
@@ -434,10 +709,10 @@ final class Game: NSObject, ObservableObject {
             }
         }
         var info: String? = nil
-        if mode == .drill && hintOn && aiming, let h = currentHint() {
+        if mode == .drill && hintOn && !settings.realistic && aiming, let h = currentHint() {
             for (a, b, kind) in h.lines {
                 if kind == .sys { paths.append(GuidePath(pts: [a, b], color: UIColor(hex: 0xff9f1c), width: 0.007, opacity: 0.9, dash: (0.04, 0.025))) }
-                else if kind == .ob && settings.guide == 0 { paths.append(GuidePath(pts: [a, b], color: UIColor(hex: 0xffd166), width: 0.003, opacity: 0.5, dash: (0.02, 0.02))) }
+                else if kind == .ob && settings.effectiveGuide == 0 { paths.append(GuidePath(pts: [a, b], color: UIColor(hex: 0xffd166), width: 0.003, opacity: 0.5, dash: (0.02, 0.02))) }
             }
             for m in h.marks where m.kind != .ghost {
                 paths.append(GuidePath(pts: circlePts(m.p, m.kind == .image ? R : 0.012), color: UIColor(hex: 0xff9f1c), width: 0.003, opacity: 0.9))
@@ -445,6 +720,11 @@ final class Game: NSObject, ObservableObject {
             info = h.info
         }
         if sysInfo != info { sysInfo = info }
+        // sau cú đánh: thêm đường đi thực tế của cú vừa rồi và bóng ma cú trước
+        if feedback != nil && settings.ghostTrail {
+            for (_, pts) in trailPrev where pts.count > 1 { paths.append(GuidePath(pts: pts, color: UIColor(white: 0.75, alpha: 1), width: 0.004, opacity: 0.4, dash: (0.015, 0.012))) }
+            for (id, pts) in trailNow where pts.count > 1 { paths.append(GuidePath(pts: pts, color: id == 0 ? .white : UIColor(hex: 0xffd166), width: 0.004, opacity: 0.55)) }
+        }
         scene.setPaths(paths)
         scene.setGhost(ghost)
     }
@@ -462,8 +742,8 @@ final class Game: NSObject, ObservableObject {
         let dt = lastT == 0 ? 1.0 / 60 : min(0.05, t - lastT)
         lastT = t
         let s = sim
-        if phase == .rolling || phase == .demo {
-            let simDt = dt * (slow ? 0.2 : 1)
+        if phase == .rolling || phase == .demo || phase == .replay {
+            let simDt = dt * (slow ? 0.2 : (phase == .replay ? 0.4 : 1))
             let steps = min(400, Int((simDt / PHYS.dt).rounded()))
             let n0 = s.events.count
             for _ in 0..<steps { s.step() }
@@ -476,6 +756,10 @@ final class Game: NSObject, ObservableObject {
                 }
             } }
             scene.cam.overview = min(1, scene.cam.overview + dt * 1.5)
+            if phase == .rolling {   // lấy mẫu đường đi (bi cái + bi được chạm đầu tiên)
+                let ids = [0] + (s.events.firstCueHit.map { [$0.other] } ?? [])
+                for id in ids { if let b = s.ball(id), !b.pocketed { trailNow[id, default: []].append(b.pos) } }
+            }
             if settings.telemetry, let cb = s.ball(0) { updateTelemetry(cb, s) }
             if !s.moving { onShotEnd() }
         } else if phase == .aim || phase == .placing {
@@ -558,13 +842,20 @@ final class Game: NSObject, ObservableObject {
     var subtitle: String {
         if mode == .drill, let d = drill {
             let s = drillStat(d.id), n = d.stageCount
-            return (n > 1 ? "Chặng \(stageIdx + 1)/\(n) · " : "") + "Thành công \(s.ok)/\(s.att) · Chuỗi \(s.streak)"
+            let rep = d.repeats > 1 ? "Lần \(attempt + 1)/\(d.repeats) · đạt \(attemptOK) · " : ""
+            return rep + (n > 1 ? "Chặng \(stageIdx + 1)/\(n) · " : "") + "Thành công \(s.ok)/\(s.att) · Chuỗi \(s.streak)"
         }
-        return freeSummary
+        if let c = challenge {
+            if mode == .challengePower { return "Cú \(min(c.speeds.count + 1, c.total))/\(c.total) · mục tiêu \(vn(SpeedScale.speed(level: c.level))) m/s" }
+            return "Cú \(min(c.errors.count + 1, c.total))/\(c.total) · vào \(c.hits)"
+        }
+        return freeSummary + " · \(TABLE.brand) \(TABLE.model)" 
     }
 
     func openMenu() {
         phase = .menu; mode = nil; drill = nil; stage = nil; free = nil; card = nil
+        challenge = nil; feedback = nil; feedbackPending = false; pendingAdvance = nil; lastShot = nil
+        trailNow = [:]; trailPrev = [:]; scene.setMarkers([])
         scene.setZones([]); scene.setPaths([]); scene.setGhost(nil); sysInfo = nil
         setupBalls(fromDiamond(2, 2), rackBalls("9"))
         scene.cam.pitch = 0.5; scene.cam.dist = 2.2; scene.cam.overview = 0; scene.cam.yaw = 0

@@ -19,14 +19,19 @@ struct TableView: UIViewRepresentable {
         v.isJitteringEnabled = false
         g.scene.view = v
         g.scene.setMode3D(g.settings.view3D)
+        g.scene.setQuality(g.settings.quality)
         let c = context.coordinator
         c.view = v
         let pan = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan(_:)))
         pan.maximumNumberOfTouches = 1
         let pinch = UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:)))
         pan.delegate = c; pinch.delegate = c
+        let fine = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.finePan(_:)))
+        fine.minimumNumberOfTouches = 2; fine.maximumNumberOfTouches = 2
+        fine.delegate = c
         v.addGestureRecognizer(pan)
         v.addGestureRecognizer(pinch)
+        v.addGestureRecognizer(fine)
         let tap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tap(_:)))
         v.addGestureRecognizer(tap)
         return v
@@ -46,7 +51,17 @@ struct TableView: UIViewRepresentable {
 
         init(_ g: Game) { self.g = g }
 
-        func gestureRecognizer(_ a: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith b: UIGestureRecognizer) -> Bool { false }
+        // hai ngón: vừa phóng to/thu nhỏ vừa xoay tinh được
+        func gestureRecognizer(_ a: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith b: UIGestureRecognizer) -> Bool {
+            (a is UIPinchGestureRecognizer && b.numberOfTouches == 2) || (b is UIPinchGestureRecognizer && a.numberOfTouches == 2)
+        }
+
+        /// Ngắm tinh bằng hai ngón (≈ 1/10 độ nhạy thường).
+        @objc func finePan(_ r: UIPanGestureRecognizer) {
+            guard let v = view, canAim else { return }
+            let t = r.translation(in: v); r.setTranslation(.zero, in: v)
+            g.nudge(Double(t.x) * 0.0004)
+        }
 
         private var canAim: Bool { !g.locked && (g.phase == .aim || g.phase == .placing) }
 

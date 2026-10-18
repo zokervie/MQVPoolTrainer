@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct PoolTrainerApp: App {
     @StateObject private var g = Game()
+    init() { DrillLibrary.reload(bundleDir: Bundle.main.url(forResource: "Drills", withExtension: nil)) }
     var body: some Scene {
         WindowGroup {
             RootView(g: g)
@@ -30,6 +31,8 @@ struct RootView: View {
             case .settings: SettingsView(g: g)
             case .help: HelpView(g: g)
             case .sources: SourcesView(g: g)
+            case .tables: TablesView(g: g)
+            case .tableEditor: TableEditorView(g: g)
             }
         }
     }

@@ -131,6 +131,7 @@ struct PowerPad: View {
     @State private var maxPull: CGFloat = 0
     @State private var pullNow: CGFloat = 0
     @State private var samples: [(y: CGFloat, t: TimeInterval)] = []
+    @State private var stroke: [(x: CGFloat, y: CGFloat, t: TimeInterval)] = []   // toàn bộ mẫu pha đẩy
     @State private var fired = false
     let height: CGFloat = 150
 
@@ -168,9 +169,12 @@ struct PowerPad: View {
             .onChanged { v in
                 guard g.phase == .aim || g.phase == .placing else { return }
                 let now = v.time.timeIntervalSinceReferenceDate
-                if y0 == nil { y0 = v.startLocation.y; maxPull = 0; samples = []; fired = false }
+                if y0 == nil { y0 = v.startLocation.y; maxPull = 0; samples = []; stroke = []; fired = false }
                 guard !fired, let y0 else { return }
                 samples.append((v.location.y, now))
+                // pha đẩy: từ điểm lùi sâu nhất trở đi
+                if let last = stroke.last, v.location.y > last.y + 0.5 { stroke = [] }
+                stroke.append((v.location.x, v.location.y, now))
                 while samples.count > 2 && now - samples[0].t > 0.09 { samples.removeFirst() }
                 let pull = min(1, max(0, (v.location.y - y0) / (height * 0.65)))
                 maxPull = max(maxPull, pull); pullNow = pull
@@ -185,12 +189,40 @@ struct PowerPad: View {
                     if maxPull > 0.04 && vel > 120 { finish(speedToPower(vel)) }
                     else { g.pull = 0; g.shownPower = nil; if maxPull > 0.04 { g.showToast("Kéo xuống rồi đẩy lên dứt khoát để đánh") } }
                 }
-                y0 = nil; pullNow = 0; samples = []
+                y0 = nil; pullNow = 0; samples = []; stroke = []
             })
         .accessibilityLabel("Lực đánh: kéo xuống rồi đẩy lên")
     }
 
-    private func finish(_ p: Double) { g.pull = 0; pullNow = 0; g.shoot(p) }
+    private func finish(_ p: Double) {
+        g.pull = 0; pullNow = 0
+        let info = analyzeStroke()
+        // lực = tốc độ ngón TẠI vạch (hồi quy vài mẫu cuối), không phải tốc độ trung bình
+        let pAtLine = info.speed > 0 ? speedToPower(info.speed) : p
+        g.shoot(pAtLine, stroke: info.result)
+    }
+
+    /// Phân tích cú vuốt (StrokeAnalyzer của bộ đặc tả): hồi quy tuyến tính 5 mẫu cuối quanh vạch chạm.
+    private func analyzeStroke() -> (speed: CGFloat, result: StrokeInfo) {
+        let w = Array(stroke.suffix(5))
+        guard w.count >= 2 else { return (0, StrokeInfo()) }
+        func slope(_ ys: [Double]) -> Double {
+            let ts = w.map { $0.t }, n = Double(ts.count)
+            let mt = ts.reduce(0, +) / n, my = ys.reduce(0, +) / n
+            var num = 0.0, den = 0.0
+            for i in ts.indices { num += (ts[i] - mt) * (ys[i] - my); den += (ts[i] - mt) * (ts[i] - mt) }
+            return den > 0 ? num / den : 0
+        }
+        let fwd = slope(w.map { -Double($0.y) })          // đẩy lên = dương
+        let lat = slope(w.map { Double($0.x) })
+        var peak = fwd
+        if stroke.count >= 2 { for i in 1..<stroke.count {
+            let dt = stroke[i].t - stroke[i - 1].t
+            if dt > 0 { peak = max(peak, Double(stroke[i - 1].y - stroke[i].y) / dt) }
+        } }
+        let sp = max(0, fwd)
+        return (CGFloat(sp), StrokeInfo(lateralRatio: sp > 0 ? lat / sp : 0, followThrough: peak > 0 ? min(1, sp / peak) : 1))
+    }
 }
 
 /// Chế độ thanh lực + nút Đánh.
