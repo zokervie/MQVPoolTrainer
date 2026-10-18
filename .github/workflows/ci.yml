@@ -1,0 +1,80 @@
+# CI: test các Swift package và build app iOS (simulator) trên macOS.
+# Lỗi biên dịch/test được chuyển thành annotation để đọc qua GitHub API.
+name: CI
+
+on:
+  push:
+    branches: [ "main", "ci/**", "feature/**" ]
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: macos-15
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [ PoolPhysics, PoolInput, PoolDrills, PoolAudio ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16"
+      - name: Môi trường
+        run: |
+          echo "::notice title=env::$(xcodebuild -version | tr '\n' ' ') / $(swift --version 2>&1 | head -1)"
+      - name: swift test (${{ matrix.package }})
+        run: |
+          set -o pipefail
+          swift test --package-path "Packages/${{ matrix.package }}" 2>&1 | tee swift-test.log
+      - name: Annotate
+        if: always()
+        run: .github/scripts/annotate.sh swift-test.log "$GITHUB_WORKSPACE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-${{ matrix.package }}
+          path: swift-test.log
+          retention-days: 14
+
+  app:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16"
+      - name: XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build app (iOS Simulator)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project PoolTrainer.xcodeproj \
+            -scheme PoolTrainer \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            > app-build.log 2>&1 || true
+          tail -5 app-build.log
+          grep -q "BUILD SUCCEEDED" app-build.log
+      - name: Annotate
+        if: always()
+        run: .github/scripts/annotate.sh app-build.log "$GITHUB_WORKSPACE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-app
+          path: app-build.log
+          retention-days: 14
