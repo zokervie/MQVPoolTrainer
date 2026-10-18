@@ -11,9 +11,15 @@ public struct ImpactInfo: Equatable, Sendable {
     public var tangentialSlip: Double
 }
 
+/// Ngưỡng kỹ thuật chống Zeno (giả định, nhỏ hơn nhiều so với độ chính xác đo được):
+/// - Lại gần nhanh hơn `minApproachSpeed`: va chạm thường (có nảy).
+/// - Lại gần chậm hơn (tiếp xúc tựa nhau): chỉ xử lý khi lấn quá `penetration`; khi đó tách ra
+///   `separationGap` và triệt thành phần vận tốc lấn vào (không nảy, bảo toàn động lượng).
+/// Nhờ vậy độ chồng lấn bị chặn bởi `penetration` và số sự kiện tiếp xúc có giới hạn.
 public enum CollisionThresholds {
-    /// Tốc độ pháp tuyến (m/s) dưới ngưỡng này: va chạm không nảy (chống Zeno). Giả định kỹ thuật.
-    public static let plasticSpeed = 0.005
+    public static let minApproachSpeed = 1e-4   // m/s
+    public static let penetration = 1e-7        // m
+    public static let separationGap = 1e-5      // m
 }
 
 /// Va chạm bi–bi có ma sát bề mặt (tạo throw do cắt và do xoáy).
@@ -37,11 +43,15 @@ public enum BallBallCollision {
         let nHat = simd_normalize(n)
         let vRel = simd_dot(a.velocity - b.velocity, nHat)
         guard vRel > 0 else { return ((a, b), nil) }
-
-        // Dưới ngưỡng vận tốc rất nhỏ coi va chạm là không nảy (e = 0): chặn chuỗi nảy vô hạn (Zeno)
-        // trong cụm bi sát nhau. Ngưỡng nhỏ hơn nhiều so với độ chính xác đo được, không ảnh hưởng cú thường.
-        let e = vRel < CollisionThresholds.plasticSpeed ? 0 : p.ballBallRestitution
-        let jn = (1 + e) * m * vRel / 2
+        if vRel < CollisionThresholds.minApproachSpeed {
+            // Tiếp xúc tựa: cân bằng vận tốc pháp tuyến (không nảy), không tạo bản ghi va chạm.
+            var a2 = a, b2 = b
+            a2.velocity -= 0.5 * vRel * nHat
+            b2.velocity += 0.5 * vRel * nHat
+            a2.state = a2.classified(radius: R); b2.state = b2.classified(radius: R)
+            return ((a2, b2), nil)
+        }
+        let jn = (1 + p.ballBallRestitution) * m * vRel / 2
 
         // Vận tốc điểm tiếp xúc trên mỗi bi.
         let ra = R * nHat, rb = -R * nHat
@@ -87,7 +97,15 @@ public enum CushionCollision {
     public static func resolve(_ ball: Ball, inward: SIMD2<Double>, cushionHeight h: Double,
                                _ p: PhysicsParameters, mass m: Double, radius R: Double) -> (Ball, ImpactInfo?) {
         let nh = SIMD3(inward.x, inward.y, 0)
-        guard simd_dot(ball.velocity, nh) < 0 else { return (ball, nil) }
+        let approach = -simd_dot(ball.velocity, nh)
+        guard approach > 0 else { return (ball, nil) }
+        if approach < CollisionThresholds.minApproachSpeed {
+            // Tiếp xúc tựa vào băng: bỏ thành phần lao vào, không nảy, không bản ghi.
+            var out = ball
+            out.velocity += approach * nh
+            out.state = out.classified(radius: R)
+            return (out, nil)
+        }
 
         let sinT = max(-0.9, min(0.9, (h - R) / R))
         let cosT = (1 - sinT * sinT).squareRoot()
@@ -98,8 +116,7 @@ public enum CushionCollision {
         let uc = ball.velocity + cross(ball.angularVelocity, rc)
         let vn = simd_dot(uc, normal)          // < 0 khi bi đang lao vào băng
         guard vn < 0 else { return (ball, nil) }
-        let e = -vn < CollisionThresholds.plasticSpeed ? 0 : p.cushionRestitution
-        let jn = -(1 + e) * m * vn
+        let jn = -(1 + p.cushionRestitution) * m * vn
 
         let ut = uc - vn * normal
         let slip = simd_length(ut)

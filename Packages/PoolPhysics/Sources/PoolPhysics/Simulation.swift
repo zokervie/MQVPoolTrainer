@@ -252,11 +252,25 @@ public struct Simulation: Sendable {
                       2 * simd_dot(A, B),
                       simd_dot(A, A)]
         let f0 = coeffs[0], df0 = coeffs[1]
-        // Đã chạm (hoặc chồng lấn do sai số) và đang lại gần: va chạm ngay.
-        if f0 <= 1e-12 * D * D && df0 < -1e-15 { return 0 }
-        guard horizon > 0 else { return nil }
-        let h = horizon.isFinite ? horizon : 60
         let dcoeffs = Polynomial.derivative(coeffs)
+        let h = horizon.isFinite ? horizon : 60
+        // Tốc độ lại gần theo pháp tuyến tại khoảng cách D: −f'/(2D).
+        let minRate = -2 * D * CollisionThresholds.minApproachSpeed
+        let penetrationLevel = -2 * D * CollisionThresholds.penetration   // f khi lấn đúng `penetration`
+
+        if f0 <= 1e-12 * D * D {
+            // Đang chạm hoặc chồng lấn.
+            if df0 <= minRate { return 0 }                         // lại gần đủ nhanh: va chạm ngay
+            if f0 <= penetrationLevel { return 0 }                   // đã lấn quá ngưỡng: tách ngay
+            guard h > 0 else { return nil }
+            // Tiếp xúc chậm: chờ tới khi lấn quá ngưỡng.
+            var c = coeffs; c[0] -= penetrationLevel
+            for r in Polynomial.realRoots(c, in: 0, h) where r > 0 {
+                if Polynomial.evaluate(dcoeffs, r) < 0 { return r }
+            }
+            return nil
+        }
+        guard h > 0 else { return nil }
         for r in Polynomial.realRoots(coeffs, in: 0, h) where r > 0 {
             if Polynomial.evaluate(dcoeffs, r) < 0 { return r }
         }
@@ -289,8 +303,15 @@ public struct Simulation: Sendable {
                 let along = horizontal ? p.x : p.y
                 return along >= seg.from && along <= seg.to
             }
-            if c0 <= 1e-12 && c1 < 0 {
-                if inSegment(0) { out.append(Candidate(time: 0, kind: .cushion, i: i, extra: k)) }
+            if c0 <= 1e-12 {
+                // Đang chạm băng.
+                let pen = CollisionThresholds.penetration
+                if c1 <= -CollisionThresholds.minApproachSpeed || c0 <= -pen {
+                    if inSegment(0) { out.append(Candidate(time: 0, kind: .cushion, i: i, extra: k)) }
+                } else if let r = Polynomial.realRoots([c0 + pen, c1, c2], in: 0, h)
+                            .first(where: { $0 > 0 && c1 + 2 * c2 * $0 < 0 }), inSegment(r) {
+                    out.append(Candidate(time: r, kind: .cushion, i: i, extra: k))
+                }
                 continue
             }
             if let r = Polynomial.realRoots([c0, c1, c2], in: 0, h).first(where: { $0 > 0 && c1 + 2 * c2 * $0 < 0 }),
@@ -347,26 +368,36 @@ public struct Simulation: Sendable {
             // Sau một va chạm khác trong cùng thời điểm, cặp này có thể không còn chạm/lại gần.
             guard simd_length(d) <= 2 * R * (1 + 1e-7) else { return nil }
             let ((a2, b2), info) = BallBallCollision.resolveWithInfo(a, b, parameters, mass: m, radius: R)
-            guard let info else { return nil }
             a = a2; b = b2
-            // Hiệu chỉnh vị trí nếu chồng lấn do sai số số học (tách đều hai bên theo pháp tuyến).
+            // Hiệu chỉnh vị trí: va chạm thường tách về đúng 2R; tiếp xúc tựa tách thêm một khe nhỏ
+            // để không tạo lại sự kiện ngay (chống Zeno).
             let dist = simd_length(d)
-            if dist < 2 * R, dist > 0 {
-                let push = (2 * R - dist) / 2 * (d / dist)
+            let target = info == nil ? 2 * R + CollisionThresholds.separationGap : 2 * R
+            if dist < target, dist > 0 {
+                let push = (target - dist) / 2 * (d / dist)
                 a.position -= push; b.position += push
             }
             balls[e.i] = a; balls[e.j] = b
+            guard let info else { return nil }
             return CollisionRecord(kind: .ballBall, time: time, position: 0.5 * (a.position + b.position),
                                    ballIds: [a.id, b.id], relativeNormalSpeed: info.relativeNormalSpeed,
                                    impulse: info.normalImpulse, tangentialSlip: info.tangentialSlip, pocketId: nil)
 
         case .cushion:
             let seg = geometry.cushions[e.extra]
-            let (out, info) = CushionCollision.resolve(balls[e.i], inward: seg.inwardNormal,
+            var (out, info) = CushionCollision.resolve(balls[e.i], inward: seg.inwardNormal,
                                                        cushionHeight: table.cushionHeight,
                                                        parameters, mass: m, radius: R)
-            guard let info else { return nil }
+            // Đưa tâm bi về đúng khoảng R (cộng khe nhỏ nếu là tiếp xúc tựa).
+            let minDist = R + (info == nil ? CollisionThresholds.separationGap : 0)
+            switch seg.rail {
+            case 0: out.position.y = max(out.position.y, minDist)
+            case 1: out.position.y = min(out.position.y, geometry.width - minDist)
+            case 2: out.position.x = max(out.position.x, minDist)
+            default: out.position.x = min(out.position.x, geometry.length - minDist)
+            }
             balls[e.i] = out
+            guard let info else { return nil }
             let n = seg.inwardNormal
             let contact = out.position - R * SIMD3(n.x, n.y, 0)
             return CollisionRecord(kind: .ballCushion, time: time, position: contact, ballIds: [out.id],
@@ -378,12 +409,17 @@ public struct Simulation: Sendable {
             let b = balls[e.i]
             var n = SIMD2(b.position.x, b.position.y) - q
             let len = simd_length(n)
-            guard len > 0, len <= R * (1 + 1e-7) else { return nil }
+            guard len > 0, len <= R + 1e-7 else { return nil }
             n /= len
-            let (out, info) = CushionCollision.resolve(b, inward: n, cushionHeight: table.cushionHeight,
+            var (out, info) = CushionCollision.resolve(b, inward: n, cushionHeight: table.cushionHeight,
                                                        parameters, mass: m, radius: R)
-            guard let info else { return nil }
+            let minDist = R + (info == nil ? CollisionThresholds.separationGap : 0)
+            if len < minDist {
+                let q3 = SIMD3(q.x, q.y, out.position.z)
+                out.position = q3 + SIMD3(n.x, n.y, 0) * minDist
+            }
             balls[e.i] = out
+            guard let info else { return nil }
             return CollisionRecord(kind: .ballJaw, time: time, position: SIMD3(q.x, q.y, table.cushionHeight),
                                    ballIds: [out.id], relativeNormalSpeed: info.relativeNormalSpeed,
                                    impulse: info.normalImpulse, tangentialSlip: info.tangentialSlip, pocketId: nil)
