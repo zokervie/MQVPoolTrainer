@@ -5,8 +5,8 @@
   "bi": [
     {
       "so": 0,
-      "x": 4.711,
-      "y": 2.356
+      "x": 5.158,
+      "y": 2.579
     },
     {
       "so": 1,
@@ -23,19 +23,19 @@
     },
     {
       "loai": "vung_dich",
-      "x": 5.087,
-      "y": 2.543,
+      "x": 5.355,
+      "y": 2.678,
       "ban_kinh": 0.5
     }
   ],
   "huong_dan": {
-    "luc": 3,
+    "luc": 5,
     "diem_cham": {
       "doc": -0.45,
       "ngang": 0.0
     },
     "cong_thuc": null,
-    "ghi_chu": "Cú thẳng, đánh dưới tâm sâu: bi mục tiêu vào lỗ góc, bi cái kéo ngược về vùng đích trên đường đánh."
+    "ghi_chu": "Cú thẳng, đánh dưới tâm sâu và đủ mạnh để xoáy dưới còn khi chạm: bi mục tiêu vào lỗ góc, bi cái kéo ngược về vùng đích. Lực yếu thì xoáy dưới tắt trước khi chạm và bi cái không về."
   },
   "dieu_kien_dat": [
     "bi_1_vao_lo_goc_tren_phai",
