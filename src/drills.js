@@ -227,7 +227,7 @@ export const DRILLS = [
     steps: ['Đánh tâm/hơi dưới tâm để bi cái còn trượt khi chạm.', 'Lực vừa.'],
     tips: ['Muốn bi cái chạy đúng tiếp tuyến ở cú xa: hạ điểm đánh nhiều hơn.'],
     video: '90 degree rule pool stun shot',
-    stages: [cutStage({ ob: d(6, 3), pocket: POCKET_IDS.TR, angle: 30, dist: 0.5, side: 1, spin: [0, -0.3], speed: 2.8, zone: deflectZone('tangent', 0.42) })],
+    stages: [cutStage({ ob: d(6, 3), pocket: POCKET_IDS.TR, angle: 30, dist: 0.5, side: 1, spin: [0, -0.5], speed: 1.6, zone: deflectZone('tangent', 0.42) })],
   },
   {
     id: 'c-30', cat: 'cue', level: 2, title: 'Quy tắc 30° (bi lăn)',

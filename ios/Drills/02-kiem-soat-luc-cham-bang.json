@@ -1,0 +1,20 @@
+{
+  "id": "kiem-soat-luc-cham-bang",
+  "ten": "Đẩy bi cái dừng sát băng xa",
+  "ban": "9ft",
+  "bi": [
+    {"so": 0, "x": 1.0, "y": 2.0}
+  ],
+  "danh_dau": [
+    {"loai": "vung_dich", "x": 7.85, "y": 2.0, "ban_kinh": 0.25}
+  ],
+  "huong_dan": {
+    "luc": 2,
+    "diem_cham": {"doc": 0.0, "ngang": 0.0},
+    "cong_thuc": null,
+    "ghi_chu": "Đánh giữa tâm, bi cái lăn hết bàn và dừng sát băng ngắn đối diện, không bật lại."
+  },
+  "dieu_kien_dat": ["bi_cai_trong_vung_dich"],
+  "so_lan": 10,
+  "lech_ngau_nhien": 0.0
+}
