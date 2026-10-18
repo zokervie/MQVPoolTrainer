@@ -46,6 +46,8 @@
 | Khoảng ngắm | `AimWindow.swift` | quét góc + chia đôi biên |
 | Công cụ dòng lệnh | `Sources/poolsim` | chạy kịch bản JSON cho đối chứng pooltool |
 
+Chống Zeno (`CollisionThresholds`): lại gần chậm hơn 0,1 mm/s coi là tiếp xúc tựa — chỉ xử lý khi lấn quá 0,1 µm, rồi tách 10 µm và triệt vận tốc lấn vào. Dự đoán sự kiện lưu theo thời gian tuyệt đối, chỉ tính lại cho bi vừa thay đổi.
+
 Sửa lỗi khi rà phương trình (R0.4): dấu xoáy ngang trong `CueModel` cũ bị ngược (đánh bên phải phải cho ω_z > 0, quay ngược chiều kim đồng hồ nhìn từ trên).
 
 Test: `SolverTests.swift` (M2–M7, throw, squirt, băng, xoáy ngang, lỗ, khoảng ngắm), `MotionTests.swift` (M1), `TableDefinitionTests.swift`.
