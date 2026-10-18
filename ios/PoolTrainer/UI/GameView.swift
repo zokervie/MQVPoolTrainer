@@ -55,7 +55,7 @@ struct HUDView: View {
         VStack(spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "angle").font(.system(size: 12))
-                Slider(value: $g.elev, in: 0...30, step: 1).frame(width: 90)
+                Slider(value: $g.elev, in: 0...30, step: 1).frame(width: 80)
                 Text("\(Int(g.elev))°").font(.system(size: 12, weight: .bold).monospacedDigit()).frame(width: 28)
             }.foregroundColor(.white)
             SpinPad(g: g)
@@ -63,17 +63,21 @@ struct HUDView: View {
         }.panel()
     }
 
+    // gọn, sát đáy màn hình để không che bi cái
     private var centerCluster: some View {
-        VStack(spacing: 6) {
-            Button { g.toggleLock() } label: {
-                Label(g.locked ? "Đã khoá" : "Khoá cơ", systemImage: g.locked ? "lock.fill" : "lock.open")
-                    .font(.system(size: 15, weight: .bold)).padding(.horizontal, 18).padding(.vertical, 10)
-                    .background(Capsule().fill(g.locked ? Color(hex: 0xf77f00) : Color.white.opacity(0.1)))
-                    .foregroundColor(.white)
-            }.buttonStyle(.plain)
-            FineStrip(g: g)
+        VStack(spacing: 4) {
             Text(g.aimText).font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundColor(.white.opacity(0.8))
-        }.panel()
+            HStack(spacing: 8) {
+                Button { g.toggleLock() } label: {
+                    Label(g.locked ? "Đã khoá" : "Khoá cơ", systemImage: g.locked ? "lock.fill" : "lock.open")
+                        .font(.system(size: 14, weight: .bold)).padding(.horizontal, 14).padding(.vertical, 9)
+                        .background(Capsule().fill(g.locked ? Color(hex: 0xf77f00) : Color.white.opacity(0.1)))
+                        .foregroundColor(.white)
+                }.buttonStyle(.plain)
+                FineStrip(g: g)
+            }
+        }.padding(.horizontal, 8).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(panelBG))
     }
 
     private var powerCluster: some View {

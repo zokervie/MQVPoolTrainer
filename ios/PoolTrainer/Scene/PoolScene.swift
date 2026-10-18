@@ -59,7 +59,7 @@ final class PoolScene {
         let s = scene
         s.background.contents = UIColor(hex: 0x10161c)
         s.fogStartDistance = 6; s.fogEndDistance = 14; s.fogColor = UIColor(hex: 0x10161c)
-        s.lightingEnvironment.contents = envImage(); s.lightingEnvironment.intensity = 0.9
+        s.lightingEnvironment.contents = envImage(); s.lightingEnvironment.intensity = 0.55
         [tableRoot, ballRoot, guides, labelRoot, zoneRoot, lamp].forEach { s.rootNode.addChildNode($0) }
         buildLights(); buildRoom(); setCloth(0x1f5d9e); buildCue()
         // bi ma
@@ -70,12 +70,12 @@ final class PoolScene {
         ghost.addChildNode(ring); ghost.isHidden = true; s.rootNode.addChildNode(ghost)
         // camera
         let c = SCNCamera(); c.fieldOfView = 45; c.zNear = 0.02; c.zFar = 40
-        c.wantsHDR = true; c.bloomIntensity = 0.25; c.bloomThreshold = 0.9; c.bloomBlurRadius = 6
+        c.wantsHDR = true; c.bloomIntensity = 0.12; c.bloomThreshold = 1.4; c.bloomBlurRadius = 6
         c.vignettingIntensity = 0.35; c.vignettingPower = 0.8; c.contrast = 0.06; c.saturation = 1.05
-        c.wantsExposureAdaptation = false; c.exposureOffset = 0.15
-        c.screenSpaceAmbientOcclusionIntensity = 0.6; c.screenSpaceAmbientOcclusionRadius = 0.04
+        c.wantsExposureAdaptation = false; c.exposureOffset = 0; c.minimumExposure = 0; c.maximumExposure = 0
+        c.screenSpaceAmbientOcclusionIntensity = 0.5; c.screenSpaceAmbientOcclusionRadius = 0.03
         camNode.camera = c; s.rootNode.addChildNode(camNode)
-        let o = SCNCamera(); o.usesOrthographicProjection = true; o.zNear = 0.1; o.zFar = 20; o.wantsHDR = true; o.exposureOffset = 0.15
+        let o = SCNCamera(); o.usesOrthographicProjection = true; o.zNear = 0.1; o.zFar = 20; o.wantsHDR = true; o.exposureOffset = 0
         orthoNode.camera = o; orthoNode.position = v3(0, 6, 0)
         orthoNode.simdLook(at: .zero, up: SIMD3(0, 0, -1), localFront: SIMD3(0, 0, -1))
         s.rootNode.addChildNode(orthoNode)
@@ -83,7 +83,7 @@ final class PoolScene {
 
     private func envImage() -> UIImage {
         let W: CGFloat = 1024, H: CGFloat = 512
-        return UIGraphicsImageRenderer(size: CGSize(width: W, height: H)).image { ctx in
+        return UIGraphicsImageRenderer(size: CGSize(width: W, height: H), format: Textures.fmt1x).image { ctx in
             let c = ctx.cgContext
             UIColor(white: 0.05, alpha: 1).setFill(); c.fill(CGRect(x: 0, y: 0, width: W, height: H))
             let gr = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [UIColor(white: 1, alpha: 1).cgColor, UIColor(white: 1, alpha: 0).cgColor] as CFArray, locations: [0, 1])!
@@ -94,16 +94,16 @@ final class PoolScene {
     }
 
     private func buildLights() {
-        let amb = SCNLight(); amb.type = .ambient; amb.intensity = 140; amb.color = UIColor(hex: 0xc9d6e3)
+        let amb = SCNLight(); amb.type = .ambient; amb.intensity = 45; amb.color = UIColor(hex: 0xc9d6e3)
         let an = SCNNode(); an.light = amb; scene.rootNode.addChildNode(an)
-        let key = SCNLight(); key.type = .directional; key.intensity = 1500; key.color = UIColor(hex: 0xfff4e0)
+        let key = SCNLight(); key.type = .directional; key.intensity = 700; key.color = UIColor(hex: 0xfff4e0)
         key.castsShadow = true; key.shadowMapSize = CGSize(width: 2048, height: 2048); key.shadowSampleCount = 8
         key.shadowRadius = 3; key.shadowColor = UIColor(white: 0, alpha: 0.6); key.shadowMode = .deferred
         key.automaticallyAdjustsShadowProjection = false; key.orthographicScale = 1.7; key.zNear = 0.5; key.zFar = 6; key.shadowBias = 0.6
         let kn = SCNNode(); kn.light = key; kn.position = v3(0.3, 3.2, 0.5); kn.simdLook(at: .zero)
         scene.rootNode.addChildNode(kn)
         for x in [-0.85, 0, 0.85] {
-            let p = SCNLight(); p.type = .omni; p.intensity = 420; p.color = UIColor(hex: 0xffe7c2)
+            let p = SCNLight(); p.type = .omni; p.intensity = 120; p.color = UIColor(hex: 0xffe7c2)
             p.attenuationStartDistance = 0.3; p.attenuationEndDistance = 3.5; p.attenuationFalloffExponent = 2
             let n = SCNNode(); n.light = p; n.position = v3(x, 1.05, 0); scene.rootNode.addChildNode(n)
         }
@@ -168,10 +168,10 @@ final class PoolScene {
 
         // lòng lỗ
         for p in POCKETS {
-            let tube = SCNNode(geometry: SCNTube(innerRadius: p.r * 0.97, outerRadius: p.r, height: 0.16))
-            tube.geometry?.materials = [hole]; tube.position = v3(p.p.x, -0.08, p.p.z); t.addChildNode(tube)
-            let bottom = SCNNode(geometry: SCNCylinder(radius: p.r, height: 0.004))
-            bottom.geometry?.materials = [hole]; bottom.position = v3(p.p.x, -0.12, p.p.z); t.addChildNode(bottom)
+            let tube = SCNNode(geometry: SCNTube(innerRadius: p.r * 0.97, outerRadius: p.r, height: 0.024))
+            tube.geometry?.materials = [hole]; tube.position = v3(p.p.x, -0.012, p.p.z); t.addChildNode(tube)
+            let bottom = SCNNode(geometry: SCNCylinder(radius: p.r, height: 0.002))
+            bottom.geometry?.materials = [hole]; bottom.position = v3(p.p.x, -0.0235, p.p.z); t.addChildNode(bottom)
         }
 
         // băng + hàm lỗ
@@ -423,6 +423,7 @@ final class PoolScene {
         let k = Float(1 - exp(-dt * 7))
         camPos += (pos - camPos) * k; camLook += (look - camLook) * k
         if camPos.y < 0.09 { camPos.y = 0.09 }
+        lamp.isHidden = camPos.y > 0.95      // nhìn từ trên cao: đèn bàn sẽ che mặt bàn
         camNode.simdPosition = camPos
         camNode.simdLook(at: camLook, up: SIMD3(0, 1, 0), localFront: SIMD3(0, 0, -1))
         camNode.camera?.focusDistance = CGFloat(simd_distance(camPos, tgt))

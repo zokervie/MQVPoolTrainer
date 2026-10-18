@@ -42,7 +42,7 @@ struct IconButton: View {
 /// Chọn điểm đánh trên bi cái (±0,6R). Chạm đúp để về tâm.
 struct SpinPad: View {
     @ObservedObject var g: Game
-    let size: CGFloat = 96
+    let size: CGFloat = 84
     var body: some View {
         let lim = 0.6
         ZStack {
@@ -107,7 +107,7 @@ struct FineStrip: View {
                     ctx.fill(Path(CGRect(x: size.width / 2 - 1, y: 0, width: 2, height: size.height)), with: .color(accent))
                 }
             }
-            .frame(width: 150, height: 34)
+            .frame(width: 160, height: 32)
             .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.06)))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .gesture(DragGesture(minimumDistance: 0)
@@ -132,7 +132,7 @@ struct PowerPad: View {
     @State private var pullNow: CGFloat = 0
     @State private var samples: [(y: CGFloat, t: TimeInterval)] = []
     @State private var fired = false
-    let height: CGFloat = 170
+    let height: CGFloat = 150
 
     private func speedToPower(_ v: CGFloat) -> Double {
         let vmax = max(1400, height * 5.5) * CGFloat(g.settings.sens)
@@ -217,8 +217,7 @@ struct MiniBall: View {
         ZStack {
             if id > 8 {
                 Circle().fill(Color(hex: BallColors.ivory))
-                Rectangle().fill(col).frame(height: size * 0.5).clipShape(Circle().scale(1))
-                    .mask(Circle())
+                Circle().fill(col).mask(Rectangle().frame(width: size, height: size * 0.52))
             } else { Circle().fill(col) }
             Circle().fill(Color(hex: BallColors.ivory)).frame(width: size * 0.56, height: size * 0.56)
             Text("\(id)").font(.system(size: size * 0.36, weight: .heavy)).foregroundColor(.black)

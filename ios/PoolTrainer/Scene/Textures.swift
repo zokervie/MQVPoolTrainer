@@ -4,23 +4,25 @@ import UIKit
 enum Textures {
     private static var ballCache: [Int: UIImage] = [:]
     private static var textCache: [String: UIImage] = [:]
+    /// Texture theo pixel thật (không nhân ×3 theo màn hình) để tiết kiệm bộ nhớ.
+    static let fmt1x: UIGraphicsImageRendererFormat = { let f = UIGraphicsImageRendererFormat(); f.scale = 1; f.opaque = false; return f }()
 
     /// Bản đồ equirectangular 2:1 cho SCNSphere.
     static func ball(_ id: Int) -> UIImage {
         if let t = ballCache[id] { return t }
-        let W: CGFloat = 2048, H: CGFloat = 1024
+        let W: CGFloat = 1024, H: CGFloat = 512
         let ivory = UIColor(hex: BallColors.ivory)
-        let img = UIGraphicsImageRenderer(size: CGSize(width: W, height: H)).image { ctx in
+        let img = UIGraphicsImageRenderer(size: CGSize(width: W, height: H), format: Textures.fmt1x).image { ctx in
             let g = ctx.cgContext
             if id == 0 {
                 ivory.setFill(); g.fill(CGRect(x: 0, y: 0, width: W, height: H))
                 // chấm đỏ để nhìn thấy xoáy
                 UIColor(hex: 0xc1121f).setFill()
                 for (u, v) in [(0.0, 0.5), (0.25, 0.5), (0.5, 0.5), (0.75, 0.5), (0.125, 0.18), (0.625, 0.82), (1.0, 0.5)] {
-                    let w: CGFloat = v == 0.5 ? 52 : 52 / CGFloat(sin(Double.pi * v))
-                    g.fillEllipse(in: CGRect(x: CGFloat(u) * W - w / 2, y: CGFloat(v) * H - 26, width: w, height: 52))
+                    let w: CGFloat = v == 0.5 ? 26 : 26 / CGFloat(sin(Double.pi * v))
+                    g.fillEllipse(in: CGRect(x: CGFloat(u) * W - w / 2, y: CGFloat(v) * H - 13, width: w, height: 26))
                 }
-                g.fill(CGRect(x: 0, y: 0, width: W, height: 20)); g.fill(CGRect(x: 0, y: H - 20, width: W, height: 20))
+                g.fill(CGRect(x: 0, y: 0, width: W, height: 10)); g.fill(CGRect(x: 0, y: H - 10, width: W, height: 10))
             } else {
                 let col = UIColor(hex: BallColors.hex(id))
                 if id > 8 {
@@ -29,12 +31,12 @@ enum Textures {
                 } else { col.setFill(); g.fill(CGRect(x: 0, y: 0, width: W, height: H)) }
                 for u in [0.25, 0.75] {
                     let x = CGFloat(u) * W, y = H / 2
-                    ivory.setFill(); g.fillEllipse(in: CGRect(x: x - 136, y: y - 136, width: 272, height: 272))
+                    ivory.setFill(); g.fillEllipse(in: CGRect(x: x - 68, y: y - 68, width: 136, height: 136))
                     let s = "\(id)" as NSString
-                    let at: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: id > 9 ? 156 : 184, weight: .bold), .foregroundColor: UIColor(hex: 0x121212)]
+                    let at: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: id > 9 ? 78 : 92, weight: .bold), .foregroundColor: UIColor(hex: 0x121212)]
                     let sz = s.size(withAttributes: at)
                     s.draw(at: CGPoint(x: x - sz.width / 2, y: y - sz.height / 2), withAttributes: at)
-                    if id == 6 || id == 9 { UIColor(hex: 0x121212).setFill(); g.fill(CGRect(x: x - 44, y: y + 92, width: 88, height: 12)) }
+                    if id == 6 || id == 9 { UIColor(hex: 0x121212).setFill(); g.fill(CGRect(x: x - 22, y: y + 46, width: 44, height: 6)) }
                 }
             }
         }
@@ -74,9 +76,9 @@ enum Textures {
         let key = "\(s)#\(hex)"
         if let t = textCache[key] { return t }
         let S: CGFloat = 128
-        let img = UIGraphicsImageRenderer(size: CGSize(width: S, height: S)).image { _ in
-            let shadow = NSShadow(); shadow.shadowColor = UIColor(white: 0, alpha: 0.8); shadow.shadowBlurRadius = 6
-            let at: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: s.count > 2 ? 54 : 70, weight: .heavy), .foregroundColor: UIColor(hex: hex), .shadow: shadow]
+        let img = UIGraphicsImageRenderer(size: CGSize(width: S, height: S), format: Textures.fmt1x).image { _ in
+            let at: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: s.count > 2 ? 60 : 80, weight: .heavy), .foregroundColor: UIColor(hex: hex),
+                                                     .strokeColor: UIColor(white: 0, alpha: 0.55), .strokeWidth: -2.5]
             let ns = s as NSString, sz = ns.size(withAttributes: at)
             ns.draw(at: CGPoint(x: (S - sz.width) / 2, y: (S - sz.height) / 2), withAttributes: at)
         }

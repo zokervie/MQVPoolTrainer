@@ -4,10 +4,10 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 OUT=build/shots; mkdir -p "$OUT"
 xcodegen generate >/dev/null
-xcodebuild -project PoolTrainer.xcodeproj -scheme PoolTrainer -configuration Debug -sdk iphonesimulator \
+xcodebuild -project PoolTrainer.xcodeproj -scheme PoolTrainer -configuration Release -sdk iphonesimulator \
   -destination 'generic/platform=iOS Simulator' -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build > build/sim.log 2>&1 \
   || { grep -E "error:" build/sim.log | head -50; exit 1; }
-APP=build/sim/Build/Products/Debug-iphonesimulator/PoolTrainer.app
+APP=build/sim/Build/Products/Release-iphonesimulator/PoolTrainer.app
 DT=$(xcrun simctl list devicetypes | grep -Eo "iPhone 1[5-7] Pro \(com[^)]*\)" | head -1 | sed -E 's/.*\((.*)\)/\1/')
 RT=$(xcrun simctl list runtimes | grep -Eo "com.apple.CoreSimulator.SimRuntime.iOS-[0-9-]+" | tail -1)
 echo "device $DT runtime $RT"
@@ -30,14 +30,14 @@ run() { # tên  "kịch bản"  các mốc giây chụp...
   if xcrun simctl spawn "$UDID" launchctl list | grep -q "$BID"; then echo "$name: OK" >> "$STATUS"; else echo "$name: CRASH/EXIT" >> "$STATUS"; fi
 }
 
-run 01-menu "" 5
-run 02-card "menucard:c-90" 8
-run 03-aim "drill:a-half" 5
-run 04-demo "drill:c-draw,wait:2,demo" 5 7.5 11
-run 05-sys2d "view2d,drill:s-c5ref" 5
-run 06-guide2 "view3d,guide:2,drill:c-30,spin:0.3:0.2" 5
-run 07-break "free:9,wait:2,shoot:1" 4.5 5.2 8
-run 08-run9 "drill:g-run9,guide:1" 5
+run 01-menu "" 7
+run 02-card "menucard:c-90" 9
+run 03-aim "drill:a-half" 7
+run 04-demo "drill:c-draw,wait:2,demo" 7 9.5 13
+run 05-sys2d "view2d,drill:s-c5ref" 7
+run 06-guide2 "view3d,guide:2,drill:c-30,spin:0.3:0.2" 7
+run 07-break "free:9,wait:3,shoot:1" 5.5 6.5 11
+run 08-run9 "drill:g-run9,guide:1" 7
 cat "$STATUS"
 # nhật ký crash nếu có
 ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i pool && cp ~/Library/Logs/DiagnosticReports/*PoolTrainer* "$OUT"/ 2>/dev/null
