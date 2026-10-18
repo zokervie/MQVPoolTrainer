@@ -49,6 +49,7 @@ final class MotionTests: XCTestCase {
     func testNinetyDegreeRule() {
         var p = PhysicsParameters()
         p.ballBallRestitution = 1
+        p.ballBallFriction = 0 // giả thiết của quy tắc: không ma sát bi–bi (UPGRADE.md, ghi chú M1)
         let cut = 25.0 * .pi / 180
         let n = SIMD3(cos(cut), sin(cut), 0)
         let cue = Ball(id: 0, position: SIMD3(1, 0.6, R), velocity: SIMD3(1.5, 0, 0))
@@ -62,6 +63,7 @@ final class MotionTests: XCTestCase {
     func testThirtyDegreeRule() {
         var p = PhysicsParameters()
         p.ballBallRestitution = 1
+        p.ballBallFriction = 0 // giả thiết của quy tắc: không ma sát bi–bi (UPGRADE.md, ghi chú M1)
         let cue = rollingBall(speed: 1.0)
         let cut = 30.0 * .pi / 180 // va chạm nửa bi
         let n = SIMD3(cos(cut), sin(cut), 0)

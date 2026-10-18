@@ -29,6 +29,19 @@ public enum FreeMotion {
         }
     }
 
+    /// Gia tốc tịnh tiến (hằng số) trong pha chuyển động hiện tại, khớp với `evolve`.
+    /// Vị trí trong pha: p(t) = p₀ + v₀·t + ½·a·t².
+    public static func acceleration(_ b: Ball, _ p: PhysicsParameters, radius R: Double) -> SIMD3<Double> {
+        switch b.classified(radius: R) {
+        case .sliding:
+            return -p.slidingFriction * p.gravity * simd_normalize(b.contactVelocity(radius: R))
+        case .rolling:
+            return -p.rollingResistance * p.gravity * simd_normalize(b.velocity)
+        case .spinning, .stationary, .pocketed:
+            return .zero
+        }
+    }
+
     /// Trạng thái bi sau thời gian t, với điều kiện t không vượt quá `timeToTransition`.
     public static func evolve(_ b: Ball, by t: Double, _ p: PhysicsParameters, radius R: Double) -> Ball {
         let g = p.gravity

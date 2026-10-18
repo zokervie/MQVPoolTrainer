@@ -18,34 +18,85 @@ public struct CueStrike: Codable, Equatable, Sendable {
         self.tipVertical = tipVertical
         self.tipHorizontal = tipHorizontal
     }
+
+    /// Khoảng cách điểm chạm tới tâm, theo tỉ lệ bán kính.
+    public var tipOffset: Double { (tipVertical * tipVertical + tipHorizontal * tipHorizontal).squareRoot() }
 }
 
-/// GIAI ĐOẠN 1: mô hình cơ nằm ngang, bỏ qua squirt và swerve.
-/// Tốc độ bi cái tạm tính bằng hệ số cố định nhân tốc độ cơ (xem `speedRatio`).
-/// Xoáy theo Alciatore TP 4.2 (lực xung lệch tâm).
-/// TODO (Giai đoạn 2): khối lượng cơ, khối lượng đầu cơ (squirt), góc dốc cơ (swerve),
-/// giới hạn trượt cơ (miscue) ~0,5R.
-public enum CueModel {
-    /// Tỉ lệ tốc độ bi / tốc độ cơ khi đánh giữa tâm (thực nghiệm ~1,3–1,5).
-    public static let speedRatio = 1.4
+/// Thông số cơ. Giá trị mặc định là **giả định** (cơ phổ biến), cần đo hoặc lấy theo cơ của người chơi.
+public struct CueSpec: Codable, Equatable, Sendable {
+    /// Khối lượng cơ (kg). Giả định: 19 oz ≈ 0,54 kg.
+    public var mass: Double = 0.54
+    /// Khối lượng hiệu dụng đầu cơ (kg), quyết định squirt. Giả định: ~7 g (cơ ngọn tiêu chuẩn).
+    /// Nguồn mô hình: Alciatore TP A.31.
+    public var endMass: Double = 0.007
+    /// Hệ số phục hồi đầu cơ–bi. Giả định ~0,75 [Alciatore dùng 0,7–0,8].
+    public var tipRestitution: Double = 0.75
+    /// Giới hạn trượt cơ, tỉ lệ bán kính. Nguồn: Alciatore (~0,5R).
+    public var miscueLimit: Double = 0.5
 
-    public static func apply(_ strike: CueStrike, to ball: Ball, radius R: Double) -> Ball {
-        var b = ball
+    public init() {}
+}
+
+public struct StrikeOutcome: Equatable, Sendable {
+    public var ball: Ball
+    public var miscue: Bool
+    /// Góc lệch squirt (radian, dấu: dương = lệch sang trái hướng ngắm).
+    public var squirtAngle: Double
+    /// Xung lực truyền cho bi (N·s).
+    public var impulse: Double
+}
+
+/// Va chạm cơ–bi theo xung lực, cơ nằm ngang (MVP: chưa có góc dốc cơ, nên chưa có swerve/massé).
+///
+/// - Tốc độ bi: v = (1 + e)·V / (1 + m/M + (5/2)·(d/R)²), d = khoảng cách điểm chạm tới tâm.
+///   Nguồn: Alciatore TP A.30 (va chạm lệch tâm, cơ nằm ngang).
+/// - Xoáy: ω = (r × J)/I, r là vector từ tâm tới điểm chạm, J dọc hướng cơ.
+///   Đánh cao 2/5 R cho lăn tự nhiên ngay.
+/// - Squirt: tan α = (5/2)·s·√(1 − s²) / (1 + m/mₑ + (5/2)·(1 − s²)), s = độ lệch ngang/R.
+///   Nguồn: Alciatore TP A.31. Bi cái lệch về phía ngược với phía đánh.
+/// - Trượt cơ: d > giới hạn → bi đi chậm, không xoáy, gắn cờ miscue.
+public enum CueModel {
+
+    public static func strike(_ strike: CueStrike, cue: CueSpec = CueSpec(),
+                              ball: Ball, mass m: Double, radius R: Double) -> StrikeOutcome {
         let dir = SIMD3(cos(strike.aimAngle), sin(strike.aimAngle), 0)
-        let side = SIMD3(-dir.y, dir.x, 0) // vuông góc bên trái hướng ngắm
-        let v = strike.cueSpeed * speedRatio
-        b.velocity = v * dir
-        // Lực đánh lệch tâm theo độ cao h = tipVertical·R tạo ω = 5·v·h / (2R²).
-        // Nguồn: Alciatore TP 4.2.
-        let h = strike.tipVertical * R
-        let topspin = 5 * v * h / (2 * R * R)
-        // Trục quay của xoáy trên là trục vuông góc hướng đi trong mặt bàn: (ẑ × dir) → hướng "side".
-        let wxy = topspin * side
-        // Xoáy ngang: lệch ngang tạo quay quanh trục đứng. Đánh bên phải → quay theo chiều kim đồng hồ (ωz < 0).
-        let s = strike.tipHorizontal * R
-        let wz = -5 * v * s / (2 * R * R)
-        b.angularVelocity = SIMD3(wxy.x, wxy.y, wz)
+        let left = SIMD3(-dir.y, dir.x, 0)
+        var b = ball
+        let d = strike.tipOffset
+
+        if d > cue.miscueLimit {
+            // Trượt cơ: phần lớn năng lượng không truyền vào bi.
+            let v = 0.2 * strike.cueSpeed
+            b.velocity = v * dir
+            b.angularVelocity = .zero
+            b.state = b.classified(radius: R)
+            return StrikeOutcome(ball: b, miscue: true, squirtAngle: 0, impulse: m * v)
+        }
+
+        let v = (1 + cue.tipRestitution) * strike.cueSpeed / (1 + m / cue.mass + 2.5 * d * d)
+        let impulse = m * v
+
+        // Điểm chạm trên mặt bi (vector từ tâm), phía sau bi theo hướng cơ.
+        let offset = strike.tipVertical * R * SIMD3(0, 0, 1) - strike.tipHorizontal * R * left
+        let back = (max(0, R * R - simd_length_squared(offset))).squareRoot()
+        let r = offset - back * dir
+        let J = impulse * dir
+        b.angularVelocity = cross(r, J) / (0.4 * m * R * R)
+
+        // Squirt: lệch ngược phía đánh ngang.
+        let s = strike.tipHorizontal
+        let c = 1 - s * s
+        let alpha = atan((2.5 * s * c.squareRoot()) / (1 + m / cue.endMass + 2.5 * c))
+        // Đánh bên phải (s > 0) → bi lệch sang trái (α dương = trái).
+        let theta = strike.aimAngle + alpha
+        b.velocity = v * SIMD3(cos(theta), sin(theta), 0)
         b.state = b.classified(radius: R)
-        return b
+        return StrikeOutcome(ball: b, miscue: false, squirtAngle: alpha, impulse: impulse)
+    }
+
+    /// Giữ API cũ cho test hiện có: trả về bi sau cú đánh với thông số cơ mặc định.
+    public static func apply(_ strike: CueStrike, to ball: Ball, radius R: Double, mass m: Double = 0.17) -> Ball {
+        Self.strike(strike, ball: ball, mass: m, radius: R).ball
     }
 }

@@ -32,6 +32,8 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
     case rollingResistance
     case spinFriction
     case ballBallFriction
+    case ballBallFrictionMinRatio
+    case ballBallFrictionDecay
     case ballBallRestitution
     case cushionRestitution
     case cushionFriction
@@ -42,6 +44,8 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
         case .rollingResistance: \.rollingResistance
         case .spinFriction: \.spinFriction
         case .ballBallFriction: \.ballBallFriction
+        case .ballBallFrictionMinRatio: \.ballBallFrictionMinRatio
+        case .ballBallFrictionDecay: \.ballBallFrictionDecay
         case .ballBallRestitution: \.ballBallRestitution
         case .cushionRestitution: \.cushionRestitution
         case .cushionFriction: \.cushionFriction
@@ -54,7 +58,9 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
         case .slidingFriction: 0.05...0.5
         case .rollingResistance: 0.001...0.05
         case .spinFriction: 0.005...0.2
-        case .ballBallFriction: 0.0...0.2
+        case .ballBallFriction: 0.0...0.3
+        case .ballBallFrictionMinRatio: 0.0...1.0
+        case .ballBallFrictionDecay: 0.0...5.0
         case .ballBallRestitution: 0.8...1.0
         case .cushionRestitution: 0.5...1.0
         case .cushionFriction: 0.0...0.5
@@ -127,7 +133,9 @@ public struct TableDefinition: Codable, Equatable, Sendable {
             .slidingFriction: .published(source: "Alciatore, Pool and Billiards Physics Resources (~0,2)"),
             .rollingResistance: .published(source: "Alciatore (0,005–0,015 tùy nỉ)"),
             .spinFriction: .assumed(note: "Từ Marlow, chưa đối chiếu trực tiếp; cần đo ở R4"),
-            .ballBallFriction: .published(source: "Alciatore TP A.14 (~0,06, phụ thuộc tốc độ)"),
+            .ballBallFriction: .published(source: "Alciatore TP A.14: μ(v) = a + b·e^(−c·v), a+b ≈ 0,118"),
+            .ballBallFrictionMinRatio: .published(source: "Alciatore TP A.14: a/(a+b) ≈ 0,084"),
+            .ballBallFrictionDecay: .published(source: "Alciatore TP A.14: c ≈ 1,088 s/m"),
             .ballBallRestitution: .published(source: "Alciatore (0,92–0,98)"),
             .cushionRestitution: .published(source: "Mathavan et al. 2010 (0,75–0,85)"),
             .cushionFriction: .published(source: "Mathavan et al. 2010 (~0,2)")
