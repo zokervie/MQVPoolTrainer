@@ -52,7 +52,7 @@ final class PoolScene {
     private var camPos = SIMD3<Float>(0, 3, 0), camLook = SIMD3<Float>(0, 0, 0)
     private var clothHex: UInt32 = 0
     private var lights: [(SCNLight, CGFloat)] = []
-    private var envBase: CGFloat = 0.55
+    private var envBase: CGFloat = 0.35
 
     /// Hệ số độ sáng chung (hiệu chỉnh phơi sáng).
     func setLightScale(_ k: Double, env: Double? = nil) {
@@ -68,7 +68,7 @@ final class PoolScene {
         let s = scene
         s.background.contents = UIColor(hex: 0x10161c)
         s.fogStartDistance = 6; s.fogEndDistance = 14; s.fogColor = UIColor(hex: 0x10161c)
-        s.lightingEnvironment.contents = envImage(); s.lightingEnvironment.intensity = 0.55
+        s.lightingEnvironment.contents = envImage(); s.lightingEnvironment.intensity = 0.35
         [tableRoot, ballRoot, guides, labelRoot, zoneRoot, lamp].forEach { s.rootNode.addChildNode($0) }
         buildLights(); buildRoom(); setCloth(0x1f5d9e); buildCue()
         // bi ma
@@ -103,16 +103,16 @@ final class PoolScene {
     }
 
     private func buildLights() {
-        let amb = SCNLight(); amb.type = .ambient; amb.intensity = 45; amb.color = UIColor(hex: 0xc9d6e3)
+        let amb = SCNLight(); amb.type = .ambient; amb.intensity = 30; amb.color = UIColor(hex: 0xc9d6e3)
         let an = SCNNode(); an.light = amb; scene.rootNode.addChildNode(an); lights.append((amb, amb.intensity))
-        let key = SCNLight(); key.type = .directional; key.intensity = 700; key.color = UIColor(hex: 0xfff4e0)
+        let key = SCNLight(); key.type = .directional; key.intensity = 430; key.color = UIColor(hex: 0xfff4e0)
         key.castsShadow = true; key.shadowMapSize = CGSize(width: 2048, height: 2048); key.shadowSampleCount = 8
         key.shadowRadius = 3; key.shadowColor = UIColor(white: 0, alpha: 0.6); key.shadowMode = .deferred
         key.automaticallyAdjustsShadowProjection = false; key.orthographicScale = 1.7; key.zNear = 0.5; key.zFar = 6; key.shadowBias = 0.6
         let kn = SCNNode(); kn.light = key; kn.position = v3(0.3, 3.2, 0.5); kn.simdLook(at: .zero)
         scene.rootNode.addChildNode(kn); lights.append((key, key.intensity))
         for x in [-0.85, 0, 0.85] {
-            let p = SCNLight(); p.type = .omni; p.intensity = 120; p.color = UIColor(hex: 0xffe7c2)
+            let p = SCNLight(); p.type = .omni; p.intensity = 75; p.color = UIColor(hex: 0xffe7c2)
             p.attenuationStartDistance = 0.3; p.attenuationEndDistance = 3.5; p.attenuationFalloffExponent = 2
             let n = SCNNode(); n.light = p; n.position = v3(x, 1.05, 0); scene.rootNode.addChildNode(n); lights.append((p, p.intensity))
         }
@@ -158,9 +158,10 @@ final class PoolScene {
         tableRoot.childNodes.forEach { $0.removeFromParentNode() }
         let t = tableRoot
         let clothImg = Textures.cloth(hex)
-        let clothMat = pbr(clothImg, rough: 0.92)
+        // nỉ là bề mặt mờ (không phản xạ gương) – PBR làm nỉ loá trắng ở góc nhìn thấp vì Fresnel
+        let clothMat = SCNMaterial(); clothMat.lightingModel = .lambert; clothMat.diffuse.contents = clothImg
         clothMat.diffuse.wrapS = .repeat; clothMat.diffuse.wrapT = .repeat; clothMat.diffuse.contentsTransform = SCNMatrix4MakeScale(18, 9, 1)
-        let cushMat = pbr(clothImg, rough: 0.9); cushMat.multiply.contents = UIColor(white: 0.9, alpha: 1)
+        let cushMat = SCNMaterial(); cushMat.lightingModel = .lambert; cushMat.diffuse.contents = clothImg; cushMat.multiply.contents = UIColor(white: 0.88, alpha: 1)
         cushMat.diffuse.wrapS = .repeat; cushMat.diffuse.wrapT = .repeat; cushMat.diffuse.contentsTransform = SCNMatrix4MakeScale(30, 2, 1)
         let woodMat = pbr(Textures.wood(0x6a3f22), rough: 0.45)
         woodMat.clearCoat.contents = 0.4; woodMat.clearCoatRoughness.contents = 0.3
