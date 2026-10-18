@@ -82,6 +82,8 @@ struct GameContainer: UIViewRepresentable {
             let size = arView.bounds.size
             scene.updateCamera(mode: model.cameraMode, aim: model.aimAngle, eyeHeight: model.settings.eyeHeight,
                                aspect: Float(size.width / max(size.height, 1)))
+            AutoTest.recordFrame(dt: dt, balls: balls.filter { $0.state != .pocketed }.count,
+                                 camera: scene.camera.position(relativeTo: nil))
         }
     }
 }

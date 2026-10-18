@@ -18,6 +18,10 @@ struct PoolTrainerApp: App {
                 .fullScreenCover(isPresented: $playing) {
                     GameScreen(model: model) { playing = false }
                 }
+                .task {
+                    // Chỉ chạy khi có tham số -autotest (CI chụp màn hình).
+                    await AutoTest.run(model: model) { playing = $0 }
+                }
         }
     }
 }

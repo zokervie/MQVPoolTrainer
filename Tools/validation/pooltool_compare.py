@@ -159,7 +159,13 @@ def describe_pooltool_models(pt):
         r = Resolver.default()
         for name in ("ball_ball", "ball_linear_cushion", "ball_circular_cushion", "stick_ball", "ball_pocket"):
             if hasattr(r, name):
-                print(f"REPORT: pooltool default {name}: {type(getattr(r, name)).__name__}")
+                obj = getattr(r, name)
+                fields = {k: (type(v).__name__ if hasattr(v, "__dict__") else v)
+                          for k, v in getattr(obj, "__dict__", {}).items()}
+                print(f"REPORT: pooltool default {name}: {type(obj).__name__} {fields}")
+                friction = getattr(obj, "friction", None)
+                if friction is not None:
+                    print(f"REPORT: pooltool {name}.friction: {type(friction).__name__} {getattr(friction, '__dict__', {})}")
                 found = True
     except Exception as e:  # noqa: BLE001
         print(f"REPORT: pooltool Resolver introspection failed: {type(e).__name__}: {e}")
