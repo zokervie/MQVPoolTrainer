@@ -37,3 +37,23 @@ jobs:
         with:
           name: PoolTrainer-unsigned-ipa
           path: ios/build/PoolTrainer.ipa
+
+  simulator-shots:
+    runs-on: macos-15
+    needs: core-tests
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cài XcodeGen
+        run: brew install xcodegen
+      - name: Chạy app trên Simulator và chụp màn hình
+        run: ios/scripts/sim-shots.sh
+      - name: Đẩy ảnh chụp lên nhánh ci-shots
+        run: |
+          echo "::notice title=sim-status::$(sed ':a;N;$!ba;s/\n/ | /g' ios/build/shots/status.txt)"
+          cd ios/build/shots
+          git init -q && git checkout -q -b ci-shots
+          git config user.name ci && git config user.email ci@users.noreply.github.com
+          git add -A && git commit -qm "shots ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-shots

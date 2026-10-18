@@ -89,6 +89,38 @@ final class Game: NSObject, ObservableObject {
         link = CADisplayLink(target: self, selector: #selector(frame(_:)))
         link?.preferredFramesPerSecond = 60
         link?.add(to: .main, forMode: .common)
+        runAutomation()
+    }
+
+    /// Kịch bản tự chạy cho kiểm thử trên Simulator (CI chụp màn hình): -auto <bước,...>
+    /// Bước: drill:<id> · demo · free:<8|9> · shoot:<lực> · card · menu · view2d · view3d · guide:<n> · wait:<giây>
+    private func runAutomation() {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-auto"), i + 1 < args.count else { return }
+        var t = 1.5
+        for step in args[i + 1].split(separator: ",").map(String.init) {
+            let parts = step.split(separator: ":").map(String.init)
+            if parts[0] == "wait", parts.count > 1 { t += Double(parts[1]) ?? 1; continue }
+            DispatchQueue.main.asyncAfter(deadline: .now() + t) { [weak self] in
+                guard let self else { return }
+                switch parts[0] {
+                case "drill": if let d = drillById(parts[1]) { self.card = nil; self.startDrill(d) }
+                case "demo": self.playDemo()
+                case "free": self.card = nil; self.startFree(parts.count > 1 ? parts[1] : "9")
+                case "shoot": self.ballInHand = false; self.phase = .aim; self.shoot(Double(parts[1]) ?? 0.5)
+                case "card": if let d = self.drill { self.card = .drill(d, inGame: true) }
+                case "menucard": if let d = drillById(parts[1]) { self.card = .drill(d, inGame: false) }
+                case "close": self.card = nil
+                case "menu": self.openMenu()
+                case "view2d": self.settings.view3D = false
+                case "view3d": self.settings.view3D = true
+                case "guide": self.settings.guide = Int(parts[1]) ?? 1
+                case "spin": self.spinA = Double(parts[1]) ?? 0; self.spinB = Double(parts[2]) ?? 0
+                default: break
+                }
+            }
+            t += 0.3
+        }
     }
 
     // MARK: - cài đặt
