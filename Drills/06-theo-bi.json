@@ -1,41 +1,41 @@
 {
   "id": "theo-bi",
-  "ten": "Theo bi về vùng đích",
+  "ten": "Theo bi vừa đủ, dừng trước lỗ",
   "ban": "9ft",
   "bi": [
     {
       "so": 0,
-      "x": 2.5,
-      "y": 2.0
+      "x": 5.658,
+      "y": 2.829
     },
     {
       "so": 1,
-      "x": 5.0,
-      "y": 2.75
+      "x": 7.0,
+      "y": 3.5
     }
   ],
   "danh_dau": [
     {
       "loai": "vi_tri_bi",
       "so": 1,
-      "x": 5.0,
-      "y": 2.75
+      "x": 7.0,
+      "y": 3.5
     },
     {
       "loai": "vung_dich",
-      "x": 6.6,
-      "y": 3.25,
-      "ban_kinh": 0.45
+      "x": 7.25,
+      "y": 3.625,
+      "ban_kinh": 0.25
     }
   ],
   "huong_dan": {
-    "luc": 3,
+    "luc": 2,
     "diem_cham": {
-      "doc": 0.4,
+      "doc": 0.3,
       "ngang": 0.0
     },
     "cong_thuc": null,
-    "ghi_chu": "Đánh trên tâm, bi cái theo sau bi mục tiêu và dừng trong vùng."
+    "ghi_chu": "Cú thẳng gần lỗ, đánh trên tâm. Bi cái theo sau bi mục tiêu một đoạn ngắn và dừng trước miệng lỗ — mạnh quá là theo vào lỗ."
   },
   "dieu_kien_dat": [
     "bi_1_vao_lo_goc_tren_phai",

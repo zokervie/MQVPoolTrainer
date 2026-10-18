@@ -5,8 +5,8 @@
   "bi": [
     {
       "so": 0,
-      "x": 3.0,
-      "y": 2.0
+      "x": 3.913,
+      "y": 2.093
     },
     {
       "so": 1,
@@ -23,19 +23,19 @@
     },
     {
       "loai": "vung_dich",
-      "x": 4.85,
-      "y": 2.55,
-      "ban_kinh": 0.25
+      "x": 4.837,
+      "y": 2.524,
+      "ban_kinh": 0.3
     }
   ],
   "huong_dan": {
     "luc": 4,
     "diem_cham": {
-      "doc": -0.25,
+      "doc": -0.3,
       "ngang": 0.0
     },
     "cong_thuc": null,
-    "ghi_chu": "Dưới tâm vừa đủ để bi cái hết xoáy đúng lúc chạm: bi cái dừng ngay chỗ va chạm."
+    "ghi_chu": "Cú thẳng ngắn. Dưới tâm vừa đủ để bi cái hết xoáy đúng lúc chạm: bi cái dừng ngay chỗ va chạm."
   },
   "dieu_kien_dat": [
     "bi_1_vao_lo_goc_tren_phai",

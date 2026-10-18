@@ -26,6 +26,31 @@ struct ResultFile: Codable {
 }
 
 let args = CommandLine.arguments
+
+// Chế độ đo hiệu năng (bản release): 200 cú phá có seed; báo p50/p95/max và số sự kiện.
+if args.count == 2, args[1] == "--bench" {
+    let table = TableSpec.nineFoot, R = table.ballRadius
+    let sim = Simulation(table: table, parameters: PhysicsParameters())
+    var rng = SplitMix64(seed: 2026)
+    var times: [Double] = [], events: [Int] = [], limited = 0
+    for k in 0..<250 {
+        let balls = [Ball(id: 0, position: SIMD3(0.635, 0.635 + (rng.unit() - 0.5) * 0.3, R))]
+            + Rack.triangle(apex: SIMD2(1.905, 0.635), radius: R, gap: 2e-4)
+        let strike = CueStrike(aimAngle: (rng.unit() - 0.5) * 0.08, cueSpeed: 4 + rng.unit() * 4,
+                               tipVertical: (rng.unit() - 0.5) * 0.4)
+        let t0 = DispatchTime.now().uptimeNanoseconds
+        let r = sim.run(balls: balls, strike: strike)
+        let ms = Double(DispatchTime.now().uptimeNanoseconds - t0) / 1e6
+        if k >= 50 { times.append(ms); events.append(r.trajectory.snapshots.count) }   // bỏ 50 cú khởi động
+        if r.status != .completed { limited += 1 }
+    }
+    times.sort(); events.sort()
+    func q(_ a: [Double], _ p: Double) -> Double { a[min(a.count - 1, Int(Double(a.count - 1) * p))] }
+    print(String(format: "REPORT: H1 bench (release, CI macOS runner — not iPhone): 200 breaks p50 %.2f ms, p95 %.2f ms, max %.2f ms; events median %d, max %d; event-limit hits %d",
+                 q(times, 0.5), q(times, 0.95), times.last!, events[events.count / 2], events.last!, limited))
+    exit(0)
+}
+
 guard args.count == 3 else {
     FileHandle.standardError.write("dùng: poolsim <vào.json> <ra.json>\n".data(using: .utf8)!)
     exit(2)

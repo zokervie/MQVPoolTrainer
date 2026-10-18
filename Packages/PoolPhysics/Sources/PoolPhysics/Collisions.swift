@@ -11,6 +11,11 @@ public struct ImpactInfo: Equatable, Sendable {
     public var tangentialSlip: Double
 }
 
+public enum CollisionThresholds {
+    /// Tốc độ pháp tuyến (m/s) dưới ngưỡng này: va chạm không nảy (chống Zeno). Giả định kỹ thuật.
+    public static let plasticSpeed = 0.005
+}
+
 /// Va chạm bi–bi có ma sát bề mặt (tạo throw do cắt và do xoáy).
 ///
 /// Mô hình xung lực (Alciatore TP A.14; Marlow):
@@ -33,7 +38,10 @@ public enum BallBallCollision {
         let vRel = simd_dot(a.velocity - b.velocity, nHat)
         guard vRel > 0 else { return ((a, b), nil) }
 
-        let jn = (1 + p.ballBallRestitution) * m * vRel / 2
+        // Dưới ngưỡng vận tốc rất nhỏ coi va chạm là không nảy (e = 0): chặn chuỗi nảy vô hạn (Zeno)
+        // trong cụm bi sát nhau. Ngưỡng nhỏ hơn nhiều so với độ chính xác đo được, không ảnh hưởng cú thường.
+        let e = vRel < CollisionThresholds.plasticSpeed ? 0 : p.ballBallRestitution
+        let jn = (1 + e) * m * vRel / 2
 
         // Vận tốc điểm tiếp xúc trên mỗi bi.
         let ra = R * nHat, rb = -R * nHat
@@ -90,7 +98,8 @@ public enum CushionCollision {
         let uc = ball.velocity + cross(ball.angularVelocity, rc)
         let vn = simd_dot(uc, normal)          // < 0 khi bi đang lao vào băng
         guard vn < 0 else { return (ball, nil) }
-        let jn = -(1 + p.cushionRestitution) * m * vn
+        let e = -vn < CollisionThresholds.plasticSpeed ? 0 : p.cushionRestitution
+        let jn = -(1 + e) * m * vn
 
         let ut = uc - vn * normal
         let slip = simd_length(ut)
