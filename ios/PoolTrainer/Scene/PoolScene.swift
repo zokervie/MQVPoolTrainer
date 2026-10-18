@@ -15,6 +15,12 @@ private func pbr(_ c: Any, rough: CGFloat, metal: CGFloat = 0) -> SCNMaterial {
     m.diffuse.contents = c; m.roughness.contents = rough; m.metalness.contents = metal
     return m
 }
+/// Bề mặt bán mờ (laminate, sơn mờ, gỗ cơ): Blinn với phản xạ nhẹ – giữ đúng độ tối của màu nền.
+private func satin(_ c: Any, spec: CGFloat, shine: CGFloat) -> SCNMaterial {
+    let m = SCNMaterial(); m.lightingModel = .blinn
+    m.diffuse.contents = c; m.specular.contents = UIColor(white: spec, alpha: 1); m.shininess = shine
+    return m
+}
 private func flat(_ c: UIColor, alpha: CGFloat = 1) -> SCNMaterial {
     let m = SCNMaterial(); m.lightingModel = .constant; m.diffuse.contents = c
     m.transparency = alpha; m.isDoubleSided = true; m.writesToDepthBuffer = alpha >= 1
@@ -181,9 +187,8 @@ final class PoolScene {
             darkWood = pbr(Textures.wood(0x2e1d12), rough: 0.5)
         } else {
             // khung laminate / sơn mờ (Predator, Rasson, Diamond…)
-            woodMat = pbr(Textures.solid(spec.railHex), rough: 0.55)
-            woodMat.clearCoat.contents = 0.08; woodMat.clearCoatRoughness.contents = 0.5
-            darkWood = pbr(Textures.solid(spec.railHex), rough: 0.7)
+            woodMat = satin(Textures.solid(spec.railHex), spec: 0.18, shine: 0.25)
+            darkWood = satin(Textures.solid(spec.railHex), spec: 0.08, shine: 0.15)
         }
         let hole = SCNMaterial(); hole.lightingModel = .constant; hole.diffuse.contents = UIColor(hex: 0x050506); hole.isDoubleSided = true
 
@@ -281,7 +286,7 @@ final class PoolScene {
         for s in segs {
             let g = SCNCone(topRadius: CGFloat(s.r1), bottomRadius: CGFloat(s.r0), height: CGFloat(s.y1 - s.y0))
             g.radialSegmentCount = 32
-            let m = pbr(UIColor(hex: s.col), rough: max(0.5, s.rough)); m.clearCoat.contents = 0.15
+            let m = satin(UIColor(hex: s.col), spec: s.rough < 0.5 ? 0.35 : 0.12, shine: s.rough < 0.5 ? 0.45 : 0.2)
             g.materials = [m]
             let n = SCNNode(geometry: g); n.position = v3(0, (s.y0 + s.y1) / 2, 0); inner.addChildNode(n)
         }
