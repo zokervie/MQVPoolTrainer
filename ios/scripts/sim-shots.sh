@@ -27,7 +27,8 @@ run() { # tên  "kịch bản"  các mốc giây chụp...
     sleep $(echo "$t - $t0" | bc); t0=$t
     xcrun simctl io "$UDID" screenshot --type=png "$OUT/$name-$t.png" >/dev/null 2>&1
   done
-  if xcrun simctl spawn "$UDID" launchctl list | grep -q "$BID"; then echo "$name: OK" >> "$STATUS"; else echo "$name: CRASH/EXIT" >> "$STATUS"; fi
+  local procs; procs=$(xcrun simctl spawn "$UDID" launchctl list 2>/dev/null)
+  if echo "$procs" | grep "$BID" >/dev/null; then echo "$name: OK" >> "$STATUS"; else echo "$name: CRASH/EXIT" >> "$STATUS"; fi
 }
 
 run 01-menu "" 7
@@ -35,9 +36,14 @@ run 02-card "menucard:c-90" 9
 run 03-aim "drill:a-half" 7
 run 04-demo "drill:c-draw,wait:2,demo" 7 9.5 13
 run 05-sys2d "view2d,drill:s-c5ref" 7
-run 06-guide2 "view3d,guide:2,drill:c-30,spin:0.3:0.2" 7
-run 07-break "free:9,wait:3,shoot:1" 5.5 6.5 11
-run 08-run9 "drill:g-run9,guide:1" 7
+run 07-break "view3d,free:9,wait:3,shoot:1" 5.5 6.5 11
+# dò mức sáng: cùng một cảnh, nhiều hệ số
+run 10-L100 "drill:c-30" 6
+run 11-L50 "drill:c-30,light:0.5" 6
+run 12-L30 "drill:c-30,light:0.3" 6
+run 13-L15 "drill:c-30,light:0.15" 6
+run 14-L30-noHDR "drill:c-30,light:0.3,hdr:0" 6
+run 15-L30-env0 "drill:c-30,light:0.3:0" 6
 cat "$STATUS"
 # nhật ký crash nếu có
 ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i pool && cp ~/Library/Logs/DiagnosticReports/*PoolTrainer* "$OUT"/ 2>/dev/null

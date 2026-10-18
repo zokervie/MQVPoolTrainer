@@ -115,6 +115,8 @@ final class Game: NSObject, ObservableObject {
                 case "view2d": self.settings.view3D = false
                 case "view3d": self.settings.view3D = true
                 case "guide": self.settings.guide = Int(parts[1]) ?? 1
+                case "light": self.scene.setLightScale(Double(parts[1]) ?? 1, env: parts.count > 2 ? Double(parts[2]) : nil)
+                case "hdr": self.scene.setHDR(parts[1] == "1")
                 case "spin": self.spinA = Double(parts[1]) ?? 0; self.spinB = Double(parts[2]) ?? 0
                 default: break
                 }

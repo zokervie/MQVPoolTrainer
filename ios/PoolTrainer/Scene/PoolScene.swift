@@ -51,6 +51,15 @@ final class PoolScene {
     private var drops: [Int: (t: Double, from: P2)] = [:]
     private var camPos = SIMD3<Float>(0, 3, 0), camLook = SIMD3<Float>(0, 0, 0)
     private var clothHex: UInt32 = 0
+    private var lights: [(SCNLight, CGFloat)] = []
+    private var envBase: CGFloat = 0.55
+
+    /// Hệ số độ sáng chung (hiệu chỉnh phơi sáng).
+    func setLightScale(_ k: Double, env: Double? = nil) {
+        for (l, base) in lights { l.intensity = base * CGFloat(k) }
+        scene.lightingEnvironment.intensity = envBase * CGFloat(env ?? k)
+    }
+    func setHDR(_ on: Bool) { camNode.camera?.wantsHDR = on; orthoNode.camera?.wantsHDR = on }
 
     init() { build() }
 
@@ -95,17 +104,17 @@ final class PoolScene {
 
     private func buildLights() {
         let amb = SCNLight(); amb.type = .ambient; amb.intensity = 45; amb.color = UIColor(hex: 0xc9d6e3)
-        let an = SCNNode(); an.light = amb; scene.rootNode.addChildNode(an)
+        let an = SCNNode(); an.light = amb; scene.rootNode.addChildNode(an); lights.append((amb, amb.intensity))
         let key = SCNLight(); key.type = .directional; key.intensity = 700; key.color = UIColor(hex: 0xfff4e0)
         key.castsShadow = true; key.shadowMapSize = CGSize(width: 2048, height: 2048); key.shadowSampleCount = 8
         key.shadowRadius = 3; key.shadowColor = UIColor(white: 0, alpha: 0.6); key.shadowMode = .deferred
         key.automaticallyAdjustsShadowProjection = false; key.orthographicScale = 1.7; key.zNear = 0.5; key.zFar = 6; key.shadowBias = 0.6
         let kn = SCNNode(); kn.light = key; kn.position = v3(0.3, 3.2, 0.5); kn.simdLook(at: .zero)
-        scene.rootNode.addChildNode(kn)
+        scene.rootNode.addChildNode(kn); lights.append((key, key.intensity))
         for x in [-0.85, 0, 0.85] {
             let p = SCNLight(); p.type = .omni; p.intensity = 120; p.color = UIColor(hex: 0xffe7c2)
             p.attenuationStartDistance = 0.3; p.attenuationEndDistance = 3.5; p.attenuationFalloffExponent = 2
-            let n = SCNNode(); n.light = p; n.position = v3(x, 1.05, 0); scene.rootNode.addChildNode(n)
+            let n = SCNNode(); n.light = p; n.position = v3(x, 1.05, 0); scene.rootNode.addChildNode(n); lights.append((p, p.intensity))
         }
     }
 
