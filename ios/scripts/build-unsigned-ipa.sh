@@ -8,7 +8,13 @@ mkdir -p build
 xcodebuild -project PoolTrainer.xcodeproj -scheme PoolTrainer -configuration Release \
   -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/dd \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > build/xcodebuild.log 2>&1 \
-  || { grep -E "(error|warning: unre)" build/xcodebuild.log | sort -u | head -150; tail -n 30 build/xcodebuild.log; exit 1; }
+  || { grep -E "error:" build/xcodebuild.log | sed -E 's#^.*/ios/##' | sort -u | head -150 > build/errors.txt || true
+         cat build/errors.txt; tail -n 30 build/xcodebuild.log
+         if [ -n "${GITHUB_ACTIONS:-}" ]; then
+           [ -s build/errors.txt ] || tail -n 40 build/xcodebuild.log > build/errors.txt
+           echo "::error title=xcodebuild::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' build/errors.txt)"
+         fi
+         exit 1; }
 grep -E "warning:" build/xcodebuild.log | sort -u | head -40 || true
 APP=build/dd/Build/Products/Release-iphoneos/PoolTrainer.app
 test -d "$APP"

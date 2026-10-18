@@ -17,8 +17,12 @@ jobs:
         run: node ios/Tests/make-fixture.mjs > /tmp/fixture.json && cmp /tmp/fixture.json ios/Tests/fixture.json
       - name: Kiểm thử engine Swift
         run: |
-          swiftc -O ios/PoolTrainer/Core/*.swift ios/Tests/main.swift -o coretests
-          ./coretests ios/Tests/fixture.json
+          swiftc -O ios/PoolTrainer/Core/*.swift ios/Tests/main.swift -o coretests 2> swiftc.txt || { echo "::error title=swiftc::$(grep error: swiftc.txt | head -40 | sed ':a;N;$!ba;s/\n/%0A/g')"; exit 1; }
+          rc=0; ./coretests ios/Tests/fixture.json > core.txt || rc=$?
+          cat core.txt
+          echo "::notice title=core-tests::$(tail -n 1 core.txt)"
+          if grep -q "✗" core.txt; then echo "::error title=core-fail::$(grep '✗' core.txt | head -60 | sed ':a;N;$!ba;s/\n/%0A/g')"; fi
+          exit $rc
 
   build-ipa:
     runs-on: macos-15
