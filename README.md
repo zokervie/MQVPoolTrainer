@@ -22,6 +22,11 @@
 - **Chơi tự do** 8 bi / 9 bi (luật chạm bi nhỏ nhất, bi trong tay khi phạm lỗi).
 - Lưu kết quả tập (thành công / chuỗi tốt nhất) trên máy, chơi không cần mạng sau lần mở đầu.
 
+## Ứng dụng iOS (native)
+
+Thư mục [`ios/`](ios/README.md): bản SwiftUI + SceneKit dùng chung engine (kiểm thử khớp từng cú với bản web).
+File IPA không ký mới nhất (cài bằng ESign / Sideloadly): **Releases → `ios-latest`** – hướng dẫn trong [`ios/README.md`](ios/README.md). Build bằng Codemagic: `codemagic.yaml`.
+
 ## Cấu trúc
 
 | Tệp | Nội dung |

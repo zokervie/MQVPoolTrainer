@@ -17,16 +17,18 @@ jobs:
         run: node ios/Tests/make-fixture.mjs > /tmp/fixture.json && cmp /tmp/fixture.json ios/Tests/fixture.json
       - name: Kiểm thử engine Swift
         run: |
-          swiftc -O ios/PoolTrainer/Core/*.swift ios/Tests/main.swift -o coretests 2> swiftc.txt || { echo "::error title=swiftc::$(grep error: swiftc.txt | head -40 | sed ':a;N;$!ba;s/\n/%0A/g')"; exit 1; }
+          swiftc -O ios/PoolTrainer/Core/*.swift ios/Tests/main.swift -o coretests 2> swiftc.txt || { echo "::error title=swiftc::$(grep error: swiftc.txt | head -40 | awk '{printf "%s%%0A", $0}')"; exit 1; }
           rc=0; ./coretests ios/Tests/fixture.json > core.txt || rc=$?
           cat core.txt
           echo "::notice title=core-tests::$(tail -n 1 core.txt)"
-          if grep -q "✗" core.txt; then echo "::error title=core-fail::$(grep '✗' core.txt | head -60 | sed ':a;N;$!ba;s/\n/%0A/g')"; fi
+          if grep -q "✗" core.txt; then echo "::error title=core-fail::$(grep '✗' core.txt | head -60 | awk '{printf "%s%%0A", $0}')"; fi
           exit $rc
 
   build-ipa:
     runs-on: macos-15
     needs: core-tests
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Cài XcodeGen
@@ -37,6 +39,18 @@ jobs:
         with:
           name: PoolTrainer-unsigned-ipa
           path: ios/build/PoolTrainer.ipa
+      - name: Đăng IPA lên Release "ios-latest" (link cố định cho ESign)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp ios/build/PoolTrainer.ipa PoolTrainer.ipa
+          NOTE="Bản build tự động từ ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC')). IPA không ký – mở bằng ESign/Sideloadly để ký bằng Apple ID của bạn rồi cài."
+          if gh release view ios-latest >/dev/null 2>&1; then
+            gh release upload ios-latest PoolTrainer.ipa --clobber
+            gh release edit ios-latest --notes "$NOTE" --target "$GITHUB_SHA"
+          else
+            gh release create ios-latest PoolTrainer.ipa --title "Pool Trainer iOS – bản mới nhất" --notes "$NOTE" --target "$GITHUB_SHA" --prerelease
+          fi
 
   simulator-shots:
     runs-on: macos-15
@@ -51,9 +65,10 @@ jobs:
         run: ios/scripts/sim-shots.sh
       - name: Đẩy ảnh chụp lên nhánh ci-shots
         run: |
-          echo "::notice title=sim-status::$(sed ':a;N;$!ba;s/\n/ | /g' ios/build/shots/status.txt)"
+          echo "::notice title=sim-status::$(tr '\n' '|' < ios/build/shots/status.txt)"
           cd ios/build/shots
           git init -q && git checkout -q -b ci-shots
           git config user.name ci && git config user.email ci@users.noreply.github.com
           git add -A && git commit -qm "shots ${GITHUB_SHA}"
-          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-shots
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-shots 2> ../push.err \
+            || { echo "::error title=push::$(tr '\n' ' ' < ../push.err)"; exit 1; }

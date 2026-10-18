@@ -12,7 +12,7 @@ xcodebuild -project PoolTrainer.xcodeproj -scheme PoolTrainer -configuration Rel
          cat build/errors.txt; tail -n 30 build/xcodebuild.log
          if [ -n "${GITHUB_ACTIONS:-}" ]; then
            [ -s build/errors.txt ] || tail -n 40 build/xcodebuild.log > build/errors.txt
-           echo "::error title=xcodebuild::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' build/errors.txt)"
+           echo "::error title=xcodebuild::$(sed 's/%/%25/g' build/errors.txt | awk '{printf "%s%%0A", $0}')"
          fi
          exit 1; }
 grep -E "warning:" build/xcodebuild.log | sort -u | head -40 || true
