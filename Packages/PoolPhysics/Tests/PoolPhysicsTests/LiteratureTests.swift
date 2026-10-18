@@ -46,10 +46,10 @@ final class LiteratureTests: XCTestCase {
     /// Throw tối đa ≈ 5° (≈ 1 inch mỗi foot), ở cú stun chậm, quanh nửa bi (30°).
     func testMaximumCutInducedThrowNearFiveDegreesAtHalfBall() {
         let cuts = Array(stride(from: 5.0, through: 60, by: 1))
-        let throws = cuts.map { throwAngle(cutDeg: $0, speed: slow) }
-        let k = throws.indices.max { throws[$0] < throws[$1] }!
-        XCTAssertGreaterThan(throws[k], 4.0, "throw tối đa \(throws[k])°")
-        XCTAssertLessThan(throws[k], 6.5, "throw tối đa \(throws[k])°")
+        let values = cuts.map { throwAngle(cutDeg: $0, speed: slow) }
+        let k = values.indices.max { values[$0] < values[$1] }!
+        XCTAssertGreaterThan(values[k], 4.0, "throw tối đa \(values[k])°")
+        XCTAssertLessThan(values[k], 6.5, "throw tối đa \(values[k])°")
         XCTAssertTrue((22.0...42.0).contains(cuts[k]), "throw lớn nhất ở góc cắt \(cuts[k])°")
     }
 
@@ -80,14 +80,14 @@ final class LiteratureTests: XCTestCase {
     /// Mức xoáy tối đa ≈ 0,5R (giới hạn trượt cơ) → 50% ≈ 0,25R.
     func testSpinInducedThrowStraightShot() {
         let sides = Array(stride(from: 0.1, through: 0.8, by: 0.05))
-        let throws = sides.map { abs(throwAngle(cutDeg: 0, speed: slow, side: $0)) }
-        let k = throws.indices.max { throws[$0] < throws[$1] }!
-        print(String(format: "REPORT: SIT straight slow: max %.2f° at side %.2fR; at 0.25R %.2f°", throws[k], sides[k], throws[3]))
+        let values = sides.map { abs(throwAngle(cutDeg: 0, speed: slow, side: $0)) }
+        let k = values.indices.max { values[$0] < values[$1] }!
+        print(String(format: "REPORT: SIT straight slow: max %.2f° at side %.2fR; at 0.25R %.2f°", values[k], sides[k], values[3]))
         // Xoáy phải (bên phải bi cái) đẩy bi mục tiêu sang trái (+y).
         let signed = throwAngle(cutDeg: 0, speed: slow, side: 0.4)
         XCTAssertLessThan(signed, 0, "xoáy phải phải làm bi mục tiêu lệch trái (góc hướng dương)")
         XCTAssertTrue((0.15...0.35).contains(sides[k]), "SIT lớn nhất ở \(sides[k])R")
-        XCTAssertLessThan(throws[k], 6.5)
+        XCTAssertLessThan(values[k], 6.5)
     }
 
     /// Quy tắc 30° (TP 3.3): bi lăn tự nhiên, độ dày 1/4 → 3/4 bi, bi cái lệch trong khoảng ~27°–34°

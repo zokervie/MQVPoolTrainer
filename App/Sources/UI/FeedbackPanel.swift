@@ -76,7 +76,7 @@ struct FeedbackPanel: View {
     }
 
     private func button(_ title: String, _ icon: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) { Label(title, systemImage: icon).font(.callout) }
+        Button(action: action) { Label(title, systemImage: icon).font(.callout).lineLimit(1).fixedSize() }
             .buttonStyle(.bordered)
     }
 }

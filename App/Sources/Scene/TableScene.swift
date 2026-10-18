@@ -74,7 +74,8 @@ final class TableScene {
         // để không kéo mắt khỏi bi). Mặt nỉ ở cao độ ~0,76 m so với sàn.
         let body = ModelEntity(mesh: .generateBox(size: [outerL * 0.96, 0.22, outerW * 0.96]),
                                materials: [Self.material(UIColor(red: 0.18, green: 0.10, blue: 0.05, alpha: 1), roughness: 0.6)])
-        body.position = [0, -0.11, 0]
+        // Mặt trên thân bàn thấp hơn mặt nỉ 1 cm: trùng cao độ sẽ gây z-fighting (nỉ loang nâu).
+        body.position = [0, -0.12, 0]
         root.addChild(body)
         let floor = ModelEntity(mesh: .generatePlane(width: 14, depth: 10),
                                 materials: [Self.material(UIColor(red: 0.16, green: 0.15, blue: 0.14, alpha: 1), roughness: 1)])

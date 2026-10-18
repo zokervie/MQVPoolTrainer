@@ -101,11 +101,11 @@ def make(path, n_per_category=70, seed=2026, cushion_model=None):
         "cushionFriction": param("f_c", 0.2),
     }
 
-    shots, counts = [], {"motion": 0, "ballball": 0, "cushion": 0}
+    shots, counts = [], {"motion": 0, "ballball": 0, "cushion": 0, "jaw": 0}
     attempts = 0
-    while min(counts.values()) < n_per_category and attempts < 4000:
+    while min(counts[k] for k in ("motion", "ballball", "cushion")) < n_per_category and attempts < 8000:
         attempts += 1
-        want = min(counts, key=counts.get)
+        want = min(("motion", "ballball", "cushion"), key=counts.get)
         # Kịch bản trong hệ tọa độ của ta (x dài, y rộng).
         cx, cy = rng.uniform(0.35 * L, 0.65 * L), rng.uniform(0.3 * W, 0.7 * W)
         aim = rng.uniform(0, 2 * math.pi)
@@ -134,7 +134,10 @@ def make(path, n_per_category=70, seed=2026, cushion_model=None):
         kinds = event_kinds(system)
         has_cushion = any("cushion" in k or "pocket" in k for k in kinds)
         has_bb = any("ball_ball" in k for k in kinds)
-        cat = "cushion" if has_cushion else ("ballball" if has_bb else "motion")
+        # Tách cú chạm mũi băng cong ở miệng lỗ / rơi lỗ ("jaw"): hình học miệng lỗ hai engine khác nhau,
+        # nên không trộn với cú chỉ chạm băng thẳng.
+        has_jaw = any("circular" in k or "pocket" in k for k in kinds)
+        cat = ("jaw" if has_jaw else "cushion") if has_cushion else ("ballball" if has_bb else "motion")
         if counts[cat] >= n_per_category:
             continue
 
@@ -250,7 +253,10 @@ def variant(src, dst, assignments):
     doc = json.load(open(src))
     for a in assignments:
         k, v = a.split("=", 1)
-        doc["params"][k] = float(v)
+        if k.startswith("table."):
+            doc["table"][k[6:]] = float(v)
+        else:
+            doc["params"][k] = float(v)
     json.dump(doc, open(dst, "w"), indent=1)
 
 

@@ -19,11 +19,11 @@ func writeWAV(_ interleaved: [Float], channels: Int, sampleRate: Int, to url: UR
 
 let out = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "audio")
 try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-let scheduler = AudioScheduler()
-var renderer = OfflineRenderer()
 
 func render(_ events: [AudioEvent], listener: ListenerPose = ListenerPose(position: SIMD2(0.3, 0.635), yaw: 0)) -> [Float] {
-    renderer.render(scheduler.schedule(events, listener: listener)) { PlaceholderSynth.render($0) }.interleaved
+    let scheduler = AudioScheduler()
+    var renderer = OfflineRenderer()
+    return renderer.render(scheduler.schedule(events, listener: listener)) { PlaceholderSynth.render($0) }.interleaved
 }
 
 // 1. Dãy va chạm bi–bi từ rất nhẹ tới rất mạnh, cách nhau 0,6 s.
