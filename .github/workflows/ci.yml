@@ -78,3 +78,30 @@ jobs:
           name: log-app
           path: app-build.log
           retention-days: 14
+
+  # Tầng 2 (đối chứng pooltool) và kiểm thử công cụ đo. Chỉ để báo cáo, không chặn CI.
+  validation:
+    runs-on: macos-15
+    timeout-minutes: 40
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Kiểm thử công cụ đo (Tools/validation)
+        run: |
+          pip install numpy > /dev/null
+          python -m unittest discover -s Tools/validation 2>&1 | tee validation.log
+      - name: Đối chứng pooltool
+        run: |
+          pip install pooltool-billiards 2>&1 | tail -2 | tee -a validation.log
+          python Tools/validation/pooltool_compare.py make scen.json 2>&1 | tee -a validation.log
+          swift run -c release --package-path Packages/PoolPhysics poolsim scen.json ours.json 2>&1 | tail -3 | tee -a validation.log
+          python Tools/validation/pooltool_compare.py report scen.json ours.json 2>&1 | tee -a validation.log
+      - name: Annotate
+        if: always()
+        run: .github/scripts/annotate.sh validation.log "$GITHUB_WORKSPACE"

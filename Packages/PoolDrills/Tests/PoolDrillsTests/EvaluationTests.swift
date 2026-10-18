@@ -43,6 +43,7 @@ final class EvaluationTests: XCTestCase {
         let cue = balls.first { $0.id == 0 }!, ob = balls.first { $0.id == 1 }!
         let aim = atan2(ob.position.y - cue.position.y, ob.position.x - cue.position.x)
         let good = drill.evaluate(sim.run(balls: balls, strike: drill.guideStrike(aimAngle: aim)))
+        XCTAssertFalse(good.cueBallScratched, "bi cái theo vào lỗ")
         XCTAssertTrue(good.success, "\(good.conditions)")
         let bad = drill.evaluate(sim.run(balls: balls, strike: drill.guideStrike(aimAngle: aim + 3 * .pi / 180)))
         XCTAssertFalse(bad.success)
