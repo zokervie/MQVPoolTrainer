@@ -19,7 +19,7 @@ Mẫu trong `Drills/`. Tọa độ theo đơn vị kim cương (dài 8, rộng 4
 - Thẻ hướng dẫn chỉ ở màn xem trước; ẩn khi cúi đánh.
 
 ## Thang lực 1–7
-Gắn với tốc độ cơ (m/s), hiệu chỉnh được: 0,8 · 1,3 · 2,0 · 3,0 · 4,3 · 6,0 · 8,0. Mô tả cho người chơi bằng kết quả (số chiều dài bàn bi lăn), không bằng m/s.
+Gắn với tốc độ cơ (m/s), hiệu chỉnh được: 0,5 · 0,75 · 1,05 · 1,4 · 1,9 · 2,6 · 4,0 — chọn theo quãng lăn của bi cái (mức 1 ≈ 0,5, mức 2 ≈ 1, mức 3 ≈ 2, mức 4 ≈ 3,5 chiều dài bàn). Mô tả cho người chơi bằng kết quả, không bằng m/s.
 
 ## Bộ bài đầu tiên
 10 bài chất lượng cao (ngắm, lực, đưa bi, băng, xoáy) trước; thêm dần theo phản hồi. Bài quyết định (chọn điểm chạm + lực) chạy trong Shot Lab. Ý tưởng phổ biến được tự dựng lại, hướng dẫn viết bằng lời của dự án.

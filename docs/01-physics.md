@@ -31,11 +31,21 @@
 - Trạng thái tiếp xúc chống va chạm lặp vô hạn (Zeno).
 - Giới hạn số sự kiện mỗi cú; chạm giới hạn → đánh dấu lỗi, ghi seed, không âm thầm cắt.
 
-## Đã có trong code (chưa biên dịch)
-- `FreeMotion`: chuyển động dạng đóng, chuyển trạng thái.
-- `BallBallCollision`: va chạm lý tưởng (chưa throw).
-- `CueModel`: cơ nằm ngang, `speedRatio` tạm (thay ở R3.1).
-- `TableDefinition`, `CalibrationProfile`, `Provenance`, `RenderMapping`.
-- Test: quãng lăn, 5/7, 90°, 30° (33,7°), lặp lại, kim cương, schema, tọa độ.
+## Đã cài đặt (bản 0.3)
+| Thành phần | File | Ghi chú |
+|---|---|---|
+| Chuyển động tự do dạng đóng | `Motion.swift` | trượt → lăn → xoay → dừng; `acceleration()` cho đa thức vị trí |
+| Tìm nghiệm đa thức | `Polynomial.swift` | cô lập bằng điểm tới hạn + chia đôi, xử lý nghiệm kép (va chạm sượt) |
+| Bộ giải theo sự kiện | `Simulation.swift` | bi–bi, băng, mũi băng, lỗ, biên an toàn; cửa sổ đồng thời 1 ns, thứ tự xác định; giới hạn 20.000 sự kiện |
+| Bi–bi có throw | `Collisions.swift` | xung lực + ma sát μ(v) = μ₀·(r + (1−r)e^(−cv)) (Alciatore TP A.14) |
+| Băng và mũi băng | `Collisions.swift` | xung lực với pháp tuyến nghiêng theo độ cao mũi băng; **đơn giản hóa**, chưa phải Mathavan 2010 đầy đủ |
+| Hình học lỗ | `TableGeometry.swift` | miệng lỗ góc 45°, khe lỗ giữa, mũi băng là điểm; bi rơi khi tâm qua đường bắt giữ. Chưa có mặt vát miệng lỗ và bi bật ra khỏi lỗ |
+| Cơ–bi | `CueStrike.swift` | xung lực, squirt (Alciatore TP A.31), trượt cơ > 0,5R; cơ nằm ngang |
+| Bản ghi va chạm | `CollisionRecord` | loại, thời điểm, vị trí, tốc độ pháp tuyến, xung lực, trượt tiếp tuyến, lỗ |
+| Quỹ đạo | `Trajectory` | nội suy chính xác giữa các sự kiện |
+| Khoảng ngắm | `AimWindow.swift` | quét góc + chia đôi biên |
+| Công cụ dòng lệnh | `Sources/poolsim` | chạy kịch bản JSON cho đối chứng pooltool |
 
-KPI tầng 1 (M1–M7): UPGRADE.md mục 3.1.
+Sửa lỗi khi rà phương trình (R0.4): dấu xoáy ngang trong `CueModel` cũ bị ngược (đánh bên phải phải cho ω_z > 0, quay ngược chiều kim đồng hồ nhìn từ trên).
+
+Test: `SolverTests.swift` (M2–M7, throw, squirt, băng, xoáy ngang, lỗ, khoảng ngắm), `MotionTests.swift` (M1), `TableDefinitionTests.swift`.

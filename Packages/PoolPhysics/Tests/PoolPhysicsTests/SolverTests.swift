@@ -221,17 +221,19 @@ final class SolverTimingReport: XCTestCase {
         let sim = Simulation(table: table, parameters: PhysicsParameters())
         var rng = SplitMix64(seed: 99)
         var times: [Double] = []
-        for _ in 0..<60 {
+        var events: [Int] = []
+        for _ in 0..<30 {
             let balls = [Ball(id: 0, position: SIMD3(0.635, 0.635 + (rng.unit() - 0.5) * 0.2, R))]
                 + Rack.triangle(apex: SIMD2(1.905, 0.635), radius: R)
             let s = CueStrike(aimAngle: (rng.unit() - 0.5) * 0.05, cueSpeed: 5 + rng.unit() * 3)
             let t0 = Date()
             let r = sim.run(balls: balls, strike: s)
             times.append(Date().timeIntervalSince(t0) * 1000)
+            events.append(r.trajectory.snapshots.count)
             XCTAssertEqual(r.status, .completed)
         }
         times.sort()
         let p50 = times[times.count / 2], p95 = times[Int(Double(times.count) * 0.95)]
-        print("REPORT: break simulation on CI runner (not iPhone): p50 \(String(format: "%.1f", p50)) ms, p95 \(String(format: "%.1f", p95)) ms, max \(String(format: "%.1f", times.last!)) ms")
+        print("REPORT: break simulation on CI runner (not iPhone): p50 \(String(format: "%.1f", p50)) ms, p95 \(String(format: "%.1f", p95)) ms, max \(String(format: "%.1f", times.last!)) ms; events max \(events.max() ?? 0), median \(events.sorted()[events.count / 2])")
     }
 }

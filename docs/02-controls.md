@@ -47,3 +47,10 @@ NGẮM ──chạm nhanh vùng khóa──▶ ĐÃ KHÓA ──vuốt vượt v
 - `replay()` cho cùng kết quả (KPI U2). Dùng để tách lỗi người chơi / điều khiển / vật lý (REVIEW.md C5).
 
 KPI U1–U5: UPGRADE.md mục 4.
+
+## Cài đặt trong app (bản 0.3)
+- `App/Sources/UI/TouchSurface.swift`: một UIView nhận mọi cảm ứng; định tuyến theo trạng thái (`InteractionMachine`).
+- Xoay ngắm: 0,0025 rad/điểm khi một ngón; hai ngón giảm độ nhạy khoảng 6 lần.
+- Bi effect: vùng chạm bán kính 1,6 × 30 điểm; khi phóng to, điểm chạm = vị trí ngón / 110 điểm, chặn ở 0,5R.
+- Cú vuốt: mẫu `coalescedTouches` đổi sang mm theo `mmPerPoint` (màn hiệu chỉnh bằng thẻ ngân hàng), ghi `TouchRecording` mỗi cú.
+- **Chưa thử trên thiết bị thật**: các hằng số độ nhạy là giá trị khởi đầu, cần chỉnh khi đo U3–U5.

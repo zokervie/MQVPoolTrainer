@@ -65,8 +65,10 @@ public struct TipPoint: Codable, Equatable, Sendable {
 }
 
 /// Thang lực 1–7 → tốc độ cơ (m/s). Hiệu chỉnh được.
+/// Chọn theo quãng lăn của bi cái đánh giữa tâm, không băng (cản lăn 0,01): d ≈ 4,6·V² mét,
+/// tức mức 1 ≈ 0,5 · 2 ≈ 1 · 3 ≈ 2 · 4 ≈ 3,5 chiều dài bàn 9 ft; mức 5–7 dành cho cú mạnh nhiều băng.
 public enum SpeedScale {
-    public static let cueSpeeds: [Double] = [0.8, 1.3, 2.0, 3.0, 4.3, 6.0, 8.0]
+    public static let cueSpeeds: [Double] = [0.5, 0.75, 1.05, 1.4, 1.9, 2.6, 4.0]
     public static func cueSpeed(level: Int) -> Double {
         cueSpeeds[min(max(level, 1), 7) - 1]
     }

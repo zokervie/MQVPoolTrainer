@@ -10,8 +10,11 @@ grep -E "Executed [0-9]+ tests?|[0-9]+ tests? (passed|failed)" "$log" \
   | tail -3 | while IFS= read -r l; do echo "::notice title=tests::${l}"; done
 
 # Báo cáo số liệu (dòng bắt đầu bằng REPORT:)
-grep -E "^REPORT: " "$log" | sort -u | head -12 \
-  | while IFS= read -r l; do echo "::notice title=report::${l#REPORT: }"; done
+# GitHub giới hạn 10 annotation mỗi loại mỗi bước → gộp mọi dòng báo cáo vào một notice (xuống dòng %0A).
+reports=$(grep -E "^REPORT: " "$log" | sort -u | sed 's/^REPORT: //')
+if [ -n "$reports" ]; then
+  echo "::notice title=report::$(echo "$reports" | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"
+fi
 
 # Lỗi biên dịch / test Swift
 grep -E "^[^ ]+\.swift:[0-9]+(:[0-9]+)?: (error|fatal error): " "$log" | sort -u | head -40 \

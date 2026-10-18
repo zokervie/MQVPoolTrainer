@@ -50,7 +50,7 @@ final class StrokeAnalyzerTests: XCTestCase {
         XCTAssertEqual(m.cueSpeed(fingerSpeed: m.fingerMin), m.cueMin, accuracy: 1e-9)
         XCTAssertEqual(m.cueSpeed(fingerSpeed: m.fingerMax), m.cueMax, accuracy: 1e-9)
         var last = 0.0
-        for f in stride(from: 50.0, through: 1500, by: 50) {
+        for f in stride(from: m.fingerMin, through: m.fingerMax, by: 20) {
             let c = m.cueSpeed(fingerSpeed: f)
             XCTAssertGreaterThan(c, last)
             last = c

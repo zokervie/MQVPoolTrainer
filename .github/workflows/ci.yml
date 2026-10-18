@@ -101,7 +101,11 @@ jobs:
           pip install pooltool-billiards 2>&1 | tail -2 | tee -a validation.log
           python Tools/validation/pooltool_compare.py make scen.json 2>&1 | tee -a validation.log
           swift run -c release --package-path Packages/PoolPhysics poolsim scen.json ours.json 2>&1 | tail -3 | tee -a validation.log
-          python Tools/validation/pooltool_compare.py report scen.json ours.json 2>&1 | tee -a validation.log
+          python Tools/validation/pooltool_compare.py report scen.json ours.json 2>&1 | sed 's/^REPORT: P/REPORT: [base] P/' | tee -a validation.log
+          # Biến thể chẩn đoán: không ma sát bi–bi (để kiểm tra giả thuyết lệch do mô hình throw).
+          python Tools/validation/pooltool_compare.py variant scen.json scen_nofric.json ballBallFriction=0
+          swift run -c release --package-path Packages/PoolPhysics poolsim scen_nofric.json ours_nofric.json 2>&1 | tail -1
+          python Tools/validation/pooltool_compare.py report scen_nofric.json ours_nofric.json 2>&1 | sed 's/^REPORT: P/REPORT: [no-friction] P/' | tee -a validation.log
       - name: Annotate
         if: always()
         run: .github/scripts/annotate.sh validation.log "$GITHUB_WORKSPACE"

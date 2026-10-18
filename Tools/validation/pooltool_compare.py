@@ -139,6 +139,32 @@ def make(path, n_per_category=70, seed=2026):
         json.dump(doc, f, indent=1)
     print(f"REPORT: pooltool {doc['pooltoolVersion']}, table {L:.3f}x{W:.3f} m, shots {counts}, attempts {attempts}")
     print(f"REPORT: pooltool params used: {params}")
+    describe_pooltool_models(pt)
+
+
+def describe_pooltool_models(pt):
+    """R1.1: ghi mô hình va chạm mặc định của pooltool đang dùng (đọc từ gói đã cài)."""
+    import os
+    root = os.path.dirname(pt.__file__)
+    found = False
+    for dirpath, _, files in os.walk(root):
+        for f in files:
+            if "resolver" in f.lower() and f.endswith((".yaml", ".yml", ".json")):
+                path = os.path.join(dirpath, f)
+                lines = [l.rstrip() for l in open(path, encoding="utf-8", errors="replace") if l.strip()]
+                print(f"REPORT: pooltool resolver config {os.path.relpath(path, root)}: " + " ; ".join(lines[:40]))
+                found = True
+    try:
+        from pooltool.physics.resolve.resolver import Resolver  # type: ignore
+        r = Resolver.default()
+        for name in ("ball_ball", "ball_linear_cushion", "ball_circular_cushion", "stick_ball", "ball_pocket"):
+            if hasattr(r, name):
+                print(f"REPORT: pooltool default {name}: {type(getattr(r, name)).__name__}")
+                found = True
+    except Exception as e:  # noqa: BLE001
+        print(f"REPORT: pooltool Resolver introspection failed: {type(e).__name__}: {e}")
+    if not found:
+        print("REPORT: pooltool resolver config not found")
 
 
 def percentile(xs, q):
@@ -180,9 +206,24 @@ def report(scen_path, ours_path):
         print(f"REPORT: P3 worst: shot {sid} ({cat}) {1000*err:.1f} mm")
 
 
+def variant(src, dst, assignments):
+    doc = json.load(open(src))
+    for a in assignments:
+        k, v = a.split("=", 1)
+        doc["params"][k] = float(v)
+    json.dump(doc, open(dst, "w"), indent=1)
+
+
+def report_labeled(label, scen_path, ours_path):
+    print(f"REPORT: ---- variant: {label} ----")
+    report(scen_path, ours_path)
+
+
 if __name__ == "__main__":
     if len(sys.argv) >= 3 and sys.argv[1] == "make":
         make(sys.argv[2])
+    elif len(sys.argv) >= 4 and sys.argv[1] == "variant":
+        variant(sys.argv[2], sys.argv[3], sys.argv[4:])
     elif len(sys.argv) >= 4 and sys.argv[1] == "report":
         report(sys.argv[2], sys.argv[3])
     else:

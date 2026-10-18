@@ -136,68 +136,85 @@ public struct Simulation: Sendable {
     }
 
     /// Mô phỏng từ trạng thái cho trước (không có cú đánh).
+    ///
+    /// Tối ưu chuẩn của mô phỏng theo sự kiện: mọi dự đoán lưu theo **thời gian tuyệt đối**; sau mỗi
+    /// sự kiện chỉ tính lại dự đoán của các bi vừa thay đổi (va chạm hoặc đổi pha) và các cặp có chứa chúng.
+    /// Chuyển động giữa các sự kiện là nghiệm dạng đóng nên dự đoán của bi không đổi vẫn đúng.
     public func simulate(_ initial: [Ball]) -> (Trajectory, [CollisionRecord], SimulationStatus) {
         var balls = initial
+        let n = balls.count
         var clock = 0.0
         var snapshots = [Snapshot(time: 0, balls: balls)]
         var records: [CollisionRecord] = []
         var status = SimulationStatus.completed
 
+        var transition = [Double](repeating: .infinity, count: n)   // thời điểm tuyệt đối
+        var walls = [[Candidate]](repeating: [], count: n)
+        var pairs = [Candidate?](repeating: nil, count: n * n)       // chỉ dùng i < j
+        var dirty = Set(balls.indices)
+
         for _ in 0..<options.maxEvents {
-            let moving = balls.indices.filter { isMoving(balls[$0]) }
-            if moving.isEmpty { break }
+            if !balls.contains(where: isMoving) { break }
 
-            // 1. Thời điểm chuyển trạng thái của từng bi.
-            var transition = [Double](repeating: .infinity, count: balls.count)
-            for i in moving {
-                transition[i] = FreeMotion.timeToTransition(balls[i], parameters, radius: R) ?? .infinity
-            }
-
-            // 2. Ứng viên va chạm, mỗi ứng viên chỉ hợp lệ trước khi bi liên quan đổi pha.
-            var events: [Candidate] = []
-            var earliest = transition.min() ?? .infinity
-            for i in moving {
-                for c in wallEvents(balls[i], index: i, horizon: transition[i]) {
-                    events.append(c); earliest = min(earliest, c.time)
+            // 1. Tính lại dự đoán cho bi thay đổi.
+            for i in dirty.sorted() {
+                if isMoving(balls[i]) {
+                    let dt = FreeMotion.timeToTransition(balls[i], parameters, radius: R) ?? .infinity
+                    transition[i] = clock + dt
+                    walls[i] = wallEvents(balls[i], index: i, horizon: dt).map { var c = $0; c.time += clock; return c }
+                } else {
+                    transition[i] = .infinity
+                    walls[i] = []
                 }
             }
-            for i in balls.indices where balls[i].state != .pocketed {
-                for j in (i + 1)..<balls.count where balls[j].state != .pocketed {
-                    guard isMoving(balls[i]) || isMoving(balls[j]) else { continue }
-                    let horizon = min(transition[i], transition[j])
+            for i in 0..<n {
+                for j in (i + 1)..<max(i + 1, n) where dirty.contains(i) || dirty.contains(j) {
+                    pairs[i * n + j] = nil
+                    guard balls[i].state != .pocketed, balls[j].state != .pocketed,
+                          isMoving(balls[i]) || isMoving(balls[j]) else { continue }
+                    let horizon = min(transition[i], transition[j]) - clock
                     if let t = pairTime(balls[i], balls[j], horizon: horizon) {
-                        events.append(Candidate(time: t, kind: .ballBall, i: i, j: j))
-                        earliest = min(earliest, t)
+                        pairs[i * n + j] = Candidate(time: clock + t, kind: .ballBall, i: i, j: j)
                     }
                 }
             }
+
+            // 2. Sự kiện sớm nhất.
+            var earliest = transition.min() ?? .infinity
+            for w in walls { for c in w { earliest = min(earliest, c.time) } }
+            for c in pairs { if let c { earliest = min(earliest, c.time) } }
             guard earliest.isFinite else { break }
+            let T = max(clock, earliest)
 
             // 3. Đưa mọi bi tới thời điểm sự kiện.
-            let T = max(0, earliest)
-            for i in moving {
+            dirty = []
+            for i in 0..<n where isMoving(balls[i]) {
                 if transition[i] - T <= options.simultaneityWindow,
                    let snapped = FreeMotion.advanceToTransition(balls[i], parameters, radius: R) {
                     balls[i] = snapped.0
-                } else if T > 0 {
-                    balls[i] = FreeMotion.evolve(balls[i], by: T, parameters, radius: R)
+                    dirty.insert(i)
+                } else if T > clock {
+                    balls[i] = FreeMotion.evolve(balls[i], by: T - clock, parameters, radius: R)
                 }
             }
-            clock += T
+            clock = T
 
             // 4. Xử lý các va chạm đồng thời theo thứ tự xác định.
-            var due = events.filter { $0.time - T <= options.simultaneityWindow }
+            var due: [Candidate] = []
+            for w in walls { for c in w where c.time - T <= options.simultaneityWindow { due.append(c) } }
+            for c in pairs { if let c, c.time - T <= options.simultaneityWindow { due.append(c) } }
             due.sort { a, b in
                 let ka = (a.kind.order, a.i, a.j, a.extra), kb = (b.kind.order, b.i, b.j, b.extra)
                 return options.reverseTieOrder ? ka > kb : ka < kb
             }
             for e in due {
+                dirty.insert(e.i)
+                if e.j >= 0 { dirty.insert(e.j) }
                 if let r = resolve(e, &balls, time: clock) { records.append(r) }
             }
             snapshots.append(Snapshot(time: clock, balls: balls))
             if snapshots.count >= options.maxEvents { status = .eventLimitReached; break }
         }
-        if snapshots.count >= options.maxEvents { status = .eventLimitReached }
         return (Trajectory(snapshots: snapshots, parameters: parameters, radius: R), records, status)
     }
 

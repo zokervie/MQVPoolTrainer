@@ -19,9 +19,11 @@ App bida 3D trên iPhone để **luyện mắt, tư duy và khả năng dự đo
 - Swift 6, iOS 18+, SwiftUI + RealityKit, XcodeGen (`project.yml`). **Không dùng engine vật lý có sẵn.**
 - `Packages/PoolPhysics` — Swift thuần (Foundation + simd), không biết gì về UI. Gồm: chuyển động, va chạm, cú đánh, `TableDefinition`/`CalibrationProfile` (có nguồn gốc tham số), `RenderMapping` (hàm đổi tọa độ duy nhất sang RealityKit).
 - `Packages/PoolInput` — cảm ứng → kết quả cú vuốt; máy trạng thái; vùng khóa; ghi và phát lại cảm ứng thô (`TouchRecording`).
-- `Packages/PoolDrills` — bài tập JSON, thang lực, chấm điểm, lịch sử.
-- `App/` — nơi duy nhất ghép các package: RealityKit, camera, haptic, SwiftData, Shot Lab.
-- `Tools/validation/` (sẽ có ở R1) — Python trên Mac: pooltool, xử lý video, báo cáo. Không nằm trong app.
+- `Packages/PoolDrills` — bài tập JSON, điều kiện đạt, chấm điểm, lịch sử (`ShotLog`), phân tích lỗi.
+- `Packages/PoolAudio` — Zoker Acoustic Physics: AudioEvent → AudioScheduler → SampleLibrary → OfflineRenderer (Swift thuần).
+- `App/` — nơi duy nhất ghép các package: ARView (non-AR), camera, cảm ứng, haptic, AVAudioEngine, lưu lịch sử JSON, Shot Lab.
+- `Tools/validation/` — Python: đối chứng pooltool (qua `poolsim`), đo video, độ không chắc chắn, hiệu chỉnh. Không nằm trong app.
+- CI: `.github/workflows/ci.yml` — test 4 package, build app (simulator), job `validation`. Lỗi/kết quả hiện thành annotation.
 
 ## Tài liệu (chỉ đọc file liên quan đến nhiệm vụ)
 - `UPGRADE.md` — quyết định, KPI, lộ trình (nguồn chính)

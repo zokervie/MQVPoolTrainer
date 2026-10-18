@@ -1,8 +1,8 @@
-# Zoker Pool Trainer (iOS) — bản 0.2
+# Zoker Pool Trainer (iOS) — bản 0.3 (MVP)
 
 App bida 3D trên iPhone để **luyện mắt, tư duy và khả năng dự đoán đường bi**, áp dụng ra bàn thật. Không tuyên bố luyện động tác ra cơ.
 
-> **Trạng thái:** toàn bộ code Swift **chưa từng được biên dịch hay chạy test**. Nhiệm vụ đầu tiên là R0.1 trong `PROGRESS.md`.
+> **Trạng thái:** 4 package build và qua test trên CI macOS; app build được cho iOS Simulator. **Chưa chạy trên iPhone thật**, chưa nghe thử âm thanh, chưa đo bàn thật — xem `PROGRESS.md`.
 
 ## Những gì đã chốt
 - **Vật lý:** tự viết, từ phương trình đã công bố; một bộ giải theo sự kiện; tính trước cả cú. MVP gồm hướng bi mục tiêu, throw, băng theo tốc độ/xoáy, squirt, hình học lỗ.
@@ -27,10 +27,12 @@ docs/            01 vật lý · 02 điều khiển · 03 camera/đồ họa · 
 Packages/
   PoolPhysics/   Chuyển động, va chạm, cú đánh, TableDefinition, CalibrationProfile, RenderMapping + test
   PoolInput/     Máy trạng thái, vùng khóa, phân tích cú vuốt, TouchRecording + test
-  PoolDrills/    Bài tập JSON, thang lực + test
-App/Sources/     Khung SwiftUI + RealityKit màn hình ngang
-Drills/          3 bài tập mẫu
-.github/workflows/swift-packages-tests.yml   CI chạy test cả 3 package trên macOS
+  PoolDrills/    Bài tập JSON, điều kiện đạt, chấm điểm, lịch sử, phân tích lỗi + test
+  PoolAudio/     Zoker Acoustic Physics: sự kiện, ánh xạ, lịch phát, mẫu tạm, bộ trộn + test
+App/Sources/     App: ARView 3D, camera, cảm ứng, phản hồi, Shot Lab, bài tập, lịch sử, cài đặt, âm thanh
+Drills/          10 bài tập
+Tools/validation/ Đối chứng pooltool, công cụ đo video bàn thật + test Python
+.github/workflows/ci.yml   CI: test package, build app, job validation
 project.yml      Cấu hình XcodeGen
 ```
 
@@ -38,3 +40,15 @@ project.yml      Cấu hình XcodeGen
 **Có Mac:** cài Xcode 16+, Claude Code, XcodeGen (`brew install xcodegen`) → giải nén → `git init` → mở Claude Code trong thư mục → dán prompt trong `PROMPT.md`.
 
 **Không có Mac:** đẩy thư mục lên một repo GitHub → CI tự chạy test trên macOS (repo công khai: miễn phí; riêng tư: tính phí phút macOS) → xem log trong tab Actions.
+
+## Chạy app
+1. `brew install xcodegen && xcodegen generate`
+2. Mở `PoolTrainer.xcodeproj`, chọn iPhone (màn hình ngang), Run.
+3. Lần đầu: Cài đặt → Hiệu chỉnh kích thước màn hình (đặt thẻ ngân hàng lên màn hình).
+
+## Điều khiển trong app
+- Vuốt ngang: xoay hướng ngắm (hai ngón: chế độ tinh).
+- Bi mờ bên phải: chạm và kéo để chọn điểm chạm; chạm đúp về tâm.
+- Chạm nhanh góc dưới trái (vùng ẩn): khóa — rung xác nhận. Chạm lại để mở khóa.
+- Đã khóa: đặt ngón ở bất kỳ đâu, kéo xuống rồi đẩy lên để ra cơ.
+- Biểu tượng góc trên: thoát · đổi góc nhìn · Shot Lab · đặt lại.

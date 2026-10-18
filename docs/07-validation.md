@@ -35,3 +35,8 @@ Ba tầng tách biệt, báo cáo riêng. KPI và ngưỡng: UPGRADE.md mục 3�
 
 ## Chuyển giao kỹ năng (R6)
 Bộ kiểm tra bàn thật chuẩn ~20 phút; kiểm tra 2 lần trước, 14 ngày dùng app, kiểm tra lại; 8–12 người; báo effect size và khoảng tin cậy, không tuyên bố hiệu quả. Chi tiết: REVIEW.md C6.
+
+## Công cụ (bản 0.3)
+- `Tools/validation/pooltool_compare.py`: `make` (cần pooltool) tạo kịch bản và kết quả pooltool; `report` so với `poolsim`. Lấy trạng thái bi **ngay sau cú đánh** từ pooltool rồi đưa vào PoolPhysics, nên so sánh không phụ thuộc mô hình cơ–bi của hai bên. Chạy trong job CI `validation` (macOS).
+- `Tools/validation/measure.py`: ma trận chiếu từ ≥ 6 điểm 3D (kim cương trên khung + góc lỗ trên nỉ), phép chiếu mặt phẳng tâm bi z = R, bám bi theo màu, vận tốc đầu, độ không chắc chắn k = 2, quy tắc tuyên bố 1/3, chia 50/50 theo seed, khớp cản lăn và phục hồi băng, xuất `CalibrationProfile` JSON cho app. Hiệu chỉnh méo ống kính cần OpenCV (`camera_calibration_opencv`).
+- Kiểm thử: `python -m unittest discover -s Tools/validation` (dữ liệu tổng hợp).
