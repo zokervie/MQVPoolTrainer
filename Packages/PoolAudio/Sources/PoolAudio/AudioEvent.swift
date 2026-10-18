@@ -23,6 +23,15 @@ public struct AudioEvent: Equatable, Sendable {
     /// Định danh cú đánh + thứ tự sự kiện: dùng chọn biến thể mẫu một cách xác định.
     public var shotId: UInt64
     public var index: Int
+
+    public init(kind: CollisionKind, time: Double, position: SIMD3<Double>, relativeNormalSpeed: Double,
+                impulse: Double, tangentialSlip: Double, materials: MaterialPair, sourceIds: [Int],
+                shotId: UInt64, index: Int) {
+        self.kind = kind; self.time = time; self.position = position
+        self.relativeNormalSpeed = relativeNormalSpeed; self.impulse = impulse
+        self.tangentialSlip = tangentialSlip; self.materials = materials
+        self.sourceIds = sourceIds; self.shotId = shotId; self.index = index
+    }
 }
 
 public enum AudioEventBuilder {

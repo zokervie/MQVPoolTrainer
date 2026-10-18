@@ -4,7 +4,11 @@ import Foundation
 import PoolPhysics
 
 struct ScenarioFile: Codable {
-    struct TableIn: Codable { var length: Double; var width: Double; var ballRadius: Double; var ballMass: Double }
+    struct TableIn: Codable {
+        var length: Double; var width: Double; var ballRadius: Double; var ballMass: Double
+        /// Chiều cao mũi băng của pooltool (tỉ lệ theo đường kính bi); thiếu → mặc định của ta.
+        var cushionHeightRatio: Double?
+    }
     struct BallIn: Codable { var id: Int; var r: [Double]; var v: [Double]; var w: [Double] }
     struct Shot: Codable { var id: Int; var category: String; var balls: [BallIn] }
     var table: TableIn
@@ -57,7 +61,8 @@ guard args.count == 3 else {
 }
 let input = try JSONDecoder().decode(ScenarioFile.self, from: Data(contentsOf: URL(fileURLWithPath: args[1])))
 let spec = TableSpec(length: input.table.length, width: input.table.width,
-                     ballRadius: input.table.ballRadius, ballMass: input.table.ballMass)
+                     ballRadius: input.table.ballRadius, ballMass: input.table.ballMass,
+                     cushionHeightRatio: input.table.cushionHeightRatio ?? 0.635)
 let sim = Simulation(table: spec, parameters: input.params)
 
 var out: [ResultFile.Shot] = []

@@ -10,7 +10,7 @@ Cách làm (không phụ thuộc mô hình cú đánh của hai engine):
 Khớp pooltool KHÔNG chứng minh đúng với bàn thật (UPGRADE.md, nguyên tắc 6).
 
 Dùng:
-  python pooltool_compare.py make  <kịch-bản.json>        # cần pooltool
+  python pooltool_compare.py make  <kịch-bản.json> [han2005]   # cần pooltool; han2005 = đổi mô hình băng
   python pooltool_compare.py report <kịch-bản.json> <kết-quả-poolsim.json>
 """
 import json
@@ -43,9 +43,35 @@ def event_kinds(system):
     return names
 
 
-def make(path, n_per_category=70, seed=2026):
+def cushion_height_ratio(table, R):
+    """Chiều cao mũi băng của pooltool (theo đường kính bi), đọc từ đoạn băng thẳng đầu tiên."""
+    for attr in ("cushion_height",):
+        for obj in (table, getattr(table, "specs", None)):
+            if obj is not None and hasattr(obj, attr):
+                return float(getattr(obj, attr)) / (2 * R)
+    try:
+        seg = next(iter(table.cushion_segments.linear.values()))
+        return float(seg.height) / (2 * R)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def make_engine(pt, cushion_model):
+    """None → mô hình mặc định của pooltool; "han2005" → băng Han (2005), gần với mô hình của PoolPhysics."""
+    if cushion_model is None:
+        return None, "default"
+    import attrs
+    from pooltool.physics.engine import PhysicsEngine  # type: ignore
+    from pooltool.physics.resolve.resolver import Resolver  # type: ignore
+    from pooltool.physics.resolve.ball_cushion.han_2005.model import Han2005Linear, Han2005Circular  # type: ignore
+    r = attrs.evolve(Resolver.default(), ball_linear_cushion=Han2005Linear(), ball_circular_cushion=Han2005Circular())
+    return PhysicsEngine(resolver=r), "han2005"
+
+
+def make(path, n_per_category=70, seed=2026, cushion_model=None):
     import numpy as np
     import pooltool as pt
+    engine, engine_label = make_engine(pt, cushion_model)
 
     rng = random.Random(seed)
     table = pt.Table.default()
@@ -64,10 +90,12 @@ def make(path, n_per_category=70, seed=2026):
         "slidingFriction": param("u_s", 0.2),
         "rollingResistance": param("u_r", 0.01),
         "spinFriction": param("u_sp", 0.044) if not hasattr(p, "u_sp_proportionality") else 0.044,
-        # pooltool dùng ma sát bi–bi hằng số u_b → đặt tỉ lệ = 1 để mô hình của ta cũng hằng số.
-        "ballBallFriction": param("u_b", 0.05),
-        "ballBallFrictionMinRatio": 1.0,
-        "ballBallFrictionDecay": 0.0,
+        # pooltool 0.6 mặc định dùng AlciatoreBallBallFriction μ(v) = a + b·e^(−c·v), a=0,009951, b=0,108,
+        # c=1,088 (KHÔNG dùng hằng số u_b). Ở dạng của ta μ0·(r + (1−r)e^(−cv)): μ0 = a+b, r = a/(a+b).
+        # Trước đây đặt hằng số u_b=0,05 → lệch 15 mm (nguyên nhân gốc, xem PROGRESS.md).
+        "ballBallFriction": 0.117951,
+        "ballBallFrictionMinRatio": 0.084365,
+        "ballBallFrictionDecay": 1.088,
         "ballBallRestitution": param("e_b", 0.95),
         "cushionRestitution": param("e_c", 0.85),
         "cushionFriction": param("f_c", 0.2),
@@ -98,7 +126,10 @@ def make(path, n_per_category=70, seed=2026):
         b = rng.uniform(-0.35, 0.35)
         system = pt.System(table=table, balls=balls, cue=pt.Cue(cue_ball_id="cue"))
         system.cue.set_state(V0=speed, phi=(math.degrees(aim) + 90.0) % 360.0, theta=0.0, a=0.0, b=b)
-        pt.simulate(system, inplace=True)
+        if engine is None:
+            pt.simulate(system, inplace=True)
+        else:
+            pt.simulate(system, engine=engine, inplace=True)
 
         kinds = event_kinds(system)
         has_cushion = any("cushion" in k or "pocket" in k for k in kinds)
@@ -131,14 +162,17 @@ def make(path, n_per_category=70, seed=2026):
 
     doc = {
         "pooltoolVersion": getattr(pt, "__version__", "unknown"),
-        "table": {"length": L, "width": W, "ballRadius": R, "ballMass": m},
+        "table": {"length": L, "width": W, "ballRadius": R, "ballMass": m,
+                  **({"cushionHeightRatio": chr_} if (chr_ := cushion_height_ratio(table, R)) else {})},
+        "cushionModel": engine_label,
         "params": params,
         "shots": shots,
     }
     with open(path, "w") as f:
         json.dump(doc, f, indent=1)
     print(f"REPORT: pooltool {doc['pooltoolVersion']}, table {L:.3f}x{W:.3f} m, shots {counts}, attempts {attempts}")
-    print(f"REPORT: pooltool params used: {params}")
+    print(f"REPORT: pooltool params used: {params}; cushion model {engine_label}; "
+          f"cushion height ratio {doc['table'].get('cushionHeightRatio')}")
     describe_pooltool_models(pt)
 
 
@@ -227,7 +261,7 @@ def report_labeled(label, scen_path, ours_path):
 
 if __name__ == "__main__":
     if len(sys.argv) >= 3 and sys.argv[1] == "make":
-        make(sys.argv[2])
+        make(sys.argv[2], cushion_model=sys.argv[3] if len(sys.argv) > 3 else None)
     elif len(sys.argv) >= 4 and sys.argv[1] == "variant":
         variant(sys.argv[2], sys.argv[3], sys.argv[4:])
     elif len(sys.argv) >= 4 and sys.argv[1] == "report":

@@ -16,6 +16,11 @@ enum AutoTest {
         return a[i + 1]
     }
 
+    /// `-autotest-slow`: phát lại cú chậm (×0,35) để ảnh chụp simulator (chậm ~1 s/ảnh) bắt được giữa cú.
+    static var timeScale: Double {
+        ProcessInfo.processInfo.arguments.contains("-autotest-slow") ? 0.35 : 1
+    }
+
     // Thống kê khung hình do GameContainer ghi lại.
     static var frameTimes: [Double] = []
     static var renderedBallCount = 0

@@ -70,6 +70,17 @@ final class TableScene {
             e.position = pos
             root.addChild(e)
         }
+        // Thân bàn và sàn phòng: để bàn không lơ lửng trong khoảng đen (giữ tông tối, tương phản thấp
+        // để không kéo mắt khỏi bi). Mặt nỉ ở cao độ ~0,76 m so với sàn.
+        let body = ModelEntity(mesh: .generateBox(size: [outerL * 0.96, 0.22, outerW * 0.96]),
+                               materials: [Self.material(UIColor(red: 0.18, green: 0.10, blue: 0.05, alpha: 1), roughness: 0.6)])
+        body.position = [0, -0.11, 0]
+        root.addChild(body)
+        let floor = ModelEntity(mesh: .generatePlane(width: 14, depth: 10),
+                                materials: [Self.material(UIColor(red: 0.16, green: 0.15, blue: 0.14, alpha: 1), roughness: 1)])
+        floor.position = [0, -0.76, 0]
+        root.addChild(floor)
+
         // Lỗ: đĩa tối tại tâm lỗ.
         let dark = UnlitMaterial(color: UIColor(white: 0.02, alpha: 1))
         for p in geo.pockets {
@@ -197,13 +208,20 @@ final class TableScene {
         cue.look(at: cue.position - back, from: cue.position, relativeTo: nil)
     }
 
-    func updateCamera(mode: CameraMode, aim: Double, eyeHeight: Double, aspect: Float) {
-        guard let cueBall = lastBalls[0] else { return }
+    /// Vị trí bi cái mà camera ngôi thứ nhất bám theo. Bị đóng băng khi cú đang chạy/xem lại:
+    /// người chơi phải thấy đường bi từ đúng chỗ mình đứng ngắm, không bị camera kéo theo bi cái.
+    private var cameraAnchor: SIMD3<Double>?
+
+    func updateCamera(mode: CameraMode, aim: Double, eyeHeight: Double, aspect: Float, follow: Bool = true) {
+        if follow || cameraAnchor == nil, let cueBall = lastBalls[0], cueBall.state != .pocketed {
+            cameraAnchor = cueBall.position
+        }
+        guard let anchor = cameraAnchor else { return }
         switch mode {
         case .firstPerson:
             let dir = SIMD3(cos(aim), sin(aim), 0)
-            let eye = cueBall.position - dir * 0.85 + SIMD3(0, 0, eyeHeight)
-            let target = cueBall.position + dir * 1.2
+            let eye = anchor - dir * 0.85 + SIMD3(0, 0, eyeHeight)
+            let target = anchor + dir * 1.2
             camera.look(at: mapping.toRender(target), from: mapping.toRender(eye), relativeTo: nil)
             // FOV dọc ~42°, thu hẹp khi màn hình rất dài để không méo mép.
             camera.camera.fieldOfViewInDegrees = aspect > 2 ? 40 : 44

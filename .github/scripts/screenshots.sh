@@ -22,13 +22,14 @@ shoot() {  # shoot <tên-file> <giây-chờ>
   sleep "$2"
   xcrun simctl io "$DEV" screenshot "shots/$1.png" > /dev/null 2>&1
   # Ảnh chụp theo hướng thiết bị (dọc); xoay về ngang để dễ xem.
-  sips -r 90 "shots/$1.png" > /dev/null 2>&1 || true
+  sips -r 270 "shots/$1.png" > /dev/null 2>&1 || true
 }
 
+EXTRA=""
 run() {  # run <kịch-bản> <tên> <giây-chờ> [<tên-2> <giây-chờ-2> ...]
   local scen="$1"; shift
   xcrun simctl terminate "$DEV" "$BUNDLE" > /dev/null 2>&1 || true
-  xcrun simctl launch "$DEV" "$BUNDLE" -autotest "$scen" > /dev/null
+  xcrun simctl launch "$DEV" "$BUNDLE" -autotest "$scen" $EXTRA > /dev/null
   while [ $# -ge 2 ]; do shoot "$1" "$2"; shift 2; done
 }
 
@@ -39,11 +40,14 @@ run effect      04-effect-expanded 5
 run locked      05-locked 5
 run shotlab     06-shotlab 5
 run drill:thang-xa 07-drill-thang-xa 5
-run shot:thang-xa  08-shot-start 2.3  09-shot-mid 0.7  10-shot-feedback 8
-run shot:keo-bi-ve-giua 11-draw-mid 3.0  12-draw-feedback 8
+# Cú đánh phát chậm ×0,35 (chỉ trong autotest) để ảnh giữa cú thật sự nằm giữa cú.
+EXTRA="-autotest-slow"
+run shot:thang-xa  08-shot-start 2.6  09-shot-mid 1.5  10-shot-feedback 12
+run shot:keo-bi-ve-giua 11-draw-mid 3.5  12-draw-feedback 12
+EXTRA=""
 
 # Lấy file chẩn đoán (app ghi sau ~9 s của mỗi kịch bản; kịch bản cuối vẫn đang chạy nên chờ thêm).
-sleep 3
+sleep 6
 DATA=$(xcrun simctl get_app_container "$DEV" "$BUNDLE" data 2>/dev/null || true)
 if [ -n "$DATA" ]; then cp "$DATA"/Documents/autotest-*.txt shots/ 2>/dev/null || true; fi
 ls -la shots

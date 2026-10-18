@@ -214,7 +214,7 @@ final class GameModel {
 
     private func beginPlayback(_ shot: ShotResult, sound: OfflineRenderer.Output?, rate: Double) {
         result = shot
-        playbackRate = rate
+        playbackRate = rate * AutoTest.timeScale
         let startAt = CACurrentMediaTime() + 0.05
         playbackStart = startAt
         isPlaying = true
@@ -349,9 +349,18 @@ final class GameModel {
         }
     }
 
+    /// Tên lỗ hiển thị (tiếng Việt có dấu) từ mã trong JSON bài tập.
+    static func pocketLabel(_ code: String) -> String {
+        [
+            "goc_duoi_trai": "góc dưới trái", "goc_duoi_phai": "góc dưới phải",
+            "goc_tren_trai": "góc trên trái", "goc_tren_phai": "góc trên phải",
+            "giua_duoi": "giữa dưới", "giua_tren": "giữa trên"
+        ][code] ?? code.replacingOccurrences(of: "_", with: " ")
+    }
+
     static func describe(_ c: DrillCondition) -> String {
         switch c {
-        case let .ballPocketed(b, p): "Bi \(b) vào lỗ" + (p.map { " (\($0.replacingOccurrences(of: "_", with: " ")))" } ?? "")
+        case let .ballPocketed(b, p): "Bi \(b) vào lỗ" + (p.map { " (\(pocketLabel($0)))" } ?? "")
         case .cueBallInTarget: "Bi cái dừng trong vùng đích"
         case let .cueBallCushions(n): "Bi cái chạm ít nhất \(n) băng"
         case let .unknown(s): "Điều kiện lạ: \(s)"

@@ -13,7 +13,7 @@ struct GameContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let container = UIView()
         let arView = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
-        arView.environment.background = .color(UIColor(white: 0.04, alpha: 1))
+        arView.environment.background = .color(UIColor(red: 0.09, green: 0.085, blue: 0.08, alpha: 1))
         arView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(arView)
 
@@ -81,7 +81,8 @@ struct GameContainer: UIViewRepresentable {
                             pullBack: st == .locked ? 0.02 : 0.06)
             let size = arView.bounds.size
             scene.updateCamera(mode: model.cameraMode, aim: model.aimAngle, eyeHeight: model.settings.eyeHeight,
-                               aspect: Float(size.width / max(size.height, 1)))
+                               aspect: Float(size.width / max(size.height, 1)),
+                               follow: st != .shotRunning && st != .reviewing)
             AutoTest.recordFrame(dt: dt, balls: balls.filter { $0.state != .pocketed }.count,
                                  camera: scene.camera.position(relativeTo: nil))
         }
