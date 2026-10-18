@@ -6,6 +6,7 @@ log="$1"; root="${2:-$PWD}"
 [ -f "$log" ] || exit 0
 grep -E "Executed [0-9]+ tests?|Test Suite 'All tests' (passed|failed)|[0-9]+ tests? (passed|failed)" "$log" \
   | tail -3 | while IFS= read -r l; do echo "::notice title=tests::${l}"; done
+grep -E "^REPORT: " "$log" | sort -u | head -10 | while IFS= read -r l; do echo "::notice title=report::${l#REPORT: }"; done
 grep -E "^[^ ]+\.swift:[0-9]+(:[0-9]+)?: (error|fatal error): " "$log" | sort -u | head -40 \
   | while IFS= read -r l; do
       f=$(echo "$l" | cut -d: -f1); ln=$(echo "$l" | cut -d: -f2)

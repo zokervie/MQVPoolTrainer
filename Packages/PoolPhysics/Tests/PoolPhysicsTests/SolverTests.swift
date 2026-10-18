@@ -185,7 +185,7 @@ final class SolverTests: XCTestCase {
         let b = reversed.run(balls: balls, strike: s).finalBalls
         let spread = zip(a, b).map { simd_distance($0.position, $1.position) }
         let mean = spread.reduce(0, +) / Double(spread.count)
-        print("M7 order sensitivity: mean final-position spread = \(mean) m, max = \(spread.max() ?? 0) m")
+        print("REPORT: M7 order sensitivity: mean final-position spread = \(mean) m, max = \(spread.max() ?? 0) m")
         XCTAssertTrue(mean.isFinite)
     }
 
@@ -211,5 +211,27 @@ final class SolverTests: XCTestCase {
         XCTAssertNotNil(w)
         XCTAssertEqual(w?.error(for: .pi / 4), 0)
         XCTAssertGreaterThan(w?.width ?? 0, 0)
+    }
+}
+
+/// Thời gian mô phỏng cú phá bi trên máy chạy test (thông tin; KPI H1 phải đo trên iPhone thật).
+final class SolverTimingReport: XCTestCase {
+    func testReportBreakSimulationTime() {
+        let table = TableSpec.nineFoot, R = table.ballRadius
+        let sim = Simulation(table: table, parameters: PhysicsParameters())
+        var rng = SplitMix64(seed: 99)
+        var times: [Double] = []
+        for _ in 0..<60 {
+            let balls = [Ball(id: 0, position: SIMD3(0.635, 0.635 + (rng.unit() - 0.5) * 0.2, R))]
+                + Rack.triangle(apex: SIMD2(1.905, 0.635), radius: R)
+            let s = CueStrike(aimAngle: (rng.unit() - 0.5) * 0.05, cueSpeed: 5 + rng.unit() * 3)
+            let t0 = Date()
+            let r = sim.run(balls: balls, strike: s)
+            times.append(Date().timeIntervalSince(t0) * 1000)
+            XCTAssertEqual(r.status, .completed)
+        }
+        times.sort()
+        let p50 = times[times.count / 2], p95 = times[Int(Double(times.count) * 0.95)]
+        print("REPORT: break simulation on CI runner (not iPhone): p50 \(String(format: "%.1f", p50)) ms, p95 \(String(format: "%.1f", p95)) ms, max \(String(format: "%.1f", times.last!)) ms")
     }
 }
