@@ -1,0 +1,22 @@
+{
+  "id": "keo-bi-ve-giua",
+  "ten": "Kéo bi về vùng giữa",
+  "ban": "9ft",
+  "bi": [
+    {"so": 0, "x": 2.0, "y": 2.0},
+    {"so": 1, "x": 6.0, "y": 1.5}
+  ],
+  "danh_dau": [
+    {"loai": "vi_tri_bi", "so": 1, "x": 6.0, "y": 1.5},
+    {"loai": "vung_dich", "x": 4.0, "y": 2.0, "ban_kinh": 0.5}
+  ],
+  "huong_dan": {
+    "luc": 3,
+    "diem_cham": {"doc": -0.5, "ngang": 0.0},
+    "cong_thuc": null,
+    "ghi_chu": "Xoáy dưới nửa tip, lực vừa. Bi 1 vào góc xa, bi cái dừng trong vòng giữa bàn."
+  },
+  "dieu_kien_dat": ["bi_1_vao_lo", "bi_cai_trong_vung_dich"],
+  "so_lan": 10,
+  "lech_ngau_nhien": 0.0
+}

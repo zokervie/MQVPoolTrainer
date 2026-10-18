@@ -1,0 +1,37 @@
+# Tạo dự án Xcode: brew install xcodegen && xcodegen generate
+name: PoolTrainer
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  PoolPhysics:
+    path: Packages/PoolPhysics
+  PoolInput:
+    path: Packages/PoolInput
+  PoolDrills:
+    path: Packages/PoolDrills
+targets:
+  PoolTrainer:
+    type: application
+    platform: iOS
+    sources:
+      - App/Sources
+      - path: Drills
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: PoolPhysics
+      - package: PoolInput
+      - package: PoolDrills
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_UIStatusBarHidden: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Pool Trainer"

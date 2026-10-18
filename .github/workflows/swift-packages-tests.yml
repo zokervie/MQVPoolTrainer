@@ -1,0 +1,75 @@
+# Chạy unit test các Swift package trên macOS (R0.1, R0.2).
+# Chỉ build và test, không sửa code. Log đầy đủ và báo cáo xUnit lưu làm artifact.
+name: Swift package tests
+
+on:
+  push:
+    branches: [ "main", "ci/**" ]
+    paths:
+      - "Packages/**"
+      - ".github/workflows/swift-packages-tests.yml"
+  pull_request:
+    paths:
+      - "Packages/**"
+  workflow_dispatch: {}
+
+concurrency:
+  group: swift-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Các package khai báo .macOS(.v15) → cần runner macOS 15 trở lên.
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [ PoolPhysics, PoolInput, PoolDrills ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Chọn Xcode 16.x (Swift 6, cần cho swift-tools-version 6.0)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16"
+
+      - name: Ghi môi trường
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: swift test (${{ matrix.package }})
+        run: |
+          set -o pipefail
+          swift test \
+            --package-path "Packages/${{ matrix.package }}" \
+            --parallel \
+            --xunit-output test-results.xml \
+            2>&1 | tee swift-test.log
+
+      - name: Tóm tắt kết quả
+        if: always()
+        run: |
+          {
+            echo "## ${{ matrix.package }}"
+            echo '```'
+            grep -E "Test Case .*(passed|failed)|Executed|error:" swift-test.log || echo "Không có dòng kết quả test (có thể lỗi biên dịch, xem log)."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Lưu log và báo cáo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.package }}
+          path: |
+            swift-test.log
+            test-results*.xml
+          if-no-files-found: warn
+          retention-days: 30
