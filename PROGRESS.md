@@ -25,7 +25,7 @@
 - [x] R1.6 Lỗ: mép (điểm), đường bắt giữ. Chưa có mặt vát miệng lỗ, bi bật khỏi lỗ
 - [x] R1.6b `CollisionRecord` (loại, thời điểm, vị trí, tốc độ pháp tuyến, xung lực, trượt tiếp tuyến, id bi, lỗ)
 - [ ] R1.7 M1–M6 trên **10.000** cú — hiện chạy 300 cú ngẫu nhiên trong CI (đạt); bộ 10.000 cú chưa chạy
-- [ ] R1.8 P1–P3: đã chạy (Nhật ký). **Chưa đạt P1** cho nhóm bi–bi và có băng; P3 đã giải thích một phần (xem Vấn đề mở)
+- [ ] R1.8 P1–P3: chuyển động và bi–bi **đạt P1** (≤ 5 mm); băng thẳng đạt 66% so Han 2005, chưa đạt so Stronge; miệng lỗ chưa so được (xem Vấn đề mở)
 
 ## R2 — Lát cắt chơi được trên iPhone
 Code xong, build qua; **chưa xác minh trên thiết bị** cho mọi mục:
@@ -77,10 +77,17 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
 - 19/10/2026 · Đối chứng pooltool 0.6.0 (bàn 7 ft mặc định, cùng tham số): chuyển động tự do 35 cú trung vị 0,0 mm (100% ≤ 5 mm); có bi–bi 70 cú trung vị 14,7 mm, p90 20,9 mm (0% ≤ 5 mm); có băng 61 cú trung vị 3,1 mm, p90 220 mm, max 1,29 m. Biến thể tắt ma sát bi–bi: bi–bi xấu hơn (trung vị 49 mm) → throw đúng hướng, khác biệt còn lại nằm ở chi tiết mô hình ma sát.
 - 19/10/2026 · Chống Zeno · Cú phá từng chạm giới hạn 20.000 sự kiện (5/30, rồi 157/200 khi thử e = 0). Nguyên nhân: va chạm lặp tại cùng thời điểm do vận tốc tương đối ≈ 0 sai số làm tròn. Sửa bằng ngưỡng tiếp xúc. Run 39148501922: PoolPhysics 34/34; **H1 bench release trên CI macOS: 200 cú phá p50 10,2 ms, p95 18,8 ms, max 31 ms, trung vị 136 sự kiện, 0 cú chạm giới hạn** (chưa đo trên iPhone).
 - 19/10/2026 · M7 · Cú phá (16 bi, xếp sát): đảo thứ tự xử lý va chạm đồng thời làm vị trí cuối lệch trung bình 0,58 m, tối đa 1,25 m. Cú phá hỗn loạn với thứ tự; không ảnh hưởng bài tập (không có bi xếp sát).
+- 19/10/2026 · Xác minh độ chân thật (run 39154969173, xanh toàn bộ):
+  - **Đối chiếu tài liệu Alciatore** (`LiteratureTests`, 9 test, PoolPhysics 43/43): throw do cắt tối đa 5,23° ở cắt 35° (tài liệu ~5°, gần nửa bi); cắt ≤15° không phụ thuộc tốc độ; cắt lớn giảm theo tốc độ; bi lăn throw ít hơn stun; throw do xoáy tối đa 5,11° ở 0,25R (≈50% xoáy tối đa); quy tắc 30° nằm trong 27–34°; quãng trượt stun đúng 12v²/(49μg); squirt 2,28° ở 0,5R.
+  - **pooltool, nguyên nhân gốc lệch bi–bi 15 mm:** harness đặt ma sát hằng 0,05 trong khi pooltool dùng ma sát Alciatore. Sửa harness → bi–bi trung vị 1,1 mm, p90 2,0 mm, 100% ≤ 5 mm (**đạt P1**).
+  - **Băng:** tách cú chạm băng thẳng (cushion) khỏi cú chạm mũi lỗ/rơi lỗ (jaw). pooltool đổi sang mô hình Han 2005 (cùng họ với mô hình của ta): băng thẳng trung vị 0,0 mm, 66% ≤ 5 mm (so Stronge mặc định: 18,3 mm, 6%) → chênh lệch chính là do **chọn mô hình**, không phải lỗi cài đặt. Đổi chiều cao mũi băng 0,64 → 0,635·2R làm trung vị 0 → 14 mm: tham số rất nhạy, phải đo trên bàn thật.
+  - **Âm thanh** (`SpectrumTests`): phát hiện tiếng bi–bi mạnh gần như không sáng hơn tiếng nhẹ (trọng tâm phổ 2841 → 3268 Hz, ×1,15). Sửa: phổ kích thích theo thời gian tiếp xúc Hertz (~250 µs ở 1 m/s, ∝ v^−1/5, giả định) → 2051 → 2901 Hz (×1,41). PoolAudio 10/10. File WAV nghe thử trên nhánh `shots/zoker/audio`.
+  - **Hình ảnh** (ảnh simulator): sửa camera bị kéo theo bi cái khi cú đang chạy (giờ đứng yên ở chỗ ngắm); tên lỗ có dấu; thêm thân bàn và sàn (lần đầu bị z-fighting làm nỉ loang nâu — đã sửa); nút phản hồi không xuống dòng; ảnh CI xoay đúng chiều; phát cú chậm ×0,35 chỉ trong autotest để chụp được giữa cú.
 
 ## Vấn đề mở
-- **P1 bi–bi chưa đạt (±5 mm):** lệch đều ~15 mm so với pooltool `FrictionalInelastic`. Cần đọc mã pooltool để so công thức ma sát (vận tốc trượt dùng, giới hạn hết trượt, truyền xoáy) — không mặc định pooltool đúng hơn; dữ liệu bàn thật (R4) mới quyết định.
-- **Băng:** mô hình đơn giản hóa lệch lớn với Stronge compliant của pooltool ở một số cú (p90 220 mm). Cân nhắc cài Mathavan 2010 hoặc Han 2005; chỉ quyết sau khi có số đo bàn thật.
+- **Băng thẳng vs Han 2005:** 34% cú cùng chuỗi va chạm vẫn lệch (p90 ~100 mm) → còn khác biệt chi tiết trong công thức. Bước tiếp: so từng va chạm (trạng thái trước/sau) thay vì vị trí dừng. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
+- **Miệng lỗ (jaw):** hình học lỗ hai engine khác hẳn (ta: đường bắt + đoạn mũi; pooltool: băng cong + lỗ tròn) → so jaw chưa có ý nghĩa (trung vị ~100 mm, 9–12 bi vào lỗ ở một bên). Cần dựng cùng hình học lỗ trước khi so.
+- **Chiều cao mũi băng** nhạy cao (0,5% đổi trung vị 0 → 14 mm): ưu tiên đo ở R4.
 - **M7 cú phá:** độ nhạy thứ tự lớn; nếu cần cú phá ổn định hơn, xem xét giải đồng thời theo nhóm.
 - Hằng số điều khiển (độ nhạy ngắm, đường cong vuốt, vùng chạm) là giả định, chỉnh khi đo U3–U5.
 - Ngưỡng tiếp xúc chống Zeno (0,1 mm/s, 0,1 µm, khe 10 µm) là giả định kỹ thuật.
