@@ -105,14 +105,14 @@ final class PoolScene {
     private func buildLights() {
         let amb = SCNLight(); amb.type = .ambient; amb.intensity = 30; amb.color = UIColor(hex: 0xc9d6e3)
         let an = SCNNode(); an.light = amb; scene.rootNode.addChildNode(an); lights.append((amb, amb.intensity))
-        let key = SCNLight(); key.type = .directional; key.intensity = 430; key.color = UIColor(hex: 0xfff4e0)
+        let key = SCNLight(); key.type = .directional; key.intensity = 560; key.color = UIColor(hex: 0xfff4e0)
         key.castsShadow = true; key.shadowMapSize = CGSize(width: 2048, height: 2048); key.shadowSampleCount = 8
         key.shadowRadius = 3; key.shadowColor = UIColor(white: 0, alpha: 0.6); key.shadowMode = .deferred
         key.automaticallyAdjustsShadowProjection = false; key.orthographicScale = 1.7; key.zNear = 0.5; key.zFar = 6; key.shadowBias = 0.6
         let kn = SCNNode(); kn.light = key; kn.position = v3(0.3, 3.2, 0.5); kn.simdLook(at: .zero)
         scene.rootNode.addChildNode(kn); lights.append((key, key.intensity))
         for x in [-0.85, 0, 0.85] {
-            let p = SCNLight(); p.type = .omni; p.intensity = 75; p.color = UIColor(hex: 0xffe7c2)
+            let p = SCNLight(); p.type = .omni; p.intensity = 95; p.color = UIColor(hex: 0xffe7c2)
             p.attenuationStartDistance = 0.3; p.attenuationEndDistance = 3.5; p.attenuationFalloffExponent = 2
             let n = SCNNode(); n.light = p; n.position = v3(x, 1.05, 0); scene.rootNode.addChildNode(n); lights.append((p, p.intensity))
         }
@@ -163,8 +163,9 @@ final class PoolScene {
         clothMat.diffuse.wrapS = .repeat; clothMat.diffuse.wrapT = .repeat; clothMat.diffuse.contentsTransform = SCNMatrix4MakeScale(18, 9, 1)
         let cushMat = SCNMaterial(); cushMat.lightingModel = .lambert; cushMat.diffuse.contents = clothImg; cushMat.multiply.contents = UIColor(white: 0.88, alpha: 1)
         cushMat.diffuse.wrapS = .repeat; cushMat.diffuse.wrapT = .repeat; cushMat.diffuse.contentsTransform = SCNMatrix4MakeScale(30, 2, 1)
-        let woodMat = pbr(Textures.wood(0x6a3f22), rough: 0.45)
-        woodMat.clearCoat.contents = 0.4; woodMat.clearCoatRoughness.contents = 0.3
+        let woodMat = pbr(Textures.wood(0x4a2b17), rough: 0.6)
+        woodMat.multiply.contents = UIColor(hex: 0xb08a70)
+        woodMat.clearCoat.contents = 0.12; woodMat.clearCoatRoughness.contents = 0.45
         let darkWood = pbr(Textures.wood(0x2e1d12), rough: 0.5)
         let hole = SCNMaterial(); hole.lightingModel = .constant; hole.diffuse.contents = UIColor(hex: 0x050506); hole.isDoubleSided = true
 
@@ -262,7 +263,7 @@ final class PoolScene {
         for s in segs {
             let g = SCNCone(topRadius: CGFloat(s.r1), bottomRadius: CGFloat(s.r0), height: CGFloat(s.y1 - s.y0))
             g.radialSegmentCount = 32
-            let m = pbr(UIColor(hex: s.col), rough: s.rough); m.clearCoat.contents = 0.6
+            let m = pbr(UIColor(hex: s.col), rough: max(0.5, s.rough)); m.clearCoat.contents = 0.15
             g.materials = [m]
             let n = SCNNode(geometry: g); n.position = v3(0, (s.y0 + s.y1) / 2, 0); inner.addChildNode(n)
         }
@@ -383,7 +384,7 @@ final class PoolScene {
     func setLabels(_ labels: [RailLabel]) {
         labelRoot.childNodes.forEach { $0.removeFromParentNode() }
         for lb in labels {
-            let pl = SCNPlane(width: 0.075, height: 0.075)
+            let pl = SCNPlane(width: 0.09, height: 0.09)
             let m = SCNMaterial(); m.lightingModel = .constant; m.diffuse.contents = Textures.text(lb.text, lb.color)
             m.writesToDepthBuffer = false; m.isDoubleSided = false
             pl.materials = [m]
