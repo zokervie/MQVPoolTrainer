@@ -113,9 +113,15 @@ func analyzeShot(before: [Ball], params p: ShotParams, idealDir: Double?, target
                 let vdir = atan2(ob.vz, ob.vx)
                 let n = impactOB - impactCue
                 let lineOfCenters = atan2(n.z, n.x)
-                fb.throwDeg = wrapDeg((vdir - lineOfCenters) * 180 / .pi)
-                let inDir = atan2(impactCue.z - before.first { $0.id == 0 }!.z, impactCue.x - before.first { $0.id == 0 }!.x)
-                fb.cutDeg = abs(wrapDeg((lineOfCenters - inDir) * 180 / .pi))
+                // chỉ đo throw/góc cắt cho cú chạm 1 bi tách biệt (cú phá / chùm bi: số đo vô nghĩa)
+                let isolated = sim.events.filter { if case .hit = $0 { return true }; return false }.count == 1
+                let th = wrapDeg((vdir - lineOfCenters) * 180 / .pi)
+                if isolated && abs(th) < 15 {
+                    fb.throwDeg = th
+                    let c0 = before.first { $0.id == 0 }!
+                    let inDir = atan2(impactCue.z - c0.z, impactCue.x - c0.x)
+                    fb.cutDeg = abs(wrapDeg((lineOfCenters - inDir) * 180 / .pi))
+                }
                 if id == targetBall, let tp = targetPoint {
                     let want = atan2(tp.z - ob.z, tp.x - ob.x)
                     let e = wrapDeg((vdir - want) * 180 / .pi)

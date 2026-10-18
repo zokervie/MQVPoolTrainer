@@ -27,7 +27,7 @@ struct FeedbackPanel: View {
             }
             Group {
                 row("Tốc độ bi cái", "\(vn(fb.params.speed, 2)) m/s · mức \(vn(fb.level))/7")
-                row("Nếu lăn thuần", "≈ \(vn(fb.rollLengths)) chiều dài bàn")
+                if fb.params.speed <= 3 { row("Nếu lăn thuần", "≈ \(vn(fb.rollLengths)) chiều dài bàn") }
                 if fb.params.a != 0 || fb.params.b != 0 {
                     row("Điểm đánh", "\(fb.params.b >= 0 ? "theo" : "kéo") \(vn(abs(fb.params.b), 2))R · \(fb.params.a >= 0 ? "phải" : "trái") \(vn(abs(fb.params.a), 2))R")
                 }
@@ -38,6 +38,8 @@ struct FeedbackPanel: View {
                     row("Theo cơ", s.followThrough > 0.85 ? "đều tay" : "ngắt cơ (còn \(vn(s.followThrough * 100, 0))% tốc độ)",
                         s.followThrough > 0.85 ? Color(hex: 0x52b788) : Color(hex: 0xffd166))
                 }
+            }.font(.system(size: 12).monospacedDigit())
+            Group {
                 if let e = fb.aimErrorDeg { row("Lệch hướng ngắm", lr(e), abs(e) < 0.3 ? Color(hex: 0x52b788) : Color(hex: 0xffd166)) }
                 if let c = fb.cutDeg { row("Góc cắt thực tế", "\(vn(c))°") }
                 if let t = fb.throwDeg { row("Throw bi mục tiêu", lr(t)) }

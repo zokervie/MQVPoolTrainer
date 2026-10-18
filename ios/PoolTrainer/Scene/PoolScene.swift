@@ -181,9 +181,9 @@ final class PoolScene {
             darkWood = pbr(Textures.wood(0x2e1d12), rough: 0.5)
         } else {
             // khung laminate / sơn mờ (Predator, Rasson, Diamond…)
-            woodMat = pbr(UIColor(hex: spec.railHex), rough: 0.62)
-            woodMat.clearCoat.contents = 0.05
-            darkWood = pbr(UIColor(hex: spec.railHex).withAlphaComponent(1), rough: 0.7)
+            woodMat = pbr(Textures.solid(spec.railHex), rough: 0.55)
+            woodMat.clearCoat.contents = 0.08; woodMat.clearCoatRoughness.contents = 0.5
+            darkWood = pbr(Textures.solid(spec.railHex), rough: 0.7)
         }
         let hole = SCNMaterial(); hole.lightingModel = .constant; hole.diffuse.contents = UIColor(hex: 0x050506); hole.isDoubleSided = true
 

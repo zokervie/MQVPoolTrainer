@@ -155,6 +155,7 @@ final class Game: NSObject, ObservableObject {
                 case "realistic": self.settings.realistic = parts.count > 1 ? parts[1] == "1" : true
                 case "challenge": self.startChallenge(parts[1] == "aim" ? .challengeAim : .challengePower, level: 3)
                 case "tables": self.card = .tables
+                case "editor": self.card = .tableEditor
                 case "next": self.continueAfterFeedback()
                 case "replay": self.replay()
                 case "spin": self.spinA = Double(parts[1]) ?? 0; self.spinB = Double(parts[2]) ?? 0
@@ -237,7 +238,13 @@ final class Game: NSObject, ObservableObject {
 
     private func aimAtDefault() {
         guard let cb = cueBall else { return }
-        if let h = currentHint() { dir = h.dir; return }
+        if let h = currentHint() {
+            // luyện thật: không lộ hướng bi ma – cơ chĩa thẳng vào tâm bi mục tiêu, người chơi tự ngắm
+            if settings.realistic, let id = currentHintBall(), let ob = sim.ball(id), !ob.pocketed {
+                dir = atan2(ob.z - cb.z, ob.x - cb.x); return
+            }
+            dir = h.dir; return
+        }
         var best: Ball? = nil, bd = Double.infinity
         for b in sim.balls where b.id != 0 && !b.pocketed { let d = b.pos.dist(cb.pos); if d < bd { bd = d; best = b } }
         if let best { dir = atan2(best.z - cb.z, best.x - cb.x) }

@@ -72,6 +72,18 @@ enum Textures {
         return image(px, w, h)
     }
 
+    /// Bề mặt laminate / sơn mờ: màu đơn sắc có nhiễu rất nhẹ (dùng ảnh thay vì UIColor để PBR hiển thị đúng màu).
+    static func solid(_ hex: UInt32) -> UIImage {
+        let S = 64
+        let r = Double((hex >> 16) & 0xff), gr = Double((hex >> 8) & 0xff), b = Double(hex & 0xff)
+        var px = [UInt8](repeating: 255, count: S * S * 4)
+        for i in 0..<(S * S) {
+            let k = 1 + Double.random(in: -0.04...0.04)
+            px[i * 4] = UInt8(max(0, min(255, r * k))); px[i * 4 + 1] = UInt8(max(0, min(255, gr * k))); px[i * 4 + 2] = UInt8(max(0, min(255, b * k)))
+        }
+        return image(px, S, S)
+    }
+
     static func text(_ s: String, _ hex: UInt32) -> UIImage {
         let key = "\(s)#\(hex)"
         if let t = textCache[key] { return t }

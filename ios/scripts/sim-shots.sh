@@ -32,14 +32,12 @@ run() { # tên  "kịch bản"  các mốc giây chụp...
 }
 
 run 01-menu "" 7
-run 02-tables "tables" 6
 run 03-predator "table:predator-apex9,drill:a-half" 7
-run 04-feedback "table:predator-apex9,drill:a-half,wait:1,shoot:0.45" 9 12
+run 04-feedback "table:diamond-proam9-tight,drill:a-half,wait:1,shoot:0.45" 9
 run 05-diamond7 "table:diamond-proam7,view2d,drill:c-x" 7
-run 06-json "view3d,table:rasson-victory3-9,drill:json-keo-bi-ve-giua" 7
-run 07-break "table:mrsung-acurra9,free:9,wait:3,shoot:1" 6.5 11
-run 08-aimtest "table:std,challenge:aim" 7
-run 09-realistic "table:std,realistic,drill:c-30,wait:1,shoot:0.4" 9
+run 07-break "view3d,table:mrsung-acurra9,free:9,wait:3,shoot:1" 11
+run 09-realistic "table:brunswick-gc6,realistic,drill:a-ladder" 7
+run 10-editor "editor" 6
 cat "$STATUS"
 # nhật ký crash nếu có
 ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i pool && cp ~/Library/Logs/DiagnosticReports/*PoolTrainer* "$OUT"/ 2>/dev/null
