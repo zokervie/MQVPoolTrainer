@@ -1,0 +1,46 @@
+{
+  "id": "theo-bi",
+  "ten": "Theo bi về vùng đích",
+  "ban": "9ft",
+  "bi": [
+    {
+      "so": 0,
+      "x": 2.5,
+      "y": 2.0
+    },
+    {
+      "so": 1,
+      "x": 5.0,
+      "y": 2.75
+    }
+  ],
+  "danh_dau": [
+    {
+      "loai": "vi_tri_bi",
+      "so": 1,
+      "x": 5.0,
+      "y": 2.75
+    },
+    {
+      "loai": "vung_dich",
+      "x": 6.6,
+      "y": 3.25,
+      "ban_kinh": 0.45
+    }
+  ],
+  "huong_dan": {
+    "luc": 3,
+    "diem_cham": {
+      "doc": 0.4,
+      "ngang": 0.0
+    },
+    "cong_thuc": null,
+    "ghi_chu": "Đánh trên tâm, bi cái theo sau bi mục tiêu và dừng trong vùng."
+  },
+  "dieu_kien_dat": [
+    "bi_1_vao_lo_goc_tren_phai",
+    "bi_cai_trong_vung_dich"
+  ],
+  "so_lan": 10,
+  "lech_ngau_nhien": 0.0
+}

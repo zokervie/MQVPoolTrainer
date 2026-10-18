@@ -11,6 +11,8 @@ packages:
     path: Packages/PoolInput
   PoolDrills:
     path: Packages/PoolDrills
+  PoolAudio:
+    path: Packages/PoolAudio
 targets:
   PoolTrainer:
     type: application
@@ -24,6 +26,7 @@ targets:
       - package: PoolPhysics
       - package: PoolInput
       - package: PoolDrills
+      - package: PoolAudio
     settings:
       base:
         SWIFT_VERSION: "6.0"

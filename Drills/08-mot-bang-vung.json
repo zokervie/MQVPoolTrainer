@@ -1,0 +1,40 @@
+{
+  "id": "mot-bang-vung",
+  "ten": "Một băng vào vùng đích",
+  "ban": "9ft",
+  "bi": [
+    {
+      "so": 0,
+      "x": 1.5,
+      "y": 2.0
+    }
+  ],
+  "danh_dau": [
+    {
+      "loai": "diem_bang",
+      "canh": "dai_duoi",
+      "kim_cuong": 4.0
+    },
+    {
+      "loai": "vung_dich",
+      "x": 6.5,
+      "y": 2.0,
+      "ban_kinh": 0.6
+    }
+  ],
+  "huong_dan": {
+    "luc": 3,
+    "diem_cham": {
+      "doc": 0.2,
+      "ngang": 0.0
+    },
+    "cong_thuc": null,
+    "ghi_chu": "Bi cái chạm băng dài dưới quanh kim cương 4 rồi dừng trong vùng."
+  },
+  "dieu_kien_dat": [
+    "bi_cai_cham_bang_1",
+    "bi_cai_trong_vung_dich"
+  ],
+  "so_lan": 10,
+  "lech_ngau_nhien": 0.0
+}

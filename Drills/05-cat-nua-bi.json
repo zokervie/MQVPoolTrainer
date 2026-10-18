@@ -1,0 +1,39 @@
+{
+  "id": "cat-nua-bi",
+  "ten": "Cắt nửa bi vào lỗ góc",
+  "ban": "9ft",
+  "bi": [
+    {
+      "so": 0,
+      "x": 3.67,
+      "y": 3.55
+    },
+    {
+      "so": 1,
+      "x": 6.0,
+      "y": 3.3
+    }
+  ],
+  "danh_dau": [
+    {
+      "loai": "vi_tri_bi",
+      "so": 1,
+      "x": 6.0,
+      "y": 3.3
+    }
+  ],
+  "huong_dan": {
+    "luc": 3,
+    "diem_cham": {
+      "doc": 0.2,
+      "ngang": 0.0
+    },
+    "cong_thuc": null,
+    "ghi_chu": "Góc cắt khoảng 30°. Lực vừa: throw làm bi đi mỏng hơn hình học một chút."
+  },
+  "dieu_kien_dat": [
+    "bi_1_vao_lo_goc_tren_phai"
+  ],
+  "so_lan": 10,
+  "lech_ngau_nhien": 0.0
+}

@@ -7,9 +7,12 @@ let package = Package(
     products: [
         .library(name: "PoolDrills", targets: ["PoolDrills"])
     ],
+    dependencies: [
+        .package(path: "../PoolPhysics")
+    ],
     targets: [
-        .target(name: "PoolDrills"),
-        .testTarget(name: "PoolDrillsTests", dependencies: ["PoolDrills"],
+        .target(name: "PoolDrills", dependencies: ["PoolPhysics"]),
+        .testTarget(name: "PoolDrillsTests", dependencies: ["PoolDrills", "PoolPhysics"],
                     resources: [.copy("Fixtures")])
     ]
 )

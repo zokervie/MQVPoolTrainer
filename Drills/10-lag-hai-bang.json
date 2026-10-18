@@ -1,0 +1,40 @@
+{
+  "id": "lag-hai-bang",
+  "ten": "Lag: chạm băng xa, về sát băng gần",
+  "ban": "9ft",
+  "bi": [
+    {
+      "so": 0,
+      "x": 1.0,
+      "y": 2.0
+    }
+  ],
+  "danh_dau": [
+    {
+      "loai": "diem_bang",
+      "canh": "ngan_phai",
+      "kim_cuong": 2.0
+    },
+    {
+      "loai": "vung_dich",
+      "x": 0.45,
+      "y": 2.0,
+      "ban_kinh": 0.4
+    }
+  ],
+  "huong_dan": {
+    "luc": 4,
+    "diem_cham": {
+      "doc": 0.0,
+      "ngang": 0.0
+    },
+    "cong_thuc": null,
+    "ghi_chu": "Kiểm soát lực thuần: bi cái đi hết bàn, chạm băng ngắn xa rồi quay về dừng sát băng gần."
+  },
+  "dieu_kien_dat": [
+    "bi_cai_cham_bang_1",
+    "bi_cai_trong_vung_dich"
+  ],
+  "so_lan": 10,
+  "lech_ngau_nhien": 0.0
+}
