@@ -114,7 +114,7 @@ jobs:
           # Độ nhạy chiều cao mũi băng: PoolPhysics mặc định 0,635·2R, pooltool 0,64·2R.
           python Tools/validation/pooltool_compare.py variant scen_han.json scen_h635.json table.cushionHeightRatio=0.635
           swift run -c release --package-path Packages/PoolPhysics poolsim scen_h635.json ours_h635.json 2>&1 | tail -1
-          python Tools/validation/pooltool_compare.py report scen_h635.json ours_h635.json 2>&1 | grep "P1 cushion\|P1 jaw" | sed 's/^REPORT: P/REPORT: [han2005, h=0.635] P/' | tee -a validation.log
+          python Tools/validation/pooltool_compare.py report scen_h635.json ours_h635.json 2>&1 | grep "P1 cushion\|P1 jaw\|P2 " | sed 's/^REPORT: P/REPORT: [han2005, h=0.635] P/' | tee -a validation.log
       - name: Annotate
         if: always()
         run: .github/scripts/annotate.sh validation.log "$GITHUB_WORKSPACE"

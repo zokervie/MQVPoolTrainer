@@ -5,6 +5,21 @@ import PoolPhysics
 /// Đây là âm thanh **thay thế**, chỉ để kiến trúc chạy được; sẽ thay bằng bản thu bàn thật ở R7.
 public enum PlaceholderSynth {
 
+    /// Thời gian tiếp xúc bi–bi (s) ở lớp lực `level` (0…1).
+    /// Giả định: ~250 µs ở 1 m/s (bậc độ lớn thường dẫn cho bi phenolic), tỉ lệ v^(−1/5) theo lý thuyết
+    /// tiếp xúc Hertz; lớp 0…1 ứng với tốc độ pháp tuyến 0,03…9 m/s (thang log, khớp AcousticMapping).
+    static func ballBallContactTime(level: Double) -> Double {
+        let v = 0.03 * pow(300, level)
+        return 250e-6 * pow(v, -0.2)
+    }
+
+    /// Biên độ phổ (chuẩn hóa, = 1 tại 0 Hz) của xung lực dạng nửa sin, độ dài `tau`.
+    static func halfSinePulseGain(_ f: Double, tau: Double) -> Double {
+        let x = 2 * f * tau
+        if abs(1 - x) < 1e-6 { return .pi / 4 }
+        return abs(cos(.pi * f * tau)) / abs(1 - x * x)
+    }
+
     public static func render(_ id: SampleID, sampleRate sr: Double = 44_100) -> [Float] {
         var rng = SplitMix64(seed: UInt64(id.layer * 97 + id.variant * 7919) &+ UInt64(CollisionKind.allCases.firstIndex(of: id.kind)!) &* 131)
         let level = Double(id.layer) / 4           // 0…1 theo lớp lực
@@ -15,8 +30,11 @@ public enum PlaceholderSynth {
 
         switch id.kind {
         case .ballBall:
-            partials = [(3_150, 1.0, 0.030), (5_050, 0.6 * (0.4 + level), 0.020), (7_900, 0.35 * level, 0.012), (1_200, 0.25, 0.05)]
-            noiseAmp = 0.25 + 0.5 * level; noiseDecay = 0.0015; length = 0.18
+            // Phổ kích thích theo thời gian tiếp xúc Hertz: va chạm mạnh → tiếp xúc ngắn → nhiều cao tần.
+            let tau = ballBallContactTime(level: level)
+            let raw: [(f: Double, a: Double, decay: Double)] = [(3_150, 1.0, 0.030), (5_050, 0.6 * (0.4 + level), 0.020), (7_900, 0.35 * level, 0.012), (1_200, 0.25, 0.05)]
+            partials = raw.map { (f: $0.f, a: $0.a * halfSinePulseGain($0.f, tau: tau), decay: $0.decay) }
+            noiseAmp = (0.25 + 0.5 * level) * halfSinePulseGain(4_000, tau: tau); noiseDecay = 0.0015; length = 0.18
         case .ballCushion:
             partials = [(170, 1.0, 0.05), (430, 0.6, 0.035), (1_100, 0.25 * (0.5 + level), 0.015)]
             noiseAmp = 0.15 + 0.25 * level; noiseDecay = 0.004; length = 0.22

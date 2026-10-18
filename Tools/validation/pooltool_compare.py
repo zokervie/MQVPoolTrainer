@@ -161,7 +161,10 @@ def make(path, n_per_category=70, seed=2026, cushion_model=None):
             final.append({"id": 0 if bid == "cue" else int(bid), "x": ours[0], "y": ours[1],
                           "pocketed": int(ball.state.s) == 4})
         counts[cat] += 1
-        shots.append({"id": len(shots), "category": cat, "balls": initial, "pooltool": final})
+        n_cushion = sum(1 for k in kinds if "cushion" in k)
+        n_bb = sum(1 for k in kinds if "ball_ball" in k)
+        shots.append({"id": len(shots), "category": cat, "balls": initial, "pooltool": final,
+                      "events": {"cushion": n_cushion, "ballBall": n_bb}})
 
     doc = {
         "pooltoolVersion": getattr(pt, "__version__", "unknown"),
@@ -247,6 +250,22 @@ def report(scen_path, ours_path):
     worst.sort(reverse=True)
     for err, sid, cat in worst[:3]:
         print(f"REPORT: P3 worst: shot {sid} ({cat}) {1000*err:.1f} mm")
+    # Chẩn đoán: cú có cùng số va chạm (băng, bi–bi) ở hai engine vs khác số. Khác số → quỹ đạo đã rẽ nhánh
+    # (hình học / hỗn loạn); cùng số mà vẫn lệch → khác biệt nằm trong mô hình va chạm.
+    shots_by_id = {s_["id"]: s_ for s_ in scen["shots"]}
+    for cat in ("cushion", "jaw"):
+        same, diff = [], []
+        for err, sid, c in worst:
+            if c != cat:
+                continue
+            ev, o = shots_by_id[sid].get("events"), ours.get(sid)
+            if not ev or not o:
+                continue
+            (same if (ev["cushion"], ev["ballBall"]) == (o["cushion"], o["ballBall"]) else diff).append(err)
+        if same or diff:
+            def stat(xs):
+                return f"n={len(xs)} median {1000*percentile(xs,0.5):.1f} mm p90 {1000*percentile(xs,0.9):.1f} mm" if xs else "n=0"
+            print(f"REPORT: P2 {cat} same event counts: {stat(same)} | different: {stat(diff)}")
 
 
 def variant(src, dst, assignments):
