@@ -101,6 +101,7 @@ def make(path, n_per_category=70, seed=2026, cushion_model=None):
         "cushionFriction": param("f_c", 0.2),
     }
 
+    cushion_events = []
     shots, counts = [], {"motion": 0, "ballball": 0, "cushion": 0, "jaw": 0}
     attempts = 0
     while min(counts[k] for k in ("motion", "ballball", "cushion")) < n_per_category and attempts < 8000:
@@ -161,6 +162,27 @@ def make(path, n_per_category=70, seed=2026, cushion_model=None):
             final.append({"id": 0 if bid == "cue" else int(bid), "x": ours[0], "y": ours[1],
                           "pocketed": int(ball.state.s) == 4})
         counts[cat] += 1
+        for ev in getattr(system, "events", []):
+            et = str(getattr(ev.event_type, "value", ev.event_type)).lower()
+            if "linear_cushion" not in et or len(cushion_events) >= 400:
+                continue
+            ball_agent = next((a for a in ev.agents if a.final is not None and hasattr(a.final, "state")), None)
+            seg_agent = next((a for a in ev.agents if a is not ball_agent), None)
+            if ball_agent is None or seg_agent is None or ball_agent.initial is None:
+                continue
+            seg = seg_agent.initial
+            pre, post = ball_agent.initial.state.rvw, ball_agent.final.state.rvw
+            nrm = pt_to_ours_vec([float(x) for x in seg.normal])[:2]
+            v_pre = pt_to_ours_vec(pre[1].tolist())
+            if nrm[0] * v_pre[0] + nrm[1] * v_pre[1] > 0:   # pháp tuyến hướng VÀO bàn (ngược hướng bi lao tới)
+                nrm = [-nrm[0], -nrm[1]]
+            cushion_events.append({
+                "shot": len(shots), "time": float(ev.time),
+                "pre": {"r": pt_to_ours_pos(pre[0].tolist(), W), "v": v_pre, "w": pt_to_ours_vec(pre[2].tolist())},
+                "post": {"v": pt_to_ours_vec(post[1].tolist()), "w": pt_to_ours_vec(post[2].tolist())},
+                "inward": nrm, "height": float(seg.height),
+                "p1": pt_to_ours_pos([float(x) for x in seg.p1], W)[:2],
+                "p2": pt_to_ours_pos([float(x) for x in seg.p2], W)[:2]})
         n_cushion = sum(1 for k in kinds if "cushion" in k)
         n_bb = sum(1 for k in kinds if "ball_ball" in k)
         shots.append({"id": len(shots), "category": cat, "balls": initial, "pooltool": final,
@@ -173,6 +195,7 @@ def make(path, n_per_category=70, seed=2026, cushion_model=None):
         "cushionModel": engine_label,
         "params": params,
         "shots": shots,
+        "cushionEvents": cushion_events,
     }
     with open(path, "w") as f:
         json.dump(doc, f, indent=1)
@@ -268,6 +291,39 @@ def report(scen_path, ours_path):
             print(f"REPORT: P2 {cat} same event counts: {stat(same)} | different: {stat(diff)}")
 
 
+def report_cushion_events(scen_path, ours_path):
+    """So TỪNG va chạm băng thẳng: cùng trạng thái trước va chạm → so vận tốc/xoáy sau (công thức),
+    và vị trí đường băng / đầu đoạn băng của pooltool so với của ta (hình học)."""
+    scen = json.load(open(scen_path))
+    evs = scen.get("cushionEvents") or []
+    ours = json.load(open(ours_path)).get("events", [])
+    if not evs or len(ours) != len(evs):
+        print(f"REPORT: P4 cushion events: không có dữ liệu ({len(evs)} pooltool, {len(ours)} ours)")
+        return
+    R, L, W = scen["table"]["ballRadius"], scen["table"]["length"], scen["table"]["width"]
+    dv, dw, line_off, outside = [], [], [], 0
+    a_corner, h_side = 0.1143 / math.sqrt(2), 0.127 / 2   # mặc định TableSpec của PoolPhysics
+    for e, o in zip(evs, ours):
+        dv.append(math.dist(e["post"]["v"][:2], o["v"][:2]))
+        dw.append(math.dist(e["post"]["w"], o["w"]))
+        n = e["inward"]; x, y = e["pre"]["r"][0], e["pre"]["r"][1]
+        # Đường băng của pooltool (qua p1) so với đường băng của ta (x=0, x=L, y=0, y=W).
+        if abs(n[1]) > abs(n[0]):
+            ours_line = 0.0 if n[1] > 0 else W
+            line_off.append(abs(e["p1"][1] - ours_line))
+            along, lo_hi = x, ([(a_corner, L / 2 - h_side), (L / 2 + h_side, L - a_corner)])
+        else:
+            ours_line = 0.0 if n[0] > 0 else L
+            line_off.append(abs(e["p1"][0] - ours_line))
+            along, lo_hi = y, [(a_corner, W - a_corner)]
+        if not any(lo <= along <= hi for lo, hi in lo_hi):
+            outside += 1
+    print(f"REPORT: P4 cushion per-collision (n={len(evs)}): |Δv| median {1000*percentile(dv,0.5):.3f} mm/s, "
+          f"max {1000*max(dv):.3f} mm/s; |Δω| median {percentile(dw,0.5):.4f} rad/s, max {max(dw):.4f} rad/s")
+    print(f"REPORT: P4 cushion geometry: pooltool line offset median {1000*percentile(line_off,0.5):.2f} mm, "
+          f"max {1000*max(line_off):.2f} mm; contacts outside our straight segments: {outside}/{len(evs)}")
+
+
 def variant(src, dst, assignments):
     doc = json.load(open(src))
     for a in assignments:
@@ -287,6 +343,8 @@ def report_labeled(label, scen_path, ours_path):
 if __name__ == "__main__":
     if len(sys.argv) >= 3 and sys.argv[1] == "make":
         make(sys.argv[2], cushion_model=sys.argv[3] if len(sys.argv) > 3 else None)
+    elif len(sys.argv) == 4 and sys.argv[1] == "cushion-report":
+        report_cushion_events(sys.argv[2], sys.argv[3])
     elif len(sys.argv) >= 4 and sys.argv[1] == "variant":
         variant(sys.argv[2], sys.argv[3], sys.argv[4:])
     elif len(sys.argv) >= 4 and sys.argv[1] == "report":

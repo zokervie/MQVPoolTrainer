@@ -55,6 +55,34 @@ if args.count == 2, args[1] == "--bench" {
     exit(0)
 }
 
+// Chế độ so từng va chạm băng: áp CushionCollision.resolve lên đúng trạng thái trước va chạm của pooltool.
+// Dùng: poolsim --cushion <kịch-bản.json> <ra.json>
+if args.count == 4, args[1] == "--cushion" {
+    struct EventIn: Codable {
+        struct State: Codable { var r: [Double]; var v: [Double]; var w: [Double] }
+        var pre: State; var inward: [Double]; var height: Double
+    }
+    struct FileIn: Codable {
+        var table: ScenarioFile.TableIn; var params: PhysicsParameters; var cushionEvents: [EventIn]?
+    }
+    struct Out: Codable { var v: [Double]; var w: [Double] }
+    let f = try JSONDecoder().decode(FileIn.self, from: Data(contentsOf: URL(fileURLWithPath: args[2])))
+    var outs: [Out] = []
+    for e in f.cushionEvents ?? [] {
+        var b = Ball(id: 0, position: SIMD3(e.pre.r[0], e.pre.r[1], f.table.ballRadius),
+                     velocity: SIMD3(e.pre.v[0], e.pre.v[1], 0),
+                     angularVelocity: SIMD3(e.pre.w[0], e.pre.w[1], e.pre.w[2]))
+        b.state = b.classified(radius: f.table.ballRadius)
+        let (o, _) = CushionCollision.resolve(b, inward: SIMD2(e.inward[0], e.inward[1]), cushionHeight: e.height,
+                                              f.params, mass: f.table.ballMass, radius: f.table.ballRadius)
+        outs.append(Out(v: [o.velocity.x, o.velocity.y, o.velocity.z],
+                        w: [o.angularVelocity.x, o.angularVelocity.y, o.angularVelocity.z]))
+    }
+    try JSONEncoder().encode(["events": outs]).write(to: URL(fileURLWithPath: args[3]))
+    print("poolsim --cushion: \(outs.count) va chạm")
+    exit(0)
+}
+
 guard args.count == 3 else {
     FileHandle.standardError.write("dùng: poolsim <vào.json> <ra.json>\n".data(using: .utf8)!)
     exit(2)
