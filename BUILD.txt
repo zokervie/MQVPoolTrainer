@@ -1,0 +1,4 @@
+Zoker Trainer 0.3.0 (build 49) — nhánh feature/zoker-mvp, commit 585730e, 2026-10-19 12:41 UTC.
+IPA chưa ký – mở bằng ESign/Sideloadly để ký bằng Apple ID của bạn rồi cài.
+Link cố định luôn trỏ bản mới nhất: https://github.com/zokervie/MQVPoolTrainer/raw/dist-zoker/ZokerTrainer.ipa
+SHA-256: 564d9c4065e894d5148a089631b1aaf44bf3fcf5cad70b8658201289e129faa1
