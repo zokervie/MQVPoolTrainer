@@ -53,18 +53,27 @@ project.yml      Cấu hình XcodeGen
 - Đã khóa: đặt ngón ở bất kỳ đâu, kéo xuống rồi đẩy lên để ra cơ.
 - Biểu tượng góc trên: thoát · đổi góc nhìn · Shot Lab · đặt lại.
 
-## Build thành phẩm trên Codemagic
+## Bản cài đặt (IPA)
 
-Cấu hình: `codemagic.yaml` (nhánh `feature/zoker-mvp`). Hai workflow, cả hai chạy kiểm thử 4 package trước:
+**Link cố định cho ESign / Sideloadly:** `https://github.com/zokervie/MQVPoolTrainer/releases/download/zoker-latest/ZokerTrainer.ipa`
+
+Mỗi lần đẩy lên `feature/zoker-mvp`, GitHub Actions (`ci.yml`) chạy: test 4 package → build Release cho iPhone (arm64, chưa ký,
+số build = số lần chạy) → đăng lên Release `zoker-latest` (tag dời theo commit vừa build, kiểm chứng bằng mã băm sau khi đăng).
+App hiển thị tên **Zoker Trainer**, mã gói `com.zokervie.pooltrainer` — cài song song được với app "Pool Trainer" trên `main`.
+
+## Codemagic (chạy tay: dự phòng hoặc TestFlight)
+
+Cấu hình: `codemagic.yaml`. Không tự build khi push (đã có GitHub Actions), tránh build trùng và tốn phút miễn phí.
 
 | Workflow | Cần gì | Kết quả |
 |---|---|---|
-| `zoker-ipa-unsigned` | Chỉ tài khoản Codemagic | `PoolTrainer-<phiên bản>-<số build>-unsigned.ipa` — tự ký khi cài bằng Sideloadly/AltStore (Apple ID thường: hết hạn sau 7 ngày) |
+| `zoker-ipa-unsigned` | Chỉ tài khoản Codemagic | IPA chưa ký (như trên) |
 | `zoker-testflight` | Apple Developer Program, khóa App Store Connect API | Bản ký, đẩy lên TestFlight |
 
-Lần đầu:
-1. codemagic.io → **Add application** → GitHub → `zokervie/MQVPoolTrainer` → loại dự án **codemagic.yaml**.
-2. **Start new build** → nhánh `feature/zoker-mvp` → workflow `zoker-ipa-unsigned`. Từ đó mỗi lần đẩy lên nhánh này sẽ tự build.
-3. TestFlight: tạo khóa API trong App Store Connect (Users and Access → Integrations, quyền App Manager) → Codemagic **Team integrations → Developer Portal** → thêm khóa với tên `zoker_asc`. Tạo app trong App Store Connect với mã gói `com.zokervie.pooltrainer` (hoặc đổi mã ở `project.yml` và `codemagic.yaml` cho khớp). Trong **Code signing identities**, tạo/tải chứng chỉ Apple Distribution và hồ sơ App Store cho mã gói. Sau đó chạy `zoker-testflight`.
+Chạy: codemagic.io → app `MQVPoolTrainer` (thêm bằng **Add application** nếu chưa có, loại **codemagic.yaml**) → **Start new build** →
+nhánh `feature/zoker-mvp` → chọn workflow. Hoặc tự động qua GitHub: thêm secret `CODEMAGIC_API_TOKEN`, rồi sửa
+`.github/codemagic-request.json` (tăng `request`) — workflow `Codemagic` sẽ thêm app nếu cần, chạy build và báo link tải.
 
-Script build IPA dùng chung với GitHub Actions (`.github/scripts/build-unsigned-ipa.sh`, job `ipa`), nên mỗi lần CI chạy cũng có file IPA trong mục Artifacts.
+TestFlight: tạo khóa API trong App Store Connect (Users and Access → Integrations, quyền App Manager) → Codemagic
+**Team integrations → Developer Portal** → thêm khóa tên `zoker_asc`; tạo app với mã gói `com.zokervie.pooltrainer`;
+trong **Code signing identities** tạo/tải chứng chỉ Apple Distribution và hồ sơ App Store; chạy `zoker-testflight`.

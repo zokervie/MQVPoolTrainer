@@ -1,4 +1,5 @@
-# CI: test các Swift package và build app iOS (simulator) trên macOS.
+# CI Zoker MVP: test 4 Swift package → build IPA (Release, máy thật) → Release "zoker-latest";
+# song song: đối chứng vật lý (validation) và chụp màn hình simulator.
 # Lỗi biên dịch/test được chuyển thành annotation để đọc qua GitHub API.
 name: CI
 
@@ -8,26 +9,31 @@ on:
   pull_request:
   workflow_dispatch: {}
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+# Không đặt concurrency cấp workflow: nó sẽ hủy cả bước đăng Release giữa chừng.
+# Job kiểm thử: lần push mới hủy lần cũ. Job IPA/Release: xếp hàng, không hủy.
 
 permissions:
   contents: read
+
+env:
+  # Ghim Xcode (không dùng action setup-xcode chạy Node 20).
+  XCODE_APP: /Applications/Xcode_16.4.app
 
 jobs:
   packages:
     runs-on: macos-15
     timeout-minutes: 25
+    concurrency:
+      group: ci-packages-${{ matrix.package }}-${{ github.ref }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
         package: [ PoolPhysics, PoolInput, PoolDrills, PoolAudio ]
     steps:
-      - uses: actions/checkout@v4
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "16"
+      - uses: actions/checkout@v5
+      - name: Chọn Xcode
+        run: sudo xcode-select -s "$XCODE_APP"
       - name: Môi trường
         run: |
           echo "::notice title=env::$(xcodebuild -version | tr '\n' ' ') / $(swift --version 2>&1 | head -1)"
@@ -38,83 +44,93 @@ jobs:
       - name: Annotate
         if: always()
         run: .github/scripts/annotate.sh swift-test.log "$GITHUB_WORKSPACE"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: log-${{ matrix.package }}
           path: swift-test.log
           retention-days: 14
 
-  app:
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "16"
-      - name: XcodeGen
-        run: |
-          brew install xcodegen
-          xcodegen generate
-      - name: Build app (iOS Simulator)
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -project PoolTrainer.xcodeproj \
-            -scheme PoolTrainer \
-            -destination 'generic/platform=iOS Simulator' \
-            -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO \
-            > app-build.log 2>&1 || true
-          tail -5 app-build.log
-          grep -q "BUILD SUCCEEDED" app-build.log
-      - name: Annotate
-        if: always()
-        run: .github/scripts/annotate.sh app-build.log "$GITHUB_WORKSPACE"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: log-app
-          path: app-build.log
-          retention-days: 14
-
-  # Tầng 2 (đối chứng pooltool) và kiểm thử công cụ đo. Chỉ để báo cáo, không chặn CI.
-  # Bản thành phẩm cho iPhone thật (Release, arm64), chưa ký — cùng script với Codemagic (zoker-ipa-unsigned).
+  # Bản thành phẩm cho iPhone thật (Release, arm64), chưa ký — cùng script với Codemagic.
+  # Chỉ chạy khi test package qua. Push lên feature/zoker-mvp → đăng Release "zoker-latest" (link cố định cho ESign).
   ipa:
     runs-on: macos-15
     timeout-minutes: 40
+    needs: packages
+    permissions:
+      contents: write
+    concurrency:
+      group: zoker-release-${{ github.ref }}
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "16"
+      - uses: actions/checkout@v5
+      - name: Chọn Xcode
+        run: sudo xcode-select -s "$XCODE_APP"
       - name: Build IPA chưa ký
+        id: ipa
         run: |
           set -o pipefail
           .github/scripts/build-unsigned-ipa.sh "${{ github.run_number }}" 2>&1 | tee ipa.log
+          IPA=$(ls build/ipa/*.ipa)
+          APP=build/Payload/PoolTrainer.app
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP/Info.plist")" = "${{ github.run_number }}"
+          echo "file=$IPA" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$IPA" .ipa)" >> "$GITHUB_OUTPUT"
+          echo "version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Info.plist")" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$IPA" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Annotate
         if: always()
         run: |
           grep -E "^IPA:" ipa.log | sed 's/^/::notice title=ipa::/' || true
           grep -E "error:" ipa.log | head -10 | sed 's/^/::error::/' || true
-      - uses: actions/upload-artifact@v4
-        if: success()
+      - uses: actions/upload-artifact@v6
         with:
-          name: PoolTrainer-unsigned-ipa
-          path: build/ipa/*.ipa
+          name: ${{ steps.ipa.outputs.name }}
+          path: ${{ steps.ipa.outputs.file }}
           retention-days: 30
+      - name: Đăng IPA lên Release "zoker-latest"
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/zoker-mvp'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IPA: ${{ steps.ipa.outputs.file }}
+          VERSION: ${{ steps.ipa.outputs.version }}
+          SHA256: ${{ steps.ipa.outputs.sha256 }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          cp "$IPA" ZokerTrainer.ipa
+          TITLE="Zoker Trainer – bản mới nhất (${VERSION} build ${BUILD})"
+          NOTE="Zoker Trainer ${VERSION} (build ${BUILD}) — nhánh feature/zoker-mvp, commit ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC').
+          IPA chưa ký – mở bằng ESign/Sideloadly để ký bằng Apple ID của bạn rồi cài. Cài song song được với app Pool Trainer trên main (mã gói khác).
+          Đã qua kiểm thử 4 package trước khi build. SHA-256: ${SHA256}"
+          # Dời tag về đúng commit vừa build ("gh release edit --target" không dời tag đã có).
+          git tag -f zoker-latest "$GITHUB_SHA"
+          git push -f origin refs/tags/zoker-latest
+          if gh release view zoker-latest > /dev/null 2>&1; then
+            gh release upload zoker-latest ZokerTrainer.ipa --clobber
+            gh release edit zoker-latest --title "$TITLE" --notes "$NOTE"
+          else
+            gh release create zoker-latest ZokerTrainer.ipa --verify-tag --prerelease --title "$TITLE" --notes "$NOTE"
+          fi
+          # Kiểm chứng: tải lại từ link cố định, so mã băm và vị trí tag.
+          gh release download zoker-latest -p ZokerTrainer.ipa -O check.ipa --clobber
+          test "$(shasum -a 256 check.ipa | cut -d' ' -f1)" = "$SHA256"
+          test "$(git ls-remote origin refs/tags/zoker-latest | cut -f1)" = "$GITHUB_SHA"
+          echo "::notice title=release::zoker-latest = ${GITHUB_SHA::7}, build ${BUILD}: https://github.com/${GITHUB_REPOSITORY}/releases/download/zoker-latest/ZokerTrainer.ipa"
 
+  # Tầng 2 (đối chứng pooltool) và kiểm thử công cụ đo. Chỉ để báo cáo, không chặn CI.
   validation:
     runs-on: macos-15
     timeout-minutes: 40
+    concurrency:
+      group: ci-validation-${{ github.ref }}
+      cancel-in-progress: true
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "16"
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - name: Chọn Xcode
+        run: sudo xcode-select -s "$XCODE_APP"
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Kiểm thử công cụ đo (Tools/validation)
@@ -148,15 +164,17 @@ jobs:
   screenshots:
     runs-on: macos-15
     timeout-minutes: 40
+    concurrency:
+      group: ci-screenshots-${{ github.ref }}
+      cancel-in-progress: true
     continue-on-error: true
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "16"
+      - uses: actions/checkout@v5
+      - name: Chọn Xcode
+        run: sudo xcode-select -s "$XCODE_APP"
       - name: Build cho simulator
         run: |
           brew install xcodegen > /dev/null
@@ -164,8 +182,8 @@ jobs:
           set -o pipefail
           xcodebuild build -project PoolTrainer.xcodeproj -scheme PoolTrainer \
             -destination 'generic/platform=iOS Simulator' -configuration Debug \
-            -derivedDataPath build CODE_SIGNING_ALLOWED=NO > shots-build.log 2>&1 || true
-          tail -3 shots-build.log
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO > shots-build.log 2>&1 \
+            || { grep -E "error:" shots-build.log | head -20 | sed 's/^/::error::/'; exit 1; }
       - name: Chụp màn hình
         run: |
           .github/scripts/screenshots.sh build/Build/Products/Debug-iphonesimulator/PoolTrainer.app 2>&1 | tee shots.log

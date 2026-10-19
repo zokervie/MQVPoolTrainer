@@ -5,6 +5,8 @@
 #   2. zoker-testflight   : CẦN Apple Developer Program + khóa App Store Connect API (tích hợp tên "zoker_asc"
 #                           trong Codemagic > Team integrations > Developer Portal). Ký tự động, đẩy lên TestFlight.
 # Cả hai chạy kiểm thử 4 package trước khi build; test hỏng thì không ra bản build.
+# Bản chính được build bằng GitHub Actions (ci.yml → Release "zoker-latest"); Codemagic chạy TAY khi cần
+# (dự phòng, hoặc TestFlight), không tự build mỗi lần push để khỏi build trùng.
 
 definitions:
   scripts:
@@ -26,11 +28,6 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.4
-    triggering:
-      events: [push]
-      branch_patterns:
-        - pattern: feature/zoker-mvp
-          include: true
     scripts:
       - *test_packages
       - name: Build Release cho iPhone và đóng gói IPA (chưa ký)
