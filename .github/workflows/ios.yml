@@ -89,6 +89,7 @@ jobs:
           IPA không ký – mở bằng ESign/Sideloadly để ký bằng Apple ID của bạn rồi cài.
           SHA-256: ${SHA256}"
           # Dời tag về đúng commit vừa build ("gh release edit --target" KHÔNG dời được tag đã tồn tại).
+          trap 'echo "::error title=release::Lỗi ở dòng $LINENO: $BASH_COMMAND"' ERR
           git tag -f ios-latest "$GITHUB_SHA"
           git push -f origin refs/tags/ios-latest
           if gh release view ios-latest > /dev/null 2>&1; then
@@ -98,10 +99,17 @@ jobs:
             gh release create ios-latest PoolTrainer.ipa --verify-tag --prerelease \
               --title "Pool Trainer iOS – bản mới nhất (${VERSION} build ${BUILD_NUMBER})" --notes "$NOTE"
           fi
-          # Kiểm chứng: tải lại từ link cố định, so mã băm và vị trí tag.
-          gh release download ios-latest -p PoolTrainer.ipa -O check.ipa --clobber
-          test "$(shasum -a 256 check.ipa | cut -d' ' -f1)" = "$SHA256"
-          test "$(git ls-remote origin refs/tags/ios-latest | cut -f1)" = "$GITHUB_SHA"
+          # Kiểm chứng: tải lại từ link cố định (thử lại vì CDN cần vài giây), so mã băm và vị trí tag.
+          ok=""
+          for i in 1 2 3 4 5 6; do
+            gh release download ios-latest -p PoolTrainer.ipa -O check.ipa --clobber 2> dl.err || true
+            got=$(shasum -a 256 check.ipa 2>/dev/null | cut -d' ' -f1 || true)
+            [ "$got" = "$SHA256" ] && { ok=1; break; }
+            sleep 10
+          done
+          [ -n "$ok" ] || { echo "::error title=release::Tải lại IPA không khớp mã băm (được: ${got:-không tải được} · $(tr '\n' ' ' < dl.err))"; exit 1; }
+          tag=$(git ls-remote origin refs/tags/ios-latest | cut -f1)
+          [ "$tag" = "$GITHUB_SHA" ] || { echo "::error title=release::Tag ios-latest ở ${tag:-không có}, mong đợi $GITHUB_SHA"; exit 1; }
           echo "::notice title=release::ios-latest = ${GITHUB_SHA::7}, build ${BUILD_NUMBER}: https://github.com/${GITHUB_REPOSITORY}/releases/download/ios-latest/PoolTrainer.ipa"
 
   simulator-shots:
