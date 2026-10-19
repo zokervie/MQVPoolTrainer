@@ -11,6 +11,14 @@ enum EffectBallLayout {
         let x = mirrored ? insets.left + margin : size.width - insets.right - margin
         return CGPoint(x: x, y: size.height * 0.5)
     }
+
+    /// Thanh độ dốc cơ: dải dọc sát bên trong bi effect (phía giữa màn hình).
+    static let elevationHeight: CGFloat = 150
+    static func elevationRect(size: CGSize, insets: UIEdgeInsets, mirrored: Bool) -> CGRect {
+        let c = center(size: size, insets: insets, mirrored: mirrored)
+        let x = mirrored ? c.x + compactRadius + 18 : c.x - compactRadius - 18 - 26
+        return CGRect(x: x, y: c.y - elevationHeight / 2, width: 26, height: elevationHeight)
+    }
 }
 
 /// Lớp nhận cảm ứng phủ trên cảnh 3D (docs/02-controls.md):
@@ -22,6 +30,9 @@ final class TouchSurface: UIView {
     weak var model: GameModel?
 
     private var effectTouch: UITouch?
+    private var elevationTouch: UITouch?
+    private var elevationStep = 0
+    private var strokeStartY: CGFloat = 0
     private var edgeHapticFired = false
     private var readiedFired = false
     private var lockTouch: (touch: UITouch, start: CGPoint, time: TimeInterval)?
@@ -68,7 +79,13 @@ final class TouchSurface: UIView {
             switch model.state {
             case .aiming:
                 let c = effectCenter
-                if effectTouch == nil, hypot(p.x - c.x, p.y - c.y) <= EffectBallLayout.compactRadius * 1.6 {
+                let er = EffectBallLayout.elevationRect(size: bounds.size, insets: safeAreaInsets, mirrored: mirrored)
+                if elevationTouch == nil, er.insetBy(dx: -14, dy: -10).contains(p) {
+                    elevationTouch = t
+                    elevationStep = Int((model.elevation * 180 / .pi / 5).rounded())
+                    Haptics.effectTouch()
+                    updateElevation(t, model)
+                } else if effectTouch == nil, hypot(p.x - c.x, p.y - c.y) <= EffectBallLayout.compactRadius * 1.6 {
                     effectTouch = t
                     edgeHapticFired = false
                     model.effectExpanded = true
@@ -80,6 +97,7 @@ final class TouchSurface: UIView {
             case .locked:
                 if strokeTouch == nil {
                     strokeTouch = t
+                    strokeStartY = p.y
                     readiedFired = false
                     analyzer = StrokeAnalyzer()
                     let s = TouchSample(time: t.timestamp, position: millimeters(p))
@@ -99,7 +117,12 @@ final class TouchSurface: UIView {
         for t in touches {
             if t === effectTouch {
                 updateTip(t, model)
+            } else if t === elevationTouch {
+                updateElevation(t, model)
             } else if t === strokeTouch {
+                // Cơ chạy theo ngón: kéo xuống 1 mm → cơ lùi 5 mm (cú kéo 3 cm ≈ lấy đà 15 cm).
+                let pullMm = Double(t.location(in: self).y - strokeStartY) * (model.settings.mmPerPoint)
+                model.cueDraw = max(-0.01, pullMm * 0.005)
                 let samples = event?.coalescedTouches(for: t) ?? [t]
                 for c in samples {
                     let s = TouchSample(time: c.timestamp, position: millimeters(c.location(in: self)))
@@ -124,6 +147,16 @@ final class TouchSurface: UIView {
                 aimTouches[t] = p
             }
         }
+    }
+
+    private func updateElevation(_ t: UITouch, _ model: GameModel) {
+        let r = EffectBallLayout.elevationRect(size: bounds.size, insets: safeAreaInsets, mirrored: mirrored)
+        let f = Double((r.maxY - t.location(in: self).y) / r.height)
+        let e = max(0, min(1, f)) * GameModel.maxElevation
+        model.setElevation(e)
+        // Tích nhẹ mỗi 5°, như nấc khi nâng đuôi cơ.
+        let step = Int((e * 180 / .pi / 5).rounded())
+        if step != elevationStep { elevationStep = step; Haptics.effectTouch() }
     }
 
     private func updateTip(_ t: UITouch, _ model: GameModel) {
@@ -152,6 +185,8 @@ final class TouchSurface: UIView {
             if t === effectTouch {
                 effectTouch = nil
                 model.effectExpanded = false
+            } else if t === elevationTouch {
+                elevationTouch = nil
             } else if let l = lockTouch, l.touch === t {
                 lockTouch = nil
                 let end = t.location(in: self)
@@ -161,6 +196,7 @@ final class TouchSurface: UIView {
                 }
             } else if t === strokeTouch {
                 strokeTouch = nil
+                model.cueDraw = 0
                 if case .cancelled = analyzer.end() { model.strokeCancelled() }
             } else {
                 aimTouches[t] = nil

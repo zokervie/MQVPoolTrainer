@@ -10,6 +10,7 @@ struct ShotLabPanel: View {
     @State private var vertical = 0.0
     @State private var horizontal = 0.0
     @State private var level = 3
+    @State private var elevationDeg = 0.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -19,6 +20,8 @@ struct ShotLabPanel: View {
             Text(String(format: "Điểm chạm dọc %+.2f · ngang %+.2f (bán kính bi)", vertical, horizontal)).font(.caption)
             Slider(value: $vertical, in: -0.5...0.5, step: 0.05)
             Slider(value: $horizontal, in: -0.5...0.5, step: 0.05)
+            Text(String(format: "Độ dốc cơ %.0f° (nhảy bi / massé)", elevationDeg)).font(.caption)
+            Slider(value: $elevationDeg, in: 0...80, step: 1)
             Stepper("Lực mức \(level) (\(String(format: "%.1f", SpeedScale.cueSpeed(level: level))) m/s)",
                     value: $level, in: 1...7)
                 .font(.caption)
@@ -29,6 +32,7 @@ struct ShotLabPanel: View {
                         model.aimAngle = s.aimAngle
                         vertical = s.tipVertical; horizontal = s.tipHorizontal
                         level = SpeedScale.level(forCueSpeed: s.cueSpeed)
+                        elevationDeg = s.elevation * 180 / .pi
                     }
                     .font(.caption)
                 }
@@ -36,7 +40,8 @@ struct ShotLabPanel: View {
                 Button {
                     let s = CueStrike(aimAngle: model.aimAngle + offsetDegrees * .pi / 180,
                                       cueSpeed: SpeedScale.cueSpeed(level: level),
-                                      tipVertical: vertical, tipHorizontal: horizontal)
+                                      tipVertical: vertical, tipHorizontal: horizontal,
+                                      elevation: elevationDeg * .pi / 180)
                     model.shootShotLab(s)
                 } label: { Label("Đánh", systemImage: "scope") }
                 .buttonStyle(.borderedProminent)

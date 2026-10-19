@@ -20,6 +20,11 @@ struct GameScreen: View {
                     EffectBall(tip: model.tip, expanded: model.effectExpanded)
                         .position(EffectBallLayout.center(size: full, insets: insets, mirrored: model.settings.leftHanded))
                         .allowsHitTesting(false)
+                    let er = EffectBallLayout.elevationRect(size: full, insets: insets, mirrored: model.settings.leftHanded)
+                    ElevationGauge(elevation: model.elevation)
+                        .frame(width: er.width, height: er.height)
+                        .position(x: er.midX, y: er.midY)
+                        .allowsHitTesting(false)
                 }
 
                 // Một nút menu mờ duy nhất; ẩn khi đã khóa / đang chạy cú để không che bàn.
@@ -123,6 +128,35 @@ struct EffectBall: View {
         .frame(width: r * 2, height: r * 2)
         .opacity(expanded ? 1 : 0.6)
         .animation(.easeOut(duration: 0.15), value: expanded)
+    }
+}
+
+/// Thước độ dốc cơ (0–80°): dải dọc mờ, vạch mỗi 10°, một que nghiêng đúng góc cơ. Không chữ.
+struct ElevationGauge: View {
+    var elevation: Double
+    var body: some View {
+        GeometryReader { g in
+            let h = g.size.height, w = g.size.width
+            let f = CGFloat(elevation / GameModel.maxElevation)
+            ZStack {
+                Capsule().fill(Color.black.opacity(0.22))
+                Path { p in
+                    for k in 0...8 {
+                        let y = h - CGFloat(k) / 8 * h
+                        p.move(to: CGPoint(x: w * (k % 3 == 0 ? 0.22 : 0.36), y: y))
+                        p.addLine(to: CGPoint(x: w * (k % 3 == 0 ? 0.78 : 0.64), y: y))
+                    }
+                }
+                .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                // Que cơ nghiêng theo góc, tại mức hiện tại.
+                Capsule()
+                    .fill(Color(red: 0.93, green: 0.82, blue: 0.6))
+                    .frame(width: w * 1.3, height: 3)
+                    .rotationEffect(.radians(-elevation))
+                    .position(x: w / 2, y: h - f * h)
+            }
+        }
+        .opacity(elevation > 0.01 ? 0.95 : 0.5)
     }
 }
 

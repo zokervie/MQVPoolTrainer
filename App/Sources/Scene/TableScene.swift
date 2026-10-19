@@ -242,18 +242,28 @@ final class TableScene {
         lastBalls = Dictionary(uniqueKeysWithValues: balls.map { ($0.id, $0) })
     }
 
-    /// Cơ đặt sau bi cái theo hướng ngắm; ẩn khi bi đang chạy.
-    func updateCue(aim: Double, tip: SIMD2<Double>, visible: Bool, pullBack: Float) {
-        guard visible, let cueBall = lastBalls[0], cueBall.state != .pocketed else { cue.isEnabled = false; return }
+    /// Vị trí bi cái lúc ra cơ: cơ đi tiếp (follow-through) tại đây, không chạy theo bi.
+    private var cueAnchor: SIMD3<Double>?
+
+    /// Cơ đặt sau bi cái theo hướng ngắm và độ dốc. `pullBack` (m): khoảng đầu cơ cách mặt bi
+    /// (âm = đầu cơ đã đi qua vị trí bi — follow-through). `follow` = false: giữ vị trí bi lúc ra cơ.
+    func updateCue(aim: Double, tip: SIMD2<Double>, elevation: Double, visible: Bool, pullBack: Float, follow: Bool) {
+        if follow, let b = lastBalls[0], b.state != .pocketed { cueAnchor = b.position }
+        guard visible, let anchor = cueAnchor else { cue.isEnabled = false; return }
         cue.isEnabled = true
         let R = table.ballRadius
         let dir = SIMD3(cos(aim), sin(aim), 0)
         let left = SIMD3(-dir.y, dir.x, 0)
-        // Đầu cơ tại điểm chạm, lùi một chút; cơ hơi dốc lên phía người chơi.
-        let contact = cueBall.position + tip.y * R * SIMD3(0, 0, 1) - tip.x * R * left
-        let tipPos = contact - dir * (0.004 + Double(pullBack))
+        // Trục cơ hướng vào bi; cơ ngang vẫn nâng nhẹ ~3° như khi chống cầu tay thật.
+        let el = max(elevation, 0.05)
+        let axis = cos(el) * dir - sin(el) * SIMD3(0, 0, 1)
+        let up = simd_normalize(SIMD3(0, 0, 1) + sin(el) * axis)
+        let offset = tip.y * R * up - tip.x * R * left
+        let back = max(0, R * R - simd_length_squared(offset)).squareRoot()
+        let contact = anchor + offset - back * axis        // điểm chạm trên mặt bi
+        let tipPos = contact - axis * (0.002 + Double(pullBack))
         cue.position = mapping.toRender(tipPos)
-        let back = mapping.directionToRender(-dir + SIMD3(0, 0, 0.06))
+        let back = mapping.directionToRender(-axis)
         // Trục +z của entity `cue` hướng về phía đuôi cơ.
         cue.look(at: cue.position - back, from: cue.position, relativeTo: nil)
     }

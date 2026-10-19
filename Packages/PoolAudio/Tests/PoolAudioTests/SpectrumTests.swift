@@ -58,6 +58,15 @@ final class SpectrumTests: XCTestCase {
         print("REPORT: audio spectra:\n" + rows.map { "REPORT:   " + $0 }.joined(separator: "\n"))
     }
 
+    /// Tiếng bi–bi phải khô, tắt nhanh như tiếng "cách" thật — không ngân như cụng ly
+    /// (bản tổng hợp đầu tắt sau ~170 ms vì dùng sóng sin tắt chậm).
+    func testBallClackIsShortNotRinging() {
+        for impulse in [0.02, 0.3, 1.0] {
+            let d = decayMs(rendered(.ballBall, impulse: impulse, speed: impulse / 0.17))
+            XCTAssertLessThan(d, 40, "bi–bi xung \(impulse): tắt sau \(d) ms")
+        }
+    }
+
     /// Dải tần đặc trưng: bi–bi "tách" cao, băng "bịch" thấp.
     func testKindsHaveDistinctRegisters() {
         let bb = spectralCentroid(rendered(.ballBall, impulse: 0.3, speed: 2))

@@ -76,9 +76,18 @@ struct GameContainer: UIViewRepresentable {
             let balls = model.displayBalls(now: CACurrentMediaTime())
             scene.updateBalls(balls, dt: dt)
             let st = model.state
-            scene.updateCue(aim: model.aimAngle, tip: model.tip,
-                            visible: st == .aiming || st == .locked,
-                            pullBack: st == .locked ? 0.02 : 0.06)
+            // Cơ: ngắm → cách mặt bi 3,5 cm; đã khóa → theo ngón (kéo lùi/đẩy tới); vừa ra cơ → đi tiếp qua vị trí
+            // bi trong 0,25 s rồi ẩn (cú đánh thật có follow-through, không dừng ở mặt bi).
+            let since = model.playbackTime(now: CACurrentMediaTime())
+            let follow = st == .shotRunning && since < 0.25
+            let pull: Double = switch st {
+            case .aiming: 0.035
+            case .locked: 0.012 + model.cueDraw
+            default: -0.08 * min(1, since / 0.12)
+            }
+            scene.updateCue(aim: model.aimAngle, tip: model.tip, elevation: model.elevation,
+                            visible: st == .aiming || st == .locked || follow,
+                            pullBack: Float(pull), follow: st == .aiming || st == .locked)
             let size = arView.bounds.size
             scene.updateCamera(mode: model.cameraMode, aim: model.aimAngle, eyeHeight: model.settings.eyeHeight,
                                aspect: Float(size.width / max(size.height, 1)),

@@ -45,6 +45,11 @@ final class GameModel {
     /// Điểm chạm: x = ngang (+ phải), y = dọc (+ trên), theo bán kính bi.
     private(set) var tip = SIMD2<Double>(0, 0)
     var effectExpanded = false
+    /// Độ dốc cơ (radian, 0…80°) — nhảy bi / massé / swerve.
+    private(set) var elevation: Double = 0
+    static let maxElevation = 80 * Double.pi / 180
+    /// Quãng cơ đang kéo lùi theo ngón tay (m, âm = đã đẩy qua vạch). Đọc mỗi khung hình, không cần quan sát.
+    @ObservationIgnored var cueDraw: Double = 0
     var cameraMode: CameraMode = .firstPerson
     var shotLabOpen = false
 
@@ -115,7 +120,8 @@ final class GameModel {
         result = nil
         feedback = nil
         machine = InteractionMachine()
-        if !keepTip { tip = .zero }
+        if !keepTip { tip = .zero; elevation = 0 }
+        cueDraw = 0
         // Hướng ban đầu: về phía bi mục tiêu gần nhất (không phải đường ngắm gợi ý).
         if let cue = balls.first(where: { $0.id == 0 }) {
             let others = balls.filter { $0.id != 0 && $0.state != .pocketed }
@@ -150,6 +156,17 @@ final class GameModel {
 
     func resetTip() { if machine.showsEffectBall { tip = .zero } }
 
+    /// Đặt độ dốc cơ; trả về true nếu chạm giới hạn.
+    @discardableResult
+    func setElevation(_ e: Double) -> Bool {
+        guard machine.showsEffectBall else { return false }
+        elevation = max(0, min(Self.maxElevation, e))
+        return e <= 0 || e >= Self.maxElevation
+    }
+
+    /// Thời gian (s) kể từ lúc bắt đầu phát lại cú hiện tại (cho cơ đi tiếp sau chạm bi).
+    func playbackTime(now: CFTimeInterval) -> Double { isPlaying ? max(0, now - playbackStart) : .infinity }
+
     func lockTapped() {
         switch machine.handle(.lockTap) {
         case .lock: Haptics.lock(); effectExpanded = false
@@ -170,7 +187,9 @@ final class GameModel {
         // Vuốt lệch sang phải (lateral > 0) đẩy cơ sang phải (góc giảm) và tạo xoáy phải ngoài ý muốn.
         let aim = aimAngle - strokeMapping.aimError(r)
         let english = max(-1, min(1, tip.x + strokeMapping.unintendedEnglish(r)))
-        let strike = CueStrike(aimAngle: aim, cueSpeed: speed, tipVertical: tip.y, tipHorizontal: english)
+        let strike = CueStrike(aimAngle: aim, cueSpeed: speed, tipVertical: tip.y, tipHorizontal: english,
+                               elevation: elevation)
+        cueDraw = 0
         lastStroke = r
         lastRecording = recording
         machine.handle(.strokeCompleted)
