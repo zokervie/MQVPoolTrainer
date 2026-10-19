@@ -55,10 +55,10 @@ project.yml      Cấu hình XcodeGen
 
 ## Bản cài đặt (IPA)
 
-**Link cố định cho ESign / Sideloadly:** `https://github.com/zokervie/MQVPoolTrainer/releases/download/zoker-latest/ZokerTrainer.ipa`
+**Link cố định cho ESign / Sideloadly:** `https://github.com/zokervie/MQVPoolTrainer/raw/dist-zoker/ZokerTrainer.ipa` (luôn là bản mới nhất)
 
 Mỗi lần đẩy lên `feature/zoker-mvp`, GitHub Actions (`ci.yml`) chạy: test 4 package → build Release cho iPhone (arm64, chưa ký,
-số build = số lần chạy) → đăng lên Release `zoker-latest` (tag dời theo commit vừa build, kiểm chứng bằng mã băm sau khi đăng).
+số build = số lần chạy) → tạo Release riêng `zoker-v<phiên bản>-b<build>` (repo bật Release bất biến: không ghi đè bản cũ, giữ 10 bản gần nhất) và cập nhật nhánh `dist-zoker` cho link cố định; kiểm chứng mã băm sau khi đăng.
 App hiển thị tên **Zoker Trainer**, mã gói `com.zokervie.pooltrainer` — cài song song được với app "Pool Trainer" trên `main`.
 
 ## Codemagic (chạy tay: dự phòng hoặc TestFlight)

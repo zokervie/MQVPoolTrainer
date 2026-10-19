@@ -88,7 +88,7 @@ jobs:
           name: ${{ steps.ipa.outputs.name }}
           path: ${{ steps.ipa.outputs.file }}
           retention-days: 30
-      - name: Đăng IPA lên Release "zoker-latest"
+      - name: Đăng bản build (Release theo từng build + link cố định)
         if: github.event_name == 'push' && github.ref == 'refs/heads/feature/zoker-mvp'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -98,40 +98,33 @@ jobs:
           BUILD: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          cp "$IPA" ZokerTrainer.ipa
-          TITLE="Zoker Trainer – bản mới nhất (${VERSION} build ${BUILD})"
-          NOTE="Zoker Trainer ${VERSION} (build ${BUILD}) — nhánh feature/zoker-mvp, commit ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC').
-          IPA chưa ký – mở bằng ESign/Sideloadly để ký bằng Apple ID của bạn rồi cài. Cài song song được với app Pool Trainer trên main (mã gói khác).
-          Đã qua kiểm thử 4 package trước khi build. SHA-256: ${SHA256}"
-          # Dời tag về đúng commit vừa build ("gh release edit --target" không dời tag đã có).
           trap 'echo "::error title=release::Lỗi ở dòng $LINENO: $BASH_COMMAND"' ERR
-          # Dời tag: thử git push, nếu bị từ chối thì dời qua REST API; in nguyên văn lỗi nếu cả hai hỏng.
-          git tag -f zoker-latest "$GITHUB_SHA"
-          if ! git push -f origin refs/tags/zoker-latest 2> push.err; then
-            if ! gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/zoker-latest" -f sha="$GITHUB_SHA" -F force=true > /dev/null 2> api.err \
-               && ! gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/zoker-latest" -f sha="$GITHUB_SHA" > /dev/null 2>> api.err; then
-              echo "::error title=tag::git push: $(tr '\n' ' ' < push.err) | API: $(tr '\n' ' ' < api.err)"; exit 1
-            fi
-            echo "::warning title=tag::git push bị từ chối ($(tr '\n' ' ' < push.err | cut -c1-300)); đã dời tag qua API"
-          fi
-          if gh release view zoker-latest > /dev/null 2>&1; then
-            gh release upload zoker-latest ZokerTrainer.ipa --clobber
-            gh release edit zoker-latest --title "$TITLE" --notes "$NOTE"
-          else
-            gh release create zoker-latest ZokerTrainer.ipa --verify-tag --prerelease --title "$TITLE" --notes "$NOTE"
-          fi
-          # Kiểm chứng: tải lại từ link cố định (thử lại vì CDN cần vài giây), so mã băm và vị trí tag.
-          ok=""
-          for i in 1 2 3 4 5 6; do
-            gh release download zoker-latest -p ZokerTrainer.ipa -O check.ipa --clobber 2> dl.err || true
-            got=$(shasum -a 256 check.ipa 2>/dev/null | cut -d' ' -f1 || true)
-            [ "$got" = "$SHA256" ] && { ok=1; break; }
-            sleep 10
-          done
-          [ -n "$ok" ] || { echo "::error title=release::Tải lại IPA không khớp mã băm (được: ${got:-không tải được} · $(tr '\n' ' ' < dl.err))"; exit 1; }
-          tag=$(git ls-remote origin refs/tags/zoker-latest | cut -f1)
-          [ "$tag" = "$GITHUB_SHA" ] || { echo "::error title=release::Tag zoker-latest ở ${tag:-không có}, mong đợi $GITHUB_SHA"; exit 1; }
-          echo "::notice title=release::zoker-latest = ${GITHUB_SHA::7}, build ${BUILD}: https://github.com/${GITHUB_REPOSITORY}/releases/download/zoker-latest/ZokerTrainer.ipa"
+          B="${BUILD:-$BUILD_NUMBER}"
+          TAG="zoker-v${VERSION}-b${B}"
+          LINK="https://github.com/${GITHUB_REPOSITORY}/raw/dist-zoker/ZokerTrainer.ipa"
+          cp "$IPA" ZokerTrainer.ipa
+          NOTE="Zoker Trainer ${VERSION} (build ${B}) — nhánh feature/zoker-mvp, commit ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC').
+          IPA chưa ký – mở bằng ESign/Sideloadly để ký bằng Apple ID của bạn rồi cài.
+          Link cố định luôn trỏ bản mới nhất: ${LINK}
+          SHA-256: ${SHA256}"
+          # 1) Release riêng cho build này. Repo bật Release bất biến: không sửa/dời được Release cũ, nên mỗi build một tag mới.
+          gh release create "$TAG" ZokerTrainer.ipa --target "$GITHUB_SHA" --prerelease \
+            --title "Zoker Trainer ${VERSION} (build ${B})" --notes "$NOTE"
+          # 2) Link cố định cho ESign: nhánh dist-zoker chỉ chứa bản mới nhất (ghi đè mỗi lần).
+          mkdir -p _dist && cp ZokerTrainer.ipa _dist/ && printf '%s\n' "$NOTE" > _dist/BUILD.txt
+          ( cd _dist && git init -q && git checkout -q -b dist-zoker \
+            && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com" \
+            && git add -A && git commit -qm "Zoker Trainer ${VERSION} build ${B} (${GITHUB_SHA::7})" \
+            && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-zoker )
+          # 3) Kiểm chứng: tải lại từ Release và từ nhánh phân phối, so mã băm.
+          gh release download "$TAG" -p ZokerTrainer.ipa -O check.ipa --clobber
+          test "$(shasum -a 256 check.ipa | cut -d' ' -f1)" = "$SHA256"
+          gh api "repos/$GITHUB_REPOSITORY/contents/ZokerTrainer.ipa?ref=dist-zoker" -H "Accept: application/vnd.github.raw" > check2.ipa
+          test "$(shasum -a 256 check2.ipa | cut -d' ' -f1)" = "$SHA256"
+          # 4) Dọn: giữ 10 Release gần nhất của app này (Release bất biến vẫn xóa được; lỗi thì bỏ qua).
+          gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
+            | grep '^zoker-v' | tail -n +11 | while read -r old; do gh release delete "$old" -y || true; done
+          echo "::notice title=release::$TAG · link cố định: $LINK"
 
   # Tầng 2 (đối chứng pooltool) và kiểm thử công cụ đo. Chỉ để báo cáo, không chặn CI.
   validation:
