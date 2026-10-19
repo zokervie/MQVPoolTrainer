@@ -55,7 +55,7 @@ final class JumpMasseTests: XCTestCase {
     }
 
     func testMasseCurvesTowardEnglishSide() {
-        let el = 70 * .pi / 180
+        let el = 70 * Double.pi / 180
         let right = run(CueStrike(aimAngle: 0, cueSpeed: 2.5, tipHorizontal: 0.4, elevation: el))
         let left = run(CueStrike(aimAngle: 0, cueSpeed: 2.5, tipHorizontal: -0.4, elevation: el))
         let lr = lateral(right), ll = lateral(left)

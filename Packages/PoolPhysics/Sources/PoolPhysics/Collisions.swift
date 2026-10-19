@@ -110,11 +110,19 @@ public enum BallBallCollision {
         b2.velocity = b.velocity - impulseA / m
         a2.angularVelocity = a.angularVelocity + cross(ra, impulseA) / inertia
         b2.angularVelocity = b.angularVelocity + cross(rb, -impulseA) / inertia
-        // Bi đang nằm trên bàn mà bị ép xuống: mặt bàn đỡ (nảy/hấp thụ). Bi đang bay giữ v_z.
-        if a2.position.z <= R + 1e-7, a2.velocity.z < 0 { a2 = SlateImpact.resolve(a2, p, mass: m, radius: R) }
-        if b2.position.z <= R + 1e-7, b2.velocity.z < 0 { b2 = SlateImpact.resolve(b2, p, mass: m, radius: R) }
-        if a2.position.z <= R + 1e-7, a2.velocity.z < CollisionThresholds.minLiftSpeed { a2.velocity.z = 0 }
-        if b2.position.z <= R + 1e-7, b2.velocity.z < CollisionThresholds.minLiftSpeed { b2.velocity.z = 0 }
+        let aGround = a.position.z <= R + 1e-7, bGround = b.position.z <= R + 1e-7
+        if aGround && bGround {
+            // Cả hai bi trên bàn (trường hợp thường): bỏ thành phần đứng do ma sát tiếp tuyến, như mô hình
+            // phẳng trước đây — nỉ hấp thụ; giữ bảo toàn động lượng ngang (M5) và năng lượng (M4).
+            a2.velocity.z = 0
+            b2.velocity.z = 0
+        } else {
+            // Có bi đang bay (nhảy bi): bi nằm trên bàn bị ép xuống thì mặt bàn đỡ; bi bay giữ v_z.
+            if aGround, a2.velocity.z < 0 { a2 = SlateImpact.resolve(a2, p, mass: m, radius: R) }
+            if bGround, b2.velocity.z < 0 { b2 = SlateImpact.resolve(b2, p, mass: m, radius: R) }
+            if aGround, a2.velocity.z < CollisionThresholds.minLiftSpeed { a2.velocity.z = 0 }
+            if bGround, b2.velocity.z < CollisionThresholds.minLiftSpeed { b2.velocity.z = 0 }
+        }
         a2.state = a2.classified(radius: R)
         b2.state = b2.classified(radius: R)
         return ((a2, b2), ImpactInfo(relativeNormalSpeed: vRel, normalImpulse: jn, tangentialSlip: slip))

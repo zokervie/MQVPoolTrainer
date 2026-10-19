@@ -263,9 +263,9 @@ final class TableScene {
         let contact = anchor + offset - back * axis        // điểm chạm trên mặt bi
         let tipPos = contact - axis * (0.002 + Double(pullBack))
         cue.position = mapping.toRender(tipPos)
-        let back = mapping.directionToRender(-axis)
+        let butt = mapping.directionToRender(-axis)
         // Trục +z của entity `cue` hướng về phía đuôi cơ.
-        cue.look(at: cue.position - back, from: cue.position, relativeTo: nil)
+        cue.look(at: cue.position - butt, from: cue.position, relativeTo: nil)
     }
 
     /// Vị trí bi cái mà camera ngôi thứ nhất bám theo. Bị đóng băng khi cú đang chạy/xem lại:
