@@ -1,31 +1,76 @@
+# Codemagic — build thành phẩm Zoker Pool Trainer (nhánh feature/zoker-mvp).
+# Hai luồng:
+#   1. zoker-ipa-unsigned : KHÔNG cần tài khoản Apple trả phí. Ra file .ipa chưa ký để tự cài
+#                           (Sideloadly / AltStore với Apple ID thường; app hết hạn sau 7 ngày, cài lại được).
+#   2. zoker-testflight   : CẦN Apple Developer Program + khóa App Store Connect API (tích hợp tên "zoker_asc"
+#                           trong Codemagic > Team integrations > Developer Portal). Ký tự động, đẩy lên TestFlight.
+# Cả hai chạy kiểm thử 4 package trước khi build; test hỏng thì không ra bản build.
+
+definitions:
+  scripts:
+    - &test_packages
+      name: Kiểm thử package (PoolPhysics, PoolInput, PoolDrills, PoolAudio)
+      script: |
+        for p in PoolPhysics PoolInput PoolDrills PoolAudio; do
+          if swift test --package-path "Packages/$p" > "test-$p.log" 2>&1; then
+            echo "$p: $(grep -E 'Executed [0-9]+ tests' "test-$p.log" | tail -1)"
+          else
+            echo "$p: HỎNG"; grep -E "error:|failed" "test-$p.log" | head -40; exit 1
+          fi
+        done
+
 workflows:
-  r0-swift-package-tests:
-    name: "R0 - Swift package tests (macOS)"
+  zoker-ipa-unsigned:
+    name: Zoker – IPA chưa ký (tự cài)
     instance_type: mac_mini_m2
-    max_build_duration: 30
+    max_build_duration: 60
     environment:
-      xcode: latest
+      xcode: 16.4
+    triggering:
+      events: [push]
+      branch_patterns:
+        - pattern: feature/zoker-mvp
+          include: true
     scripts:
-      - name: "Environment and source verification"
-        script: |
-          set -eu
-          sw_vers
-          xcodebuild -version
-          swift --version
-          test -f Packages/PoolPhysics/Package.swift
-          test -f Packages/PoolInput/Package.swift
-          test -f Packages/PoolDrills/Package.swift
-      - name: "R0.1 - PoolPhysics"
-        script: |
-          set -o pipefail
-          swift test --package-path Packages/PoolPhysics 2>&1 | tee r0-poolphysics.log
-      - name: "R0.2 - PoolInput"
-        script: |
-          set -o pipefail
-          swift test --package-path Packages/PoolInput 2>&1 | tee r0-poolinput.log
-      - name: "R0.2 - PoolDrills"
-        script: |
-          set -o pipefail
-          swift test --package-path Packages/PoolDrills 2>&1 | tee r0-pooldrills.log
+      - *test_packages
+      - name: Build Release cho iPhone và đóng gói IPA (chưa ký)
+        script: .github/scripts/build-unsigned-ipa.sh "$BUILD_NUMBER"
     artifacts:
-      - "*.log"
+      - build/ipa/*.ipa
+      - build/archive.log
+      - test-*.log
+
+  zoker-testflight:
+    name: Zoker – TestFlight (đã ký)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: zoker_asc
+    environment:
+      xcode: 16.4
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.zokervie.pooltrainer   # phải khớp PRODUCT_BUNDLE_IDENTIFIER trong project.yml
+      vars:
+        XCODE_PROJECT: PoolTrainer.xcodeproj
+        XCODE_SCHEME: PoolTrainer
+    scripts:
+      - *test_packages
+      - name: Tạo dự án Xcode (XcodeGen)
+        script: |
+          command -v xcodegen > /dev/null || brew install xcodegen
+          xcodegen generate
+      - name: Gắn hồ sơ ký vào dự án
+        script: xcode-project use-profiles
+      - name: Đánh số build
+        script: agvtool new-version -all "$BUILD_NUMBER"
+      - name: Build IPA đã ký
+        script: xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - test-*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

@@ -80,6 +80,31 @@ jobs:
           retention-days: 14
 
   # Tầng 2 (đối chứng pooltool) và kiểm thử công cụ đo. Chỉ để báo cáo, không chặn CI.
+  # Bản thành phẩm cho iPhone thật (Release, arm64), chưa ký — cùng script với Codemagic (zoker-ipa-unsigned).
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16"
+      - name: Build IPA chưa ký
+        run: |
+          set -o pipefail
+          .github/scripts/build-unsigned-ipa.sh "${{ github.run_number }}" 2>&1 | tee ipa.log
+      - name: Annotate
+        if: always()
+        run: |
+          grep -E "^IPA:" ipa.log | sed 's/^/::notice title=ipa::/' || true
+          grep -E "error:" ipa.log | head -10 | sed 's/^/::error::/' || true
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: PoolTrainer-unsigned-ipa
+          path: build/ipa/*.ipa
+          retention-days: 30
+
   validation:
     runs-on: macos-15
     timeout-minutes: 40

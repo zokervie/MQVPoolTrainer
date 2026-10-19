@@ -1,7 +1,7 @@
 # Tạo dự án Xcode: brew install xcodegen && xcodegen generate
 name: PoolTrainer
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: com.zokervie
   deploymentTarget:
     iOS: "18.0"
 packages:
@@ -19,6 +19,7 @@ targets:
     platform: iOS
     sources:
       - App/Sources
+      - App/Resources
       - path: Drills
         type: folder
         buildPhase: resources
@@ -30,6 +31,14 @@ targets:
     settings:
       base:
         SWIFT_VERSION: "6.0"
+        # Mã gói: đổi nếu đã đăng ký mã khác trên Apple Developer (phải khớp BUNDLE_ID trong codemagic.yaml).
+        PRODUCT_BUNDLE_IDENTIFIER: com.zokervie.pooltrainer
+        MARKETING_VERSION: "0.3.0"
+        CURRENT_PROJECT_VERSION: "1"
+        VERSIONING_SYSTEM: apple-generic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.sports"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
