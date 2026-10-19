@@ -1,18 +1,33 @@
 name: iOS – kiểm thử & build IPA
 
+# Chạy khi sửa app iOS hoặc engine web dùng để sinh dữ liệu đối chiếu.
+# Nhánh nào cũng được kiểm thử và build; CHỈ main mới đăng lên Release "ios-latest".
 on:
   push:
     paths: ['ios/**', 'src/physics.js', 'src/drills.js', 'src/systems.js', 'src/table.js', '.github/workflows/ios.yml', 'codemagic.yaml']
+  pull_request:
+    paths: ['ios/**', 'src/physics.js', 'src/drills.js', 'src/systems.js', 'src/table.js', '.github/workflows/ios.yml', 'codemagic.yaml']
   workflow_dispatch:
+
+# Quyền tối thiểu; chỉ job cần ghi mới được ghi.
+permissions:
+  contents: read
+
+env:
+  # Ghim Xcode để build không tự hỏng khi ảnh máy runner đổi phiên bản mặc định.
+  XCODE_APP: /Applications/Xcode_16.4.app
 
 jobs:
   core-tests:
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
+      - name: Chọn Xcode
+        run: sudo xcode-select -s "$XCODE_APP" && echo "::notice title=xcode::$(xcodebuild -version | tr '\n' ' ')"
       - name: Dữ liệu đối chiếu từ bản web phải khớp file đã lưu
         run: node ios/Tests/make-fixture.mjs > /tmp/fixture.json && cmp /tmp/fixture.json ios/Tests/fixture.json
       - name: Kiểm thử engine Swift
@@ -26,49 +41,111 @@ jobs:
 
   build-ipa:
     runs-on: macos-15
+    timeout-minutes: 30
     needs: core-tests
     permissions:
       contents: write
+    # Các lần chạy xếp hàng theo thứ tự push (không chạy song song, không hủy giữa chừng),
+    # nên bản đăng sau cùng luôn là bản của commit mới nhất.
+    concurrency:
+      group: ios-release-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      # Số build tăng dần (CFBundleVersion) để phân biệt từng bản trên máy / ESign.
+      BUILD_NUMBER: ${{ github.run_number }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - name: Chọn Xcode
+        run: sudo xcode-select -s "$XCODE_APP"
       - name: Cài XcodeGen
         run: brew install xcodegen
       - name: Build IPA (không ký – ký lại bằng ESign / Sideloadly)
         run: ios/scripts/build-unsigned-ipa.sh
-      - uses: actions/upload-artifact@v4
+      - name: Kiểm tra IPA
+        id: ipa
+        run: |
+          APP=ios/build/Payload/PoolTrainer.app
+          VER=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Info.plist")
+          BLD=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP/Info.plist")
+          test "$BLD" = "$BUILD_NUMBER" || { echo "::error title=ipa::Số build trong IPA ($BLD) khác số mong đợi ($BUILD_NUMBER)"; exit 1; }
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 ios/build/PoolTrainer.ipa | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "::notice title=ipa::PoolTrainer $VER ($BLD), $(du -h ios/build/PoolTrainer.ipa | cut -f1), arch $(lipo -archs "$APP/PoolTrainer")"
+      - uses: actions/upload-artifact@v6
         with:
-          name: PoolTrainer-unsigned-ipa
+          name: PoolTrainer-${{ steps.ipa.outputs.version }}-${{ github.run_number }}-unsigned-ipa
           path: ios/build/PoolTrainer.ipa
+          retention-days: 30
       - name: Đăng IPA lên Release "ios-latest" (link cố định cho ESign)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ipa.outputs.version }}
+          SHA256: ${{ steps.ipa.outputs.sha256 }}
         run: |
+          set -euo pipefail
           cp ios/build/PoolTrainer.ipa PoolTrainer.ipa
-          NOTE="Bản build tự động từ ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC')). IPA không ký – mở bằng ESign/Sideloadly để ký bằng Apple ID của bạn rồi cài."
-          if gh release view ios-latest >/dev/null 2>&1; then
-            gh release upload ios-latest PoolTrainer.ipa --clobber
-            gh release edit ios-latest --notes "$NOTE" --target "$GITHUB_SHA"
-          else
-            gh release create ios-latest PoolTrainer.ipa --title "Pool Trainer iOS – bản mới nhất" --notes "$NOTE" --target "$GITHUB_SHA" --prerelease
+          NOTE="Pool Trainer ${VERSION} (build ${BUILD_NUMBER}) — commit ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC').
+          IPA không ký – mở bằng ESign/Sideloadly để ký bằng Apple ID của bạn rồi cài.
+          SHA-256: ${SHA256}"
+          # Dời tag về đúng commit vừa build ("gh release edit --target" KHÔNG dời được tag đã tồn tại).
+          trap 'echo "::error title=release::Lỗi ở dòng $LINENO: $BASH_COMMAND"' ERR
+          # Dời tag: thử git push, nếu bị từ chối thì dời qua REST API; in nguyên văn lỗi nếu cả hai hỏng.
+          git tag -f ios-latest "$GITHUB_SHA"
+          if ! git push -f origin refs/tags/ios-latest 2> push.err; then
+            if ! gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/ios-latest" -f sha="$GITHUB_SHA" -F force=true > /dev/null 2> api.err \
+               && ! gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/ios-latest" -f sha="$GITHUB_SHA" > /dev/null 2>> api.err; then
+              echo "::error title=tag::git push: $(tr '\n' ' ' < push.err) | API: $(tr '\n' ' ' < api.err)"; exit 1
+            fi
+            echo "::warning title=tag::git push bị từ chối ($(tr '\n' ' ' < push.err | cut -c1-300)); đã dời tag qua API"
           fi
+          if gh release view ios-latest > /dev/null 2>&1; then
+            gh release upload ios-latest PoolTrainer.ipa --clobber
+            gh release edit ios-latest --title "Pool Trainer iOS – bản mới nhất (${VERSION} build ${BUILD_NUMBER})" --notes "$NOTE"
+          else
+            gh release create ios-latest PoolTrainer.ipa --verify-tag --prerelease \
+              --title "Pool Trainer iOS – bản mới nhất (${VERSION} build ${BUILD_NUMBER})" --notes "$NOTE"
+          fi
+          # Kiểm chứng: tải lại từ link cố định (thử lại vì CDN cần vài giây), so mã băm và vị trí tag.
+          ok=""
+          for i in 1 2 3 4 5 6; do
+            gh release download ios-latest -p PoolTrainer.ipa -O check.ipa --clobber 2> dl.err || true
+            got=$(shasum -a 256 check.ipa 2>/dev/null | cut -d' ' -f1 || true)
+            [ "$got" = "$SHA256" ] && { ok=1; break; }
+            sleep 10
+          done
+          [ -n "$ok" ] || { echo "::error title=release::Tải lại IPA không khớp mã băm (được: ${got:-không tải được} · $(tr '\n' ' ' < dl.err))"; exit 1; }
+          tag=$(git ls-remote origin refs/tags/ios-latest | cut -f1)
+          [ "$tag" = "$GITHUB_SHA" ] || { echo "::error title=release::Tag ios-latest ở ${tag:-không có}, mong đợi $GITHUB_SHA"; exit 1; }
+          echo "::notice title=release::ios-latest = ${GITHUB_SHA::7}, build ${BUILD_NUMBER}: https://github.com/${GITHUB_REPOSITORY}/releases/download/ios-latest/PoolTrainer.ipa"
 
   simulator-shots:
     runs-on: macos-15
+    timeout-minutes: 30
     needs: core-tests
     permissions:
       contents: write
+    concurrency:
+      group: ios-shots-${{ github.ref }}
+      cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - name: Chọn Xcode
+        run: sudo xcode-select -s "$XCODE_APP"
       - name: Cài XcodeGen
         run: brew install xcodegen
       - name: Chạy app trên Simulator và chụp màn hình
         run: ios/scripts/sim-shots.sh
       - name: Đẩy ảnh chụp lên nhánh ci-shots
+        if: github.event_name != 'pull_request'
         run: |
           echo "::notice title=sim-status::$(tr '\n' '|' < ios/build/shots/status.txt)"
+          CRASH=$(grep "CRASH" ios/build/shots/status.txt | tr '\n' ' ' || true)
           cd ios/build/shots
           git init -q && git checkout -q -b ci-shots
           git config user.name ci && git config user.email ci@users.noreply.github.com
           git add -A && git commit -qm "shots ${GITHUB_SHA}"
           git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-shots 2> ../push.err \
             || { echo "::error title=push::$(tr '\n' ' ' < ../push.err)"; exit 1; }
+          # App thoát/crash trong kịch bản nào thì job đỏ (ảnh vẫn được đẩy lên để xem).
+          if [ -n "$CRASH" ]; then echo "::error title=sim-crash::$CRASH"; exit 1; fi

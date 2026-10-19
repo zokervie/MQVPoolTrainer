@@ -1,5 +1,7 @@
 name: Kiểm tra & phát hành GitHub Pages
 
+# Trang được phục vụ từ nhánh gh-pages (Settings → Pages → Deploy from a branch: gh-pages).
+# Mỗi lần push lên main: chạy test → chép trang lên gh-pages → GitHub tự triển khai → kiểm tra trang trả về đúng bản mới.
 on:
   push:
     branches: [main]
@@ -7,41 +9,49 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm test
 
   deploy:
     needs: test
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Chuẩn bị thư mục phát hành
         run: |
           mkdir -p _site
           cp -r index.html manifest.webmanifest sw.js icons src vendor _site/
           touch _site/.nojekyll
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          echo "${GITHUB_SHA}" > _site/version.txt
+      - name: Đẩy lên nhánh gh-pages
+        run: |
+          cd _site
+          git init -q && git checkout -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -qm "Pages từ main ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
+      - name: Kiểm tra trang đã cập nhật
+        run: |
+          OWNER=${GITHUB_REPOSITORY%%/*}; REPO=${GITHUB_REPOSITORY#*/}
+          URL="https://${OWNER,,}.github.io/${REPO}/"
+          for i in $(seq 1 30); do
+            v=$(curl -fsS "${URL}version.txt?nocache=$RANDOM" 2>/dev/null || true)
+            if [ "$v" = "$GITHUB_SHA" ]; then echo "::notice title=pages::Đã triển khai ${GITHUB_SHA::7}: $URL"; exit 0; fi
+            sleep 10
+          done
+          echo "::error title=pages::Sau 5 phút $URL vẫn chưa trả về bản ${GITHUB_SHA::7} (đang: ${v:-không đọc được})"; exit 1

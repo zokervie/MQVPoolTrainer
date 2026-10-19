@@ -1,17 +1,14 @@
 # Codemagic – build app iOS "Pool Trainer" (thư mục ios/).
 # Workflow mặc định tạo IPA KHÔNG KÝ: tải về rồi ký & cài bằng ESign / Sideloadly / AltStore với Apple ID miễn phí.
+# Bản chính được build bằng GitHub Actions (.github/workflows/ios.yml → Release "ios-latest").
+# Codemagic để chạy TAY khi cần (không tự build mỗi lần push, tránh build trùng và tốn phút miễn phí).
 workflows:
   ios-unsigned:
     name: iOS – IPA không ký (ESign)
     instance_type: mac_mini_m2
     max_build_duration: 45
     environment:
-      xcode: latest
-    triggering:
-      events: [push]
-      branch_patterns:
-        - pattern: main
-        - pattern: ios-native
+      xcode: 16.4   # ghim cùng bản với GitHub Actions
     scripts:
       - name: Cài XcodeGen
         script: brew install xcodegen
