@@ -30,6 +30,7 @@ App bida 3D trên iPhone để **luyện mắt, tư duy và khả năng dự đo
 - `REVIEW.md` — lập luận đằng sau các quyết định
 - `docs/01-physics.md` · `docs/02-controls.md` · `docs/03-camera-graphics.md`
 - `docs/04-drills.md` · `docs/05-feedback.md` · `docs/06-features.md` · `docs/07-validation.md`
+- `docs/08-tham-khao-shooterspool.md` — tham khảo ý tưởng từ ShootersPool (độc quyền: không chép mã/tài nguyên)
 
 ## Quy tắc làm việc
 - Mỗi phiên **một** nhiệm vụ trong `PROGRESS.md`, rồi dừng. Không tự chuyển nhiệm vụ.

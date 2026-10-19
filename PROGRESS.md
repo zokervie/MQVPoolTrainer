@@ -103,6 +103,8 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
 
 - 19/10/2026 · Đợt thử máy 1 (theo phản hồi người dùng): (1) **lỗi không khóa được/không rung trên máy thật**: vùng khóa loại chạm có bán kính > 30 pt, ngón cái thật ~30–50 pt → nới 70 pt, 0,45 s; thêm rung từng bước (chuẩn bị Taptic trước). (2) Giao diện: 4 nút → 1 nút menu mờ, vòng sáng thay hộp chữ. (3) Bi effect như bi cái tập: vạch chữ thập, vòng 1–2 đầu tẩy, dấu đầu tẩy đúng tỉ lệ Ø13/Ø57,15 mm. (4) **R1.7 đạt**: tách chồng lấn đồng thời (Gauss–Seidel) thay cho đẩy từng cặp → M3 0 cú ≥ 1 µm (trước 258), M6 0 cú chạm giới hạn (trước 5), M2/M4/M5 vẫn đạt. (5) Bàn: mũi băng vát theo chiều cao vật lý, lỗ khoét viền da, gỗ có vân, nỉ có thớ, đèn trần. (6) Ảnh chụp CI từ 07:22 sai (mã gói cũ, simulator không mở app) — đã sửa, CI báo đỏ nếu app không chạy. **Chưa thử trên máy thật.** Còn: vân gỗ khối góc bị răng cưa, vệt sáng chói trên băng dưới.
 
+- 19/10/2026 · Tham khảo · Thu thập thông tin công khai về ShootersPool (độc quyền, không có mã nguồn) → `docs/08-tham-khao-shooterspool.md`: đối chiếu 13 ý tưởng với dự án, 5 đề xuất xếp theo lộ trình, không vượt cổng.
+
 ## Vấn đề mở
 - **R1.7 cú phá (bắt buộc, chặn R1):** M3 chồng lấn tới 11,6 µm và M6 chạm giới hạn sự kiện ở 0,5% cú phá. Cần sửa xử lý tiếp xúc nhiều bi đồng thời trong tam giác (liên quan M7, ngưỡng chống Zeno) — nhiệm vụ phiên sau. Job `invariants` đỏ cho tới khi đạt.
 - **Băng:** công thức trùng Han 2005 (đã so từng va chạm). Phần lệch còn lại do hình học đoạn băng gần miệng lỗ khác pooltool — gộp với vấn đề miệng lỗ bên dưới. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
