@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Build PoolTrainer.ipa KHÔNG KÝ (dùng chung cho GitHub Actions và Codemagic).
 # Cài lên iPhone bằng ESign / Sideloadly / AltStore – công cụ đó ký lại bằng Apple ID của bạn.
+# Số build (CFBundleVersion) lấy từ biến BUILD_NUMBER (GitHub: run_number; Codemagic tự đặt), mặc định 1.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 xcodegen generate
 mkdir -p build
 xcodebuild -project PoolTrainer.xcodeproj -scheme PoolTrainer -configuration Release \
   -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/dd \
-  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > build/xcodebuild.log 2>&1 \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+  CURRENT_PROJECT_VERSION="${BUILD_NUMBER:-1}" build > build/xcodebuild.log 2>&1 \
   || { grep -E "error:" build/xcodebuild.log | sed -E 's#^.*/ios/##' | sort -u | head -150 > build/errors.txt || true
          cat build/errors.txt; tail -n 30 build/xcodebuild.log
          if [ -n "${GITHUB_ACTIONS:-}" ]; then
