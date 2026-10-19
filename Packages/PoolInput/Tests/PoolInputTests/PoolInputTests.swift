@@ -81,7 +81,8 @@ final class InteractionTests: XCTestCase {
         let p = SIMD2<Double>(0.1, 0.9)
         XCTAssertTrue(z.isLockTap(start: p, end: p, duration: 0.15, maxRadius: 15))
         XCTAssertFalse(z.isLockTap(start: p, end: p, duration: 0.6, maxRadius: 15))
-        XCTAssertFalse(z.isLockTap(start: p, end: p, duration: 0.15, maxRadius: 60))
+        XCTAssertTrue(z.isLockTap(start: p, end: p, duration: 0.2, maxRadius: 45), "ngón cái (≈45 pt) phải khóa được")
+        XCTAssertFalse(z.isLockTap(start: p, end: p, duration: 0.15, maxRadius: 100), "lòng bàn tay không khóa")
         XCTAssertFalse(z.isLockTap(start: SIMD2(0.6, 0.5), end: SIMD2(0.6, 0.5), duration: 0.1, maxRadius: 10))
     }
 }

@@ -30,9 +30,13 @@ NGẮM ──chạm nhanh vùng khóa──▶ ĐÃ KHÓA ──vuốt vượt v
 
 ## Khóa (`LockZone`)
 - Vùng **ẩn** góc dưới trái ~1/8 màn hình, cách mép một khoảng nhỏ.
-- Chỉ nhận chạm nhanh rồi nhấc (< 0,3 s), bỏ qua chạm diện tích lớn và ngón di chuyển.
+- Chỉ nhận chạm nhanh rồi nhấc (< 0,45 s), bỏ qua chạm diện tích lớn (> 70 pt, lòng bàn tay) và ngón di chuyển.
+  Bản đầu đặt 30 pt / 0,3 s: ngón cái thật (~30–50 pt) bị loại → không khóa được, không rung (lỗi thử trên máy 19/10).
 - Phản hồi không chữ: rung một nhịp rõ + âm ngắn + cơ đứng yên; mở khóa rung kiểu khác.
-- Hướng dẫn vùng ẩn chỉ hiện một lần.
+- Hướng dẫn vùng ẩn: vòng sáng nhấp nháy (không chữ), hiện tới lần khóa đầu tiên.
+- Rung: chạm bi effect (tích), chạm vòng giới hạn (nhịp cứng), khóa (hai nhịp), mở khóa (nhịp mềm), kéo lùi đủ đà (tích nhẹ), cơ chạm bi (theo lực). Bộ rung được `prepare()` khi ngón chạm màn hình.
+- Bi effect vẽ như bi cái tập: vạch chữ thập, vòng 1 và 2 đầu tẩy, vòng giới hạn 0,5R, dấu đầu tẩy đúng tỉ lệ (Ø13 mm / Ø57,15 mm).
+- Giao diện khi chơi: một nút menu mờ (ẩn khi đã khóa/đang chạy cú).
 
 ## Ra cơ (`StrokeAnalyzer`, `StrokeMapping`)
 - Đã khóa: đặt ngón bất kỳ đâu (ngoài vùng khóa) → kéo lùi ≥ 10 mm → đẩy tới.

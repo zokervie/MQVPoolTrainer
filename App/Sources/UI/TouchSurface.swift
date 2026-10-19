@@ -23,6 +23,7 @@ final class TouchSurface: UIView {
 
     private var effectTouch: UITouch?
     private var edgeHapticFired = false
+    private var readiedFired = false
     private var lockTouch: (touch: UITouch, start: CGPoint, time: TimeInterval)?
     private var strokeTouch: UITouch?
     private var analyzer = StrokeAnalyzer()
@@ -57,6 +58,7 @@ final class TouchSurface: UIView {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let model else { return }
+        Haptics.prepare()
         for t in touches {
             let p = t.location(in: self)
             if lockZone.contains(normalized(p)), lockTouch == nil {
@@ -70,6 +72,7 @@ final class TouchSurface: UIView {
                     effectTouch = t
                     edgeHapticFired = false
                     model.effectExpanded = true
+                    Haptics.effectTouch()
                     if t.tapCount >= 2 { model.resetTip() }
                 } else {
                     aimTouches[t] = p
@@ -77,6 +80,7 @@ final class TouchSurface: UIView {
             case .locked:
                 if strokeTouch == nil {
                     strokeTouch = t
+                    readiedFired = false
                     analyzer = StrokeAnalyzer()
                     let s = TouchSample(time: t.timestamp, position: millimeters(p))
                     strokeSamples = [s]
@@ -100,7 +104,9 @@ final class TouchSurface: UIView {
                 for c in samples {
                     let s = TouchSample(time: c.timestamp, position: millimeters(c.location(in: self)))
                     strokeSamples.append(s)
-                    if case .struck(let r) = analyzer.add(s) {
+                    let outcome = analyzer.add(s)
+                    if analyzer.isReadied && !readiedFired { readiedFired = true; Haptics.readied() }
+                    if case .struck(let r) = outcome {
                         let rec = TouchRecording(deviceModel: UIDevice.current.model,
                                                  mmPerPoint: model.settings.mmPerPoint,
                                                  config: StrokeConfig(), samples: strokeSamples)

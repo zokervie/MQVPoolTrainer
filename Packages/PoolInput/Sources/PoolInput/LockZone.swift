@@ -7,12 +7,14 @@ public struct LockZone: Sendable {
     public var height: Double = 0.5
     /// Khoảng cách tới mép để tránh thao tác hệ thống.
     public var edgeInset: Double = 0.03
-    /// Thời gian chạm tối đa để tính là chạm nhanh (s).
-    public var maxTapDuration: Double = 0.3
-    /// Bán kính chạm tối đa (pt) — lớn hơn coi là lòng bàn tay/ngón tì.
-    public var maxTouchRadius: Double = 30
+    /// Thời gian chạm tối đa để tính là chạm nhanh (s). 0,3 s cũ quá gắt với chạm tự nhiên của ngón cái.
+    public var maxTapDuration: Double = 0.45
+    /// Bán kính chạm tối đa (pt) — lớn hơn coi là lòng bàn tay tì vào màn hình.
+    /// Ngón cái người thật trên iPhone báo `majorRadius` khoảng 30–50 pt (giá trị cũ 30 pt làm mọi lần
+    /// chạm bằng ngón cái bị loại → không khóa được, không có rung). Lòng bàn tay thường > 80 pt.
+    public var maxTouchRadius: Double = 70
     /// Ngón di chuyển quá xa trong lúc chạm thì không tính là chạm (chuẩn hóa).
-    public var maxTapTravel: Double = 0.03
+    public var maxTapTravel: Double = 0.05
     /// Đảo bố cục cho người thuận tay trái (vùng khóa sang góc dưới phải).
     public var mirrored: Bool = false
 

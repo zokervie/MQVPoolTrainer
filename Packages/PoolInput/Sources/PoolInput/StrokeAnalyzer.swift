@@ -57,6 +57,9 @@ public struct StrokeAnalyzer: Sendable {
         return d.x * (-forward.y) + d.y * forward.x
     }
 
+    /// Đã kéo lùi đủ đà (≥ `minBackswing`): dùng để rung báo "sẵn sàng đẩy".
+    public var isReadied: Bool { -deepestBackswing >= minBackswing }
+
     public mutating func begin(_ s: TouchSample) {
         samples = [s]
         deepestBackswing = 0
