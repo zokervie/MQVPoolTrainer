@@ -84,6 +84,8 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
   - **Âm thanh** (`SpectrumTests`): phát hiện tiếng bi–bi mạnh gần như không sáng hơn tiếng nhẹ (trọng tâm phổ 2841 → 3268 Hz, ×1,15). Sửa: phổ kích thích theo thời gian tiếp xúc Hertz (~250 µs ở 1 m/s, ∝ v^−1/5, giả định) → 2051 → 2901 Hz (×1,41). PoolAudio 10/10. File WAV nghe thử trên nhánh `shots/zoker/audio`.
   - **Hình ảnh** (ảnh simulator): sửa camera bị kéo theo bi cái khi cú đang chạy (giờ đứng yên ở chỗ ngắm); tên lỗ có dấu; thêm thân bàn và sàn (lần đầu bị z-fighting làm nỉ loang nâu — đã sửa); nút phản hồi không xuống dòng; ảnh CI xoay đúng chiều; phát cú chậm ×0,35 chỉ trong autotest để chụp được giữa cú.
 
+- 19/10/2026 · Thành phẩm · `codemagic.yaml`: `zoker-ipa-unsigned` (không cần tài khoản Apple trả phí) và `zoker-testflight` (ký tự động, TestFlight). Thêm icon, phiên bản 0.3.0, mã gói `com.zokervie.pooltrainer`. Script build IPA chạy thật trên GitHub Actions (run 39180486858): Release arm64, IPA chưa ký 868 KB. **Chưa chạy trên Codemagic, chưa cài thử lên iPhone.**
+
 ## Vấn đề mở
 - **Băng thẳng vs Han 2005:** 34% cú cùng chuỗi va chạm vẫn lệch (p90 ~100 mm) → còn khác biệt chi tiết trong công thức. Bước tiếp: so từng va chạm (trạng thái trước/sau) thay vì vị trí dừng. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
 - **Miệng lỗ (jaw):** hình học lỗ hai engine khác hẳn (ta: đường bắt + đoạn mũi; pooltool: băng cong + lỗ tròn) → so jaw chưa có ý nghĩa (trung vị ~100 mm, 9–12 bi vào lỗ ở một bên). Cần dựng cùng hình học lỗ trước khi so.
