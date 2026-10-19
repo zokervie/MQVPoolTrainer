@@ -1,0 +1,67 @@
+# Mac – build & cài iPhone: chạy trên MÁY MAC CỦA BẠN (runner tự host, nhãn "zoker-mac", cài bằng Tools/mac/setup-runner.sh).
+# Không tốn phút GitHub/Codemagic, không xếp hàng máy Mac của GitHub.
+# - Build bằng Xcode trên máy, ký tự động bằng Team ID của bạn (biến repo APPLE_TEAM_ID).
+# - Nếu có iPhone đang ghép (cáp hoặc Wi-Fi): cài và mở app ngay.
+# An toàn: KHÔNG chạy cho pull_request (người ngoài không chạy được code trên máy bạn).
+name: Mac – build & cài iPhone
+
+on:
+  push:
+    branches: [feature/zoker-mvp]
+    paths: ['App/**', 'Packages/**', 'Drills/**', 'project.yml', '.github/workflows/device.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zoker-device
+  cancel-in-progress: true   # chỉ cài bản mới nhất; bản cũ đang chờ thì bỏ
+
+jobs:
+  device:
+    # Chỉ chạy trên Mac của bạn (fork không có biến MAC_RUNNER nên không chạy).
+    # MAC_RUNNER=on do setup-runner.sh đặt; tắt (xóa biến) khi gỡ runner để job không treo chờ máy.
+    if: github.event_name != 'pull_request' && vars.MAC_RUNNER == 'on'
+    runs-on: [self-hosted, macOS, zoker-mac]
+    timeout-minutes: 40
+    env:
+      TEAM: ${{ vars.APPLE_TEAM_ID }}
+      BUNDLE: com.zokervie.pooltrainer
+    steps:
+      - uses: actions/checkout@v5
+      - name: Môi trường
+        run: |
+          eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv)"
+          echo "$(dirname "$(command -v xcodegen)")" >> "$GITHUB_PATH"
+          echo "::notice title=mac::$(scutil --get ComputerName 2>/dev/null) · $(xcodebuild -version | head -1) · macOS $(sw_vers -productVersion)"
+      - name: Build cho iPhone
+        run: |
+          set -o pipefail
+          xcodegen generate --quiet
+          SIGN=(CODE_SIGNING_ALLOWED=NO)
+          if [ -n "$TEAM" ]; then SIGN=(-allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic); fi
+          xcodebuild build -project PoolTrainer.xcodeproj -scheme PoolTrainer -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath build/device \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} "${SIGN[@]}" > build-device.log 2>&1 \
+            || { grep -E "error:" build-device.log | sort -u | head -20 | sed 's/^/::error::/'; tail -5 build-device.log; exit 1; }
+          echo "::notice title=build::Release build ${{ github.run_number }} ($([ -n "$TEAM" ] && echo "đã ký, team $TEAM" || echo "chưa ký: chưa đặt APPLE_TEAM_ID"))"
+      - name: Cài & mở trên iPhone (nếu đang ghép)
+        if: env.TEAM != ''
+        run: |
+          APP=build/device/Build/Products/Release-iphoneos/PoolTrainer.app
+          xcrun devicectl list devices --json-output devices.json > /dev/null 2>&1 || true
+          DEV=$(python3 -c '
+          import json
+          d = json.load(open("devices.json")).get("result", {}).get("devices", [])
+          ok = [x for x in d if x.get("hardwareProperties", {}).get("platform") == "iOS"
+                and x.get("connectionProperties", {}).get("tunnelState") in ("connected", "disconnected")
+                and x.get("deviceProperties", {}).get("developerModeStatus") == "enabled"]
+          print(ok[0]["identifier"] if ok else "")' 2>/dev/null || true)
+          if [ -z "$DEV" ]; then
+            echo "::notice title=iphone::Không thấy iPhone đang ghép (cắm cáp/bật Wi-Fi, Developer Mode bật) — chỉ build, không cài."
+            exit 0
+          fi
+          xcrun devicectl device install app --device "$DEV" "$APP"
+          xcrun devicectl device process launch --device "$DEV" "$BUNDLE" || true
+          echo "::notice title=iphone::Đã cài và mở Zoker Trainer build ${{ github.run_number }} trên iPhone ($DEV)"
