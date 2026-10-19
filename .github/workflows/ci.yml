@@ -219,6 +219,9 @@ jobs:
       - name: Chụp màn hình
         run: |
           .github/scripts/screenshots.sh build/Build/Products/Debug-iphonesimulator/PoolTrainer.app 2>&1 | tee shots.log
+          # App phải thực sự chạy: mỗi kịch bản ghi một file chẩn đoán. Không có file nào = app không mở được.
+          n=$(ls shots/autotest-*.txt 2>/dev/null | wc -l | tr -d ' ')
+          [ "$n" -ge 5 ] || { echo "::error title=screenshots::App không chạy trên simulator (chỉ có $n file chẩn đoán)"; exit 1; }
       - name: Xuất âm thanh để nghe thử
         run: swift run --package-path Packages/PoolAudio audiodump shots/audio 2>&1 | tail -2 | tee -a shots.log
       - name: Đẩy ảnh lên nhánh shots/zoker

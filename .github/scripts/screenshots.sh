@@ -3,7 +3,9 @@
 # Kết quả nằm trong thư mục shots/. Dùng trong job CI `screenshots`.
 set -uo pipefail
 APP="$1"
-BUNDLE="com.example.PoolTrainer"
+# Đọc mã gói từ chính app vừa build (đổi mã gói trong project.yml không làm hỏng bước chụp nữa).
+BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")
+echo "bundle: $BUNDLE"
 mkdir -p shots
 
 DEV=$(xcrun simctl list devices available -j | python3 -c '
