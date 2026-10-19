@@ -8,6 +8,13 @@
 - Âm thanh là bộ mẫu tổng hợp tạm; **chưa nghe thử**.
 - Chưa đo bàn thật (R4 cần dụng cụ và bàn bida).
 
+## Tuân thủ quy trình (rà soát 19/10/2026)
+Từ 19/10 làm lại đúng CLAUDE.md: **mỗi phiên một nhiệm vụ**, theo thứ tự lộ trình, chỉ một agent ghi vào nhánh này tại một thời điểm.
+- Đêm 18–19/10 đã làm R0–R5 + âm thanh + phát hành trong một chuỗi phiên liền, nhiều nhiệm vụ mỗi commit → lệch quy tắc "một nhiệm vụ/phiên".
+- **R5 làm trước Cổng 1** (UPGRADE.md 5: không qua Cổng 1 thì không làm R5). Giữ code (UPGRADE 2.1: không xóa tính năng đang chạy) nhưng **không tính là xong** cho tới khi qua Cổng 1; không phát triển thêm R5 trước đó.
+- Việc phát hành/CI của `main` (dự án 3.1) nằm ngoài phạm vi nhánh này; không sửa `main` từ phiên Zoker nữa.
+- Thứ tự tiếp theo: R1.7 → R1.8 (P2, P3 miệng lỗ) → R2 trên thiết bị (U1–U3, H1–H3) → R4 (Cổng 1).
+
 ## R0 — Kiểm toán kỹ thuật
 - [x] R0.1 `swift test` PoolPhysics trên macOS — run 39141482324: 18/18 test qua
 - [x] R0.2 PoolInput 11/11, PoolDrills 2/2 (cùng run)
@@ -25,7 +32,7 @@
 - [x] R1.6 Lỗ: mép (điểm), đường bắt giữ. Chưa có mặt vát miệng lỗ, bi bật khỏi lỗ
 - [x] R1.6b `CollisionRecord` (loại, thời điểm, vị trí, tốc độ pháp tuyến, xung lực, trượt tiếp tuyến, id bi, lỗ)
 - [ ] R1.7 M1–M6 trên **10.000** cú — hiện chạy 300 cú ngẫu nhiên trong CI (đạt); bộ 10.000 cú chưa chạy
-- [ ] R1.8 P1–P3: chuyển động và bi–bi **đạt P1** (≤ 5 mm); băng thẳng đạt 66% so Han 2005, chưa đạt so Stronge; miệng lỗ chưa so được (xem Vấn đề mở)
+- [ ] R1.8 P1–P3: chuyển động và bi–bi **đạt P1** (≤ 5 mm); băng thẳng đạt 66% so Han 2005, chưa đạt so Stronge; miệng lỗ chưa so được (xem Vấn đề mở); **P2 (hướng bi ±0,1°) chưa báo cáo; P3 chưa đạt** (lệch miệng lỗ chưa có giải thích + test tái hiện)
 
 ## R2 — Lát cắt chơi được trên iPhone
 Code xong, build qua; **chưa xác minh trên thiết bị** cho mọi mục:
@@ -59,6 +66,8 @@ Công cụ đã có và kiểm thử trên dữ liệu tổng hợp (7/7 test Py
 - [ ] R4.6 Báo cáo T1–T6
 
 ## R5 — Luyện tập
+> ⚠ Làm trước Cổng 1 — code và test giữ nguyên, **chưa tính vào lộ trình** (xem Tuân thủ quy trình).
+
 - [x] 10 bài tập; test khả thi: mỗi bài có khoảng ngắm đạt trong mô hình (Nhật ký)
 - [x] Điều kiện đạt, chấm điểm, lịch sử (`ShotLog`), phân tích lỗi bằng quy tắc, Shot Lab — package test qua; giao diện build qua, chưa thử trên thiết bị
 - [x] Hồ sơ bàn chỉnh tay (nguồn gốc ghi "giả định")
