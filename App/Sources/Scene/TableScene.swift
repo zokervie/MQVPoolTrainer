@@ -267,11 +267,12 @@ final class TableScene {
 
     private func addLights() {
         // Đèn chính: hai đèn chiếu từ bộ đèn bàn xuống, có bóng đổ (mềm nhờ lọc PCF + bóng tiếp xúc riêng).
-        for x: Float in [-0.55, 0.55] {
+        // Ba đèn chiếu chùm rộng để mặt nỉ sáng đều tới góc bàn (hai đèn chùm hẹp để lại vùng tối ở giữa).
+        for x: Float in [-0.75, 0, 0.75] {
             let spot = SpotLight()
-            spot.light.intensity = 26_000
-            spot.light.innerAngleInDegrees = 45
-            spot.light.outerAngleInDegrees = 85
+            spot.light.intensity = 17_000
+            spot.light.innerAngleInDegrees = 70
+            spot.light.outerAngleInDegrees = 125
             spot.light.attenuationRadius = 4
             spot.light.color = UIColor(red: 1, green: 0.95, blue: 0.86, alpha: 1)
             spot.shadow = SpotLightComponent.Shadow()
@@ -281,7 +282,7 @@ final class TableScene {
         }
         // Đèn phụ yếu từ phía người chơi, không bóng, để mặt trước bi không tối hẳn.
         let fill = DirectionalLight()
-        fill.light.intensity = 600
+        fill.light.intensity = 1_600
         fill.look(at: .zero, from: [0.3, 1.5, 2.5], relativeTo: nil)
         root.addChild(fill)
     }

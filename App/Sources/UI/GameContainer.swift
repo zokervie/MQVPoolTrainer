@@ -35,7 +35,7 @@ struct GameContainer: UIViewRepresentable {
             Task { @MainActor [weak arView] in
                 guard let env = try? await EnvironmentResource(equirectangular: image, withName: nil) else { return }
                 arView?.environment.lighting.resource = env
-                arView?.environment.lighting.intensityExponent = 0.3
+                arView?.environment.lighting.intensityExponent = 0.9
             }
         }
         context.coordinator.attach(arView)
