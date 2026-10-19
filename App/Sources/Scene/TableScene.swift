@@ -256,7 +256,7 @@ final class TableScene {
         lamp.addChild(glow)
         for x: Float in [-0.6, 0.6] {
             let rod = ModelEntity(mesh: .generateCylinder(height: 1.8, radius: 0.004), materials: [metal])
-            rod.position = [x, 1.12 + 0.9, 0]
+            rod.position = SIMD3<Float>(x, 2.02, 0)
             lamp.addChild(rod)
         }
         root.addChild(lamp)

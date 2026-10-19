@@ -31,9 +31,12 @@ struct GameContainer: UIViewRepresentable {
             ])
         }
         // Ánh sáng môi trường dựng sẵn: bi và gỗ phản chiếu phòng/đèn thay vì khoảng đen.
-        if let env = TableDecor.environment() {
-            arView.environment.lighting.resource = env
-            arView.environment.lighting.intensityExponent = 0.3
+        if let image = TableDecor.environmentImage() {
+            Task { @MainActor [weak arView] in
+                guard let env = try? await EnvironmentResource(equirectangular: image, withName: nil) else { return }
+                arView?.environment.lighting.resource = env
+                arView?.environment.lighting.intensityExponent = 0.3
+            }
         }
         context.coordinator.attach(arView)
         return container

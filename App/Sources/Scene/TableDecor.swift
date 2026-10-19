@@ -185,8 +185,12 @@ extension TableDecor {
         var hgt = [Double](repeating: 0, count: 128 * 128)
         for i in hgt.indices { hgt[i] = rng.unit() }
         return grayTexture(128, semantic: .normal) { x, y in
-            func h(_ a: Int, _ b: Int) -> Double { hgt[((b + 128) % 128) * 128 + (a + 128) % 128] }
-            let nx = (h(x - 1, y) - h(x + 1, y)) * 0.35, ny = (h(x, y - 1) - h(x, y + 1)) * 0.35
+            func h(_ a: Int, _ b: Int) -> Double {
+                let row: Int = (b + 128) % 128, col: Int = (a + 128) % 128
+                return hgt[row * 128 + col]
+            }
+            let nx: Double = (h(x - 1, y) - h(x + 1, y)) * 0.35
+            let ny: Double = (h(x, y - 1) - h(x, y + 1)) * 0.35
             return (0.5 + nx * 0.5, 0.5 + ny * 0.5, 1.0)
         }
     }
@@ -197,17 +201,19 @@ extension TableDecor {
         var shade = [Double](repeating: 0, count: 8)
         for i in shade.indices { shade[i] = 0.75 + 0.25 * rng.unit() }
         return grayTexture(256) { x, y in
-            let plank = x / 32
-            let seam = x % 32 == 0 ? 0.45 : 1.0
-            let grain = 0.88 + 0.1 * sin(Double(y) * 0.06 + Double(plank) * 1.7 + 2 * sin(Double(x) * 0.31))
-            let v = shade[plank % 8] * grain * seam
+            let plank: Int = x / 32
+            let seam: Double = x % 32 == 0 ? 0.45 : 1.0
+            let wave: Double = 2 * sin(Double(x) * 0.31)
+            let phase: Double = Double(y) * 0.06 + Double(plank) * 1.7 + wave
+            let grain: Double = 0.88 + 0.1 * sin(phase)
+            let v: Double = shade[plank % 8] * grain * seam
             return (v, v, v)
         }
     }
 
     /// Môi trường phản chiếu (ảnh 360° dựng bằng mã): phòng gỗ tối, hai bóng đèn trần sáng ngay trên bàn.
     /// Cho bi bóng loáng phản chiếu đèn và tường như ảnh tham khảo, thay vì phản chiếu khoảng đen.
-    static func environment() -> EnvironmentResource? {
+    static func environmentImage() -> CGImage? {
         let w = 512, h = 256
         var px = [UInt8](repeating: 255, count: w * h * 4)
         for y in 0..<h { for x in 0..<w {
@@ -233,8 +239,7 @@ extension TableDecor {
             CGContext(data: buf.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
         }
-        guard let image else { return nil }
-        return try? EnvironmentResource.generate(fromEquirectangular: image)
+        return image
     }
 
     /// Hình nón cụt dọc trục +z (z từ 0 tới `length`), bán kính r0 → r1. Dùng dựng cơ nhiều đoạn.
