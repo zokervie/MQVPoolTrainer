@@ -33,48 +33,94 @@ final class TableScene {
 
     private func buildTable() {
         let L = Float(table.length), W = Float(table.width)
+        let Ld = table.length, Wd = table.width
+        let map: TableDecor.Map = { [mapping] in mapping.toRender($0) }
+        let feltTex = TableDecor.texture(kind: "felt"), woodTex = TableDecor.texture(kind: "wood")
+        let clothColor = UIColor(red: 0.05, green: 0.36, blue: 0.22, alpha: 1)
+
+        // Nỉ có thớ (một ô vân ~6 cm).
         let cloth = ModelEntity(mesh: .generatePlane(width: L, depth: W),
-                                materials: [Self.material(UIColor(red: 0.05, green: 0.33, blue: 0.20, alpha: 1), roughness: 0.9)])
+                                materials: [TableDecor.felt(clothColor, tiles: [L / 0.06, W / 0.06], texture: feltTex)])
         root.addChild(cloth)
 
-        // Băng (cao su) và khung gỗ.
-        let h = Float(table.cushionHeight)
-        let rubber = Self.material(UIColor(red: 0.04, green: 0.28, blue: 0.17, alpha: 1), roughness: 0.8)
-        let wood = Self.material(UIColor(red: 0.30, green: 0.16, blue: 0.08, alpha: 1), roughness: 0.45)
+        // Băng: tiết diện có mũi băng ở đúng chiều cao vật lý (u = 0 là đường băng, âm = ra ngoài bàn).
         let geo = TableGeometry(table)
-        let railDepth: Float = 0.05, frame: Float = 0.12
-        for seg in geo.cushions {
-            let len = Float(seg.to - seg.from)
-            let mid = Float((seg.from + seg.to) / 2)
-            let box: ModelEntity
+        let hc = table.cushionHeight
+        let hw = hc * 1.25                         // mặt gỗ
+        let railDepth = 0.05, frame = 0.12
+        let cushionProfile: [SIMD2<Double>] = [
+            [-railDepth, 0], [-0.022, 0], [0, hc], [-0.006, hc + 0.007], [-railDepth, hc + 0.009]
+        ]
+        let woodProfile: [SIMD2<Double>] = [
+            [-railDepth, 0], [-railDepth - frame, 0], [-railDepth - frame, hw - 0.008],
+            [-railDepth - frame + 0.007, hw], [-railDepth, hw]
+        ]
+        let cushionMat = TableDecor.felt(UIColor(red: 0.045, green: 0.32, blue: 0.20, alpha: 1), tiles: [20, 2], texture: feltTex)
+        let woodMat = TableDecor.wood(texture: woodTex)
+        func ends(_ seg: TableGeometry.CushionSegment, extend e: Double) -> (SIMD2<Double>, SIMD2<Double>) {
+            let f = seg.from - e, t = seg.to + e
             switch seg.rail {
-            case 0, 1:
-                box = ModelEntity(mesh: .generateBox(size: [len, h, railDepth]), materials: [rubber])
-                let z = seg.rail == 0 ? W / 2 + railDepth / 2 : -W / 2 - railDepth / 2
-                box.position = [mid - L / 2, h / 2, z]
-            default:
-                box = ModelEntity(mesh: .generateBox(size: [railDepth, h, len]), materials: [rubber])
-                let x = seg.rail == 2 ? -L / 2 - railDepth / 2 : L / 2 + railDepth / 2
-                box.position = [x, h / 2, -(mid - W / 2)]
+            case 0: return (SIMD2(f, 0), SIMD2(t, 0))
+            case 1: return (SIMD2(f, Wd), SIMD2(t, Wd))
+            case 2: return (SIMD2(0, f), SIMD2(0, t))
+            default: return (SIMD2(Ld, f), SIMD2(Ld, t))
             }
-            root.addChild(box)
         }
-        let outerL = L + 2 * (railDepth + frame), outerW = W + 2 * (railDepth + frame)
-        for (size, pos) in [
-            (SIMD3<Float>(outerL, h * 1.25, frame), SIMD3<Float>(0, h * 0.62, W / 2 + railDepth + frame / 2)),
-            (SIMD3<Float>(outerL, h * 1.25, frame), SIMD3<Float>(0, h * 0.62, -W / 2 - railDepth - frame / 2)),
-            (SIMD3<Float>(frame, h * 1.25, outerW), SIMD3<Float>(L / 2 + railDepth + frame / 2, h * 0.62, 0)),
-            (SIMD3<Float>(frame, h * 1.25, outerW), SIMD3<Float>(-L / 2 - railDepth - frame / 2, h * 0.62, 0))
-        ] {
-            let e = ModelEntity(mesh: .generateBox(size: size), materials: [wood])
-            e.position = pos
+        for seg in geo.cushions {
+            let (a, b) = ends(seg, extend: 0)
+            if let mesh = TableDecor.extrude(profile: cushionProfile, from: a, to: b, inward: seg.inwardNormal, map: map) {
+                root.addChild(ModelEntity(mesh: mesh, materials: [cushionMat]))
+            }
+            let (wa, wb) = ends(seg, extend: 0.006)
+            if let mesh = TableDecor.extrude(profile: woodProfile, from: wa, to: wb, inward: seg.inwardNormal, map: map) {
+                root.addChild(ModelEntity(mesh: mesh, materials: [woodMat]))
+            }
+        }
+
+        // Miệng lỗ: lòng lỗ tối + viền da trên mặt gỗ; khối gỗ góc và sau lỗ giữa (để lại chỗ khoét lỗ).
+        let outer = railDepth + frame
+        let corners: [(SIMD2<Double>, SIMD2<Double>)] = [
+            (SIMD2(0, 0), SIMD2(-1, -1)), (SIMD2(Ld, 0), SIMD2(1, -1)),
+            (SIMD2(0, Wd), SIMD2(-1, 1)), (SIMD2(Ld, Wd), SIMD2(1, 1))
+        ]
+        let dark = UnlitMaterial(color: UIColor(white: 0.015, alpha: 1))
+        let leather = TableDecor.leather()
+        func addBox(_ x0: Double, _ x1: Double, _ y0: Double, _ y1: Double) {
+            let e = ModelEntity(mesh: .generateBox(size: [Float(abs(x1 - x0)), Float(hw), Float(abs(y1 - y0))], cornerRadius: 0.004),
+                                materials: [woodMat])
+            e.position = map(SIMD3((x0 + x1) / 2, (y0 + y1) / 2, hw / 2))
             root.addChild(e)
         }
-        // Thân bàn và sàn phòng: để bàn không lơ lửng trong khoảng đen (giữ tông tối, tương phản thấp
-        // để không kéo mắt khỏi bi). Mặt nỉ ở cao độ ~0,76 m so với sàn.
+        func addPocket(center c: SIMD2<Double>, radius r: Double, outward theta: Double, halfArc: Double) {
+            let disc = ModelEntity(mesh: .generateCylinder(height: 0.002, radius: Float(r)), materials: [dark])
+            disc.position = map(SIMD3(c.x, c.y, 0.0009))
+            root.addChild(disc)
+            if let mesh = TableDecor.ring(center: c, inner: r, outer: r + 0.013, z: hw + 0.0006,
+                                          from: theta - halfArc, to: theta + halfArc, map: map) {
+                root.addChild(ModelEntity(mesh: mesh, materials: [leather]))
+            }
+        }
+        let cr = 0.062, sr = 0.06
+        for (corner, d) in corners {
+            let c = corner + d * 0.0106
+            addPocket(center: c, radius: cr, outward: atan2(d.y, d.x), halfArc: 3 * .pi / 4 + 0.15)
+            // Khối gỗ góc hình chữ L, chừa vòng lỗ.
+            let gx = corner.x + d.x * 0.075, ox = corner.x + d.x * outer
+            let gy = corner.y + d.y * 0.075, oy = corner.y + d.y * outer
+            let ix = corner.x - d.x * 0.075, iy = corner.y - d.y * 0.075
+            addBox(gx, ox, iy, oy)
+            addBox(ix, gx, gy, oy)
+        }
+        for (y, d) in [(0.0, -1.0), (Wd, 1.0)] {
+            let c = SIMD2(Ld / 2, y + d * 0.03)
+            addPocket(center: c, radius: sr, outward: d > 0 ? .pi / 2 : 3 * .pi / 2, halfArc: .pi / 2 + 0.25)
+            addBox(Ld / 2 - 0.075, Ld / 2 + 0.075, y + d * 0.092, y + d * outer)
+        }
+
+        // Thân bàn và sàn phòng (mặt trên thân thấp hơn nỉ 1 cm để tránh z-fighting).
+        let outerL = L + 2 * Float(outer), outerW = W + 2 * Float(outer)
         let body = ModelEntity(mesh: .generateBox(size: [outerL * 0.96, 0.22, outerW * 0.96]),
                                materials: [Self.material(UIColor(red: 0.18, green: 0.10, blue: 0.05, alpha: 1), roughness: 0.6)])
-        // Mặt trên thân bàn thấp hơn mặt nỉ 1 cm: trùng cao độ sẽ gây z-fighting (nỉ loang nâu).
         body.position = [0, -0.12, 0]
         root.addChild(body)
         let floor = ModelEntity(mesh: .generatePlane(width: 14, depth: 10),
@@ -82,18 +128,12 @@ final class TableScene {
         floor.position = [0, -0.76, 0]
         root.addChild(floor)
 
-        // Lỗ: đĩa tối tại tâm lỗ.
-        let dark = UnlitMaterial(color: UIColor(white: 0.02, alpha: 1))
-        for p in geo.pockets {
-            let r = Float(p.id < 4 ? table.cornerPocketMouth * 0.6 : table.sidePocketMouth * 0.55)
-            let disc = ModelEntity(mesh: .generateCylinder(height: 0.002, radius: r), materials: [dark])
-            disc.position = mapping.toRender(SIMD3(p.center.x, p.center.y, 0.001))
-            root.addChild(disc)
-        }
+        let h = Float(hc)
+        let frameF = Float(frame), railDepthF = Float(railDepth)
         // Kim cương trên khung: rõ và đúng vị trí (dùng cho công thức).
-        let pearl = UnlitMaterial(color: UIColor(white: 0.95, alpha: 1))
+        let pearl = UnlitMaterial(color: UIColor(red: 0.95, green: 0.94, blue: 0.9, alpha: 1))
         let topY = h * 1.25 + 0.001
-        let offset = railDepth + frame / 2
+        let offset = railDepthF + frameF / 2
         for k in 1..<8 where k != 4 {
             let x = Float(k) * L / 8 - L / 2
             for z in [W / 2 + offset, -W / 2 - offset] {
@@ -128,6 +168,15 @@ final class TableScene {
         light.shadow = DirectionalLightComponent.Shadow(maximumDistance: 4, depthBias: 2)
         light.look(at: .zero, from: [0.3, 2.2, 0.6], relativeTo: nil)
         root.addChild(light)
+        // Đèn trần phòng bida: hai bóng treo trên bàn, sáng tập trung mặt nỉ.
+        for x: Float in [-0.6, 0.6] {
+            let lamp = PointLight()
+            lamp.light.intensity = 9_000
+            lamp.light.attenuationRadius = 2.2
+            lamp.light.color = UIColor(red: 1, green: 0.96, blue: 0.88, alpha: 1)
+            lamp.position = [x, 1.0, 0]
+            root.addChild(lamp)
+        }
     }
 
     static func translucent(_ color: UIColor, opacity: Float) -> UnlitMaterial {

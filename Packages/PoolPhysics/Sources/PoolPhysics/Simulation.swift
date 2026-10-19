@@ -207,11 +207,22 @@ public struct Simulation: Sendable {
                 let ka = (a.kind.order, a.i, a.j, a.extra), kb = (b.kind.order, b.i, b.j, b.extra)
                 return options.reverseTieOrder ? ka > kb : ka < kb
             }
+            var restingPairs = Set<Int>()
             for e in due {
                 dirty.insert(e.i)
                 if e.j >= 0 { dirty.insert(e.j) }
-                if let r = resolve(e, &balls, time: clock) { records.append(r) }
+                if let r = resolve(e, &balls, time: clock) {
+                    records.append(r)
+                } else if e.kind == .ballBall {
+                    restingPairs.insert(e.i * n + e.j)
+                }
             }
+            // 5. Tách vị trí đồng thời cho mọi cặp (R1.7 / M3, M6). Trước đây mỗi cặp tựa nhau tự đẩy
+            //    nhau ra một khe: trong tam giác xếp sát, cú đẩy ép bi giữa lấn vào bi bên cạnh → sự kiện
+            //    mới cùng thời điểm → đẩy ngược lại (vòng lặp, chồng lấn tới ~12 µm, chạm giới hạn sự kiện).
+            //    Giờ: chiếu vị trí kiểu Gauss–Seidel tới khi không cặp nào chồng lấn; cặp vừa tiếp xúc tựa
+            //    giữ thêm khe `separationGap` (chống Zeno). Chỉ đổi vị trí (≤ vài µm), không đổi vận tốc.
+            separateOverlaps(&balls, resting: restingPairs, dirty: &dirty)
             snapshots.append(Snapshot(time: clock, balls: balls))
             if snapshots.count >= options.maxEvents { status = .eventLimitReached; break }
         }
@@ -356,6 +367,33 @@ public struct Simulation: Sendable {
         return out
     }
 
+    // MARK: Tách chồng lấn
+
+    /// Chiếu vị trí để mọi cặp bi cách nhau ≥ 2R (cặp tiếp xúc tựa: ≥ 2R + `separationGap`).
+    /// Gauss–Seidel theo thứ tự chỉ số cố định → xác định từng bit. Bi bị dời được đánh dấu để tính lại dự đoán.
+    private func separateOverlaps(_ balls: inout [Ball], resting: Set<Int>, dirty: inout Set<Int>) {
+        let n = balls.count
+        let gap = CollisionThresholds.separationGap
+        for _ in 0..<64 {
+            var moved = false
+            for i in 0..<n where balls[i].state != .pocketed {
+                for j in (i + 1)..<max(i + 1, n) where balls[j].state != .pocketed {
+                    var d = balls[j].position - balls[i].position
+                    d.z = 0
+                    let dist = simd_length(d)
+                    let target = resting.contains(i * n + j) ? 2 * R + gap : 2 * R
+                    guard dist < target - 1e-12, dist > 0 else { continue }
+                    let push = (target - dist) / 2 * (d / dist)
+                    balls[i].position -= push
+                    balls[j].position += push
+                    dirty.insert(i); dirty.insert(j)
+                    moved = true
+                }
+            }
+            if !moved { break }
+        }
+    }
+
     // MARK: Xử lý sự kiện
 
     private func resolve(_ e: Candidate, _ balls: inout [Ball], time: Double) -> CollisionRecord? {
@@ -369,14 +407,7 @@ public struct Simulation: Sendable {
             guard simd_length(d) <= 2 * R * (1 + 1e-7) else { return nil }
             let ((a2, b2), info) = BallBallCollision.resolveWithInfo(a, b, parameters, mass: m, radius: R)
             a = a2; b = b2
-            // Hiệu chỉnh vị trí: va chạm thường tách về đúng 2R; tiếp xúc tựa tách thêm một khe nhỏ
-            // để không tạo lại sự kiện ngay (chống Zeno).
-            let dist = simd_length(d)
-            let target = info == nil ? 2 * R + CollisionThresholds.separationGap : 2 * R
-            if dist < target, dist > 0 {
-                let push = (target - dist) / 2 * (d / dist)
-                a.position -= push; b.position += push
-            }
+            // Vị trí được tách sau cả lượt va chạm đồng thời (`separateOverlaps`), không tách từng cặp ở đây.
             balls[e.i] = a; balls[e.j] = b
             guard let info else { return nil }
             return CollisionRecord(kind: .ballBall, time: time, position: 0.5 * (a.position + b.position),
