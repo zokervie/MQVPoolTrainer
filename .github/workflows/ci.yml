@@ -20,7 +20,32 @@ env:
   XCODE_APP: /Applications/Xcode_16.4.app
 
 jobs:
+  # Giảm tải (UPGRADE.md 2): khi push, job nặng chỉ chạy nếu phần liên quan thay đổi.
+  # PR và chạy tay: chạy tất cả.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      physics: ${{ steps.f.outputs.physics }}
+      app: ${{ steps.f.outputs.app }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: f
+        env:
+          BEFORE: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != "push" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "physics=true" >> "$GITHUB_OUTPUT"; echo "app=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+          echo "$files" | grep -qE '^(Packages/PoolPhysics/|Tools/validation/|\.github/workflows/ci\.yml)' && echo "physics=true" >> "$GITHUB_OUTPUT" || echo "physics=false" >> "$GITHUB_OUTPUT"
+          echo "$files" | grep -qE '^(App/|Packages/|Drills/|project\.yml|\.github/)' && echo "app=true" >> "$GITHUB_OUTPUT" || echo "app=false" >> "$GITHUB_OUTPUT"
+
   packages:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: macos-15
     timeout-minutes: 25
     concurrency:
@@ -54,6 +79,8 @@ jobs:
   # R1.7 — KPI bắt buộc M2–M6 (UPGRADE.md 3.1) trên 10.000 cú ngẫu nhiên có seed, bản release.
   # Đỏ khi vi phạm. TẠM chưa chặn IPA (needs) cho tới khi sửa xong cú phá — xem PROGRESS R1.7.
   invariants:
+    needs: changes
+    if: needs.changes.outputs.physics == 'true'
     runs-on: macos-15
     timeout-minutes: 40
     concurrency:
@@ -77,7 +104,9 @@ jobs:
   ipa:
     runs-on: macos-15
     timeout-minutes: 40
-    needs: packages
+    needs: [ packages, changes ]
+    # Không build IPA cho commit chỉ sửa tài liệu, và không build trên nhánh thử ci/**.
+    if: needs.changes.outputs.app == 'true' && (github.event_name != 'push' || github.ref == 'refs/heads/feature/zoker-mvp')
     permissions:
       contents: write
     concurrency:
@@ -149,6 +178,8 @@ jobs:
 
   # Tầng 2 (đối chứng pooltool) và kiểm thử công cụ đo. Chỉ để báo cáo, không chặn CI.
   validation:
+    needs: changes
+    if: needs.changes.outputs.physics == 'true'
     runs-on: macos-15
     timeout-minutes: 40
     concurrency:
@@ -200,7 +231,8 @@ jobs:
       group: ci-screenshots-${{ github.ref }}
       cancel-in-progress: true
     continue-on-error: true
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: changes
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.changes.outputs.app == 'true'
     permissions:
       contents: write
     steps:
