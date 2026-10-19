@@ -38,7 +38,7 @@ final class JumpMasseTests: XCTestCase {
     func testJumpShotLeavesTableAndClearsBlocker() {
         // Cơ dốc 35°, 4,5 m/s, đánh tâm: bi nảy khỏi bàn và bay qua bi chắn cách 0,8 m.
         let blocker = Ball(id: 1, position: SIMD3(15.8, 15, big.ballRadius))
-        let r = run(CueStrike(aimAngle: 0, cueSpeed: 4.5, elevation: 35 * .pi / 180), extra: [blocker])
+        let r = run(CueStrike(aimAngle: 0, cueSpeed: 4.5, elevation: 35 * Double.pi / 180), extra: [blocker])
         let h = maxHeight(r)
         print(String(format: "REPORT: jump 35°/4.5 m/s: max height %.1f mm", 1000 * h))
         XCTAssertGreaterThan(h, 0.1)
@@ -50,12 +50,12 @@ final class JumpMasseTests: XCTestCase {
     func testLowJumpHitsBlocker() {
         // Cơ dốc nhẹ: nảy thấp, không qua được bi chắn.
         let blocker = Ball(id: 1, position: SIMD3(15.3, 15, big.ballRadius))
-        let r = run(CueStrike(aimAngle: 0, cueSpeed: 3, elevation: 20 * .pi / 180), extra: [blocker])
+        let r = run(CueStrike(aimAngle: 0, cueSpeed: 3, elevation: 20 * Double.pi / 180), extra: [blocker])
         XCTAssertTrue(r.collisions.contains { $0.kind == .ballBall })
     }
 
     func testMasseCurvesTowardEnglishSide() {
-        let el = 70 * .pi / 180
+        let el = 70 * Double.pi / 180
         let right = run(CueStrike(aimAngle: 0, cueSpeed: 2.5, tipHorizontal: 0.4, elevation: el))
         let left = run(CueStrike(aimAngle: 0, cueSpeed: 2.5, tipHorizontal: -0.4, elevation: el))
         let lr = lateral(right), ll = lateral(left)
@@ -68,7 +68,7 @@ final class JumpMasseTests: XCTestCase {
 
     func testSwerveCurvesTowardEnglishSide() {
         // Cơ hơi dốc (10°): squirt lệch trái lúc đầu, rồi cong về phải.
-        let r = run(CueStrike(aimAngle: 0, cueSpeed: 2, tipHorizontal: 0.4, elevation: 10 * .pi / 180))
+        let r = run(CueStrike(aimAngle: 0, cueSpeed: 2, tipHorizontal: 0.4, elevation: 10 * Double.pi / 180))
         let start = r.trajectory.snapshots[0].balls[0].velocity
         XCTAssertGreaterThan(start.y, 0, "squirt ban đầu lệch trái")
         XCTAssertLessThan(lateral(r), 0, "cong về phía đánh lệch (phải)")
@@ -78,7 +78,7 @@ final class JumpMasseTests: XCTestCase {
     }
 
     func testJumpMechanicalEnergyNeverRisesAndIsDeterministic() {
-        let s = CueStrike(aimAngle: 0.3, cueSpeed: 5, tipVertical: -0.2, tipHorizontal: 0.1, elevation: 40 * .pi / 180)
+        let s = CueStrike(aimAngle: 0.3, cueSpeed: 5, tipVertical: -0.2, tipHorizontal: 0.1, elevation: 40 * Double.pi / 180)
         let a = run(s), b = run(s)
         XCTAssertEqual(a.trajectory.snapshots, b.trajectory.snapshots)
         let I = 0.4 * m * R * R, g = PhysicsParameters().gravity

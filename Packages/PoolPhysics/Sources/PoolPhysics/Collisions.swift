@@ -72,8 +72,11 @@ public enum BallBallCollision {
 
     public static func resolveWithInfo(_ a: Ball, _ b: Ball, _ p: PhysicsParameters,
                                        mass m: Double, radius R: Double) -> ((Ball, Ball), ImpactInfo?) {
-        // Pháp tuyến 3D (bi bay chạm bi khác); hai bi cùng trên bàn thì n.z = 0 như trước.
-        let n = b.position - a.position
+        // Hai bi cùng nằm trên bàn: mô hình phẳng đã kiểm chứng (R1.7, pooltool) — n.z = 0, bỏ v_z.
+        // Có bi đang bay (nhảy bi, thử nghiệm D4): pháp tuyến 3D, mặt bàn đỡ bi bị ép xuống.
+        let grounded = a.position.z <= R + 1e-7 && b.position.z <= R + 1e-7
+        var n = b.position - a.position
+        if grounded { n.z = 0 }
         let nHat = simd_normalize(n)
         let vRel = simd_dot(a.velocity - b.velocity, nHat)
         guard vRel > 0 else { return ((a, b), nil) }
@@ -110,6 +113,13 @@ public enum BallBallCollision {
         b2.velocity = b.velocity - impulseA / m
         a2.angularVelocity = a.angularVelocity + cross(ra, impulseA) / inertia
         b2.angularVelocity = b.angularVelocity + cross(rb, -impulseA) / inertia
+        if grounded {
+            a2.velocity.z = 0
+            b2.velocity.z = 0
+            a2.state = a2.classified(radius: R)
+            b2.state = b2.classified(radius: R)
+            return ((a2, b2), ImpactInfo(relativeNormalSpeed: vRel, normalImpulse: jn, tangentialSlip: slip))
+        }
         // Bi đang nằm trên bàn mà bị ép xuống: mặt bàn đỡ (nảy/hấp thụ). Bi đang bay giữ v_z.
         if a2.position.z <= R + 1e-7, a2.velocity.z < 0 { a2 = SlateImpact.resolve(a2, p, mass: m, radius: R) }
         if b2.position.z <= R + 1e-7, b2.velocity.z < 0 { b2 = SlateImpact.resolve(b2, p, mass: m, radius: R) }

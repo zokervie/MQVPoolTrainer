@@ -81,7 +81,9 @@ func runInvariants(count: Int, baseSeed: UInt64, only: Int?) -> Int32 {
     let I = 0.4 * m * R * R
     func energy(_ balls: [Ball]) -> Double {
         balls.filter { $0.state != .pocketed }.reduce(0) {
+            // Cơ năng: động năng tịnh tiến + quay + thế năng khi bi bay (z > R) — cần cho nhảy bi.
             $0 + 0.5 * m * simd_length_squared($1.velocity) + 0.5 * I * simd_length_squared($1.angularVelocity)
+                + m * params.gravity * max(0, $1.position.z - R)
         }
     }
     func overlap(_ balls: [Ball]) -> (Double, Int, Int) {
@@ -184,7 +186,7 @@ func runInvariants(count: Int, baseSeed: UInt64, only: Int?) -> Int32 {
     print("REPORT: R1.7 \(n) seeded shots (seed \(baseSeed); \(mix)); events median \(events[events.count / 2]), max \(events.last!); \(denseSamples) dense samples; \(String(format: "%.1f", secs)) s")
     print("REPORT: M2 bit-identical rerun: \(n - m2Fail.count)/\(n)\(list(m2Fail))")
     print(String(format: "REPORT: M3 worst overlap: at events %.3g m, between events (2 ms) %.3g m; shots ≥ 1e-6 m: %d", worstOverlapEvent, worstOverlapDense, m3Fail.count) + list(m3Fail))
-    print(String(format: "REPORT: M4 kinetic energy never rises: violations %d, worst relative rise %.3g", m4Fail.count, worstEnergyRise) + list(m4Fail))
+    print(String(format: "REPORT: M4 mechanical energy (KE + PE) never rises: violations %d, worst relative rise %.3g", m4Fail.count, worstEnergyRise) + list(m4Fail))
     print(String(format: "REPORT: M5 pair momentum (isolated ball–ball): worst |Δp/m| %.3g m/s (limit 1e-9)", m5Worst))
     print("REPORT: M6 event-limit hits: \(m6Fail.count)\(list(m6Fail))")
 
