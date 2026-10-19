@@ -88,8 +88,11 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
 
 - 19/10/2026 · Workflow · Phân phối IPA chuyển sang GitHub Release cố định `zoker-latest` (tag dời theo commit, số build = số lần chạy, kiểm chứng mã băm sau khi đăng); IPA chỉ build khi test qua; ghim Xcode 16.4; action Node 24; Codemagic chạy tay. Run 39206625671: xanh, `zoker-latest` = 7d7e8d9, build 21. Tên hiển thị đổi thành "Zoker Trainer". Cũng sửa `ios.yml` trên `main` (run 39206525954 xanh, `ios-latest` = 3df3b4f, build 14).
 
+- 19/10/2026 · Đối chứng băng từng va chạm (run 39214085792): 246 lần chạm băng thẳng của pooltool Han 2005, đưa đúng trạng thái trước va chạm vào `CushionCollision.resolve` → vận tốc và xoáy sau va chạm **khớp tuyệt đối** (|Δv| 0,000 mm/s, |Δω| 0,0000 rad/s). Công thức băng đã được xác minh; phần lệch còn lại ở nhóm "băng" đến từ hình học: 19/246 lần chạm của pooltool nằm ở đoạn băng xiên sát miệng lỗ, nơi bàn của ta không có đoạn băng thẳng.
+- 19/10/2026 · Phát hành · Repo bật Release bất biến → không dời tag/sửa Release được nữa. Đổi sang: mỗi build một Release `zoker-v<phiên bản>-b<build>` (giữ 10) + link cố định qua nhánh `dist-zoker`. Run 39217870570 xanh (b27). Thêm `Tools/mac/setup-runner.sh` + workflow `device.yml` (build bằng Xcode trên Mac của người dùng, cài thẳng iPhone) — **chưa chạy thử, chờ cài runner trên Mac**.
+
 ## Vấn đề mở
-- **Băng thẳng vs Han 2005:** 34% cú cùng chuỗi va chạm vẫn lệch (p90 ~100 mm) → còn khác biệt chi tiết trong công thức. Bước tiếp: so từng va chạm (trạng thái trước/sau) thay vì vị trí dừng. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
+- **Băng:** công thức trùng Han 2005 (đã so từng va chạm). Phần lệch còn lại do hình học đoạn băng gần miệng lỗ khác pooltool — gộp với vấn đề miệng lỗ bên dưới. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
 - **Miệng lỗ (jaw):** hình học lỗ hai engine khác hẳn (ta: đường bắt + đoạn mũi; pooltool: băng cong + lỗ tròn) → so jaw chưa có ý nghĩa (trung vị ~100 mm, 9–12 bi vào lỗ ở một bên). Cần dựng cùng hình học lỗ trước khi so.
 - **Chiều cao mũi băng** nhạy cao (0,5% đổi trung vị 0 → 14 mm): ưu tiên đo ở R4.
 - **M7 cú phá:** độ nhạy thứ tự lớn; nếu cần cú phá ổn định hơn, xem xét giải đồng thời theo nhóm.
