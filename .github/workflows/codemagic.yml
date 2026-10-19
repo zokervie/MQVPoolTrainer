@@ -1,12 +1,12 @@
 # Cầu nối GitHub Actions → Codemagic REST API: thêm app (nếu chưa có), chạy workflow, chờ xong,
 # báo link tải artifact (hạn 7 ngày) hoặc log lỗi dưới dạng annotation.
-# Kích hoạt bằng tag (không cần sửa nhánh main):
-#   git tag cm-ipa-<số> && git push origin cm-ipa-<số>               → zoker-ipa-unsigned
-#   git tag cm-testflight-<số> && git push origin cm-testflight-<số> → zoker-testflight
+# Kích hoạt: sửa file .github/codemagic-request.json trên nhánh feature/zoker-mvp, ví dụ
+#   {"workflow": "zoker-ipa-unsigned", "request": 2}   (tăng "request" để chạy lại)
 name: Codemagic
 on:
   push:
-    tags: ["cm-ipa-*", "cm-testflight-*"]
+    branches: [feature/zoker-mvp]
+    paths: [".github/codemagic-request.json"]
 
 jobs:
   build:
@@ -17,6 +17,7 @@ jobs:
       - name: Build trên Codemagic
         env:
           CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
-          CM_WORKFLOW: ${{ startsWith(github.ref_name, 'cm-testflight-') && 'zoker-testflight' || 'zoker-ipa-unsigned' }}
           CM_BRANCH: feature/zoker-mvp
-        run: python3 .github/scripts/codemagic_build.py
+        run: |
+          export CM_WORKFLOW=$(python3 -c 'import json;print(json.load(open(".github/codemagic-request.json")).get("workflow","zoker-ipa-unsigned"))')
+          python3 .github/scripts/codemagic_build.py
