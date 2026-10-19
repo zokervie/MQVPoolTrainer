@@ -14,6 +14,7 @@
 Làm theo thứ tự, mỗi mục một nhánh `ci/m1-*`, CI xanh mới gộp.
 - [ ] M1.1 App tự ghi số liệu: thời gian mô phỏng mỗi cú (H1), thời gian khung hình p99 khi bi chạy (H2), bộ nhớ (H3), `thermalState`; nút xuất file JSON trong menu. (Claude)
 - [ ] M1.2 R1.8: dựng miệng lỗ cùng hình học pooltool trong harness đối chứng; báo cáo P2 (±0,1°); P3 — mọi khác biệt vượt ngưỡng có giải thích + test tái hiện. (Claude)
+- [ ] M1.2b Sửa tham số theo `docs/09` (Claude): `spinFriction` 0,044 → 0,0127 (test: dω_z/dt nằm trong 5–15 rad/s²); harness pooltool dùng đúng `u_sp` của pooltool; sửa nguồn ghi sai của `cushionRestitution`/`cushionFriction`; nâng nhãn "đã công bố" cho `cushionHeightRatio`, `tableRestitution`, thời gian tiếp xúc bi–bi; miệng lỗ theo WPA (góc hàm 142°/104°, kệ lỗ) trong M1.2.
 - [ ] M1.3 Danh sách thử máy có/không cho R2.1–R2.6 (≤ 15 phút) + người dùng thử và gửi file số liệu M1.1. (Claude soạn, người dùng thử)
 - [ ] M1.4 Sửa lỗi chặn từ vòng thử M1.3. (Claude)
 - [ ] M1.5 Đánh giá **Cổng Beta**: M1–M6 · P1 · P3 · không lỗi chặn trên iPhone · H1 p95 ≤ 50 ms trên máy → IPA 0.4.
@@ -127,7 +128,10 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
 
 - 19/10/2026 · Lập lại dự án (M0) · Mốc M0–M4, Cổng Beta / Cổng Chân thật (D7), một sản phẩm (D6), một đường phát hành (D8); quy tắc mới trong CLAUDE.md; CI: commit chỉ sửa tài liệu không chạy macOS, job nặng chỉ khi phần liên quan thay đổi, IPA chỉ trên nhánh chính.
 
+- 19/10/2026 · Dữ liệu tham khảo · `docs/09-du-lieu-tham-khao.md`: đối chiếu 17 tham số với WPA, Dr. Dave, Mathavan 2010, Kim 2024, pooltool. Khớp phần lớn; **phát hiện `spinFriction` cho dω/dt ≈ 37,8 rad/s², ngoài khoảng công bố 5–15** (đối chứng pooltool không bắt được vì harness gán cùng giá trị); hai nguồn băng ghi sai; thêm thông số lỗ WPA cho M1.2. → nhiệm vụ M1.2b.
+
 ## Vấn đề mở
+- **Xoay trục đứng tắt quá nhanh** (`spinFriction`, xem docs/09 mục 1) — ảnh hưởng bi effect ngang và hướng sau băng; sửa ở M1.2b.
 - **Băng:** công thức trùng Han 2005 (đã so từng va chạm). Phần lệch còn lại do hình học đoạn băng gần miệng lỗ khác pooltool — gộp với vấn đề miệng lỗ bên dưới. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
 - **Miệng lỗ (jaw):** hình học lỗ hai engine khác hẳn (ta: đường bắt + đoạn mũi; pooltool: băng cong + lỗ tròn) → so jaw chưa có ý nghĩa (trung vị ~100 mm, 9–12 bi vào lỗ ở một bên). Cần dựng cùng hình học lỗ trước khi so.
 - **Chiều cao mũi băng** nhạy cao (0,5% đổi trung vị 0 → 14 mm): ưu tiên đo ở R4.

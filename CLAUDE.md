@@ -31,6 +31,7 @@ App bida 3D trên iPhone để **luyện mắt, tư duy và khả năng dự đo
 - `docs/01-physics.md` · `docs/02-controls.md` · `docs/03-camera-graphics.md`
 - `docs/04-drills.md` · `docs/05-feedback.md` · `docs/06-features.md` · `docs/07-validation.md`
 - `docs/08-tham-khao-shooterspool.md` — tham khảo ý tưởng từ ShootersPool (độc quyền: không chép mã/tài nguyên)
+- `docs/09-du-lieu-tham-khao.md` — tham số công bố (WPA, Dr. Dave, Mathavan, Kim, pooltool) đối chiếu với code; nguồn cho `Provenance`
 
 ## Quy tắc làm việc (bản 19/10/2026 — nhanh, chắc, rẻ)
 - **Một agent ghi tại một thời điểm.** Trước khi làm: `git fetch`; nếu nhánh có commit lạ trong 30 phút gần nhất từ phiên khác → dừng, báo người dùng.
