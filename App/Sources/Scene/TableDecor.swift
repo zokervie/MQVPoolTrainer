@@ -111,7 +111,7 @@ enum TableDecor {
         var m = PhysicallyBasedMaterial()
         if let texture { m.baseColor = .init(tint: color, texture: .init(texture)) } else { m.baseColor = .init(tint: color) }
         m.roughness = 0.92
-        m.metallic = 0
+        m.metallic = 0.0
         m.textureCoordinateTransform = .init(offset: .zero, scale: tiles, rotation: 0)
         m.faceCulling = .none
         return m
@@ -122,7 +122,7 @@ enum TableDecor {
         let c = UIColor(red: 0.36, green: 0.18, blue: 0.08, alpha: 1)
         if let texture { m.baseColor = .init(tint: c, texture: .init(texture)) } else { m.baseColor = .init(tint: c) }
         m.roughness = 0.35
-        m.metallic = 0
+        m.metallic = 0.0
         m.clearcoat = 0.7
         m.clearcoatRoughness = 0.15
         m.textureCoordinateTransform = .init(offset: .zero, scale: [1, 6], rotation: 0)
