@@ -123,7 +123,7 @@ final class SolverTests: XCTestCase {
         XCTAssertGreaterThan(a.collisions.filter { $0.kind == .ballBall }.count, 15)
     }
 
-    /// M3, M4, M6 trên các cú ngẫu nhiên có seed (bộ rút gọn chạy trong CI; bộ 10.000 cú chạy thủ công).
+    /// M3, M4, M6 trên các cú ngẫu nhiên có seed (bộ rút gọn; bộ 10.000 cú R1.7: `poolsim --invariants`, job CI `invariants`).
     func testInvariantsOnRandomShots() {
         var rng = SplitMix64(seed: 2026)
         let shots = 300

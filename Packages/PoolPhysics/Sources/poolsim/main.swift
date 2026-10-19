@@ -55,6 +55,12 @@ if args.count == 2, args[1] == "--bench" {
     exit(0)
 }
 
+// R1.7: M2–M6 trên bộ cú ngẫu nhiên có seed (Invariants.swift).
+// Dùng: poolsim --invariants <số cú> <seed> [chỉ số cú]
+if args.count >= 4, args[1] == "--invariants", let n = Int(args[2]), let seed = UInt64(args[3]) {
+    exit(runInvariants(count: n, baseSeed: seed, only: args.count >= 5 ? Int(args[4]) : nil))
+}
+
 // Chế độ so từng va chạm băng: áp CushionCollision.resolve lên đúng trạng thái trước va chạm của pooltool.
 // Dùng: poolsim --cushion <kịch-bản.json> <ra.json>
 if args.count == 4, args[1] == "--cushion" {
