@@ -1,6 +1,6 @@
 # Kế hoạch nâng cấp — bản đã phê duyệt
 
-Cập nhật theo REVIEW.md mục H và các điều kiện bổ sung ngày 18/10/2026. Nhiệm vụ cụ thể nằm trong PROGRESS.md.
+Cập nhật theo REVIEW.md mục H và các điều kiện bổ sung ngày 18/10/2026; **lập lại ngày 19/10/2026** theo mục tiêu nhanh, chất lượng, ít tốn kém (mục 2, 5; D6–D8). Nhiệm vụ cụ thể nằm trong PROGRESS.md.
 
 ## 1. Quyết định đã chốt
 
@@ -9,16 +9,21 @@ Cập nhật theo REVIEW.md mục H và các điều kiện bổ sung ngày 18/1
 | D1 | **Định vị sản phẩm:** luyện mắt, tư duy và khả năng dự đoán đường bi. Không tuyên bố luyện động tác ra cơ ngoài đời. | Mọi mô tả sản phẩm, màn hình giới thiệu, App Store phải theo đúng định vị này. |
 | D2 | **Natural Stroke** là chế độ chính. **Manual Stroke đổi thành Shot Lab** (phân tích, tái hiện cú, bài tập quyết định). | Phải đo tính nhất quán của thao tác cảm ứng (KPI U4–U5). Cú vuốt không hiệu chỉnh theo tốc độ đầu cơ thật. |
 | D3 | **pooltool** làm đối chứng độc lập. | Giấy phép Apache-2.0 đã thấy trên trang GitHub của dự án (18/10/2026). **Chưa xác minh:** phiên bản cụ thể, cơ chế va chạm đồng thời, bộ giải bậc bốn — phải đọc mã nguồn và ghi số phiên bản/commit trước khi dùng. Khi tham khảo mã: giữ thông báo bản quyền và file NOTICE theo Apache-2.0. |
-| D4 | **Phạm vi vật lý MVP:** hướng bi mục tiêu, throw, phản hồi băng (theo tốc độ và xoáy), squirt, hình học lỗ. Cơ cố định gần nằm ngang. | Hoãn swerve, truyền xoáy, massé, nhảy bi cho đến khi có bằng chứng cần thiết. |
+| D4 | **Phạm vi vật lý MVP:** hướng bi mục tiêu, throw, phản hồi băng (theo tốc độ và xoáy), squirt, hình học lỗ. Cơ cố định gần nằm ngang. | Hoãn swerve, truyền xoáy, massé, nhảy bi cho đến khi có bằng chứng cần thiết. Nhảy bi/massé đã có code (19/10, làm sớm): giữ ở chế độ thử nghiệm, không tính vào cổng, không phát triển thêm. |
 | D5 | **Kiểm chứng bằng video 240 fps + máng lăn**, tách tập hiệu chỉnh/kiểm chứng. | Bắt buộc: sửa méo ống kính, kiểm soát sai số phối cảnh, xử lý độ cao tâm bi, báo cáo độ không chắc chắn của phép đo (mục 3.3). |
+| D6 | **Một sản phẩm:** Zoker là sản phẩm chính. Bản 3.1 (`main`) đóng băng, chỉ để tham khảo. | Không sửa `main` từ phiên Zoker. |
+| D7 | **Hai cổng:** Cổng Beta (tầng 1 + 2 + máy thật) cho phép phát cho người chơi thử; Cổng Chân thật (tầng 3) mới cho phép tuyên bố "vật lý chân thật". | Bản beta luôn ghi "chưa kiểm chứng trên bàn thật". |
+| D8 | **Một đường phát hành:** GitHub Actions → IPA → ESign. Codemagic/runner Mac là dự phòng. TestFlight khi có tài khoản Apple Developer. | — |
 
 ## 2. Nguyên tắc làm việc
 1. Không viết lại từ đầu, không xóa tính năng đang chạy.
 2. Không đánh dấu xong khi chưa build và chạy test thật. Không có macOS/Xcode/thiết bị thì ghi rõ "chưa xác minh"; kiểm tra cú pháp không được coi là build thành công.
 3. Không dùng thông số chưa có nguồn. Mỗi tham số mang nhãn: đã công bố / đã đo / giả định.
 4. Giữ Swift + RealityKit; chỉ đổi công nghệ khi có benchmark.
-5. Một nhiệm vụ mỗi phiên, chỉ đọc file liên quan, không tự chuyển nhiệm vụ.
+5. **Quy tắc do máy cưỡng chế, không dựa vào tự giác:** một nhiệm vụ = một nhánh nhỏ, CI xanh mới gộp, một agent ghi, chỉ làm việc thuộc mốc hiện tại (CLAUDE.md).
 6. Hai engine cho kết quả giống nhau **không** chứng minh đúng với thực tế. Chỉ dữ liệu bàn thật mới kiểm chứng được vật lý.
+7. **Người chơi sớm:** mỗi mốc kết thúc bằng một bản IPA chơi được và một vòng thử ≤ 15 phút. Phản hồi người chơi quyết định việc tiếp theo, không phải danh sách tính năng.
+8. **CI tiết kiệm:** commit chỉ sửa tài liệu không chạy macOS; bộ 10.000 cú và đối chứng pooltool chỉ chạy khi vật lý thay đổi; ảnh simulator chỉ khi app thay đổi; IPA chỉ build trên nhánh chính.
 
 ## 3. Ba tầng kiểm chứng (tách biệt, báo cáo riêng)
 
@@ -93,20 +98,20 @@ Ghi số phiên bản/commit pooltool trong mỗi báo cáo.
 
 Thiết bị: thấp nhất được hỗ trợ (đề xuất iPhone 12 / A14) và máy mục tiêu (iPhone 15 Pro).
 
-## 5. Lộ trình
+## 5. Lộ trình (lập lại 19/10/2026)
 
-| # | Bước | Cổng |
-|---|---|---|
-| R0 | Kiểm toán: build, test, sửa lỗi biên dịch, chuẩn hóa hệ tọa độ, rà phương trình | M1–M2 với test hiện có |
-| R1 | Bộ giải nhiều bi theo sự kiện: bi–bi, băng đơn giản, lỗ; dựng `Tools/validation` + pooltool | M1–M6, P3 |
-| R2 | Lát cắt chơi được trên iPhone: camera, ngắm, effect, khóa, vuốt, render đơn giản, phản hồi, ghi chuỗi cảm ứng; **kiến trúc sự kiện âm thanh** (mục 6, bậc A) | U1–U3, H1–H3, A1–A5 |
-| R3 | Throw, squirt, băng phụ thuộc tốc độ/xoáy, lỗ chi tiết | M1–M6 vẫn đạt, P1–P2 |
-| R4 | Hệ đo bàn thật (3.3), hiệu chỉnh và kiểm chứng | **Cổng 1:** T1, T2, T3, T5 (kèm điều kiện độ không chắc chắn) |
-| R5 | 10 bài tập, lịch sử, phân tích lỗi, Shot Lab | — |
-| R6 | TestFlight + thử nghiệm chuyển giao (REVIEW.md C6) | **Cổng 2:** có dấu hiệu tiến bộ trên bàn thật (effect size, không tuyên bố hiệu quả) |
-| R7 | Đồ họa nâng cao, swerve, tính năng docs/06; **âm thanh hoàn thiện** (mục 6, bậc B: thu mẫu bàn thật, tinh chỉnh âm sắc, âm thanh không gian nâng cao) | H4, A6–A8, các KPI mục tiêu |
+Mốc ngắn, mỗi mốc ra một bản chơi được. Hai luồng song song: **Claude** (code, CI) và **người dùng** (thử máy, đo bàn). Mã nhiệm vụ cũ (R0–R7) giữ nguyên trong PROGRESS.md để tra cứu.
 
-Không đạt Cổng 1 → quay lại R3, không làm R5 trở đi.
+| Mốc | Mục tiêu | Việc chính (mã cũ) | Ra | Cổng |
+|---|---|---|---|---|
+| M0 | Dọn quy trình (19/10) | Quy tắc mới, CI tiết kiệm, đóng băng | — | — |
+| M1 | **Beta nội bộ** (~1 tuần) | Xác nhận R2.1–R2.6 trên máy bằng danh sách có/không; app tự ghi H1–H3 (+ nhiệt); R1.8 (P2, P3 miệng lỗ); sửa lỗi chặn | IPA 0.4 | **Cổng Beta:** M1–M6 đạt · P1 đạt · P3 có giải thích + test · không lỗi chặn trên iPhone · H1 p95 ≤ 50 ms trên máy |
+| M2 | **Beta 3–5 người chơi** (~1–2 tuần) | Bật 10 bài tập (R5) có nhãn "chưa kiểm chứng bàn thật"; xuất phản hồi + số liệu cú (U3–U5); chỉnh điều khiển theo số liệu. Song song: hiệu chỉnh camera ở nhà (R4.1–R4.3) | IPA 0.5 | — |
+| M3 | **Bàn thật** (1 buổi + xử lý) | Máng lăn, thí nghiệm 1–4, hiệu chỉnh, báo cáo (R4.4–R4.6); nạp CalibrationProfile | IPA 0.6 có hồ sơ bàn đo thật | **Cổng Chân thật:** T1, T2, T3, T5 (mục 3.3) |
+| M4 | **Phát hành** | TestFlight/ESign rộng; thử nghiệm chuyển giao (R6); U1, A4 đo trên máy | 1.0 | Cổng 2 cũ (R6) |
+| Sau | Mở rộng | R7: đồ họa, âm thanh bậc B, swerve/nhảy/massé chính thức, ý tưởng docs/06, docs/08 | — | Theo KPI mục tiêu |
+
+Không qua Cổng Chân thật → quay lại vật lý (R3), vẫn được phát beta với nhãn "chưa kiểm chứng", không tuyên bố "chân thật".
 
 ## 6. Zoker Acoustic Physics (module âm thanh)
 

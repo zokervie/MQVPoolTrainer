@@ -2,18 +2,38 @@
 
 Đánh dấu `[x]` chỉ khi đã build và chạy test thật (CI macOS hoặc thiết bị). Phần chỉ chạy được trên iPhone thật ghi rõ **chưa xác minh trên thiết bị**. Kế hoạch và KPI: UPGRADE.md. Lập luận: REVIEW.md.
 
-## Trạng thái hiện tại (19/10/2026, bản 0.3 — MVP)
-- CI (`.github/workflows/ci.yml`, macOS 15, Xcode 16.4, Swift 6.1.2): 4 package build và chạy test; app build cho iOS Simulator; job `validation` chạy đối chứng pooltool và đo hiệu năng bản release.
-- App **chưa chạy trên iPhone thật**: chưa kiểm tra hình ảnh, cảm ứng, rung, âm thanh, độ trễ, nhiệt.
-- Âm thanh là bộ mẫu tổng hợp tạm; **chưa nghe thử**.
-- Chưa đo bàn thật (R4 cần dụng cụ và bàn bida).
+## Trạng thái (19/10/2026, bản 0.3)
+- Lộ trình lập lại theo mốc (UPGRADE.md mục 5). **Mốc hiện tại: M1 — Beta nội bộ.**
+- CI: 4 package, bộ 10.000 cú (R1.7 đạt), đối chứng pooltool, ảnh simulator, IPA. Job nặng chỉ chạy khi phần liên quan thay đổi.
+- iPhone: đã thử đợt 1 (khóa/rung, giao diện, bi effect — đã sửa theo phản hồi). Chưa có số liệu đo trên máy (H1–H3, U1, U3).
+- Âm thanh: bộ mẫu tổng hợp tạm, đã tổng hợp lại theo phản hồi; chưa nghe thử có hệ thống.
+- Chưa đo bàn thật (M3).
+- Đóng băng: nhảy bi/massé (thử nghiệm), âm thanh bậc B, đồ họa nâng cao, bản 3.1 (`main`), Codemagic, runner Mac.
 
-## Tuân thủ quy trình (rà soát 19/10/2026)
-Từ 19/10 làm lại đúng CLAUDE.md: **mỗi phiên một nhiệm vụ**, theo thứ tự lộ trình, chỉ một agent ghi vào nhánh này tại một thời điểm.
-- Đêm 18–19/10 đã làm R0–R5 + âm thanh + phát hành trong một chuỗi phiên liền, nhiều nhiệm vụ mỗi commit → lệch quy tắc "một nhiệm vụ/phiên".
-- **R5 làm trước Cổng 1** (UPGRADE.md 5: không qua Cổng 1 thì không làm R5). Giữ code (UPGRADE 2.1: không xóa tính năng đang chạy) nhưng **không tính là xong** cho tới khi qua Cổng 1; không phát triển thêm R5 trước đó.
-- Việc phát hành/CI của `main` (dự án 3.1) nằm ngoài phạm vi nhánh này; không sửa `main` từ phiên Zoker nữa.
-- Thứ tự tiếp theo: R1.7 → R1.8 (P2, P3 miệng lỗ) → R2 trên thiết bị (U1–U3, H1–H3) → R4 (Cổng 1).
+## M1 — Beta nội bộ (đang làm)
+Làm theo thứ tự, mỗi mục một nhánh `ci/m1-*`, CI xanh mới gộp.
+- [ ] M1.1 App tự ghi số liệu: thời gian mô phỏng mỗi cú (H1), thời gian khung hình p99 khi bi chạy (H2), bộ nhớ (H3), `thermalState`; nút xuất file JSON trong menu. (Claude)
+- [ ] M1.2 R1.8: dựng miệng lỗ cùng hình học pooltool trong harness đối chứng; báo cáo P2 (±0,1°); P3 — mọi khác biệt vượt ngưỡng có giải thích + test tái hiện. (Claude)
+- [ ] M1.3 Danh sách thử máy có/không cho R2.1–R2.6 (≤ 15 phút) + người dùng thử và gửi file số liệu M1.1. (Claude soạn, người dùng thử)
+- [ ] M1.4 Sửa lỗi chặn từ vòng thử M1.3. (Claude)
+- [ ] M1.5 Đánh giá **Cổng Beta**: M1–M6 · P1 · P3 · không lỗi chặn trên iPhone · H1 p95 ≤ 50 ms trên máy → IPA 0.4.
+
+## M2 — Beta 3–5 người chơi (kế tiếp)
+- [ ] M2.1 Bật 10 bài tập (R5) với nhãn "chưa kiểm chứng trên bàn thật"; danh sách bài hiện điểm cao nhất và số lần hoàn thành.
+- [ ] M2.2 Xuất gói phản hồi (lịch sử cú + `TouchRecording` + ghi chú) để người chơi gửi.
+- [ ] M2.3 Phân tích U3–U5 từ dữ liệu người chơi; chỉnh hằng số điều khiển (có ghi nguồn "đã đo").
+- [ ] M2.4 (Người dùng, song song) Hiệu chỉnh camera ở nhà: bàn cờ in, R4.1–R4.3.
+
+## M3 — Bàn thật · M4 — Phát hành
+Xem UPGRADE.md mục 5; chi tiết R4 và R6 bên dưới.
+
+## Hàng chờ (ý tưởng — không làm trước mốc của nó)
+- docs/08 (ShootersPool): độ nghiêng cơ/khoảng cách camera (M2), lưu thế bi thành bài JSON (M2), xếp bi template vào bộ R1.7 (M1.2 nếu rẻ), e theo góc + khuyết tật nỉ xác định (sau M3).
+- Luyện tập bớt nhàm chán (M2, nếu người chơi beta cần): thử thách ngày theo seed, chuỗi ngày tập, điểm kỹ năng theo nhóm bài — vẫn theo D1, không thành game giải trí.
+- Cú phá: giải đồng thời theo nhóm nếu M7 gây khó chịu khi chơi.
+
+## Mã nhiệm vụ cũ (tra cứu)
+Đêm 18–19/10 đã làm R0–R5 + âm thanh + phát hành liền mạch, vượt quy tắc cũ "một nhiệm vụ/phiên" và làm R5 trước Cổng 1; nhảy bi/massé làm trước D4. Không xóa (UPGRADE 2.1); R5 chỉ tính ở M2, nhảy/massé ở chế độ thử nghiệm.
 
 ## R0 — Kiểm toán kỹ thuật
 - [x] R0.1 `swift test` PoolPhysics trên macOS — run 39141482324: 18/18 test qua
@@ -105,8 +125,9 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
 
 - 19/10/2026 · Tham khảo · Thu thập thông tin công khai về ShootersPool (độc quyền, không có mã nguồn) → `docs/08-tham-khao-shooterspool.md`: đối chiếu 13 ý tưởng với dự án, 5 đề xuất xếp theo lộ trình, không vượt cổng.
 
+- 19/10/2026 · Lập lại dự án (M0) · Mốc M0–M4, Cổng Beta / Cổng Chân thật (D7), một sản phẩm (D6), một đường phát hành (D8); quy tắc mới trong CLAUDE.md; CI: commit chỉ sửa tài liệu không chạy macOS, job nặng chỉ khi phần liên quan thay đổi, IPA chỉ trên nhánh chính.
+
 ## Vấn đề mở
-- **R1.7 cú phá (bắt buộc, chặn R1):** M3 chồng lấn tới 11,6 µm và M6 chạm giới hạn sự kiện ở 0,5% cú phá. Cần sửa xử lý tiếp xúc nhiều bi đồng thời trong tam giác (liên quan M7, ngưỡng chống Zeno) — nhiệm vụ phiên sau. Job `invariants` đỏ cho tới khi đạt.
 - **Băng:** công thức trùng Han 2005 (đã so từng va chạm). Phần lệch còn lại do hình học đoạn băng gần miệng lỗ khác pooltool — gộp với vấn đề miệng lỗ bên dưới. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
 - **Miệng lỗ (jaw):** hình học lỗ hai engine khác hẳn (ta: đường bắt + đoạn mũi; pooltool: băng cong + lỗ tròn) → so jaw chưa có ý nghĩa (trung vị ~100 mm, 9–12 bi vào lỗ ở một bên). Cần dựng cùng hình học lỗ trước khi so.
 - **Chiều cao mũi băng** nhạy cao (0,5% đổi trung vị 0 → 14 mm): ưu tiên đo ở R4.

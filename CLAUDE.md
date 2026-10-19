@@ -32,10 +32,13 @@ App bida 3D trên iPhone để **luyện mắt, tư duy và khả năng dự đo
 - `docs/04-drills.md` · `docs/05-feedback.md` · `docs/06-features.md` · `docs/07-validation.md`
 - `docs/08-tham-khao-shooterspool.md` — tham khảo ý tưởng từ ShootersPool (độc quyền: không chép mã/tài nguyên)
 
-## Quy tắc làm việc
-- Mỗi phiên **một** nhiệm vụ trong `PROGRESS.md`, rồi dừng. Không tự chuyển nhiệm vụ.
-- Chỉ đánh dấu xong khi đã build và chạy test thật trên macOS/thiết bị. Không có môi trường thì ghi "chưa xác minh". Kiểm tra cú pháp không phải build.
-- Mọi tham số vật lý có nguồn gốc (`Provenance`): đã công bố / đã đo / giả định.
-- Vật lý: viết test trước; ghi giả thiết của từng nghiệm giải tích.
-- Chỉ đọc/sửa file liên quan. Không in toàn bộ log, chỉ in lỗi.
-- Xong: commit (mô tả ngắn), cập nhật `PROGRESS.md` (Nhật ký + vấn đề mở). Báo cáo tối đa 5 dòng.
+## Quy tắc làm việc (bản 19/10/2026 — nhanh, chắc, rẻ)
+- **Một agent ghi tại một thời điểm.** Trước khi làm: `git fetch`; nếu nhánh có commit lạ trong 30 phút gần nhất từ phiên khác → dừng, báo người dùng.
+- **Một nhiệm vụ = một nhánh `ci/<mã>` nhỏ (≤ 1 ngày)**, lấy nhiệm vụ đầu tiên chưa xong của **mốc hiện tại** trong `PROGRESS.md`. CI xanh mới gộp vào `feature/zoker-mvp`. Không gộp nhiều nhiệm vụ vào một commit.
+- **Chỉ làm việc thuộc mốc hiện tại.** Ý tưởng mới ghi vào `PROGRESS.md › Hàng chờ`, không làm ngay.
+- **Đóng băng** (không phát triển thêm, chỉ sửa lỗi): nhảy bi/massé (để chế độ thử nghiệm), âm thanh bậc B, đồ họa nâng cao, bản 3.1 trên `main`, Codemagic và runner Mac (dự phòng, không bảo trì).
+- Chỉ đánh dấu xong khi đã build và chạy test thật (CI macOS/thiết bị). Mục cần iPhone ghi "chưa xác minh trên thiết bị" cho tới khi người dùng xác nhận. Kiểm tra cú pháp không phải build.
+- Mọi tham số vật lý có nguồn gốc (`Provenance`): đã công bố / đã đo / giả định. Vật lý: viết test trước; ghi giả thiết của từng nghiệm giải tích.
+- **Mỗi lần gộp có thay đổi app → có IPA mới** + mục "Có gì mới" ≤ 5 dòng trong Nhật ký, để người dùng thử ngay.
+- Việc cần người dùng (thử máy, đo bàn) giao bằng **danh sách có/không ≤ 15 phút**; số liệu lấy từ file app tự ghi, không bắt đo tay.
+- Chỉ đọc/sửa file liên quan. Không in toàn bộ log, chỉ in lỗi. Báo cáo tối đa 5 dòng.
