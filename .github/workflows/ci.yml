@@ -105,8 +105,15 @@ jobs:
           Đã qua kiểm thử 4 package trước khi build. SHA-256: ${SHA256}"
           # Dời tag về đúng commit vừa build ("gh release edit --target" không dời tag đã có).
           trap 'echo "::error title=release::Lỗi ở dòng $LINENO: $BASH_COMMAND"' ERR
+          # Dời tag: thử git push, nếu bị từ chối thì dời qua REST API; in nguyên văn lỗi nếu cả hai hỏng.
           git tag -f zoker-latest "$GITHUB_SHA"
-          git push -f origin refs/tags/zoker-latest
+          if ! git push -f origin refs/tags/zoker-latest 2> push.err; then
+            if ! gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/zoker-latest" -f sha="$GITHUB_SHA" -F force=true > /dev/null 2> api.err \
+               && ! gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/zoker-latest" -f sha="$GITHUB_SHA" > /dev/null 2>> api.err; then
+              echo "::error title=tag::git push: $(tr '\n' ' ' < push.err) | API: $(tr '\n' ' ' < api.err)"; exit 1
+            fi
+            echo "::warning title=tag::git push bị từ chối ($(tr '\n' ' ' < push.err | cut -c1-300)); đã dời tag qua API"
+          fi
           if gh release view zoker-latest > /dev/null 2>&1; then
             gh release upload zoker-latest ZokerTrainer.ipa --clobber
             gh release edit zoker-latest --title "$TITLE" --notes "$NOTE"
