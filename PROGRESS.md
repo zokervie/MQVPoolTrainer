@@ -133,6 +133,9 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
 - 19/10/2026 · Sửa build · Code nhảy bi/massé (5eb220c, ce355a1) chưa qua CI: app không biên dịch, M4/M5 hỏng. Sửa: hai bi cùng trên bàn dùng lại mô hình phẳng đã kiểm chứng (3D chỉ khi có bi bay), M4 tính cơ năng (thế năng khi bay), 2 lỗi biên dịch. CI nhánh `ci/fix-build` xanh toàn bộ: M2 10.000/10.000, M3 0 cú ≥ 1 µm, M4 0, M5 3,6e-15, M6 0.
   **Có gì mới (IPA):** cơ chạy theo ngón khi kéo/đẩy và đi tiếp sau chạm bi · tiếng bi–bi khô, tiếng đầu cơ trầm (hết ngân như cụng ly) · thước độ dốc cơ, Shot Lab có độ dốc · nhảy bi/massé ở chế độ thử nghiệm · bàn: mũi băng vát, lỗ viền da, vân gỗ, thớ nỉ.
 
+- 19/10/2026 · Đồ họa phòng (ngoại lệ đóng băng) · Người dùng mở lại đồ họa nâng cao vì máy thử là iPad M1. Nhánh `ci/do-hoa-phong` (CI xanh, ảnh chụp đã xem): phòng gỗ (sàn ván, tường ốp, trần, giá cơ, khung tranh, đèn bàn), 3 đèn spot có bóng + đèn phụ, ánh sáng môi trường HDR, bóng mềm dưới bi (to/mờ theo độ cao khi bay), cơ nhiều đoạn, nỉ có normal map, gỗ băng tách vật liệu (hết răng cưa), mắt nhìn gần bi hơn (0,6 m). Chưa xác minh 60 fps trên thiết bị.
+  **Có gì mới (IPA):** bàn đặt trong phòng gỗ thật · bóng bi mềm · đèn bàn sáng đều · cơ nhiều đoạn có khớp nối · góc cúi đánh gần bi hơn.
+
 ## Vấn đề mở
 - **Xoay trục đứng tắt quá nhanh** (`spinFriction`, xem docs/09 mục 1) — ảnh hưởng bi effect ngang và hướng sau băng; sửa ở M1.2b.
 - **Băng:** công thức trùng Han 2005 (đã so từng va chạm). Phần lệch còn lại do hình học đoạn băng gần miệng lỗ khác pooltool — gộp với vấn đề miệng lỗ bên dưới. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
