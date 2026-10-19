@@ -36,7 +36,33 @@ public struct PhysicsParameters: Codable, Equatable, Sendable {
     /// Ma sát bi–băng. Nguồn: Mathavan et al. 2010 (~0,2).
     public var cushionFriction: Double = 0.2
 
+    /// Hệ số phục hồi bi–mặt bàn (đá + nỉ) cho nhảy bi. Giả định ~0,5 (Alciatore, phân tích jump shot
+    /// dùng khoảng 0,5); phụ thuộc nỉ và độ dày đá — cần đo ở R4.
+    public var tableRestitution: Double = 0.5
+
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case gravity, slidingFriction, rollingResistance, spinFriction, ballBallFriction, ballBallFrictionMinRatio,
+             ballBallFrictionDecay, ballBallRestitution, cushionRestitution, cushionFriction, tableRestitution
+    }
+
+    /// Đọc được hồ sơ cũ thiếu khóa mới (giá trị thiếu = mặc định).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = PhysicsParameters()
+        gravity = try c.decodeIfPresent(Double.self, forKey: .gravity) ?? d.gravity
+        slidingFriction = try c.decodeIfPresent(Double.self, forKey: .slidingFriction) ?? d.slidingFriction
+        rollingResistance = try c.decodeIfPresent(Double.self, forKey: .rollingResistance) ?? d.rollingResistance
+        spinFriction = try c.decodeIfPresent(Double.self, forKey: .spinFriction) ?? d.spinFriction
+        ballBallFriction = try c.decodeIfPresent(Double.self, forKey: .ballBallFriction) ?? d.ballBallFriction
+        ballBallFrictionMinRatio = try c.decodeIfPresent(Double.self, forKey: .ballBallFrictionMinRatio) ?? d.ballBallFrictionMinRatio
+        ballBallFrictionDecay = try c.decodeIfPresent(Double.self, forKey: .ballBallFrictionDecay) ?? d.ballBallFrictionDecay
+        ballBallRestitution = try c.decodeIfPresent(Double.self, forKey: .ballBallRestitution) ?? d.ballBallRestitution
+        cushionRestitution = try c.decodeIfPresent(Double.self, forKey: .cushionRestitution) ?? d.cushionRestitution
+        cushionFriction = try c.decodeIfPresent(Double.self, forKey: .cushionFriction) ?? d.cushionFriction
+        tableRestitution = try c.decodeIfPresent(Double.self, forKey: .tableRestitution) ?? d.tableRestitution
+    }
 
     /// Ma sát bi–bi tại tốc độ trượt tương đối v (m/s).
     public func ballBallFriction(atSlipSpeed v: Double) -> Double {

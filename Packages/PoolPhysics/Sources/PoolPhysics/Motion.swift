@@ -24,6 +24,10 @@ public enum FreeMotion {
             return simd_length(b.velocity) / (p.rollingResistance * g)
         case .spinning:
             return 2 * R * abs(b.angularVelocity.z) / (5 * p.spinFriction * g)
+        case .airborne:
+            // Thời điểm tâm bi trở về z = R: z0 + vz·t − g·t²/2 = R.
+            let h = max(0, b.position.z - R), vz = b.velocity.z
+            return (vz + (vz * vz + 2 * g * h).squareRoot()) / g
         case .stationary, .pocketed:
             return nil
         }
@@ -37,6 +41,8 @@ public enum FreeMotion {
             return -p.slidingFriction * p.gravity * simd_normalize(b.contactVelocity(radius: R))
         case .rolling:
             return -p.rollingResistance * p.gravity * simd_normalize(b.velocity)
+        case .airborne:
+            return SIMD3(0, 0, -p.gravity)
         case .spinning, .stationary, .pocketed:
             return .zero
         }
@@ -48,6 +54,13 @@ public enum FreeMotion {
         var out = b
         let state = b.classified(radius: R)
 
+        if state == .airborne {
+            // Bay tự do: không ma sát, xoáy giữ nguyên.
+            out.position = b.position + b.velocity * t + 0.5 * SIMD3(0, 0, -g) * t * t
+            out.velocity = b.velocity + SIMD3(0, 0, -g * t)
+            out.state = .airborne
+            return out
+        }
         // Xoay quanh trục đứng giảm tuyến tính, độc lập với chuyển động ngang.
         let wz = b.angularVelocity.z
         let dwz = 5 * p.spinFriction * g / (2 * R) * t
@@ -78,7 +91,7 @@ public enum FreeMotion {
         case .spinning:
             out.angularVelocity = SIMD3(0, 0, newWz)
 
-        case .stationary, .pocketed:
+        case .stationary, .pocketed, .airborne:
             break
         }
 
@@ -87,8 +100,17 @@ public enum FreeMotion {
     }
 
     /// Đưa bi tới đúng thời điểm chuyển trạng thái và làm sạch sai số làm tròn.
-    public static func advanceToTransition(_ b: Ball, _ p: PhysicsParameters, radius R: Double) -> (Ball, Double)? {
+    public static func advanceToTransition(_ b: Ball, _ p: PhysicsParameters, radius R: Double,
+                                           mass m: Double = 0.17) -> (Ball, Double)? {
         guard let t = timeToTransition(b, p, radius: R) else { return nil }
+        if b.classified(radius: R) == .airborne {
+            // Chạm bàn: đặt đúng z = R rồi nảy (hoặc nằm lại nếu nảy quá nhỏ).
+            var landed = evolve(b, by: t, p, radius: R)
+            landed.position.z = R
+            if landed.velocity.z >= 0 { landed.velocity.z = -1e-9 }
+            landed.state = .sliding
+            return (SlateImpact.resolve(landed, p, mass: m, radius: R), t)
+        }
         var next = evolve(b, by: t, p, radius: R)
         switch b.classified(radius: R) {
         case .sliding:
@@ -115,7 +137,7 @@ public enum FreeMotion {
             clock += step.1
             current = step.0
             events.append((time: clock, ball: current))
-            if events.count > 16 { break } // an toàn, mỗi bi chỉ có tối đa 3 chuyển trạng thái
+            if events.count > 64 { break } // an toàn: tối đa 3 chuyển pha + số lần nảy khi nhảy bi
         }
         return events
     }

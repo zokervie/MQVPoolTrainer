@@ -123,7 +123,7 @@ public struct Simulation: Sendable {
         var records: [CollisionRecord] = []
         var miscue = false
         if let i = balls.firstIndex(where: { $0.id == 0 && $0.state != .pocketed }) {
-            let out = CueModel.strike(strike, cue: cue, ball: balls[i], mass: m, radius: R)
+            let out = CueModel.strike(strike, cue: cue, ball: balls[i], mass: m, radius: R, parameters: parameters)
             balls[i] = out.ball
             miscue = out.miscue
             records.append(CollisionRecord(kind: out.miscue ? .miscue : .cueTip, time: 0,
@@ -190,7 +190,7 @@ public struct Simulation: Sendable {
             dirty = []
             for i in 0..<n where isMoving(balls[i]) {
                 if transition[i] - T <= options.simultaneityWindow,
-                   let snapped = FreeMotion.advanceToTransition(balls[i], parameters, radius: R) {
+                   let snapped = FreeMotion.advanceToTransition(balls[i], parameters, radius: R, mass: m) {
                     balls[i] = snapped.0
                     dirty.insert(i)
                 } else if T > clock {
@@ -249,13 +249,24 @@ public struct Simulation: Sendable {
 
     /// Hệ số đa thức của vị trí ngang trong pha hiện tại: p(t) = c0 + c1·t + c2·t².
     private func motion(_ b: Ball) -> (SIMD2<Double>, SIMD2<Double>, SIMD2<Double>) {
+        let (p, v, a) = motion3(b)
+        return (SIMD2(p.x, p.y), SIMD2(v.x, v.y), SIMD2(a.x, a.y))
+    }
+
+    /// Như `motion` nhưng 3D (bi bay có thành phần z với gia tốc −g).
+    private func motion3(_ b: Ball) -> (SIMD3<Double>, SIMD3<Double>, SIMD3<Double>) {
         let a = FreeMotion.acceleration(b, parameters, radius: R)
-        return (SIMD2(b.position.x, b.position.y), SIMD2(b.velocity.x, b.velocity.y), 0.5 * SIMD2(a.x, a.y))
+        return (b.position, b.velocity, 0.5 * a)
+    }
+
+    private func approachTime(C: SIMD2<Double>, B: SIMD2<Double>, A: SIMD2<Double>,
+                              distance D: Double, horizon: Double) -> Double? {
+        approachTime(C: SIMD3(C.x, C.y, 0), B: SIMD3(B.x, B.y, 0), A: SIMD3(A.x, A.y, 0), distance: D, horizon: horizon)
     }
 
     /// Thời điểm sớm nhất trong (0, horizon] mà khoảng cách giữa hai điểm chuyển động
     /// giảm xuống bằng D (đang lại gần). Δp(t) = C + B·t + A·t².
-    private func approachTime(C: SIMD2<Double>, B: SIMD2<Double>, A: SIMD2<Double>,
+    private func approachTime(C: SIMD3<Double>, B: SIMD3<Double>, A: SIMD3<Double>,
                               distance D: Double, horizon: Double) -> Double? {
         let coeffs = [simd_dot(C, C) - D * D,
                       2 * simd_dot(B, C),
@@ -289,8 +300,9 @@ public struct Simulation: Sendable {
     }
 
     private func pairTime(_ a: Ball, _ b: Ball, horizon: Double) -> Double? {
-        let (pa, va, aa) = motion(a)
-        let (pb, vb, ab) = motion(b)
+        // Khoảng cách tâm 3D: bi đang nhảy có thể bay qua bi khác.
+        let (pa, va, aa) = motion3(a)
+        let (pb, vb, ab) = motion3(b)
         return approachTime(C: pb - pa, B: vb - va, A: ab - aa, distance: 2 * R, horizon: horizon)
     }
 
@@ -299,6 +311,12 @@ public struct Simulation: Sendable {
         let (p0, v0, a2) = motion(b)
         let h = horizon.isFinite ? horizon : 60
         var out: [Candidate] = []
+        // Độ cao tâm bi tại thời điểm t (bi bay); bi trên bàn luôn bằng R.
+        let z0 = b.position.z, vz0 = b.velocity.z, az = FreeMotion.acceleration(b, parameters, radius: R).z
+        func height(_ t: Double) -> Double { z0 + vz0 * t + 0.5 * az * t * t }
+        // Bi bay cao hơn mặt băng thì bay qua băng (ra ngoài bàn → biên an toàn bắt).
+        let railTop = table.cushionHeight + 0.009
+        func clearsRail(_ t: Double) -> Bool { height(t) - R > railTop }
 
         // Băng: thành phần pháp tuyến n·p(t) = R (tính từ đường băng), đang tiến vào băng.
         for (k, seg) in geometry.cushions.enumerated() {
@@ -312,7 +330,7 @@ public struct Simulation: Sendable {
             func inSegment(_ t: Double) -> Bool {
                 let p = p0 + v0 * t + a2 * t * t
                 let along = horizontal ? p.x : p.y
-                return along >= seg.from && along <= seg.to
+                return along >= seg.from && along <= seg.to && !clearsRail(t)
             }
             if c0 <= 1e-12 {
                 // Đang chạm băng.
@@ -332,7 +350,7 @@ public struct Simulation: Sendable {
         }
         // Mũi băng (điểm cố định).
         for (k, q) in geometry.jaws.enumerated() {
-            if let t = approachTime(C: p0 - q, B: v0, A: a2, distance: R, horizon: h) {
+            if let t = approachTime(C: p0 - q, B: v0, A: a2, distance: R, horizon: h), !clearsRail(t) {
                 out.append(Candidate(time: t, kind: .jaw, i: i, extra: k))
             }
         }
@@ -340,13 +358,14 @@ public struct Simulation: Sendable {
         for pocket in geometry.pockets {
             let w = pocket.captureNormal
             let c = [simd_dot(w, p0) + pocket.captureOffset, simd_dot(w, v0), simd_dot(w, a2)]
-            if c[0] <= 0, geometry.sidePocketAccepts(pocket.id, x: p0.x) {
+            if c[0] <= 0, geometry.sidePocketAccepts(pocket.id, x: p0.x), height(0) < R + 0.03 {
                 out.append(Candidate(time: 0, kind: .drop, i: i, extra: pocket.id)); continue
             }
             for r in Polynomial.realRoots(c, in: 0, h) where r > 0 {
                 if c[1] + 2 * c[2] * r >= 0 { continue }
                 let p = p0 + v0 * r + a2 * r * r
-                if geometry.sidePocketAccepts(pocket.id, x: p.x) {
+                // Bi bay qua miệng lỗ (cao hơn ~3 cm) thì không rơi.
+                if geometry.sidePocketAccepts(pocket.id, x: p.x), height(r) < R + 0.03 {
                     out.append(Candidate(time: r, kind: .drop, i: i, extra: pocket.id))
                 }
                 break
@@ -378,8 +397,7 @@ public struct Simulation: Sendable {
             var moved = false
             for i in 0..<n where balls[i].state != .pocketed {
                 for j in (i + 1)..<max(i + 1, n) where balls[j].state != .pocketed {
-                    var d = balls[j].position - balls[i].position
-                    d.z = 0
+                    let d = balls[j].position - balls[i].position
                     let dist = simd_length(d)
                     let target = resting.contains(i * n + j) ? 2 * R + gap : 2 * R
                     guard dist < target - 1e-12, dist > 0 else { continue }
@@ -402,7 +420,7 @@ public struct Simulation: Sendable {
         case .ballBall:
             guard balls[e.j].state != .pocketed else { return nil }
             var a = balls[e.i], b = balls[e.j]
-            var d = b.position - a.position; d.z = 0
+            let d = b.position - a.position
             // Sau một va chạm khác trong cùng thời điểm, cặp này có thể không còn chạm/lại gần.
             guard simd_length(d) <= 2 * R * (1 + 1e-7) else { return nil }
             let ((a2, b2), info) = BallBallCollision.resolveWithInfo(a, b, parameters, mass: m, radius: R)
@@ -417,7 +435,7 @@ public struct Simulation: Sendable {
         case .cushion:
             let seg = geometry.cushions[e.extra]
             var (out, info) = CushionCollision.resolve(balls[e.i], inward: seg.inwardNormal,
-                                                       cushionHeight: table.cushionHeight,
+                                                       cushionHeight: table.cushionHeight - (balls[e.i].position.z - R),
                                                        parameters, mass: m, radius: R)
             // Đưa tâm bi về đúng khoảng R (cộng khe nhỏ nếu là tiếp xúc tựa).
             let minDist = R + (info == nil ? CollisionThresholds.separationGap : 0)
@@ -442,7 +460,7 @@ public struct Simulation: Sendable {
             let len = simd_length(n)
             guard len > 0, len <= R + 1e-7 else { return nil }
             n /= len
-            var (out, info) = CushionCollision.resolve(b, inward: n, cushionHeight: table.cushionHeight,
+            var (out, info) = CushionCollision.resolve(b, inward: n, cushionHeight: table.cushionHeight - (b.position.z - R),
                                                        parameters, mass: m, radius: R)
             let minDist = R + (info == nil ? CollisionThresholds.separationGap : 0)
             if len < minDist {

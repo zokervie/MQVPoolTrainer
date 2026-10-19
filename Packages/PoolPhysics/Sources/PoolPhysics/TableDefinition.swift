@@ -37,6 +37,7 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
     case ballBallRestitution
     case cushionRestitution
     case cushionFriction
+    case tableRestitution
 
     var keyPath: WritableKeyPath<PhysicsParameters, Double> {
         switch self {
@@ -49,6 +50,7 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
         case .ballBallRestitution: \.ballBallRestitution
         case .cushionRestitution: \.cushionRestitution
         case .cushionFriction: \.cushionFriction
+        case .tableRestitution: \.tableRestitution
         }
     }
 
@@ -64,6 +66,7 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
         case .ballBallRestitution: 0.8...1.0
         case .cushionRestitution: 0.5...1.0
         case .cushionFriction: 0.0...0.5
+        case .tableRestitution: 0.2...0.9
         }
     }
 }
@@ -138,7 +141,8 @@ public struct TableDefinition: Codable, Equatable, Sendable {
             .ballBallFrictionDecay: .published(source: "Alciatore TP A.14: c ≈ 1,088 s/m"),
             .ballBallRestitution: .published(source: "Alciatore (0,92–0,98)"),
             .cushionRestitution: .published(source: "Mathavan et al. 2010 (0,75–0,85)"),
-            .cushionFriction: .published(source: "Mathavan et al. 2010 (~0,2)")
+            .cushionFriction: .published(source: "Mathavan et al. 2010 (~0,2)"),
+            .tableRestitution: .assumed(note: "~0,5 theo phân tích jump shot của Alciatore; phụ thuộc nỉ/đá, cần đo ở R4")
         ],
         visualAssetName: "ZokerTable9ft"
     )

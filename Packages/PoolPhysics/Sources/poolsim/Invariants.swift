@@ -88,7 +88,7 @@ func runInvariants(count: Int, baseSeed: UInt64, only: Int?) -> Int32 {
         var worst = (-Double.infinity, -1, -1)
         let live = balls.filter { $0.state != .pocketed }
         for i in live.indices { for j in (i + 1)..<live.count {
-            var d = live[j].position - live[i].position; d.z = 0
+            let d = live[j].position - live[i].position   // 3D: bi nhảy qua bi khác không phải chồng lấn
             let o = 2 * R - simd_length(d)
             if o > worst.0 { worst = (o, live[i].id, live[j].id) }
         } }

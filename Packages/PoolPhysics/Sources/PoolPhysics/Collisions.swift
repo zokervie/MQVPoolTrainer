@@ -20,6 +20,40 @@ public enum CollisionThresholds {
     public static let minApproachSpeed = 1e-4   // m/s
     public static let penetration = 1e-7        // m
     public static let separationGap = 1e-5      // m
+    /// Vận tốc nảy lên tối thiểu để coi là bi rời bàn (m/s). Nhỏ hơn: nỉ hấp thụ, bi nằm lại trên bàn
+    /// (độ cao nảy < v²/2g ≈ 0,1 mm). Chặn chuỗi nảy vô hạn (Zeno) khi bi rơi xuống bàn.
+    public static let minLiftSpeed = 0.045      // m/s
+}
+
+/// Va chạm bi với mặt đá (nỉ) khi bi bị ép xuống (cơ dốc) hoặc rơi xuống sau khi nhảy.
+/// - Pháp tuyến: v_z' = −e_t·v_z (e_t = `tableRestitution`); nảy nhỏ hơn `minLiftSpeed` thì bỏ.
+/// - Ma sát Coulomb tại điểm tiếp xúc đáy bi, giới hạn bởi lượng cần để hết trượt (Δu = 3,5·J/m):
+///   đây là cơ chế tạo đường cong massé khi cơ dốc ép bi xuống bàn.
+public enum SlateImpact {
+    /// - Parameter friction: false cho cú ép xuống ngay lúc cơ chạm bi (xem `CueModel`).
+    public static func resolve(_ b: Ball, _ p: PhysicsParameters, mass m: Double, radius R: Double,
+                               friction: Bool = true) -> Ball {
+        var out = b
+        guard b.velocity.z < 0 else { return b }
+        let vzIn = -b.velocity.z
+        let jn = m * (1 + p.tableRestitution) * vzIn                 // xung pháp tuyến (lên)
+        let u = b.contactVelocity(radius: R)                          // trượt tại đáy bi (ngang)
+        let slip = simd_length(u)
+        if friction, slip > 1e-12 {
+            let jt = min(p.slidingFriction * jn, m * slip / 3.5)
+            let impulse = -jt * (u / slip)
+            out.velocity += impulse / m
+            // r = −R·ẑ (đáy bi): Δω = r × J / I.
+            out.angularVelocity += cross(SIMD3(0, 0, -R), impulse) / (0.4 * m * R * R)
+        }
+        let vzOut = p.tableRestitution * vzIn
+        out.velocity.z = vzOut >= minLift ? vzOut : 0
+        out.position.z = max(out.position.z, R)
+        if out.velocity.z == 0 { out.position.z = R }
+        out.state = out.classified(radius: R)
+        return out
+    }
+    private static let minLift = CollisionThresholds.minLiftSpeed
 }
 
 /// Va chạm bi–bi có ma sát bề mặt (tạo throw do cắt và do xoáy).
@@ -38,8 +72,8 @@ public enum BallBallCollision {
 
     public static func resolveWithInfo(_ a: Ball, _ b: Ball, _ p: PhysicsParameters,
                                        mass m: Double, radius R: Double) -> ((Ball, Ball), ImpactInfo?) {
-        var n = b.position - a.position
-        n.z = 0
+        // Pháp tuyến 3D (bi bay chạm bi khác); hai bi cùng trên bàn thì n.z = 0 như trước.
+        let n = b.position - a.position
         let nHat = simd_normalize(n)
         let vRel = simd_dot(a.velocity - b.velocity, nHat)
         guard vRel > 0 else { return ((a, b), nil) }
@@ -76,8 +110,11 @@ public enum BallBallCollision {
         b2.velocity = b.velocity - impulseA / m
         a2.angularVelocity = a.angularVelocity + cross(ra, impulseA) / inertia
         b2.angularVelocity = b.angularVelocity + cross(rb, -impulseA) / inertia
-        a2.velocity.z = 0
-        b2.velocity.z = 0
+        // Bi đang nằm trên bàn mà bị ép xuống: mặt bàn đỡ (nảy/hấp thụ). Bi đang bay giữ v_z.
+        if a2.position.z <= R + 1e-7, a2.velocity.z < 0 { a2 = SlateImpact.resolve(a2, p, mass: m, radius: R) }
+        if b2.position.z <= R + 1e-7, b2.velocity.z < 0 { b2 = SlateImpact.resolve(b2, p, mass: m, radius: R) }
+        if a2.position.z <= R + 1e-7, a2.velocity.z < CollisionThresholds.minLiftSpeed { a2.velocity.z = 0 }
+        if b2.position.z <= R + 1e-7, b2.velocity.z < CollisionThresholds.minLiftSpeed { b2.velocity.z = 0 }
         a2.state = a2.classified(radius: R)
         b2.state = b2.classified(radius: R)
         return ((a2, b2), ImpactInfo(relativeNormalSpeed: vRel, normalImpulse: jn, tangentialSlip: slip))
@@ -128,7 +165,8 @@ public enum CushionCollision {
 
         var out = ball
         out.velocity = ball.velocity + impulse / m
-        out.velocity.z = 0
+        // Bi trên bàn: bỏ thành phần đứng (nỉ hấp thụ). Bi đang bay: giữ v_z trước va chạm (như Han 2005).
+        out.velocity.z = ball.position.z > R + 1e-7 ? ball.velocity.z : 0
         out.angularVelocity = ball.angularVelocity + cross(rc, impulse) / (0.4 * m * R * R)
         out.state = out.classified(radius: R)
         return (out, ImpactInfo(relativeNormalSpeed: -simd_dot(ball.velocity, nh), normalImpulse: jn, tangentialSlip: slip))

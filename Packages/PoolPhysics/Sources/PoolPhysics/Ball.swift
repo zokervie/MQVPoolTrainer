@@ -3,10 +3,12 @@ import simd
 
 public enum MotionState: String, Codable, Sendable {
     case sliding, rolling, spinning, stationary, pocketed
+    /// Bi rời mặt bàn (nhảy bi): bay theo parabol, không ma sát, chạm bàn thì nảy (`SlateImpact`).
+    case airborne
 }
 
-/// Trạng thái động học của một bi. Tâm bi ở z = R; vận tốc chỉ trong mặt phẳng bàn
-/// (nhảy bi làm sau).
+/// Trạng thái động học của một bi. Trên bàn: tâm ở z = R, vận tốc nằm ngang.
+/// Khi nhảy (`airborne`): z > R hoặc v_z > 0, bay theo trọng lực tới lúc chạm bàn.
 public struct Ball: Codable, Equatable, Sendable {
     public var id: Int                     // 0 = bi cái
     public var position: SIMD3<Double>
@@ -36,6 +38,7 @@ public extension Ball {
     /// Phân loại trạng thái theo vận tốc hiện tại.
     func classified(radius R: Double, epsilon: Double = 1e-9) -> MotionState {
         if state == .pocketed { return .pocketed }
+        if position.z > R + 1e-7 || velocity.z > CollisionThresholds.minLiftSpeed { return .airborne }
         if simd_length(contactVelocity(radius: R)) > epsilon { return .sliding }
         if simd_length(velocity) > epsilon { return .rolling }
         if abs(angularVelocity.z) > epsilon { return .spinning }
