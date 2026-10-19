@@ -130,6 +130,9 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
 
 - 19/10/2026 · Dữ liệu tham khảo · `docs/09-du-lieu-tham-khao.md`: đối chiếu 17 tham số với WPA, Dr. Dave, Mathavan 2010, Kim 2024, pooltool. Khớp phần lớn; **phát hiện `spinFriction` cho dω/dt ≈ 37,8 rad/s², ngoài khoảng công bố 5–15** (đối chứng pooltool không bắt được vì harness gán cùng giá trị); hai nguồn băng ghi sai; thêm thông số lỗ WPA cho M1.2. → nhiệm vụ M1.2b.
 
+- 19/10/2026 · Sửa build · Code nhảy bi/massé (5eb220c, ce355a1) chưa qua CI: app không biên dịch, M4/M5 hỏng. Sửa: hai bi cùng trên bàn dùng lại mô hình phẳng đã kiểm chứng (3D chỉ khi có bi bay), M4 tính cơ năng (thế năng khi bay), 2 lỗi biên dịch. CI nhánh `ci/fix-build` xanh toàn bộ: M2 10.000/10.000, M3 0 cú ≥ 1 µm, M4 0, M5 3,6e-15, M6 0.
+  **Có gì mới (IPA):** cơ chạy theo ngón khi kéo/đẩy và đi tiếp sau chạm bi · tiếng bi–bi khô, tiếng đầu cơ trầm (hết ngân như cụng ly) · thước độ dốc cơ, Shot Lab có độ dốc · nhảy bi/massé ở chế độ thử nghiệm · bàn: mũi băng vát, lỗ viền da, vân gỗ, thớ nỉ.
+
 ## Vấn đề mở
 - **Xoay trục đứng tắt quá nhanh** (`spinFriction`, xem docs/09 mục 1) — ảnh hưởng bi effect ngang và hướng sau băng; sửa ở M1.2b.
 - **Băng:** công thức trùng Han 2005 (đã so từng va chạm). Phần lệch còn lại do hình học đoạn băng gần miệng lỗ khác pooltool — gộp với vấn đề miệng lỗ bên dưới. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
