@@ -18,6 +18,7 @@ final class TableScene {
     private var mapping: RenderMapping
     private var table: TableSpec
     private var orientations: [Int: simd_quatf] = [:]
+    private lazy var softShadow = TableDecor.softShadowMaterial()
 
     init(table: TableSpec) {
         self.table = table
@@ -26,6 +27,7 @@ final class TableScene {
         root.addChild(camera)
         root.addChild(markers)
         buildCue()
+        buildRoom()
         addLights()
     }
 
@@ -39,8 +41,9 @@ final class TableScene {
         let clothColor = UIColor(red: 0.05, green: 0.36, blue: 0.22, alpha: 1)
 
         // Nỉ có thớ (một ô vân ~6 cm).
-        let cloth = ModelEntity(mesh: .generatePlane(width: L, depth: W),
-                                materials: [TableDecor.felt(clothColor, tiles: [L / 0.06, W / 0.06], texture: feltTex)])
+        var clothMat = TableDecor.felt(clothColor, tiles: [L / 0.06, W / 0.06], texture: feltTex)
+        if let n = TableDecor.feltNormal() { clothMat.normal = .init(texture: .init(n)) }
+        let cloth = ModelEntity(mesh: .generatePlane(width: L, depth: W), materials: [clothMat])
         root.addChild(cloth)
 
         // Băng: tiết diện có mũi băng ở đúng chiều cao vật lý (u = 0 là đường băng, âm = ra ngoài bàn).
@@ -57,6 +60,8 @@ final class TableScene {
         ]
         let cushionMat = TableDecor.felt(UIColor(red: 0.045, green: 0.32, blue: 0.20, alpha: 1), tiles: [20, 2], texture: feltTex)
         let woodMat = TableDecor.wood(texture: woodTex)
+        var woodBoxMat = woodMat
+        woodBoxMat.textureCoordinateTransform = .init(offset: .zero, scale: [1, 1], rotation: 0)
         func ends(_ seg: TableGeometry.CushionSegment, extend e: Double) -> (SIMD2<Double>, SIMD2<Double>) {
             let f = seg.from - e, t = seg.to + e
             switch seg.rail {
@@ -87,7 +92,7 @@ final class TableScene {
         let leather = TableDecor.leather()
         func addBox(_ x0: Double, _ x1: Double, _ y0: Double, _ y1: Double) {
             let e = ModelEntity(mesh: .generateBox(size: [Float(abs(x1 - x0)), Float(hw), Float(abs(y1 - y0))], cornerRadius: 0.004),
-                                materials: [woodMat])
+                                materials: [woodBoxMat])
             e.position = map(SIMD3((x0 + x1) / 2, (y0 + y1) / 2, hw / 2))
             root.addChild(e)
         }
@@ -95,7 +100,7 @@ final class TableScene {
             let disc = ModelEntity(mesh: .generateCylinder(height: 0.002, radius: Float(r)), materials: [dark])
             disc.position = map(SIMD3(c.x, c.y, 0.0009))
             root.addChild(disc)
-            if let mesh = TableDecor.ring(center: c, inner: r, outer: r + 0.013, z: hw + 0.0006,
+            if let mesh = TableDecor.ring(center: c, inner: r, outer: r + 0.02, z: hw + 0.0008,
                                           from: theta - halfArc, to: theta + halfArc, map: map) {
                 root.addChild(ModelEntity(mesh: mesh, materials: [leather]))
             }
@@ -123,10 +128,6 @@ final class TableScene {
                                materials: [Self.material(UIColor(red: 0.18, green: 0.10, blue: 0.05, alpha: 1), roughness: 0.6)])
         body.position = [0, -0.12, 0]
         root.addChild(body)
-        let floor = ModelEntity(mesh: .generatePlane(width: 14, depth: 10),
-                                materials: [Self.material(UIColor(red: 0.16, green: 0.15, blue: 0.14, alpha: 1), roughness: 1)])
-        floor.position = [0, -0.76, 0]
-        root.addChild(floor)
 
         let h = Float(hc)
         let frameF = Float(frame), railDepthF = Float(railDepth)
@@ -152,31 +153,137 @@ final class TableScene {
         }
     }
 
+    /// Cơ nhiều đoạn (đầu tẩy xanh phấn, khâu trắng, ngọn gỗ phong vuốt thon, khớp kim loại, gốc gỗ mun,
+    /// cuốn tay đen). Trục +z của `cue` hướng về đuôi cơ, đầu tẩy ở gốc tọa độ.
     private func buildCue() {
-        let shaft = ModelEntity(mesh: .generateCylinder(height: 1.45, radius: 0.0065),
-                                materials: [Self.material(UIColor(red: 0.85, green: 0.72, blue: 0.50, alpha: 1), roughness: 0.4)])
-        // Trục cylinder dọc theo y; xoay để nằm dọc theo trục −z của entity cha `cue`.
-        shaft.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
-        shaft.position = [0, 0, 0.725]
-        cue.addChild(shaft)
+        let parts: [(Float, Float, Float, Float, PhysicallyBasedMaterial)] = [
+            (0.000, 0.006, 0.0062, 0.0064, TableDecor.pbr(UIColor(red: 0.18, green: 0.40, blue: 0.72, alpha: 1), roughness: 0.9)),
+            (0.006, 0.030, 0.0064, 0.0065, TableDecor.pbr(UIColor(white: 0.96, alpha: 1), roughness: 0.25, clearcoat: 0.6)),
+            (0.030, 0.740, 0.0065, 0.0105, TableDecor.pbr(UIColor(red: 0.90, green: 0.80, blue: 0.62, alpha: 1), roughness: 0.3, clearcoat: 0.8)),
+            (0.740, 0.765, 0.0108, 0.0110, TableDecor.pbr(UIColor(white: 0.75, alpha: 1), roughness: 0.15, metallic: 1)),
+            (0.765, 1.050, 0.0110, 0.0125, TableDecor.pbr(UIColor(red: 0.10, green: 0.05, blue: 0.03, alpha: 1), roughness: 0.2, clearcoat: 1)),
+            (1.050, 1.300, 0.0128, 0.0135, TableDecor.pbr(UIColor(white: 0.06, alpha: 1), roughness: 0.85)),
+            (1.300, 1.450, 0.0135, 0.0145, TableDecor.pbr(UIColor(red: 0.16, green: 0.07, blue: 0.04, alpha: 1), roughness: 0.2, clearcoat: 1))
+        ]
+        for (z0, z1, r0, r1, mat) in parts {
+            guard let mesh = TableDecor.frustum(r0: r0, r1: r1, length: z1 - z0) else { continue }
+            let e = ModelEntity(mesh: mesh, materials: [mat])
+            e.position = [0, 0, z0]
+            cue.addChild(e)
+        }
         root.addChild(cue)
     }
 
-    private func addLights() {
-        let light = DirectionalLight()
-        light.light.intensity = 2_500
-        light.shadow = DirectionalLightComponent.Shadow(maximumDistance: 4, depthBias: 2)
-        light.look(at: .zero, from: [0.3, 2.2, 0.6], relativeTo: nil)
-        root.addChild(light)
-        // Đèn trần phòng bida: hai bóng treo trên bàn, sáng tập trung mặt nỉ.
-        for x: Float in [-0.6, 0.6] {
-            let lamp = PointLight()
-            lamp.light.intensity = 9_000
-            lamp.light.attenuationRadius = 2.2
-            lamp.light.color = UIColor(red: 1, green: 0.96, blue: 0.88, alpha: 1)
-            lamp.position = [x, 1.0, 0]
-            root.addChild(lamp)
+    // MARK: Phòng bida
+
+    private let lamp = Entity()
+
+    /// Phòng: sàn gỗ, tường ốp ván gỗ (chân tường tối), trần tối, bộ đèn bàn dài, giá cơ và khung tranh.
+    /// Chỉ để tạo không gian thật như ảnh tham khảo; không ảnh hưởng vật lý.
+    private func buildRoom() {
+        let floorY: Float = -0.76, wallH: Float = 3.4, halfX: Float = 4.0, halfZ: Float = 3.0
+        var floorMat = TableDecor.pbr(UIColor(red: 0.30, green: 0.18, blue: 0.10, alpha: 1), roughness: 0.5, clearcoat: 0.3)
+        if let t = TableDecor.planks(seed: 0xF100) {
+            floorMat.baseColor = .init(tint: UIColor(red: 0.42, green: 0.26, blue: 0.15, alpha: 1), texture: .init(t))
+            floorMat.textureCoordinateTransform = .init(offset: .zero, scale: [6, 4], rotation: .pi / 2)
         }
+        let floor = ModelEntity(mesh: .generatePlane(width: 2 * halfX, depth: 2 * halfZ), materials: [floorMat])
+        floor.position = [0, floorY + 0.001, 0]
+        root.addChild(floor)
+
+        var panel = TableDecor.pbr(UIColor(red: 0.45, green: 0.27, blue: 0.14, alpha: 1), roughness: 0.45, clearcoat: 0.4)
+        if let t = TableDecor.planks(seed: 0xA11) {
+            panel.baseColor = .init(tint: UIColor(red: 0.55, green: 0.33, blue: 0.18, alpha: 1), texture: .init(t))
+            panel.textureCoordinateTransform = .init(offset: .zero, scale: [8, 1], rotation: 0)
+        }
+        var dado = panel
+        dado.baseColor = .init(tint: UIColor(red: 0.20, green: 0.11, blue: 0.06, alpha: 1))
+        let ceiling = TableDecor.pbr(UIColor(white: 0.07, alpha: 1), roughness: 0.9)
+        // Bốn tường (mặt phẳng đứng hướng vào trong).
+        let walls: [(SIMD3<Float>, Float, Float)] = [
+            ([0, 0, -halfZ], 0, 2 * halfX), ([0, 0, halfZ], .pi, 2 * halfX),
+            ([-halfX, 0, 0], .pi / 2, 2 * halfZ), ([halfX, 0, 0], -.pi / 2, 2 * halfZ)
+        ]
+        for (p, yaw, width) in walls {
+            let upper = ModelEntity(mesh: .generatePlane(width: width, height: wallH - 1.0), materials: [panel])
+            upper.position = p + [0, floorY + 1.0 + (wallH - 1.0) / 2, 0]
+            upper.orientation = simd_quatf(angle: yaw, axis: [0, 1, 0])
+            root.addChild(upper)
+            let low = ModelEntity(mesh: .generatePlane(width: width, height: 1.0), materials: [dado])
+            low.position = p + [0, floorY + 0.5, 0]
+            low.orientation = upper.orientation
+            root.addChild(low)
+        }
+        let ceil = ModelEntity(mesh: .generatePlane(width: 2 * halfX, depth: 2 * halfZ), materials: [ceiling])
+        ceil.position = [0, floorY + wallH, 0]
+        ceil.orientation = simd_quatf(angle: .pi, axis: [1, 0, 0])
+        root.addChild(ceil)
+
+        // Giá cơ trên tường xa (đầu bàn) và hai khung tranh.
+        let rackWood = TableDecor.pbr(UIColor(red: 0.25, green: 0.13, blue: 0.07, alpha: 1), roughness: 0.4, clearcoat: 0.5)
+        let rack = ModelEntity(mesh: .generateBox(size: [0.9, 0.06, 0.06], cornerRadius: 0.01), materials: [rackWood])
+        rack.position = [-halfX + 0.04, floorY + 0.25, -0.9]
+        rack.orientation = simd_quatf(angle: .pi / 2, axis: [0, 1, 0])
+        root.addChild(rack)
+        let maple = TableDecor.pbr(UIColor(red: 0.88, green: 0.77, blue: 0.58, alpha: 1), roughness: 0.3, clearcoat: 0.6)
+        for k in 0..<5 {
+            guard let m = TableDecor.frustum(r0: 0.014, r1: 0.007, length: 1.45, segments: 12) else { continue }
+            let c = ModelEntity(mesh: m, materials: [maple])
+            c.position = [-halfX + 0.06, floorY + 0.03, -1.25 + Float(k) * 0.17]
+            c.orientation = simd_quatf(angle: -.pi / 2 + 0.06, axis: [1, 0, 0])
+            root.addChild(c)
+        }
+        let frameMat = TableDecor.pbr(UIColor(red: 0.08, green: 0.05, blue: 0.03, alpha: 1), roughness: 0.3, clearcoat: 0.8)
+        let art = TableDecor.pbr(UIColor(red: 0.42, green: 0.36, blue: 0.27, alpha: 1), roughness: 0.8)
+        for x: Float in [-1.2, 1.2] {
+            let f = ModelEntity(mesh: .generateBox(size: [0.9, 0.62, 0.03]), materials: [frameMat])
+            f.position = [x, floorY + 1.75, -halfZ + 0.02]
+            root.addChild(f)
+            let a = ModelEntity(mesh: .generatePlane(width: 0.78, height: 0.5), materials: [art])
+            a.position = [x, floorY + 1.75, -halfZ + 0.04]
+            root.addChild(a)
+        }
+
+        // Bộ đèn bàn: chụp kim loại dài, mặt dưới phát sáng ấm. Ẩn khi nhìn từ trên (che bàn).
+        let metal = TableDecor.pbr(UIColor(red: 0.08, green: 0.16, blue: 0.10, alpha: 1), roughness: 0.35, metallic: 0.6)
+        let shade = ModelEntity(mesh: .generateBox(size: [1.7, 0.12, 0.42], cornerRadius: 0.02), materials: [metal])
+        shade.position = [0, 1.06, 0]
+        lamp.addChild(shade)
+        let glow = ModelEntity(mesh: .generatePlane(width: 1.6, depth: 0.34),
+                               materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.95, blue: 0.84, alpha: 1))])
+        glow.position = [0, 0.999, 0]
+        glow.orientation = simd_quatf(angle: .pi, axis: [1, 0, 0])
+        lamp.addChild(glow)
+        for x: Float in [-0.6, 0.6] {
+            let rod = ModelEntity(mesh: .generateCylinder(height: 1.8, radius: 0.004), materials: [metal])
+            rod.position = [x, 1.12 + 0.9, 0]
+            lamp.addChild(rod)
+        }
+        root.addChild(lamp)
+    }
+
+    /// Nhìn từ trên: ẩn bộ đèn để không che bàn (lỗi từng gặp ở BankLab 0.6).
+    func setOverview(_ on: Bool) { lamp.isEnabled = !on }
+
+    private func addLights() {
+        // Đèn chính: hai đèn chiếu từ bộ đèn bàn xuống, có bóng đổ (mềm nhờ lọc PCF + bóng tiếp xúc riêng).
+        for x: Float in [-0.55, 0.55] {
+            let spot = SpotLight()
+            spot.light.intensity = 26_000
+            spot.light.innerAngleInDegrees = 45
+            spot.light.outerAngleInDegrees = 85
+            spot.light.attenuationRadius = 4
+            spot.light.color = UIColor(red: 1, green: 0.95, blue: 0.86, alpha: 1)
+            spot.shadow = SpotLightComponent.Shadow()
+            spot.position = [x, 0.98, 0]
+            spot.look(at: [x, 0, 0], from: spot.position, relativeTo: nil)
+            root.addChild(spot)
+        }
+        // Đèn phụ yếu từ phía người chơi, không bóng, để mặt trước bi không tối hẳn.
+        let fill = DirectionalLight()
+        fill.light.intensity = 600
+        fill.look(at: .zero, from: [0.3, 1.5, 2.5], relativeTo: nil)
+        root.addChild(fill)
     }
 
     static func translucent(_ color: UIColor, opacity: Float) -> UnlitMaterial {
@@ -218,8 +325,7 @@ final class TableScene {
                 e = ModelEntity(mesh: .generateSphere(radius: R), materials: [ballMaterial(b.id)])
                 root.addChild(e)
                 ballEntities[b.id] = e
-                let s = ModelEntity(mesh: .generateCylinder(height: 0.0005, radius: R * 0.9),
-                                    materials: [Self.translucent(UIColor(white: 0, alpha: 1), opacity: 0.35)])
+                let s = ModelEntity(mesh: .generatePlane(width: R * 3.4, depth: R * 3.4), materials: [softShadow])
                 root.addChild(s)
                 shadows[b.id] = s
                 orientations[b.id] = simd_quatf(angle: -.pi / 2, axis: [0, 1, 0])
@@ -230,6 +336,9 @@ final class TableScene {
             guard !hidden else { continue }
             e.position = mapping.toRender(b.position)
             shadows[b.id]?.position = mapping.toRender(SIMD3(b.position.x, b.position.y, 0.0006))
+            // Bi nhảy: bóng loang rộng và nhạt dần theo độ cao.
+            let lift = Float(max(0, b.position.z - table.ballRadius))
+            shadows[b.id]?.scale = SIMD3(repeating: 1 + lift * 9)
             // Tích phân hướng quay chỉ để hiển thị xoáy.
             let w = mapping.directionToRender(b.angularVelocity)
             let speed = simd_length(w)
@@ -280,8 +389,9 @@ final class TableScene {
         switch mode {
         case .firstPerson:
             let dir = SIMD3(cos(aim), sin(aim), 0)
-            let eye = anchor - dir * 0.85 + SIMD3(0, 0, eyeHeight)
-            let target = anchor + dir * 1.2
+            // Góc cúi đánh: mắt sau bi ~0,6 m (bản đầu 0,85 m — bàn nhìn xa và nhỏ), nhìn hơi xuống.
+            let eye = anchor - dir * 0.6 + SIMD3(0, 0, eyeHeight)
+            let target = anchor + dir * 1.0
             camera.look(at: mapping.toRender(target), from: mapping.toRender(eye), relativeTo: nil)
             // FOV dọc ~42°, thu hẹp khi màn hình rất dài để không méo mép.
             camera.camera.fieldOfViewInDegrees = aspect > 2 ? 40 : 44

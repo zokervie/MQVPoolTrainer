@@ -30,6 +30,11 @@ struct GameContainer: UIViewRepresentable {
                 v.bottomAnchor.constraint(equalTo: container.bottomAnchor)
             ])
         }
+        // Ánh sáng môi trường dựng sẵn: bi và gỗ phản chiếu phòng/đèn thay vì khoảng đen.
+        if let env = TableDecor.environment() {
+            arView.environment.lighting.resource = env
+            arView.environment.lighting.intensityExponent = 0.3
+        }
         context.coordinator.attach(arView)
         return container
     }
@@ -89,6 +94,7 @@ struct GameContainer: UIViewRepresentable {
                             visible: st == .aiming || st == .locked || follow,
                             pullBack: Float(pull), follow: st == .aiming || st == .locked)
             let size = arView.bounds.size
+            scene.setOverview(model.cameraMode == .overview)
             scene.updateCamera(mode: model.cameraMode, aim: model.aimAngle, eyeHeight: model.settings.eyeHeight,
                                aspect: Float(size.width / max(size.height, 1)),
                                follow: st != .shotRunning && st != .reviewing)

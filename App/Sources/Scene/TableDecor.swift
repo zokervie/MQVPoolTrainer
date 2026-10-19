@@ -121,10 +121,11 @@ enum TableDecor {
         var m = PhysicallyBasedMaterial()
         let c = UIColor(red: 0.36, green: 0.18, blue: 0.08, alpha: 1)
         if let texture { m.baseColor = .init(tint: c, texture: .init(texture)) } else { m.baseColor = .init(tint: c) }
-        m.roughness = 0.35
+        // Bóng vừa phải (bản trước clearcoat 0,7 tạo vệt chói trắng trên băng dưới).
+        m.roughness = 0.45
         m.metallic = 0.0
-        m.clearcoat = 0.7
-        m.clearcoatRoughness = 0.15
+        m.clearcoat = 0.35
+        m.clearcoatRoughness = 0.3
         m.textureCoordinateTransform = .init(offset: .zero, scale: [1, 6], rotation: 0)
         m.faceCulling = .none
         return m
@@ -135,6 +136,146 @@ enum TableDecor {
         m.baseColor = .init(tint: UIColor(red: 0.10, green: 0.06, blue: 0.04, alpha: 1))
         m.roughness = 0.5
         m.clearcoat = 0.3
+        m.faceCulling = .none
+        return m
+    }
+}
+
+// MARK: - Bóng mềm, môi trường phản chiếu, phòng, cơ (đợt đồ họa 2, tham khảo kỹ thuật BankLab)
+@MainActor
+extension TableDecor {
+    /// Ảnh xám 8 bit kích thước n×n từ hàm giá trị (0…1) → TextureResource.
+    static func grayTexture(_ n: Int, semantic: TextureResource.Semantic = .color,
+                            rgb: ((Int, Int) -> (Double, Double, Double))) -> TextureResource? {
+        var px = [UInt8](repeating: 255, count: n * n * 4)
+        for y in 0..<n { for x in 0..<n {
+            let (r, g, b) = rgb(x, y)
+            let i = (y * n + x) * 4
+            px[i] = UInt8(max(0, min(255, r * 255))); px[i + 1] = UInt8(max(0, min(255, g * 255)))
+            px[i + 2] = UInt8(max(0, min(255, b * 255)))
+        } }
+        let image: CGImage? = px.withUnsafeMutableBytes { buf in
+            CGContext(data: buf.baseAddress, width: n, height: n, bitsPerComponent: 8, bytesPerRow: n * 4,
+                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+        }
+        guard let image else { return nil }
+        return try? TextureResource.generate(from: image, options: .init(semantic: semantic))
+    }
+
+    /// Bóng mềm dưới bi: độ mờ giảm dần theo bán kính (trắng = đậm), dùng làm texture độ trong suốt.
+    static func softShadowMaterial() -> UnlitMaterial {
+        var m = UnlitMaterial(color: .black)
+        if let tex = grayTexture(128, semantic: .raw, rgb: { x, y in
+            let dx = (Double(x) + 0.5) / 64 - 1, dy = (Double(y) + 0.5) / 64 - 1
+            let r = (dx * dx + dy * dy).squareRoot()
+            let core = max(0, 1 - r)                    // tắt dần tới mép
+            let v = 0.75 * pow(core, 1.8)
+            return (v, v, v)
+        }) {
+            m.blending = .transparent(opacity: .init(scale: 1, texture: .init(tex)))
+        } else {
+            m.blending = .transparent(opacity: 0.3)
+        }
+        return m
+    }
+
+    /// Bản đồ pháp tuyến nỉ: thớ sợi rất nhỏ, để ánh đèn xiên làm mặt nỉ "có vải".
+    static func feltNormal() -> TextureResource? {
+        var rng = SplitMix64(seed: 0xC10F)
+        var hgt = [Double](repeating: 0, count: 128 * 128)
+        for i in hgt.indices { hgt[i] = rng.unit() }
+        return grayTexture(128, semantic: .normal) { x, y in
+            func h(_ a: Int, _ b: Int) -> Double { hgt[((b + 128) % 128) * 128 + (a + 128) % 128] }
+            let nx = (h(x - 1, y) - h(x + 1, y)) * 0.35, ny = (h(x, y - 1) - h(x, y + 1)) * 0.35
+            return (0.5 + nx * 0.5, 0.5 + ny * 0.5, 1.0)
+        }
+    }
+
+    /// Ván gỗ (tường, sàn): sọc ván + vân. Màu nhân với `tint` của vật liệu.
+    static func planks(seed: UInt64) -> TextureResource? {
+        var rng = SplitMix64(seed: seed)
+        var shade = [Double](repeating: 0, count: 8)
+        for i in shade.indices { shade[i] = 0.75 + 0.25 * rng.unit() }
+        return grayTexture(256) { x, y in
+            let plank = x / 32
+            let seam = x % 32 == 0 ? 0.45 : 1.0
+            let grain = 0.88 + 0.1 * sin(Double(y) * 0.06 + Double(plank) * 1.7 + 2 * sin(Double(x) * 0.31))
+            let v = shade[plank % 8] * grain * seam
+            return (v, v, v)
+        }
+    }
+
+    /// Môi trường phản chiếu (ảnh 360° dựng bằng mã): phòng gỗ tối, hai bóng đèn trần sáng ngay trên bàn.
+    /// Cho bi bóng loáng phản chiếu đèn và tường như ảnh tham khảo, thay vì phản chiếu khoảng đen.
+    static func environment() -> EnvironmentResource? {
+        let w = 512, h = 256
+        var px = [UInt8](repeating: 255, count: w * h * 4)
+        for y in 0..<h { for x in 0..<w {
+            let elev = 90 - Double(y) / Double(h) * 180          // +90 trần … −90 sàn
+            let az = Double(x) / Double(w) * 360
+            var c: (Double, Double, Double)
+            if elev > 55 {
+                c = (0.06, 0.05, 0.045)                             // trần tối
+                // Hai bóng đèn dài phía trên bàn.
+                if elev > 68, abs(az - 90) < 26 || abs(az - 270) < 26 { c = (1, 0.93, 0.78) }
+            } else if elev > -8 {
+                // Tường: ván gỗ ấm, sọc dọc.
+                let stripe = Int(az / 6) % 2 == 0 ? 1.0 : 0.85
+                c = (0.32 * stripe, 0.19 * stripe, 0.10 * stripe)
+                if elev > 18, abs(az - 180) < 14 { c = (0.55, 0.5, 0.42) } // khung tranh sáng nhẹ
+            } else {
+                c = (0.13, 0.08, 0.045)                             // sàn gỗ
+            }
+            let i = (y * w + x) * 4
+            px[i] = UInt8(c.0 * 255); px[i + 1] = UInt8(c.1 * 255); px[i + 2] = UInt8(c.2 * 255)
+        } }
+        let image: CGImage? = px.withUnsafeMutableBytes { buf in
+            CGContext(data: buf.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+        }
+        guard let image else { return nil }
+        return try? EnvironmentResource.generate(fromEquirectangular: image)
+    }
+
+    /// Hình nón cụt dọc trục +z (z từ 0 tới `length`), bán kính r0 → r1. Dùng dựng cơ nhiều đoạn.
+    static func frustum(r0: Float, r1: Float, length: Float, segments: Int = 24) -> MeshResource? {
+        var pos: [SIMD3<Float>] = [], nor: [SIMD3<Float>] = [], idx: [UInt32] = []
+        let slope = (r0 - r1) / length
+        for s in 0...segments {
+            let a = Float(s) / Float(segments) * 2 * .pi
+            let c = cos(a), sn = sin(a)
+            let n = simd_normalize(SIMD3(c, sn, slope))
+            pos += [SIMD3(r0 * c, r0 * sn, 0), SIMD3(r1 * c, r1 * sn, length)]
+            nor += [n, n]
+            if s > 0 {
+                let k = UInt32(2 * s)
+                idx += [k - 2, k, k - 1, k - 1, k, k + 1]
+            }
+        }
+        // Nắp hai đầu.
+        for (z, r, dir) in [(Float(0), r0, Float(-1)), (length, r1, Float(1))] {
+            let center = UInt32(pos.count)
+            pos.append(SIMD3(0, 0, z)); nor.append(SIMD3(0, 0, dir))
+            for s in 0...segments {
+                let a = Float(s) / Float(segments) * 2 * .pi
+                pos.append(SIMD3(r * cos(a), r * sin(a), z)); nor.append(SIMD3(0, 0, dir))
+                if s > 0 { idx += dir > 0 ? [center, center + UInt32(s), center + UInt32(s) + 1]
+                                          : [center, center + UInt32(s) + 1, center + UInt32(s)] }
+            }
+        }
+        var d = MeshDescriptor(name: "frustum")
+        d.positions = MeshBuffers.Positions(pos)
+        d.normals = MeshBuffers.Normals(nor)
+        d.primitives = .triangles(idx)
+        return try? MeshResource.generate(from: [d])
+    }
+
+    static func pbr(_ color: UIColor, roughness: Float, metallic: Float = 0, clearcoat: Float = 0) -> PhysicallyBasedMaterial {
+        var m = PhysicallyBasedMaterial()
+        m.baseColor = .init(tint: color)
+        m.roughness = .init(floatLiteral: roughness)
+        m.metallic = .init(floatLiteral: metallic)
+        m.clearcoat = .init(floatLiteral: clearcoat)
         m.faceCulling = .none
         return m
     }
