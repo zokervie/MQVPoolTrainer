@@ -31,7 +31,7 @@ Từ 19/10 làm lại đúng CLAUDE.md: **mỗi phiên một nhiệm vụ**, the
 - [x] R1.5 Sự kiện đồng thời: cửa sổ 1 ns, thứ tự xác định; ngưỡng tiếp xúc chống Zeno; giới hạn 20.000 sự kiện; test độ nhạy thứ tự M7 (kết quả ở Nhật ký)
 - [x] R1.6 Lỗ: mép (điểm), đường bắt giữ. Chưa có mặt vát miệng lỗ, bi bật khỏi lỗ
 - [x] R1.6b `CollisionRecord` (loại, thời điểm, vị trí, tốc độ pháp tuyến, xung lực, trượt tiếp tuyến, id bi, lỗ)
-- [ ] R1.7 M1–M6 trên **10.000** cú — hiện chạy 300 cú ngẫu nhiên trong CI (đạt); bộ 10.000 cú chưa chạy
+- [ ] R1.7 M1–M6 trên **10.000** cú — đã chạy (`poolsim --invariants 10000 2026`, job CI `invariants`): M2, M4, M5 đạt; **M3, M6 không đạt ở cú phá** (Nhật ký 19/10). M1 theo `MotionTests`/`LiteratureTests`
 - [ ] R1.8 P1–P3: chuyển động và bi–bi **đạt P1** (≤ 5 mm); băng thẳng đạt 66% so Han 2005, chưa đạt so Stronge; miệng lỗ chưa so được (xem Vấn đề mở); **P2 (hướng bi ±0,1°) chưa báo cáo; P3 chưa đạt** (lệch miệng lỗ chưa có giải thích + test tái hiện)
 
 ## R2 — Lát cắt chơi được trên iPhone
@@ -99,8 +99,10 @@ Chưa bắt đầu. Âm thanh bậc B: R7.A1–A4 (UPGRADE.md 6.9).
 
 - 19/10/2026 · Đối chứng băng từng va chạm (run 39214085792): 246 lần chạm băng thẳng của pooltool Han 2005, đưa đúng trạng thái trước va chạm vào `CushionCollision.resolve` → vận tốc và xoáy sau va chạm **khớp tuyệt đối** (|Δv| 0,000 mm/s, |Δω| 0,0000 rad/s). Công thức băng đã được xác minh; phần lệch còn lại ở nhóm "băng" đến từ hình học: 19/246 lần chạm của pooltool nằm ở đoạn băng xiên sát miệng lỗ, nơi bàn của ta không có đoạn băng thẳng.
 - 19/10/2026 · Phát hành · Repo bật Release bất biến → không dời tag/sửa Release được nữa. Đổi sang: mỗi build một Release `zoker-v<phiên bản>-b<build>` (giữ 10) + link cố định qua nhánh `dist-zoker`. Run 39217870570 xanh (b27). Thêm `Tools/mac/setup-runner.sh` + workflow `device.yml` (build bằng Xcode trên Mac của người dùng, cài thẳng iPhone) — **chưa chạy thử, chờ cài runner trên Mac**.
+- 19/10/2026 · R1.7 · Bộ 10.000 cú có seed 2026 (1.000 phá bi, 2.000 cụm bi dính khe 1 µm, 2.000 bi sát băng 0,5–5 mm, 5.000 ngẫu nhiên 2–15 bi; điểm chạm ±0,5R), bản release trên CI macOS, 75,7 s, lấy mẫu dày 2 ms giữa các sự kiện. **M2** chạy lại giống từng bit 10.000/10.000 · **M4** 0 lần động năng tăng · **M5** sai số động lượng cặp lớn nhất 3,6e-15 m/s (ngưỡng 1e-9) · **M3 không đạt:** 258 cú chồng lấn ≥ 1 µm, lớn nhất 11,6 µm tại sự kiện, 4,7 µm giữa sự kiện · **M6 không đạt:** 5 cú chạm giới hạn 20.000 sự kiện (shot 1170, 1660, 1810, 4830, 9510). Mọi cú lỗi được in ra (10 cú đầu của M3, cả 5 cú của M6) đều là cú phá bi (chỉ số chia hết cho 10); chưa liệt kê đủ 258 cú M3 theo loại. Bộ đo bench cũ (khe 0,2 mm) không thấy vì tam giác ở đây có cả khe 1 µm và bi cái lệch tới ±0,2 m. Tái hiện: `poolsim --invariants 10000 2026 <shot>`.
 
 ## Vấn đề mở
+- **R1.7 cú phá (bắt buộc, chặn R1):** M3 chồng lấn tới 11,6 µm và M6 chạm giới hạn sự kiện ở 0,5% cú phá. Cần sửa xử lý tiếp xúc nhiều bi đồng thời trong tam giác (liên quan M7, ngưỡng chống Zeno) — nhiệm vụ phiên sau. Job `invariants` đỏ cho tới khi đạt.
 - **Băng:** công thức trùng Han 2005 (đã so từng va chạm). Phần lệch còn lại do hình học đoạn băng gần miệng lỗ khác pooltool — gộp với vấn đề miệng lỗ bên dưới. Chọn Han hay Stronge chỉ quyết bằng số đo bàn thật (R4).
 - **Miệng lỗ (jaw):** hình học lỗ hai engine khác hẳn (ta: đường bắt + đoạn mũi; pooltool: băng cong + lỗ tròn) → so jaw chưa có ý nghĩa (trung vị ~100 mm, 9–12 bi vào lỗ ở một bên). Cần dựng cùng hình học lỗ trước khi so.
 - **Chiều cao mũi băng** nhạy cao (0,5% đổi trung vị 0 → 14 mm): ưu tiên đo ở R4.
