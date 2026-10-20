@@ -77,12 +77,12 @@ struct HUDView: View {
             }
             HStack(spacing: 8) {
                 Button { g.toggleLock() } label: {
-                    Label(g.locked ? "Đã khoá" : "Khoá cơ", systemImage: g.locked ? "lock.fill" : "lock.open")
+                    Text("B").font(.system(size: 19, weight: .bold, design: .rounded))
                         .font(.system(size: 14, weight: .bold)).padding(.horizontal, 14).padding(.vertical, 9)
-                        .background(Capsule().fill(g.locked ? Color(hex: 0xf77f00) : Color.white.opacity(0.1)))
+                        .background(Circle().fill(g.locked ? Color.white.opacity(0.24) : Color.white.opacity(0.10)))
                         .foregroundColor(.white)
                 }.buttonStyle(.plain)
-                FineStrip(g: g)
+                FineStrip(g: g).opacity(0.47).scaleEffect(y: 0.68)
             }
         }.padding(.horizontal, 8).padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(panelBG))
