@@ -123,7 +123,7 @@ public struct Simulation: Sendable {
         var records: [CollisionRecord] = []
         var miscue = false
         if let i = balls.firstIndex(where: { $0.id == 0 && $0.state != .pocketed }) {
-            let out = CueModel.strike(strike, cue: cue, ball: balls[i], mass: m, radius: R, parameters: parameters)
+            let out = CueModel.strike(strike, cue: CueSpec.named(strike.cueId) ?? cue, ball: balls[i], mass: m, radius: R, parameters: parameters)
             balls[i] = out.ball
             miscue = out.miscue
             records.append(CollisionRecord(kind: out.miscue ? .miscue : .cueTip, time: 0,

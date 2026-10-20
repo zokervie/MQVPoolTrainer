@@ -153,25 +153,60 @@ final class TableScene {
         }
     }
 
-    /// Cơ nhiều đoạn (đầu tẩy xanh phấn, khâu trắng, ngọn gỗ phong vuốt thon, khớp kim loại, gốc gỗ mun,
-    /// cuốn tay đen). Trục +z của `cue` hướng về đuôi cơ, đầu tẩy ở gốc tọa độ.
+    /// Cơ nhiều đoạn (đầu tẩy, khâu trắng, ngọn gỗ phong vuốt thon, khớp kim loại, gốc, cuốn tay).
+    /// Trục +z của `cue` hướng về đuôi cơ, đầu tẩy ở gốc tọa độ. Hình dáng theo loại cơ (`CueSpec.library`):
+    /// cơ nhảy ngắn, gốc xanh than, đầu phenolic sáng; cơ massé ngắn, to, gốc nâu đỏ.
     private func buildCue() {
-        let parts: [(Float, Float, Float, Float, PhysicallyBasedMaterial)] = [
-            (0.000, 0.006, 0.0062, 0.0064, TableDecor.pbr(UIColor(red: 0.18, green: 0.40, blue: 0.72, alpha: 1), roughness: 0.9)),
-            (0.006, 0.030, 0.0064, 0.0065, TableDecor.pbr(UIColor(white: 0.96, alpha: 1), roughness: 0.25, clearcoat: 0.6)),
-            (0.030, 0.740, 0.0065, 0.0105, TableDecor.pbr(UIColor(red: 0.90, green: 0.80, blue: 0.62, alpha: 1), roughness: 0.3, clearcoat: 0.8)),
-            (0.740, 0.765, 0.0108, 0.0110, TableDecor.pbr(UIColor(white: 0.75, alpha: 1), roughness: 0.15, metallic: 1)),
-            (0.765, 1.050, 0.0110, 0.0125, TableDecor.pbr(UIColor(red: 0.10, green: 0.05, blue: 0.03, alpha: 1), roughness: 0.2, clearcoat: 1)),
-            (1.050, 1.300, 0.0128, 0.0135, TableDecor.pbr(UIColor(white: 0.06, alpha: 1), roughness: 0.85)),
-            (1.300, 1.450, 0.0135, 0.0145, TableDecor.pbr(UIColor(red: 0.16, green: 0.07, blue: 0.04, alpha: 1), roughness: 0.2, clearcoat: 1))
-        ]
+        root.addChild(cue)
+        setCue(.playing)
+    }
+
+    private(set) var cueId = ""
+
+    func setCue(_ spec: CueSpec) {
+        guard spec.id != cueId else { return }
+        cueId = spec.id
+        for child in Array(cue.children) { child.removeFromParent() }
+        let L = Float(spec.length)
+        let tipR = Float(spec.tipDiameter / 2)
+        let tipColor: UIColor, buttColor: UIColor, gripColor: UIColor
+        let thick: Float
+        switch spec.kind {
+        case .playing:
+            tipColor = UIColor(red: 0.18, green: 0.40, blue: 0.72, alpha: 1)
+            buttColor = UIColor(red: 0.10, green: 0.05, blue: 0.03, alpha: 1); gripColor = UIColor(white: 0.06, alpha: 1)
+            thick = 1
+        case .jump:
+            tipColor = UIColor(red: 0.85, green: 0.86, blue: 0.82, alpha: 1)
+            buttColor = UIColor(red: 0.08, green: 0.13, blue: 0.18, alpha: 1); gripColor = UIColor(red: 0.15, green: 0.55, blue: 0.62, alpha: 1)
+            thick = 1.05
+        case .masse:
+            tipColor = UIColor(red: 0.20, green: 0.38, blue: 0.68, alpha: 1)
+            buttColor = UIColor(red: 0.32, green: 0.08, blue: 0.05, alpha: 1); gripColor = UIColor(white: 0.08, alpha: 1)
+            thick = 1.15
+        }
+        // (bắt đầu, kết thúc theo tỉ lệ chiều dài; bán kính đầu, bán kính cuối) — ngọn dài ~50 % cơ.
+        let shaftEnd: Float = 0.51, jointEnd: Float = 0.527, buttEnd: Float = 0.72, gripEnd: Float = 0.9
+        let tipRough: Float = spec.kind == .jump ? 0.35 : 0.9
+        let ferruleR: Float = tipR + 0.0001
+        let r1: Float = 0.0105 * thick, r2: Float = 0.0108 * thick, r3: Float = 0.0110 * thick
+        let r4: Float = 0.0125 * thick, r5: Float = 0.0128 * thick, r6: Float = 0.0135 * thick, r7: Float = 0.0145 * thick
+        let zS: Float = shaftEnd * L, zJ: Float = jointEnd * L, zB: Float = buttEnd * L, zG: Float = gripEnd * L
+        let maple = UIColor(red: 0.90, green: 0.80, blue: 0.62, alpha: 1)
+        var parts: [(Float, Float, Float, Float, PhysicallyBasedMaterial)] = []
+        parts.append((0, 0.006, tipR - 0.0003, tipR, TableDecor.pbr(tipColor, roughness: tipRough)))
+        parts.append((0.006, 0.030, tipR, ferruleR, TableDecor.pbr(UIColor(white: 0.96, alpha: 1), roughness: 0.25, clearcoat: 0.6)))
+        parts.append((0.030, zS, ferruleR, r1, TableDecor.pbr(maple, roughness: 0.3, clearcoat: 0.8)))
+        parts.append((zS, zJ, r2, r3, TableDecor.pbr(UIColor(white: 0.75, alpha: 1), roughness: 0.15, metallic: 1)))
+        parts.append((zJ, zB, r3, r4, TableDecor.pbr(buttColor, roughness: 0.2, clearcoat: 1)))
+        parts.append((zB, zG, r5, r6, TableDecor.pbr(gripColor, roughness: 0.85)))
+        parts.append((zG, L, r6, r7, TableDecor.pbr(buttColor, roughness: 0.2, clearcoat: 1)))
         for (z0, z1, r0, r1, mat) in parts {
             guard let mesh = TableDecor.frustum(r0: r0, r1: r1, length: z1 - z0) else { continue }
             let e = ModelEntity(mesh: mesh, materials: [mat])
             e.position = [0, 0, z0]
             cue.addChild(e)
         }
-        root.addChild(cue)
     }
 
     // MARK: Phòng bida

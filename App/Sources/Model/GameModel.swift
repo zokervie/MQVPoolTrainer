@@ -120,7 +120,7 @@ final class GameModel {
         result = nil
         feedback = nil
         machine = InteractionMachine()
-        if !keepTip { tip = .zero; elevation = 0 }
+        if !keepTip { tip = .zero; elevation = Self.typicalElevation(cue.kind) }
         cueDraw = 0
         // Hướng ban đầu: về phía bi mục tiêu gần nhất (không phải đường ngắm gợi ý).
         if let cue = balls.first(where: { $0.id == 0 }) {
@@ -144,7 +144,7 @@ final class GameModel {
     @discardableResult
     func setTip(_ p: SIMD2<Double>) -> Bool {
         guard machine.showsEffectBall else { return false }
-        let limit = CueSpec().miscueLimit
+        let limit = cue.miscueLimit
         let len = simd_length(p)
         if len > limit {
             tip = p / len * limit
@@ -155,6 +155,29 @@ final class GameModel {
     }
 
     func resetTip() { if machine.showsEffectBall { tip = .zero } }
+
+    /// Độ dốc điển hình khi vừa chọn cơ (giả định theo mô tả chung: nhảy 45°, massé 70°).
+    static func typicalElevation(_ k: CueKind) -> Double {
+        switch k { case .playing: 0; case .jump: 45 * .pi / 180; case .masse: 70 * .pi / 180 }
+    }
+
+    /// Cơ đang dùng.
+    var cue: CueSpec { CueSpec.named(settings.cueId) ?? .playing }
+
+    /// Đổi cơ. Đổi sang cơ nhảy / massé thì đặt sẵn độ dốc điển hình (45° / 70°) nếu cơ đang thấp hơn nhiều;
+    /// về cơ thường thì hạ cơ về ngang. Người chơi vẫn chỉnh lại bằng thước độ dốc.
+    func selectCue(_ id: String) {
+        guard machine.showsEffectBall, let c = CueSpec.named(id), c.id != cue.id else { return }
+        settings.cueId = c.id
+        settings.save()
+        switch c.kind {
+        case .playing: elevation = 0
+        case .jump: if elevation < 25 * .pi / 180 { elevation = Self.typicalElevation(.jump) }
+        case .masse: if elevation < 55 * .pi / 180 { elevation = Self.typicalElevation(.masse) }
+        }
+        setTip(tip)
+        Haptics.lock()
+    }
 
     /// Đặt độ dốc cơ; trả về true nếu chạm giới hạn.
     @discardableResult
@@ -182,13 +205,14 @@ final class GameModel {
 
     func strokeCompleted(_ r: StrokeResult, recording: TouchRecording) {
         guard machine.swipeStrokes else { return }
-        let speed = strokeMapping.cueSpeed(fingerSpeed: r.fingerSpeed)
+        // Cùng cú vuốt: cơ nhẹ vung nhanh hơn (CueSpec.strokeSpeedFactor, giả định có ghi nguồn).
+        let speed = strokeMapping.cueSpeed(fingerSpeed: r.fingerSpeed) * cue.strokeSpeedFactor
         guard speed > 0 else { machine.handle(.strokeCancelled); return }
         // Vuốt lệch sang phải (lateral > 0) đẩy cơ sang phải (góc giảm) và tạo xoáy phải ngoài ý muốn.
         let aim = aimAngle - strokeMapping.aimError(r)
         let english = max(-1, min(1, tip.x + strokeMapping.unintendedEnglish(r)))
         let strike = CueStrike(aimAngle: aim, cueSpeed: speed, tipVertical: tip.y, tipHorizontal: english,
-                               elevation: elevation)
+                               elevation: elevation, cueId: cue.id)
         cueDraw = 0
         lastStroke = r
         lastRecording = recording

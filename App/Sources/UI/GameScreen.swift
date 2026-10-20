@@ -17,7 +17,7 @@ struct GameScreen: View {
                 GameContainer(model: model)
 
                 if model.state == .aiming {
-                    EffectBall(tip: model.tip, expanded: model.effectExpanded)
+                    EffectBall(tip: model.tip, expanded: model.effectExpanded, cue: model.cue)
                         .position(EffectBallLayout.center(size: full, insets: insets, mirrored: model.settings.leftHanded))
                         .allowsHitTesting(false)
                     let er = EffectBallLayout.elevationRect(size: full, insets: insets, mirrored: model.settings.leftHanded)
@@ -25,6 +25,11 @@ struct GameScreen: View {
                         .frame(width: er.width, height: er.height)
                         .position(x: er.midX, y: er.midY)
                         .allowsHitTesting(false)
+                    if !model.effectExpanded {
+                        let c = EffectBallLayout.center(size: full, insets: insets, mirrored: model.settings.leftHanded)
+                        CuePicker(selected: model.cue.id) { model.selectCue($0) }
+                            .position(x: c.x - (model.settings.leftHanded ? -22 : 22), y: c.y + EffectBallLayout.elevationHeight / 2 + 30)
+                    }
                 }
 
                 // Một nút menu mờ duy nhất; ẩn khi đã khóa / đang chạy cú để không che bàn.
@@ -72,15 +77,16 @@ struct GameScreen: View {
 struct EffectBall: View {
     var tip: SIMD2<Double>
     var expanded: Bool
+    var cue: CueSpec = .playing
 
-    /// Bán kính đầu tẩy / bán kính bi. Giả định đầu tẩy 13 mm (khoảng thường gặp 12,5–13,5 mm), bi 57,15 mm.
-    static let tipRatio: CGFloat = 13.0 / 57.15
+    /// Bán kính đầu tẩy / bán kính bi theo cơ đang dùng (đầu tẩy 13–13,5 mm, bi 57,15 mm).
+    var tipRatio: CGFloat { CGFloat(cue.tipDiameter / 0.05715) }
     /// "1 đầu tẩy" = lệch tâm một bán kính đầu tẩy; 2 đầu tẩy ≈ 0,45R, sát giới hạn trượt cơ 0,5R.
 
     var body: some View {
         let r = expanded ? EffectBallLayout.expandedRadius : EffectBallLayout.compactRadius
-        let k = Self.tipRatio
-        let limit = CGFloat(CueSpec().miscueLimit)
+        let k = tipRatio
+        let limit = CGFloat(cue.miscueLimit)
         let ink = Color(red: 0.25, green: 0.22, blue: 0.18)
         ZStack {
             // Bi ngà: sáng phía trên trái (đèn trần), tối dần ra mép.
@@ -128,6 +134,59 @@ struct EffectBall: View {
         .frame(width: r * 2, height: r * 2)
         .opacity(expanded ? 1 : 0.6)
         .animation(.easeOut(duration: 0.15), value: expanded)
+    }
+}
+
+/// Chọn cơ: ba hình cơ nhỏ (thường dài, nhảy ngắn đầu xanh, massé ngắn dựng đứng). Không chữ.
+struct CuePicker: View {
+    var selected: String
+    var onSelect: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(CueSpec.library, id: \.id) { c in
+                Button { onSelect(c.id) } label: {
+                    CueGlyph(kind: c.kind)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(Color.black.opacity(c.id == selected ? 0.45 : 0.2)))
+                        .overlay(Circle().stroke(Color.white.opacity(c.id == selected ? 0.8 : 0.0), lineWidth: 1.2))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(c.kind.titleKey))
+            }
+        }
+        .opacity(0.9)
+    }
+}
+
+/// Hình cơ thu nhỏ theo loại.
+struct CueGlyph: View {
+    var kind: CueKind
+    var body: some View {
+        Canvas { ctx, size in
+            let w = size.width, h = size.height
+            let (len, angle, butt, tipColor): (CGFloat, Double, CGFloat, Color) = switch kind {
+            case .playing: (0.9, -0.5, 2.6, Color(red: 0.3, green: 0.55, blue: 0.9))
+            case .jump: (0.55, -0.85, 3.6, Color(red: 0.25, green: 0.8, blue: 0.85))
+            case .masse: (0.62, -1.3, 3.4, Color(red: 0.95, green: 0.75, blue: 0.3))
+            }
+            let c = CGPoint(x: w / 2, y: h / 2)
+            let dx = cos(angle) * len * w / 2, dy = sin(angle) * len * h / 2
+            let a = CGPoint(x: c.x - dx, y: c.y - dy), b = CGPoint(x: c.x + dx, y: c.y + dy)
+            var shaft = Path(); shaft.move(to: a); shaft.addLine(to: b)
+            ctx.stroke(shaft, with: .color(Color(red: 0.93, green: 0.84, blue: 0.66)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            var buttP = Path(); buttP.move(to: a)
+            buttP.addLine(to: CGPoint(x: a.x + (b.x - a.x) * 0.35, y: a.y + (b.y - a.y) * 0.35))
+            ctx.stroke(buttP, with: .color(Color(white: 0.1)), style: StrokeStyle(lineWidth: butt, lineCap: .round))
+            ctx.fill(Path(ellipseIn: CGRect(x: b.x - 1.8, y: b.y - 1.8, width: 3.6, height: 3.6)), with: .color(tipColor))
+        }
+    }
+}
+
+extension CueKind {
+    /// Tên hiển thị (chỉ ở menu/cài đặt và trợ năng, không hiện khi đánh).
+    var titleKey: LocalizedStringKey {
+        switch self { case .playing: "Cơ thường"; case .jump: "Cơ nhảy"; case .masse: "Cơ massé" }
     }
 }
 

@@ -81,6 +81,7 @@ struct GameContainer: UIViewRepresentable {
                 drillId = .some(model.drill?.id)
                 scene.showMarkers(for: model.drill)
             }
+            scene.setCue(model.cue)
             let balls = model.displayBalls(now: CACurrentMediaTime())
             scene.updateBalls(balls, dt: dt)
             let st = model.state

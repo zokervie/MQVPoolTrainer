@@ -14,6 +14,8 @@ final class AppSettings {
     /// Hệ số đổi điểm màn hình → mm (màn hiệu chỉnh).
     var mmPerPoint: Double
     var seenLockHint: Bool
+    /// Cơ đang dùng (`CueSpec.library`).
+    var cueId: String
 
     private let defaults = UserDefaults.standard
 
@@ -28,6 +30,7 @@ final class AppSettings {
         // Mặc định: 1 điểm ≈ 1/163 inch (đa số iPhone); người dùng hiệu chỉnh lại.
         mmPerPoint = d.object(forKey: "mmPerPoint") as? Double ?? 25.4 / 163
         seenLockHint = d.bool(forKey: "seenLockHint")
+        cueId = d.string(forKey: "cueId") ?? "playing"
     }
 
     func save() {
@@ -39,5 +42,6 @@ final class AppSettings {
         defaults.set(eyeHeight, forKey: "eyeHeight")
         defaults.set(mmPerPoint, forKey: "mmPerPoint")
         defaults.set(seenLockHint, forKey: "seenLockHint")
+        defaults.set(cueId, forKey: "cueId")
     }
 }

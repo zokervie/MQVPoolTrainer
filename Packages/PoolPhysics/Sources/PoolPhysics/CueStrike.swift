@@ -14,17 +14,21 @@ public struct CueStrike: Codable, Equatable, Sendable {
     /// Độ dốc cơ (radian, 0 = nằm ngang; nâng đuôi cơ lên). Cơ dốc + đánh dưới → nhảy bi;
     /// cơ rất dốc + đánh lệch → massé. Điểm chạm đo trên mặt phẳng vuông góc với trục cơ.
     public var elevation: Double
+    /// Cơ dùng cho cú này (`CueSpec.library`). nil = cơ của `Simulation` (mặc định: cơ thường).
+    /// Lưu cùng cú để phát lại đúng.
+    public var cueId: String?
 
     public init(aimAngle: Double, cueSpeed: Double, tipVertical: Double = 0, tipHorizontal: Double = 0,
-                elevation: Double = 0) {
+                elevation: Double = 0, cueId: String? = nil) {
         self.aimAngle = aimAngle
         self.cueSpeed = cueSpeed
         self.tipVertical = tipVertical
         self.tipHorizontal = tipHorizontal
         self.elevation = elevation
+        self.cueId = cueId
     }
 
-    private enum CodingKeys: String, CodingKey { case aimAngle, cueSpeed, tipVertical, tipHorizontal, elevation }
+    private enum CodingKeys: String, CodingKey { case aimAngle, cueSpeed, tipVertical, tipHorizontal, elevation, cueId }
 
     /// Đọc được bản ghi cũ chưa có `elevation`.
     public init(from decoder: Decoder) throws {
@@ -34,25 +38,69 @@ public struct CueStrike: Codable, Equatable, Sendable {
         tipVertical = try c.decodeIfPresent(Double.self, forKey: .tipVertical) ?? 0
         tipHorizontal = try c.decodeIfPresent(Double.self, forKey: .tipHorizontal) ?? 0
         elevation = try c.decodeIfPresent(Double.self, forKey: .elevation) ?? 0
+        cueId = try c.decodeIfPresent(String.self, forKey: .cueId)
     }
 
     /// Khoảng cách điểm chạm tới tâm, theo tỉ lệ bán kính.
     public var tipOffset: Double { (tipVertical * tipVertical + tipHorizontal * tipHorizontal).squareRoot() }
 }
 
-/// Thông số cơ. Giá trị mặc định là **giả định** (cơ phổ biến), cần đo hoặc lấy theo cơ của người chơi.
+/// Loại cơ. Tên hư cấu của dự án — không dùng tên/hình hãng thật (chưa có số đo và giấy phép).
+public enum CueKind: String, Codable, CaseIterable, Sendable {
+    /// Cơ đánh thường (cơ dài, đầu da).
+    case playing
+    /// Cơ nhảy (ngắn, nhẹ, đầu phenolic cứng).
+    case jump
+    /// Cơ massé (ngắn, nặng, cứng).
+    case masse
+}
+
+/// Thông số cơ. Nguồn/giả định ghi ở từng trường; bộ cơ có sẵn ở `CueSpec.library`.
 public struct CueSpec: Codable, Equatable, Sendable {
-    /// Khối lượng cơ (kg). Giả định: 19 oz ≈ 0,54 kg.
+    public var id: String = "playing"
+    public var kind: CueKind = .playing
+    /// Khối lượng cơ (kg). Cơ thường 18–21 oz (Dr. Dave); mặc định 19 oz ≈ 0,54 kg.
     public var mass: Double = 0.54
-    /// Khối lượng hiệu dụng đầu cơ (kg), quyết định squirt. Giả định: ~7 g (cơ ngọn tiêu chuẩn).
+    /// Khối lượng hiệu dụng đầu cơ (kg), quyết định squirt. Giả định: ~7 g (ngọn tiêu chuẩn).
     /// Nguồn mô hình: Alciatore TP A.31.
     public var endMass: Double = 0.007
-    /// Hệ số phục hồi đầu cơ–bi. Giả định ~0,75 [Alciatore dùng 0,7–0,8].
+    /// Hệ số phục hồi đầu cơ–bi. Dr. Dave: đầu da 0,71–0,75; phenolic 0,81–0,87 (docs/09).
     public var tipRestitution: Double = 0.75
-    /// Giới hạn trượt cơ, tỉ lệ bán kính. Nguồn: Alciatore (~0,5R).
+    /// Giới hạn trượt cơ, tỉ lệ bán kính. Nguồn: Alciatore (~0,5R, đầu da có phấn).
     public var miscueLimit: Double = 0.5
+    /// Đường kính đầu tẩy (m). WPA: tối đa 14 mm; thường 12,5–13,5 mm.
+    public var tipDiameter: Double = 0.013
+    /// Chiều dài cơ (m), chỉ để vẽ. Cơ thường 57–59″ (~1,47 m).
+    public var length: Double = 1.47
+    /// Tốc độ đầu cơ khi cùng một cú vuốt, so với cơ thường. Cơ nhẹ vung nhanh hơn với cùng sức tay:
+    /// coi tay + cơ như một khối, cùng động năng → V ∝ 1/√(M_tay + M). **Giả định** M_tay hiệu dụng 1,0 kg
+    /// (chưa đo); cùng một cơ thì luôn cùng một hệ số → vẫn "cùng đầu vào, cùng kết quả".
+    public var strokeSpeedFactor: Double { ((CueSpec.armMass + 0.54) / (CueSpec.armMass + mass)).squareRoot() }
+    public static let armMass = 1.0
 
     public init() {}
+
+    public init(id: String, kind: CueKind, mass: Double, endMass: Double, tipRestitution: Double,
+                miscueLimit: Double, tipDiameter: Double, length: Double) {
+        self.id = id; self.kind = kind; self.mass = mass; self.endMass = endMass
+        self.tipRestitution = tipRestitution; self.miscueLimit = miscueLimit
+        self.tipDiameter = tipDiameter; self.length = length
+    }
+
+    /// Cơ thường: 19 oz, đầu da 13 mm. Mọi số theo khoảng công bố (Dr. Dave, WPA), endMass giả định.
+    public static let playing = CueSpec()
+    /// Cơ nhảy: ~9 oz (0,25 kg), dài ~40″, đầu phenolic (e 0,84 giữa 0,81–0,87). Nhẹ để đầu cơ "tránh đường"
+    /// cho bi nảy lên (Dr. Dave, jump shot FAQ). endMass 12 g và giới hạn trượt 0,45R (phenolic ít bám phấn
+    /// hơn) là **giả định**.
+    public static let jump = CueSpec(id: "jump", kind: .jump, mass: 0.25, endMass: 0.012, tipRestitution: 0.84,
+                                     miscueLimit: 0.45, tipDiameter: 0.0135, length: 1.02)
+    /// Cơ massé: ~21 oz (0,6 kg), ngắn ~50″, ngọn cứng đầu da cứng (e 0,78). Số liệu **giả định** theo mô tả
+    /// chung về cơ massé (nặng, cứng); chưa đo.
+    public static let masse = CueSpec(id: "masse", kind: .masse, mass: 0.6, endMass: 0.012, tipRestitution: 0.78,
+                                      miscueLimit: 0.5, tipDiameter: 0.013, length: 1.27)
+
+    public static let library: [CueSpec] = [.playing, .jump, .masse]
+    public static func named(_ id: String?) -> CueSpec? { library.first { $0.id == id } }
 }
 
 public struct StrikeOutcome: Equatable, Sendable {
@@ -60,8 +108,11 @@ public struct StrikeOutcome: Equatable, Sendable {
     public var miscue: Bool
     /// Góc lệch squirt (radian, dấu: dương = lệch sang trái hướng ngắm).
     public var squirtAngle: Double
-    /// Xung lực truyền cho bi (N·s).
+    /// Xung lực truyền cho bi (N·s), cộng cả các lần chạm lại.
     public var impulse: Double
+    /// Số lần đầu cơ chạm lại bi sau lần đầu (cơ dốc: bi kẹt giữa đầu cơ và mặt bàn). Trong luật là lỗi
+    /// nếu > 0 ở cú nhảy; ở massé là bình thường.
+    public var doubleHits: Int = 0
 }
 
 /// Va chạm cơ–bi theo xung lực, có độ dốc cơ.
@@ -98,7 +149,7 @@ public enum CueModel {
             b.velocity = v * flat
             b.angularVelocity = .zero
             b.state = b.classified(radius: R)
-            return StrikeOutcome(ball: b, miscue: true, squirtAngle: 0, impulse: m * v)
+            return StrikeOutcome(ball: b, miscue: true, squirtAngle: 0, impulse: m * v, doubleHits: 0)
         }
 
         let v = (1 + cue.tipRestitution) * strike.cueSpeed / (1 + m / cue.mass + 2.5 * d * d)
@@ -118,15 +169,36 @@ public enum CueModel {
         let theta = strike.aimAngle + alpha
         let vh = v * cos(el), vz = -v * sin(el)
         b.velocity = SIMD3(vh * cos(theta), vh * sin(theta), vz)
+        var doubleHits = 0
+        var total = impulse
         if vz < 0 {
             // Bi đang nằm trên bàn: mặt bàn đỡ lực ép xuống.
             b.position.z = R
             b = SlateImpact.resolve(b, parameters, mass: m, radius: R, friction: false)
+            // Chạm hai lần: sau va chạm 1D với khối lượng hiệu dụng của bi mₑ = m/(1 + 2,5d²), đầu cơ còn đi
+            // tiếp với Vc' = V·(M − e·mₑ)/(M + mₑ). Nếu bi nảy khỏi mặt bàn mà thành phần vận tốc dọc trục cơ
+            // nhỏ hơn Vc', đầu cơ đuổi kịp và đẩy bi lần nữa (ép xuống bàn). Đây là lý do cơ nhẹ nhảy tốt hơn
+            // (Dr. Dave, jump shot FAQ: cơ nhẹ "tránh đường" cho bi). Giả thiết: mọi lần chạm tức thời, cùng
+            // điểm chạm và cùng e; tối đa 4 lần.
+            let me = m / (1 + 2.5 * d * d)
+            var vc = strike.cueSpeed * (cue.mass - cue.tipRestitution * me) / (cue.mass + me)
+            while doubleHits < 4 {
+                let away = simd_dot(b.velocity, axis)
+                let closing = vc - away
+                guard closing > 1e-6 else { break }
+                let j = (1 + cue.tipRestitution) * closing / (1 / cue.mass + 1 / me)
+                b.velocity += j / m * axis
+                b.angularVelocity += cross(r, j * axis) / (0.4 * m * R * R)
+                vc -= j / cue.mass
+                total += j
+                doubleHits += 1
+                if b.velocity.z < 0 { b = SlateImpact.resolve(b, parameters, mass: m, radius: R, friction: false) }
+            }
         } else {
             b.velocity.z = 0
         }
         b.state = b.classified(radius: R)
-        return StrikeOutcome(ball: b, miscue: false, squirtAngle: alpha, impulse: impulse)
+        return StrikeOutcome(ball: b, miscue: false, squirtAngle: alpha, impulse: total, doubleHits: doubleHits)
     }
 
     /// Giữ API cũ cho test hiện có: trả về bi sau cú đánh với thông số cơ mặc định.

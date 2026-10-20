@@ -41,7 +41,7 @@ struct ShotLabPanel: View {
                     let s = CueStrike(aimAngle: model.aimAngle + offsetDegrees * .pi / 180,
                                       cueSpeed: SpeedScale.cueSpeed(level: level),
                                       tipVertical: vertical, tipHorizontal: horizontal,
-                                      elevation: elevationDeg * .pi / 180)
+                                      elevation: elevationDeg * .pi / 180, cueId: model.cue.id)
                     model.shootShotLab(s)
                 } label: { Label("Đánh", systemImage: "scope") }
                 .buttonStyle(.borderedProminent)
