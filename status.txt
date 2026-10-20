@@ -1,0 +1,5 @@
+01-menu: OK
+03-predator: OK
+05-diamond7: OK
+06-std: OK
+09-realistic: OK
