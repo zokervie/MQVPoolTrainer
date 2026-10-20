@@ -52,6 +52,7 @@ struct TableView: UIViewRepresentable {
         private var lastStrokeY: CGFloat = 0
         private var lastStrokeT: TimeInterval = 0
         private var shotTriggered = false
+        private var strokeSamples: [(time: TimeInterval, y: CGFloat)] = []
 
         init(_ g: Game) { self.g = g }
 
@@ -79,6 +80,7 @@ struct TableView: UIViewRepresentable {
                 lastStrokeY = loc.y
                 lastStrokeT = ProcessInfo.processInfo.systemUptime
                 shotTriggered = false
+                strokeSamples = [(time: lastStrokeT, y: loc.y)]
                 if g.locked && g.phase == .aim { mode = .drag; return }
                 let start = CGPoint(x: loc.x - r.translation(in: v).x, y: loc.y - r.translation(in: v).y)
                 if g.ballInHand, (g.phase == .aim || g.phase == .placing), let cb = g.cueBall, let p = sc.pick(start), p.dist(cb.pos) < 0.09 {
@@ -92,13 +94,18 @@ struct TableView: UIViewRepresentable {
                     let t = r.translation(in: v)
                     strokeBack = max(strokeBack, t.y)
                     let now = ProcessInfo.processInfo.systemUptime
-                    let dt = max(0.001, now - lastStrokeT)
-                    let upwardSpeed = max(0, Double(lastStrokeY - loc.y) / dt)
-                    if strokeBack >= 28 && t.y <= 0 && upwardSpeed > 40 {
-                        // Continuous velocity-based power: preserve existing Physics.swift.
-                        let speed = min(1, max(0.02, upwardSpeed / 1400.0))
+                    strokeSamples.append((time: now, y: loc.y))
+                    // 35 ms time window protects gentle strokes from single-sample spikes.
+                    strokeSamples.removeAll { now - $0.time > 0.035 }
+                    let first = strokeSamples.first!
+                    let windowDt = now - first.time
+                    let upwardSpeed = windowDt > 0.008 ? max(0, Double(first.y - loc.y) / windowDt) : 0
+                    if strokeBack >= 28 && t.y <= 0 && upwardSpeed > 35 {
+                        // Only cross the virtual tip-contact plane after a real backswing.
+                        // This changes input mapping, not the stable ball physics.
+                        let power = min(1, max(0.02, upwardSpeed / 1400.0))
                         shotTriggered = true
-                        g.shoot(speed)
+                        g.shoot(power)
                     }
                     lastStrokeY = loc.y
                     lastStrokeT = now
@@ -116,6 +123,7 @@ struct TableView: UIViewRepresentable {
                 }
             default:
                 strokeBack = 0
+                strokeSamples.removeAll()
                 if mode == .place { g.phase = .placing; g.markPreviewDirty() }
                 mode = .drag
             }
