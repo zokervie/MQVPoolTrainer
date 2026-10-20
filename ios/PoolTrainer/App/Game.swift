@@ -431,6 +431,17 @@ final class Game: NSObject, ObservableObject {
         else if mode == .challengePower || mode == .challengeAim { nextChallengeShot() }
     }
 
+    /// Cue-specific transfer approximation, using openly editable parameters.
+    /// Not a manufacturer measurement; calibration fixtures must validate future values.
+    private var cueProfile: (speed: Double, squirt: Double, maxElev: Double) {
+        let id = UserDefaults.standard.string(forKey: "zoker-cue-choice") ?? "playing"
+        switch id {
+        case "jump": return (0.86, 0.80, 65)
+        case "breakCue": return (1.10, 1.18, 35)
+        default: return (1.0, 1.0, 65)
+        }
+    }
+
     // MARK: - đánh
     static func powerToSpeed(_ p: Double) -> Double { 0.25 + 8.75 * p * p }
 
@@ -444,7 +455,8 @@ final class Game: NSObject, ObservableObject {
             d += st.lateralRatio * 0.05
             a = max(-0.6, min(0.6, a + st.lateralRatio * 0.3))
         }
-        let params = ShotParams(dir: d, speed: Game.powerToSpeed(power), a: a, b: spinB, elev: elev * .pi / 180, squirt: settings.squirt ? 0.02 : 0)
+        let profile = cueProfile
+        let params = ShotParams(dir: d, speed: Game.powerToSpeed(power) * profile.speed, a: a, b: spinB, elev: min(elev, profile.maxElev) * .pi / 180, squirt: settings.squirt ? 0.02 * profile.squirt : 0)
         lastShot = makeRecord(params, stroke: stroke)
         trailPrev = trailNow; trailNow = [:]
         feedback = nil; feedbackPending = false
