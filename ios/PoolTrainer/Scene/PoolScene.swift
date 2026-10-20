@@ -174,9 +174,10 @@ final class PoolScene {
         tableRoot.childNodes.forEach { $0.removeFromParentNode() }
         let t = tableRoot
         let clothImg = Textures.cloth(hex)
-        // PBR matte felt with high roughness. Detail texture remains a separate art task.
+        // Stable diffuse felt: avoid HDR/PBR washout that made the table appear white.
+        // Cloth must preserve its chosen color under the existing room lighting.
         let clothMat = SCNMaterial()
-        clothMat.lightingModel = .physicallyBased
+        clothMat.lightingModel = .lambert
         clothMat.diffuse.contents = clothImg
         clothMat.roughness.contents = CGFloat(0.96)
         clothMat.metalness.contents = CGFloat(0)
