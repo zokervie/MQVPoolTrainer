@@ -6,19 +6,20 @@ struct HUDView: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            topBar
-            HStack(spacing: 4) { ForEach(g.ballStrip) { MiniBall(id: $0.id, gone: $0.gone, size: 18) } }
-            if let info = g.sysInfo {
+            if !g.locked { topBar }
+            if !g.locked { HStack(spacing: 4) { ForEach(g.ballStrip) { MiniBall(id: $0.id, gone: $0.gone, size: 18) } } }
+            if !g.locked, let info = g.sysInfo {
                 Text(info).font(.system(size: 14, weight: .heavy)).padding(.horizontal, 12).padding(.vertical, 5)
                     .background(Capsule().fill(Color(hex: 0xff9f1c, alpha: 0.9))).foregroundColor(.black)
             }
-            HStack(alignment: .top) {
+            if !g.locked { HStack(alignment: .top) {
                 if g.settings.telemetry && !g.settings.realistic { TelemetryView(t: g.telemetry) }
                 Spacer()
                 if let fb = g.feedback { FeedbackPanel(g: g, fb: fb).transition(.move(edge: .trailing).combined(with: .opacity)) }
             }
+            }
             Spacer()
-            if let t = g.toast {
+            if !g.locked, let t = g.toast {
                 Text(t.msg).font(.system(size: 14, weight: .semibold)).multilineTextAlignment(.center)
                     .padding(.horizontal, 16).padding(.vertical, 9)
                     .background(Capsule().fill(t.kind == .ok ? Color(hex: 0x1b5e3b, alpha: 0.95) : t.kind == .bad ? Color(hex: 0x7a1f2b, alpha: 0.95) : panelBG))
@@ -102,15 +103,38 @@ struct HUDView: View {
         return "\(vn(v)) m/s · mức \(vn(SpeedScale.level(speed: v)))/7"
     }
 
+    // 0.9 bridge layout: always retain B at lower-left while locked;
+    // all other controls disappear during the hold.
+    private var bridgeButton: some View {
+        Text("B").font(.system(size: 19, weight: .bold, design: .rounded))
+            .foregroundColor(.white.opacity(0.9))
+            .frame(width: 62, height: 62)
+            .background(Circle().fill(Color.white.opacity(g.locked ? 0.23 : 0.10)))
+            .overlay(Circle().stroke(Color.white.opacity(0.30), lineWidth: 1))
+            .contentShape(Circle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !g.locked && g.phase == .aim { g.setLock(true) }
+                }
+                .onEnded { _ in if g.locked { g.setLock(false) } })
+            .accessibilityLabel("Giữ B để khóa cầu tay, vuốt trên bàn bằng ngón còn lại")
+    }
+
     private var bottom: some View {
         HStack(alignment: .bottom) {
-            if g.settings.leftHand { powerCluster } else { spinCluster }
-            Spacer()
-            centerCluster
-            Spacer()
-            if g.settings.leftHand { spinCluster } else { powerCluster }
+            bridgeButton
+            if !g.locked {
+                spinCluster
+                Spacer(minLength: 8)
+                FineStrip(g: g).opacity(0.42).scaleEffect(y: 0.65)
+                Spacer(minLength: 8)
+                if !g.settings.swipePower { powerCluster }
+            } else {
+                Spacer()
+            }
         }
     }
+
 }
 
 struct TelemetryView: View {
