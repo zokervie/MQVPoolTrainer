@@ -117,16 +117,16 @@ final class PoolScene {
     }
 
     private func buildLights() {
-        let amb = SCNLight(); amb.type = .ambient; amb.intensity = 30; amb.color = UIColor(hex: 0xc9d6e3)
+        let amb = SCNLight(); amb.type = .ambient; amb.intensity = 48; amb.color = UIColor(hex: 0xc9d6e3)
         let an = SCNNode(); an.light = amb; scene.rootNode.addChildNode(an); lights.append((amb, amb.intensity))
-        let key = SCNLight(); key.type = .directional; key.intensity = 560; key.color = UIColor(hex: 0xfff4e0)
+        let key = SCNLight(); key.type = .directional; key.intensity = 620; key.color = UIColor(hex: 0xfff4e0)
         key.castsShadow = true; key.shadowMapSize = CGSize(width: 2048, height: 2048); key.shadowSampleCount = 8
-        key.shadowRadius = 3; key.shadowColor = UIColor(white: 0, alpha: 0.6); key.shadowMode = .deferred
+        key.shadowRadius = 5; key.shadowColor = UIColor(white: 0, alpha: 0.43); key.shadowMode = .deferred
         key.automaticallyAdjustsShadowProjection = false; key.orthographicScale = 1.7; key.zNear = 0.5; key.zFar = 6; key.shadowBias = 0.6
         let kn = SCNNode(); kn.light = key; kn.position = v3(0.3, 3.2, 0.5); kn.simdLook(at: .zero)
         scene.rootNode.addChildNode(kn); lights.append((key, key.intensity)); keyLight = key
         for x in [-0.85, 0, 0.85] {
-            let p = SCNLight(); p.type = .omni; p.intensity = 95; p.color = UIColor(hex: 0xffe7c2)
+            let p = SCNLight(); p.type = .omni; p.intensity = 120; p.color = UIColor(hex: 0xffe7c2)
             p.attenuationStartDistance = 0.3; p.attenuationEndDistance = 3.5; p.attenuationFalloffExponent = 2
             let n = SCNNode(); n.light = p; n.position = v3(x, 1.05, 0); scene.rootNode.addChildNode(n); lights.append((p, p.intensity))
         }
