@@ -65,7 +65,7 @@ final class RailTests: XCTestCase {
         let r = sim.run(balls: [Ball(id: 0, position: start)],
                         strike: CueStrike(aimAngle: aim, cueSpeed: speed, tipVertical: 0.2, tipHorizontal: side))
         XCTAssertEqual(r.status, .completed)
-        return r.collisions.filter { $0.kind == .cushion }
+        return r.collisions.filter { $0.kind == .ballCushion }
     }
 
     func testRailSequenceIsOrderedAndDistinct() {
@@ -117,7 +117,7 @@ final class RailTests: XCTestCase {
                     .run(balls: [Ball(id: 0, position: start)],
                          strike: CueStrike(aimAngle: aim, cueSpeed: speed, tipVertical: 0.15, tipHorizontal: side))
                 let d = { (p: SIMD3<Double>) in String(format: "(%.2f; %.2f)", p.x * 8 / self.table.length, p.y * 4 / self.table.width) }
-                let rails = r.collisions.filter { $0.kind == .cushion }.prefix(4).map { d($0.position) }.joined(separator: " ")
+                let rails = r.collisions.filter { $0.kind == .ballCushion }.prefix(4).map { d($0.position) }.joined(separator: " ")
                 print("REPORT: kick side \(side) v \(speed): rails \(rails) stop \(d(r.finalBalls[0].position)) pocketed \(r.pocketed.count)")
             }
         }
