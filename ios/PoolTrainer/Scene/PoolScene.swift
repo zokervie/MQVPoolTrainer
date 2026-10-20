@@ -174,9 +174,17 @@ final class PoolScene {
         tableRoot.childNodes.forEach { $0.removeFromParentNode() }
         let t = tableRoot
         let clothImg = Textures.cloth(hex)
-        // nỉ là bề mặt mờ (không phản xạ gương) – PBR làm nỉ loá trắng ở góc nhìn thấp vì Fresnel
-        let clothMat = SCNMaterial(); clothMat.lightingModel = .lambert; clothMat.diffuse.contents = clothImg
-        clothMat.diffuse.wrapS = .repeat; clothMat.diffuse.wrapT = .repeat; clothMat.diffuse.contentsTransform = SCNMatrix4MakeScale(18, 9, 1)
+        // PBR matte felt with high roughness. Detail texture remains a separate art task.
+        let clothMat = SCNMaterial()
+        clothMat.lightingModel = .physicallyBased
+        clothMat.diffuse.contents = clothImg
+        clothMat.roughness.contents = CGFloat(0.96)
+        clothMat.metalness.contents = CGFloat(0)
+        clothMat.diffuse.wrapS = .repeat; clothMat.diffuse.wrapT = .repeat
+        clothMat.diffuse.contentsTransform = SCNMatrix4MakeScale(18, 9, 1)
+        clothMat.diffuse.mipFilter = .linear
+        clothMat.diffuse.minificationFilter = .linear
+        clothMat.diffuse.magnificationFilter = .linear
         let cushMat = SCNMaterial(); cushMat.lightingModel = .lambert; cushMat.diffuse.contents = clothImg; cushMat.multiply.contents = UIColor(white: 0.88, alpha: 1)
         cushMat.diffuse.wrapS = .repeat; cushMat.diffuse.wrapT = .repeat; cushMat.diffuse.contentsTransform = SCNMatrix4MakeScale(30, 2, 1)
         let woodMat: SCNMaterial, darkWood: SCNMaterial
