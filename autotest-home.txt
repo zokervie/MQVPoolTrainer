@@ -1,0 +1,9 @@
+scenario: home
+state: aiming
+aimAngle: 0.0000 rad
+cameraMode: firstPerson
+drill: -
+balls (physics): 2, rendered: 0
+  ball 0: (0.6350, 0.6350) stationary
+  ball 1: (1.9050, 0.6350) stationary
+camera (render): (0.000, 0.000, 0.000)

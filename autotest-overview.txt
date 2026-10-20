@@ -1,0 +1,10 @@
+scenario: overview
+state: aiming
+aimAngle: 0.0000 rad
+cameraMode: overview
+drill: -
+balls (physics): 2, rendered: 2
+  ball 0: (0.6350, 0.6350) stationary
+  ball 1: (1.9050, 0.6350) stationary
+camera (render): (0.000, 2.350, 0.000)
+frames: 553, mean dt 28.44 ms (35 fps), p99 dt 111.33 ms (simulator, not device)

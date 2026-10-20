@@ -1,0 +1,19 @@
+scenario: shot:keo-bi-ve-giua
+state: reviewing
+aimAngle: 0.4636 rad
+cameraMode: firstPerson
+drill: keo-bi-ve-giua
+balls (physics): 2, rendered: 1
+  ball 0: (1.9314, 0.9657) stationary
+  ball 1: (2.4956, 1.2478) pocketed
+camera (render): (-0.169, 0.249, 0.084)
+frames: 1032, mean dt 22.24 ms (45 fps), p99 dt 42.49 ms (simulator, not device)
+shot: duration 1.685 s, collisions 3, status completed, miscue false
+  cueTip: 1
+  ballBall: 1
+  ballDrop: 1
+  pocketed: ["1->3"]
+feedback: success false, level 5, cue 1.90 m/s, 1.32 table lengths
+  aim error: 0.000°, window: 1.67°, pending: false
+  ✓ Bi 1 vào lỗ (góc trên phải)
+  ✗ Bi cái dừng trong vùng đích

@@ -1,0 +1,10 @@
+scenario: free
+state: aiming
+aimAngle: 0.0000 rad
+cameraMode: firstPerson
+drill: -
+balls (physics): 2, rendered: 2
+  ball 0: (0.6350, 0.6350) stationary
+  ball 1: (1.9050, 0.6350) stationary
+camera (render): (-1.235, 0.249, 0.000)
+frames: 639, mean dt 31.94 ms (31 fps), p99 dt 104.00 ms (simulator, not device)
