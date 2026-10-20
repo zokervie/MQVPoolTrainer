@@ -36,6 +36,7 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
     case ballBallFrictionDecay
     case ballBallRestitution
     case cushionRestitution
+    case cushionRestitutionSpeedSlope
     case cushionFriction
     case tableRestitution
 
@@ -49,6 +50,7 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
         case .ballBallFrictionDecay: \.ballBallFrictionDecay
         case .ballBallRestitution: \.ballBallRestitution
         case .cushionRestitution: \.cushionRestitution
+        case .cushionRestitutionSpeedSlope: \.cushionRestitutionSpeedSlope
         case .cushionFriction: \.cushionFriction
         case .tableRestitution: \.tableRestitution
         }
@@ -65,6 +67,7 @@ public enum ParameterKey: String, Codable, CodingKeyRepresentable, CaseIterable,
         case .ballBallFrictionDecay: 0.0...5.0
         case .ballBallRestitution: 0.8...1.0
         case .cushionRestitution: 0.5...1.0
+        case .cushionRestitutionSpeedSlope: 0.0...0.15
         case .cushionFriction: 0.0...0.5
         case .tableRestitution: 0.2...0.9
         }
@@ -135,13 +138,14 @@ public struct TableDefinition: Codable, Equatable, Sendable {
         physicsProvenance: [
             .slidingFriction: .published(source: "Alciatore, Pool and Billiards Physics Resources (~0,2)"),
             .rollingResistance: .published(source: "Alciatore (0,005–0,015 tùy nỉ)"),
-            .spinFriction: .assumed(note: "Từ Marlow, chưa đối chiếu trực tiếp; cần đo ở R4"),
+            .spinFriction: .published(source: "Dr. Dave: dω_z/dt 5–15 rad/s²; pooltool u_sp = 0,0127 (≈ 10,9 rad/s²)"),
             .ballBallFriction: .published(source: "Alciatore TP A.14: μ(v) = a + b·e^(−c·v), a+b ≈ 0,118"),
             .ballBallFrictionMinRatio: .published(source: "Alciatore TP A.14: a/(a+b) ≈ 0,084"),
             .ballBallFrictionDecay: .published(source: "Alciatore TP A.14: c ≈ 1,088 s/m"),
             .ballBallRestitution: .published(source: "Alciatore (0,92–0,98)"),
-            .cushionRestitution: .published(source: "Mathavan et al. 2010 (0,75–0,85)"),
-            .cushionFriction: .published(source: "Mathavan et al. 2010 (~0,2)"),
+            .cushionRestitution: .assumed(note: "0,8 tại 1 m/s, trong khoảng Dr. Dave 0,6–0,9; đo ở M3"),
+            .cushionRestitutionSpeedSlope: .assumed(note: "Chiều giảm theo tốc độ: Dr. Dave (e băng đổi theo tốc độ); độ lớn 0,04/(m/s) chưa đo, M3"),
+            .cushionFriction: .published(source: "pooltool f_c = 0,2; Mathavan 2010 dùng 0,14 (biến thể)"),
             .tableRestitution: .assumed(note: "~0,5 theo phân tích jump shot của Alciatore; phụ thuộc nỉ/đá, cần đo ở R4")
         ],
         visualAssetName: "ZokerTable9ft"

@@ -136,7 +136,7 @@ public enum BallBallCollision {
 /// Mô hình MVP (đơn giản hóa từ Mathavan et al. 2010 / Han 2005, **chưa đối chứng**):
 /// - Điểm tiếp xúc ở độ cao mũi băng h (> R), nên pháp tuyến tiếp xúc nghiêng xuống một góc θ,
 ///   sin θ = (h − R)/R. Nhờ vậy xoáy trên/dưới và xoáy ngang đều ảnh hưởng tới đường bật.
-/// - Xung lực pháp tuyến theo hệ số phục hồi e; ma sát Coulomb giới hạn bởi lượng cần để hết trượt
+/// - Xung lực pháp tuyến theo hệ số phục hồi e(v) (giảm theo tốc độ lao vào băng); ma sát Coulomb giới hạn bởi lượng cần để hết trượt
 ///   (Δu_t = 3,5·J_t/m cho quả cầu đặc).
 /// - Thành phần thẳng đứng của vận tốc sau va chạm bị bỏ (nỉ hấp thụ).
 public enum CushionCollision {
@@ -163,7 +163,7 @@ public enum CushionCollision {
         let uc = ball.velocity + cross(ball.angularVelocity, rc)
         let vn = simd_dot(uc, normal)          // < 0 khi bi đang lao vào băng
         guard vn < 0 else { return (ball, nil) }
-        let jn = -(1 + p.cushionRestitution) * m * vn
+        let jn = -(1 + p.cushionRestitution(atApproachSpeed: approach)) * m * vn
 
         let ut = uc - vn * normal
         let slip = simd_length(ut)

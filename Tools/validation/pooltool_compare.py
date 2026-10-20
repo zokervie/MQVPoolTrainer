@@ -89,7 +89,9 @@ def make(path, n_per_category=70, seed=2026, cushion_model=None):
         "gravity": g,
         "slidingFriction": param("u_s", 0.2),
         "rollingResistance": param("u_r", 0.01),
-        "spinFriction": param("u_sp", 0.044) if not hasattr(p, "u_sp_proportionality") else 0.044,
+        # pooltool ≥ 0.4: u_sp = u_sp_proportionality·R (≈ 0,0127). Trước đây gán 0,044 → hai engine khác nhau
+        # mà đối chứng không thấy (docs/09 mục 1).
+        "spinFriction": float(p.u_sp_proportionality) * R if hasattr(p, "u_sp_proportionality") else param("u_sp", 0.0127),
         # pooltool 0.6 mặc định dùng AlciatoreBallBallFriction μ(v) = a + b·e^(−c·v), a=0,009951, b=0,108,
         # c=1,088 (KHÔNG dùng hằng số u_b). Ở dạng của ta μ0·(r + (1−r)e^(−cv)): μ0 = a+b, r = a/(a+b).
         # Trước đây đặt hằng số u_b=0,05 → lệch 15 mm (nguyên nhân gốc, xem PROGRESS.md).
@@ -99,6 +101,8 @@ def make(path, n_per_category=70, seed=2026, cushion_model=None):
         "ballBallRestitution": param("e_b", 0.95),
         "cushionRestitution": param("e_c", 0.85),
         "cushionFriction": param("f_c", 0.2),
+        # pooltool (Han 2005) dùng e băng hằng số → tắt độ dốc theo tốc độ khi đối chứng.
+        "cushionRestitutionSpeedSlope": 0.0,
     }
 
     cushion_events = []
