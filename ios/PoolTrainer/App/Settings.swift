@@ -27,6 +27,8 @@ struct Settings: Codable, Equatable {
     static let clothColors: [(id: String, name: String, hex: UInt32)] = [
         ("blue", "Xanh giải đấu", 0x1f5d9e), ("green", "Xanh lá", 0x1d6e45), ("teal", "Xanh ngọc", 0x156b70),
         ("red", "Đỏ rượu", 0x8e2430), ("grey", "Xám", 0x5d6670),
+        ("steel", "Steel Blue 0.9", 0x527f86), ("purple", "Tím hoàng gia", 0x614a8c),
+        ("charcoal", "Than chì", 0x343e44), ("english", "English Green", 0x245a3a),
         ("tournament", "Xanh Tournament (giải đấu)", 0x1662b3), ("electric", "Xanh điện (Electric blue)", 0x0d74d1),
     ]
     var clothHex: UInt32 { Settings.clothColors.first { $0.id == cloth }?.hex ?? 0x1f5d9e }
