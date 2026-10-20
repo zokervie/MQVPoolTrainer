@@ -35,6 +35,8 @@ public struct StrokeAnalyzer: Sendable {
     public var minBackswing: Double = 10
     /// Số mẫu dùng cho hồi quy tuyến tính quanh vạch.
     public var regressionWindow: Int = 5
+    /// Cửa sổ hồi quy theo thời gian (s); nil = theo số mẫu. Xem `StrokeConfig.regressionDuration`.
+    public var regressionDuration: Double? = 0.035
 
     private var samples: [TouchSample] = []
     private var deepestBackswing: Double = 0
@@ -46,6 +48,7 @@ public struct StrokeAnalyzer: Sendable {
         forward = config.forward
         minBackswing = config.minBackswing
         regressionWindow = config.regressionWindow
+        regressionDuration = config.regressionDuration
     }
 
     private func along(_ p: SIMD2<Double>) -> Double {
@@ -87,7 +90,13 @@ public struct StrokeAnalyzer: Sendable {
     }
 
     private func result() -> StrokeResult {
-        let window = Array(samples.suffix(max(2, regressionWindow)))
+        var window = Array(samples.suffix(max(2, regressionWindow)))
+        if let d = regressionDuration, let last = samples.last {
+            // Mọi mẫu trong `d` giây cuối, tối thiểu 3 mẫu (không vượt quá đầu pha đẩy).
+            let pushStart = samples.lastIndex { along($0.position) <= deepestBackswing } ?? 0
+            let inWindow = samples[pushStart...].filter { last.time - $0.time <= d + 1e-9 }
+            window = inWindow.count >= 3 ? Array(inWindow) : Array(samples[pushStart...].suffix(3))
+        }
         let ts = window.map(\.time)
         let forwardSpeed = Self.slope(ts, window.map { along($0.position) })
         let lateralSpeed = Self.slope(ts, window.map { lateral($0.position) })

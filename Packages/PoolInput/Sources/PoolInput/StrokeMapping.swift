@@ -4,9 +4,10 @@ import Foundation
 public struct StrokeMapping: Codable, Equatable, Sendable {
     /// Dải tốc độ ngón (mm/s) ↔ dải tốc độ cơ (m/s).
     /// Giá trị khởi đầu (giả định), cần chỉnh khi đo trên thiết bị (KPI U4): tốc độ ngón thường gặp
-    /// 100–1000 mm/s phủ dải lực luyện tập 0,4–5 m/s.
+    /// 100–1000 mm/s phủ dải lực luyện tập 0,4–5 m/s. Nới tới 1500 mm/s (gần tuyến tính, γ ≈ 1,02) để
+    /// mỗi bước tốc độ ngón đổi lực ít hơn → lực mịn hơn ở mọi mức.
     public var fingerMin: Double = 80
-    public var fingerMax: Double = 1200
+    public var fingerMax: Double = 1500
     public var cueMin: Double = 0.3
     public var cueMax: Double = 6
     /// Độ lệch hướng cơ (radian) ứng với lateralRatio = 1.

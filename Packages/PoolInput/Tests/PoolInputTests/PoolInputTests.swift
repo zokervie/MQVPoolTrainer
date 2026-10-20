@@ -86,3 +86,57 @@ final class InteractionTests: XCTestCase {
         XCTAssertFalse(z.isLockTap(start: SIMD2(0.6, 0.5), end: SIMD2(0.6, 0.5), duration: 0.1, maxRadius: 10))
     }
 }
+
+/// Lực mượt: cùng chuyển động ngón cho cùng tốc độ ở mọi tần số lấy mẫu; nhiễu cảm ứng không làm lực giật.
+final class StrokeSmoothnessTests: XCTestCase {
+    func samples(rate: Double, vf: Double, jitter: Double = 0) -> [TouchSample] {
+        var out: [TouchSample] = []
+        let dt = 1 / rate
+        var t = 0.0, y = 0.0, k = 0
+        out.append(TouchSample(time: 0, position: SIMD2(0, 0)))
+        while y < 30 { t += dt; y += 200 * dt; out.append(TouchSample(time: t, position: SIMD2(0, y))) }
+        while y > -20 {
+            t += dt; y -= vf * dt; k += 1
+            // Nhiễu xen kẽ ±jitter mm (không ngẫu nhiên: lặp lại được).
+            out.append(TouchSample(time: t, position: SIMD2(0, y + (k % 2 == 0 ? jitter : -jitter))))
+        }
+        return out
+    }
+
+    func speed(_ s: [TouchSample]) -> Double {
+        var a = StrokeAnalyzer()
+        a.begin(s[0])
+        for x in s.dropFirst() { if case .struck(let r) = a.add(x) { return r.fingerSpeed } }
+        return -1
+    }
+
+    func testSameMotionSameSpeedAtAnySampleRate() {
+        for rate in [60.0, 120, 240] {
+            XCTAssertEqual(speed(samples(rate: rate, vf: 500)), 500, accuracy: 2, "\(rate) Hz")
+        }
+    }
+
+    func testTouchJitterBarelyMovesPower() {
+        let clean = speed(samples(rate: 120, vf: 500))
+        let noisy = speed(samples(rate: 120, vf: 500, jitter: 0.4))
+        print(String(format: "REPORT: finger speed clean %.1f, jitter ±0.4 mm %.1f mm/s", clean, noisy))
+        XCTAssertEqual(noisy, clean, accuracy: clean * 0.06)
+    }
+
+    func testFinePowerSteps() {
+        // 10 % tốc độ ngón → đổi lực cơ không quá ~11 % ở mọi mức.
+        let m = StrokeMapping()
+        var f = m.fingerMin
+        while f * 1.1 <= m.fingerMax {
+            XCTAssertLessThan(m.cueSpeed(fingerSpeed: f * 1.1) / m.cueSpeed(fingerSpeed: f), 1.11)
+            f *= 1.1
+        }
+    }
+
+    func testOldRecordingsReplayWithCountWindow() throws {
+        let json = #"{"forward":[0,-1],"minBackswing":10,"regressionWindow":5}"#
+        let c = try JSONDecoder().decode(StrokeConfig.self, from: Data(json.utf8))
+        XCTAssertNil(c.regressionDuration)
+        XCTAssertEqual(StrokeConfig().regressionDuration, 0.035)
+    }
+}

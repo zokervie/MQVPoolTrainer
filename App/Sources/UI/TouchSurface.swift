@@ -35,6 +35,7 @@ final class TouchSurface: UIView {
     private var strokeStartY: CGFloat = 0
     private var edgeHapticFired = false
     private var readiedFired = false
+    private var pullTicks = 0
     private var lockTouch: (touch: UITouch, start: CGPoint, time: TimeInterval)?
     private var strokeTouch: UITouch?
     private var analyzer = StrokeAnalyzer()
@@ -99,6 +100,7 @@ final class TouchSurface: UIView {
                     strokeTouch = t
                     strokeStartY = p.y
                     readiedFired = false
+                    pullTicks = 0
                     analyzer = StrokeAnalyzer()
                     let s = TouchSample(time: t.timestamp, position: millimeters(p))
                     strokeSamples = [s]
@@ -123,6 +125,8 @@ final class TouchSurface: UIView {
                 // Cơ chạy theo ngón: kéo xuống 1 mm → cơ lùi 5 mm (cú kéo 3 cm ≈ lấy đà 15 cm).
                 let pullMm = Double(t.location(in: self).y - strokeStartY) * (model.settings.mmPerPoint)
                 model.cueDraw = max(-0.01, pullMm * 0.005)
+                let ticks = max(0, Int(pullMm / 8))
+                if ticks > pullTicks { pullTicks = ticks; Haptics.pullTick(ticks) }
                 let samples = event?.coalescedTouches(for: t) ?? [t]
                 for c in samples {
                     let s = TouchSample(time: c.timestamp, position: millimeters(c.location(in: self)))

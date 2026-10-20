@@ -5,7 +5,22 @@ public struct StrokeConfig: Codable, Equatable, Sendable {
     public var forward = SIMD2<Double>(0, -1)
     public var minBackswing: Double = 10
     public var regressionWindow: Int = 5
+    /// Cửa sổ hồi quy theo thời gian (s) quanh vạch chạm. nil = theo số mẫu (`regressionWindow`, bản ghi cũ).
+    /// Theo thời gian thì cùng một chuyển động ngón cho cùng tốc độ dù máy lấy mẫu 60, 120 hay 240 Hz,
+    /// và trung bình đủ dài (35 ms) để lực không giật theo nhiễu cảm ứng. Giả định, chỉnh theo số đo U4.
+    public var regressionDuration: Double? = 0.035
     public init() {}
+
+    private enum CodingKeys: String, CodingKey { case forward, minBackswing, regressionWindow, regressionDuration }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        forward = try c.decode(SIMD2<Double>.self, forKey: .forward)
+        minBackswing = try c.decode(Double.self, forKey: .minBackswing)
+        regressionWindow = try c.decode(Int.self, forKey: .regressionWindow)
+        // Bản ghi cũ không có khóa này → giữ cách tính cũ để phát lại y hệt.
+        regressionDuration = try c.decodeIfPresent(Double.self, forKey: .regressionDuration)
+    }
 }
 
 /// Bản ghi cảm ứng thô của một cú vuốt. Dùng để:
