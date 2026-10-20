@@ -271,7 +271,19 @@ final class PoolScene {
         return out
     }
 
+    /// Swaps the actual on-table cue mesh; not just the selected text label.
+    func selectCue(_ choice: String) {
+        cue.childNodes.forEach { $0.removeFromParentNode() }
+        buildCueMesh(choice: choice)
+    }
+
     private func buildCue() {
+        buildCueMesh(choice: "playing")
+        cue.isHidden = true
+        scene.rootNode.addChildNode(cue)
+    }
+
+    private func buildCueMesh(choice: String) {
         // cơ dài 1,47 m: đầu cơ ở gốc toạ độ, thân chạy theo +y cục bộ
         let segs: [(y0: Double, y1: Double, r0: Double, r1: Double, col: UInt32, rough: CGFloat)] = [
             (0, 0.012, 0.0062, 0.0064, 0x5280c7, 0.8),       // đầu cơ (phấn xanh)
@@ -290,9 +302,12 @@ final class PoolScene {
             g.materials = [m]
             let n = SCNNode(geometry: g); n.position = v3(0, (s.y0 + s.y1) / 2, 0); inner.addChildNode(n)
         }
+        if choice == "jump" { inner.scale.y = 0.72 }
+        for n in inner.childNodes {
+            if choice == "jump" { n.geometry?.firstMaterial?.diffuse.contents = UIColor(hex: 0x283d47) }
+            if choice == "breakCue" { n.geometry?.firstMaterial?.multiply.contents = UIColor(hex: 0x9c806a) }
+        }
         cue.addChildNode(inner)
-        cue.isHidden = true
-        scene.rootNode.addChildNode(cue)
     }
 
     // MARK: - bi
