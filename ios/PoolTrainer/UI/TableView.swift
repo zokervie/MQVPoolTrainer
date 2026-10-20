@@ -48,6 +48,10 @@ struct TableView: UIViewRepresentable {
         private var mode: Mode = .drag
         private var dir0 = 0.0, pitch0 = 0.0, yaw0 = 0.0
         private var dist0 = 1.0, zoom0 = 1.0
+        private var strokeBack: CGFloat = 0
+        private var lastStrokeY: CGFloat = 0
+        private var lastStrokeT: TimeInterval = 0
+        private var shotTriggered = false
 
         init(_ g: Game) { self.g = g }
 
@@ -71,6 +75,11 @@ struct TableView: UIViewRepresentable {
             let loc = r.location(in: v)
             switch r.state {
             case .began:
+                strokeBack = 0
+                lastStrokeY = loc.y
+                lastStrokeT = ProcessInfo.processInfo.systemUptime
+                shotTriggered = false
+                if g.locked && g.phase == .aim { mode = .drag; return }
                 let start = CGPoint(x: loc.x - r.translation(in: v).x, y: loc.y - r.translation(in: v).y)
                 if g.ballInHand, (g.phase == .aim || g.phase == .placing), let cb = g.cueBall, let p = sc.pick(start), p.dist(cb.pos) < 0.09 {
                     mode = .place; g.phase = .placing; return
@@ -79,6 +88,22 @@ struct TableView: UIViewRepresentable {
                 dir0 = g.dir; pitch0 = sc.cam.pitch; yaw0 = g.camYawOffset
                 if !sc.is3D, canAim { aimAt(loc) }
             case .changed:
+                if g.locked && g.phase == .aim && !shotTriggered {
+                    let t = r.translation(in: v)
+                    strokeBack = max(strokeBack, t.y)
+                    let now = ProcessInfo.processInfo.systemUptime
+                    let dt = max(0.001, now - lastStrokeT)
+                    let upwardSpeed = max(0, Double(lastStrokeY - loc.y) / dt)
+                    if strokeBack >= 28 && t.y <= 0 && upwardSpeed > 40 {
+                        // Continuous velocity-based power: preserve existing Physics.swift.
+                        let speed = min(1, max(0.02, upwardSpeed / 1400.0))
+                        shotTriggered = true
+                        g.shoot(speed)
+                    }
+                    lastStrokeY = loc.y
+                    lastStrokeT = now
+                    return
+                }
                 if mode == .place { if let p = sc.pick(loc) { g.placeCue(p) }; return }
                 let t = r.translation(in: v)
                 if !sc.is3D {
@@ -90,6 +115,7 @@ struct TableView: UIViewRepresentable {
                     sc.cam.pitch = min(1.45, max(0.06, pitch0 + Double(t.y) * 0.004))
                 }
             default:
+                strokeBack = 0
                 if mode == .place { g.phase = .placing; g.markPreviewDirty() }
                 mode = .drag
             }
