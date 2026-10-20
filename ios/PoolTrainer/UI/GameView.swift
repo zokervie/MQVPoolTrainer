@@ -3,6 +3,7 @@ import SwiftUI
 /// Lớp điều khiển khi đang chơi: thanh công cụ, dải bi, cụm điểm đánh, khoá cơ + vi chỉnh, ô lực.
 struct HUDView: View {
     @ObservedObject var g: Game
+    @State private var equipmentOpen = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -30,6 +31,7 @@ struct HUDView: View {
         .padding(.horizontal, 10).padding(.vertical, 8)
         .animation(.easeOut(duration: 0.2), value: g.toast)
         .animation(.easeOut(duration: 0.25), value: g.feedback)
+        .sheet(isPresented: $equipmentOpen) { EquipmentPanel(g: g) }
     }
 
     private var topBar: some View {
@@ -125,6 +127,7 @@ struct HUDView: View {
             bridgeButton
             if !g.locked {
                 spinCluster
+                Button { equipmentOpen = true } label: { Image(systemName: "pencil.tip.crop.circle").font(.system(size: 20)).frame(width: 38, height: 38).background(Circle().fill(Color.white.opacity(0.12))) }.buttonStyle(.plain).foregroundColor(.white)
                 Spacer(minLength: 8)
                 FineStrip(g: g).opacity(0.42).scaleEffect(y: 0.65)
                 Spacer(minLength: 8)
