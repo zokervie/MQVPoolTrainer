@@ -1,0 +1,92 @@
+# Build tự động trên Mac cho nhánh feature/0.13-council-hardening (bản chép ở repo public → macOS GitHub miễn phí).
+# Chạy đúng quy trình nghiệm thu của nhánh: Tools/run_acceptance.py (tài nguyên → Run-All-Checks → Simulator →
+# ảnh chụp + đầu dò G1 → XCTest cử chỉ → IPA chưa ký), rồi đăng ảnh, báo cáo và IPA.
+name: Zoker council - Mac acceptance (public mirror)
+on:
+  push:
+    branches: ['feature/zoker-council']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: council-mac-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance:
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: native/ZokerPoolTrainer
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Chọn Xcode 16.4
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app && xcodebuild -version
+      - name: Thư viện sinh tài nguyên
+        run: python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+      - name: Nghiệm thu (run_acceptance.py)
+        run: |
+          set -o pipefail
+          python3 Tools/run_acceptance.py 2>&1 | tail -60
+          REPORT=$(ls dist/ACCEPTANCE-*.json | tail -1)
+          python3 -c "import json,sys;r=json.load(open('$REPORT'));print('::notice title=acceptance::'+r['status']+' · '+', '.join(s['name']+'='+s['status'] for s in r['stages']))"
+      - name: Đẩy ảnh chụp + báo cáo lên nhánh shots/council
+        if: always() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p _shots/g1-qa
+          cp build/screenshots/*.png _shots/ 2>/dev/null || true
+          cp build/screenshots/g1-qa/*.json _shots/g1-qa/ 2>/dev/null || true
+          cp dist/ACCEPTANCE-*.json _shots/ 2>/dev/null || true
+          cp build/ui-tests.log _shots/ 2>/dev/null || true
+          ls _shots/*.png > /dev/null 2>&1 && (cd _shots && for f in *.png; do sips -Z 1400 "$f" > /dev/null; done) || true
+          printf '%s %s run %s\n' "${GITHUB_REF_NAME}" "${GITHUB_SHA::7}" "${GITHUB_RUN_NUMBER}" > _shots/SOURCE.txt
+          cd _shots && git init -q && git checkout -q -b shots/council \
+            && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com" \
+            && git add -A && git commit -qm "Nghiệm thu ${GITHUB_REF_NAME} ${GITHUB_SHA::7}" \
+            && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" shots/council
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: zoker-council-${{ github.run_number }}
+          path: |
+            native/ZokerPoolTrainer/dist/Zoker-Acceptance-*.zip
+            native/ZokerPoolTrainer/dist/ACCEPTANCE-*.json
+            native/ZokerPoolTrainer/dist/*.ipa
+            native/ZokerPoolTrainer/build/**/*.log
+          retention-days: 14
+      - name: Phát hành IPA (Release + link cố định dist-zoker-council)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          IPA=$(ls dist/*.ipa | tail -1); NAME=$(basename "$IPA" .ipa)
+          SHA256=$(shasum -a 256 "$IPA" | cut -d' ' -f1)
+          TAG="council-${NAME#ZokerPoolTrainer-}-run${GITHUB_RUN_NUMBER}"
+          LINK="https://github.com/${GITHUB_REPOSITORY}/raw/dist-zoker-council/ZokerPoolTrainer.ipa"
+          cp "$IPA" ZokerPoolTrainer.ipa
+          NOTE="${NAME} (run ${GITHUB_RUN_NUMBER}) — feature/0.13-council-hardening chép sang repo public, commit ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC').
+          IPA chưa ký – ký bằng ESign/Sideloadly rồi cài. Link cố định: ${LINK}
+          SHA-256: ${SHA256}"
+          gh release create "$TAG" ZokerPoolTrainer.ipa --target "$GITHUB_SHA" --prerelease --title "$NAME (council, run ${GITHUB_RUN_NUMBER})" --notes "$NOTE"
+          mkdir -p _dist && cp ZokerPoolTrainer.ipa _dist/ && printf '%s\n' "$NOTE" > _dist/BUILD.txt
+          ( cd _dist && git init -q && git checkout -q -b dist-zoker-council \
+            && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com" \
+            && git add -A && git commit -qm "$NAME run ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})" \
+            && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-zoker-council )
+          gh api "repos/$GITHUB_REPOSITORY/contents/ZokerPoolTrainer.ipa?ref=dist-zoker-council" -H "Accept: application/vnd.github.raw" > check.ipa
+          test "$(shasum -a 256 check.ipa | cut -d' ' -f1)" = "$SHA256"
+          gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
+            | grep '^council-' | tail -n +11 | while read -r old; do gh release delete "$old" -y || true; done
+          echo "::notice title=release::$TAG · $LINK"
