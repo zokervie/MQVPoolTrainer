@@ -4,6 +4,7 @@ cd -- "$(dirname -- "$0")"
 python3 Tools/check_resources.py
 python3 Tools/build_zupe_lab.py
 python3 Tools/check_zupe_integration.py
+python3 Tools/check_gestures.py
 node Research/ZUPE/tests/test.mjs
 for suite in elevated-cue golden-calibration integration; do
   node "Research/ZUPE/tests/$suite.test.mjs"

@@ -699,7 +699,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let pinch=UIPinchGestureRecognizer(target:self,action:#selector(pinchTable(_:)));scn.addGestureRecognizer(pinch);aimRecognizers.append(pinch)
         for recognizer in aimRecognizers{recognizer.delegate=self}
         tap.require(toFail:pan);tap.require(toFail:orbit);tap.require(toFail:pinch)
-        pan.require(toFail:orbit);pan.require(toFail:pinch)
+        // KHÔNG cho pan một ngón chờ orbit/pinch thất bại: hai bộ này chỉ thất bại khi nhấc tay, nên kéo một ngón
+        // không bao giờ bắt đầu → không xoay được hướng cơ (lỗi build 5, có từ bản G1). Xung đột với thao tác
+        // hai ngón được chặn trong panTable (bỏ qua khi đang có hai ngón trên màn hình).
     }
     func gestureRecognizer(_ gestureRecognizer:UIGestureRecognizer,shouldReceive touch:UITouch)->Bool{
         guard !menuOpen,!spinExpanded,!locked else{return false}
@@ -730,6 +732,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if let id=draggedBall {moveBall(id,to:p)}
             if g.state == .ended||g.state == .cancelled {draggedBall=nil}
         }else{
+            // Đang xoay/zoom camera bằng hai ngón: không đổi hướng cơ.
+            let twoFinger=aimRecognizers.contains{r in r !== g && (r is UIPinchGestureRecognizer || (r as? UIPanGestureRecognizer)?.minimumNumberOfTouches==2) && (r.state == .began || r.state == .changed)}
+            if twoFinger || g.numberOfTouches>1 {g.setTranslation(.zero,in:scn);return}
             let delta=g.translation(in:scn);angle+=Double(delta.x)*0.003;g.setTranslation(.zero,in:scn);refresh()
         }
     }
