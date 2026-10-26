@@ -8,12 +8,15 @@ from pathlib import Path
 import platform
 import plistlib
 import shutil
-import subprocess
+import subprocess, os, signal, types
 import sys
 import time
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Giới hạn từng bước (giây): một bước treo không được ăn hết giờ của cả job.
+STAGE_TIMEOUT = {'assets':600,'portable-regressions':1200,'simulator-build':1800,'screenshots-and-runtime-probes':1500,'ui-gesture-tests':1800,'unsigned-iphone-build':1500}
 
 def run(portable=False):
     out = ROOT/'dist'
@@ -44,10 +47,19 @@ def run(portable=False):
         for name,command in stages:
             print('RUN',name,flush=True)
             log = logs/(name+'.log')
+            limit = STAGE_TIMEOUT.get(name,1200)
+            timed_out = False
             with log.open('w') as stream:
-                result = subprocess.run(command,cwd=ROOT,stdout=stream,stderr=subprocess.STDOUT)
+                proc = subprocess.Popen(command,cwd=ROOT,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
+                try:
+                    returncode = proc.wait(timeout=limit)
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    os.killpg(proc.pid,signal.SIGKILL); proc.wait(); returncode = 124
+                    stream.write('\nTIMEOUT: stage %s exceeded %d s\n' % (name,limit))
+            result = types.SimpleNamespace(returncode=returncode)
             report['stages'].append({'name':name,'exit_code':result.returncode,
-                                     'status':'PASS' if result.returncode==0 else 'FAIL',
+                                     'status':'TIMEOUT' if timed_out else ('PASS' if result.returncode==0 else 'FAIL'),
                                      'log':str(log.relative_to(ROOT))})
             if result.returncode:
                 report['status']='FAILED';code=1
