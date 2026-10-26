@@ -84,8 +84,25 @@ jobs:
           python3 Tools/run_acceptance.py 2>&1 | tail -60
           REPORT=$(ls dist/ACCEPTANCE-*.json | tail -1)
           python3 -c "import json;r=json.load(open('$REPORT'));print('::notice title=acceptance::'+r['status']+' · '+', '.join(s['name']+'='+s['status'] for s in r['stages']))"
+      - name: Chẩn đoán khi lỗi (bước hỏng + dòng lỗi thành annotation)
+        if: failure()
+        run: |
+          REPORT=$(ls dist/ACCEPTANCE-*.json 2>/dev/null | tail -1)
+          [ -n "$REPORT" ] || { echo "::error title=acceptance::không có báo cáo ACCEPTANCE"; exit 0; }
+          python3 - "$REPORT" <<'PY'
+          import json, re, sys, pathlib
+          r = json.load(open(sys.argv[1]))
+          bad = [s for s in r['stages'] if s['status'] != 'PASS']
+          print('::error title=acceptance::' + r['status'] + ' · ' + ', '.join(s['name'] + '=' + s['status'] for s in r['stages']))
+          for s in bad:
+              lines = pathlib.Path(s['log']).read_text(errors='replace').splitlines()
+              keep = [l for l in lines if re.search(r'error|FAIL|fail|assert|Assert|precondition|Fatal|Timed out|timeout|exception|No such|not found|\*\* ', l)]
+              tail = (keep[-25:] or lines[-25:])
+              msg = '%0A'.join(l.replace('%', '%25').replace('\r', '')[:300] for l in tail)
+              print(f"::error title={s['name']}::{msg}")
+          PY
       - name: Đẩy ảnh chụp + báo cáo lên nhánh shots/native
-        if: always() && github.event_name == 'push'
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
