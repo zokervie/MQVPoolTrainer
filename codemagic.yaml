@@ -14,13 +14,14 @@ workflows:
           python3 -m venv .ci-venv
           source .ci-venv/bin/activate
           python3 -m pip install numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
-          python3 Tools/prepare_ci_assets.py
-          bash Run-All-Checks.command
-          bash Verify-on-Mac.command
-          bash Build-Unsigned-IPA.command
-          bash Tools/ci_screenshots.sh
+          python3 Tools/run_acceptance.py
     artifacts:
       - native/ZokerPoolTrainer/dist/*.ipa
       - native/ZokerPoolTrainer/build/*.log
       - native/ZokerPoolTrainer/build/screenshots/*.png
       - native/ZokerPoolTrainer/build/screenshots/g1-qa/*.json
+      - native/ZokerPoolTrainer/dist/Zoker-Acceptance-*.zip
+      - native/ZokerPoolTrainer/dist/ACCEPTANCE-*.json
+      - native/ZokerPoolTrainer/dist/IPA_SHA256.txt
+      - native/ZokerPoolTrainer/build/**/*.log
+      - native/ZokerPoolTrainer/build/*.xcresult

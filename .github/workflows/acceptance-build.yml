@@ -1,0 +1,65 @@
+name: Zoker Acceptance - Mac runner
+on:
+  push:
+    branches: ['feature/0.13-hud-camera', 'feature/**']
+    paths: ['native/ZokerPoolTrainer/**', '.github/workflows/acceptance-build.yml']
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Mac runner to use
+        type: choice
+        options: [self-hosted, hosted]
+        default: self-hosted
+permissions:
+  contents: read
+concurrency:
+  group: zoker-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance:
+    # Runs on: manual dispatch, the repo switch ZOKER_ENABLE_MAC_RUNNER, or any feature push whose
+    # head commit message contains [mac] (self-hosted Intel Mac; no GitHub-hosted minutes).
+    if: github.event_name == 'workflow_dispatch' || vars.ZOKER_ENABLE_MAC_RUNNER == 'true' || contains(github.event.head_commit.message, '[mac]')
+    runs-on: ${{ github.event.inputs.runner == 'hosted' && 'macos-15' || fromJSON('["self-hosted","macOS","X64"]') }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: native/ZokerPoolTrainer
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check Mac environment
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          python3 --version
+          node --version
+      - name: Isolated generator dependencies
+        run: |
+          # numpy 2.3 / scipy 1.17 need Python >= 3.11; macOS python3 from Xcode is 3.9.
+          PY=""
+          for c in python3.13 python3.12 python3.11 /opt/homebrew/bin/python3 /usr/local/bin/python3 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 python3; do
+            if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then PY="$c"; break; fi
+          done
+          if [ -z "$PY" ]; then
+            echo "::error title=Python too old::Need Python >= 3.11 on this Mac (found $(python3 --version 2>&1)). Install it: brew install python@3.12, or the macOS installer from python.org."
+            exit 1
+          fi
+          echo "Using $PY ($("$PY" --version))"
+          "$PY" -m venv --clear .ci-venv
+          .ci-venv/bin/python -m pip install --upgrade pip
+          .ci-venv/bin/python -m pip install numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+      - name: Run acceptance and package evidence
+        run: |
+          source .ci-venv/bin/activate
+          python3 Tools/run_acceptance.py
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: Zoker-Acceptance-${{ github.sha }}
+          path: |
+            native/ZokerPoolTrainer/dist/Zoker-Acceptance-*.zip
+            native/ZokerPoolTrainer/dist/ACCEPTANCE-*.json
+            native/ZokerPoolTrainer/dist/IPA_SHA256.txt
+            native/ZokerPoolTrainer/build/**/*.log
+            native/ZokerPoolTrainer/build/*.xcresult
+          retention-days: 14

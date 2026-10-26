@@ -26,12 +26,10 @@ if /usr/bin/codesign -dv "$stage_dir/Payload/ZokerPoolTrainer.app" >/dev/null 2>
   echo 'App có chữ ký ngoài dự kiến. Dừng đóng gói để kiểm tra.' >&2
   exit 1
 fi
-version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app_path/Info.plist")
-build=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$app_path/Info.plist")
-name="ZokerPoolTrainer-${version}-Build${build}.ipa"
-rm -f "$PWD"/dist/*.ipa
-output_path="$PWD/dist/$name"
-package_path="$stage_dir/$name"
+version=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$app_path/Info.plist")
+build_number=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$app_path/Info.plist")
+output_path="$PWD/dist/ZokerPoolTrainer-${version}-Build${build_number}.ipa"
+package_path="$stage_dir/ZokerPoolTrainer-${version}-Build${build_number}.ipa"
 (cd "$stage_dir" && /usr/bin/zip -q -r "$package_path" Payload)
 mv -f "$package_path" "$output_path"
 /usr/bin/unzip -tq "$output_path"

@@ -1,38 +1,62 @@
-# CI cho ZokerPoolTrainer bản native (UIKit/SceneKit + C++) trên repo public: máy macOS miễn phí.
-# Thứ tự rẻ trước: test C++ trên Linux → build Simulator + test + ảnh chụp + IPA trên macOS.
-# IPA chỉ phát hành khi mọi bước qua, và chỉ từ nhánh feature/zoker-native.
+# CI hợp nhất cho ZokerPoolTrainer native (repo public → máy macOS GitHub miễn phí).
+# 1) Cổng Linux rẻ (GCC + Clang, -Werror): danh sách bộ test, tài nguyên, ZUPE, mọi bộ C++ (Tools/check_* + Run-All-Checks).
+# 2) Mac: Tools/run_acceptance.py — Simulator, ảnh chụp + đầu dò G1, XCTest cử chỉ, IPA chưa ký, báo cáo ACCEPTANCE-*.json.
+# 3) Đăng ảnh/báo cáo (nhánh shots/native) và IPA (Release native-* + nhánh dist-zoker-native) khi mọi bước qua.
 name: Zoker native
 on:
   push:
     branches: ['feature/zoker-native', 'ci/native-**']
   workflow_dispatch:
+    inputs:
+      runner:
+        description: Máy Mac (khi macos-15 Apple Silicon hết chỗ, chọn macos-15-intel)
+        type: choice
+        options: [macos-15, macos-15-intel]
+        default: macos-15
 permissions:
   contents: read
 concurrency:
   group: native-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  core:
-    name: Vật lý C++ (Linux)
+  portable:
+    name: Cổng Linux (${{ matrix.cxx }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        cxx: [g++, clang++]
     defaults:
       run:
         working-directory: native/ZokerPoolTrainer
     steps:
       - uses: actions/checkout@v5
-      - name: Build + ctest
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Danh sách bộ test khớp file
+        run: python3 Tools/check_suite_lists.py
+      - name: Sinh tài nguyên
         run: |
-          cmake -S . -B build/core -DCMAKE_BUILD_TYPE=Release > /dev/null
-          cmake --build build/core -j4 2>&1 | grep -E "error|warning" || true
-          cd build/core && ctest --output-on-failure 2>&1 | tee ../core-tests.log
-          grep -E "^REPORT" ../core-tests.log | sed 's/^/::notice title=core::/' || true
+          python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+          python3 Tools/prepare_ci_assets.py
+      - name: Tài nguyên, ZUPE, cử chỉ, C++ (${{ matrix.cxx }})
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: |
+          set -o pipefail
+          bash Run-All-Checks.command 2>&1 | tee build-portable.log | tail -25
+          grep -E "^REPORT" build-portable.log | sed 's/^/::notice title=physics::/' | head -20 || true
 
   mac:
-    name: iOS (Simulator, ảnh chụp, IPA)
-    needs: core
-    runs-on: macos-15
-    timeout-minutes: 50
+    name: Nghiệm thu Mac (Simulator, XCTest, IPA)
+    needs: portable
+    runs-on: ${{ github.event.inputs.runner || 'macos-15' }}
+    timeout-minutes: 75
     permissions:
       contents: write
     defaults:
@@ -43,66 +67,61 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Chọn Xcode 16.4
         run: sudo xcode-select -s /Applications/Xcode_16.4.app && xcodebuild -version
-      - name: Sinh tài nguyên (texture, mesh)
-        run: |
-          python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4' 'shapely>=2.1,<3'
-          python3 Tools/prepare_ci_assets.py
-      - name: Kiểm tra vật lý, nghiên cứu, tích hợp
-        run: bash Run-All-Checks.command
-      - name: Build Simulator
-        run: |
-          bash Verify-on-Mac.command > /dev/null 2>&1 || { grep -E "error:" build/simulator-build.log | head -30 | sed 's/^/::error::/'; exit 1; }
-      - name: Build IPA chưa ký
+      - name: Thư viện sinh tài nguyên
+        run: python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+      - name: Nghiệm thu (run_acceptance.py)
         env:
+          # Số build tăng dần, nối tiếp build 24 của nhánh council.
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          bash Build-Unsigned-IPA.command > build/ipa.log 2>&1 || { grep -E "error:" build/device-build.log | head -30 | sed 's/^/::error::/'; tail -5 build/ipa.log; exit 1; }
-          tail -3 build/ipa.log
-      - name: Ảnh chụp + đầu dò giao diện (G1)
-        run: bash Tools/ci_screenshots.sh 2>&1 | tail -40
-      - name: Đẩy ảnh chụp lên nhánh shots/native (xem được qua API, không cần tải artifact)
+          set -o pipefail
+          export BUILD_NUMBER=$((24 + BUILD_NUMBER))
+          python3 Tools/run_acceptance.py 2>&1 | tail -60
+          REPORT=$(ls dist/ACCEPTANCE-*.json | tail -1)
+          python3 -c "import json;r=json.load(open('$REPORT'));print('::notice title=acceptance::'+r['status']+' · '+', '.join(s['name']+'='+s['status'] for s in r['stages']))"
+      - name: Đẩy ảnh chụp + báo cáo lên nhánh shots/native
         if: always() && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          ls build/screenshots/*.png > /dev/null 2>&1 || exit 0
-          mkdir -p _shots && cp build/screenshots/*.png _shots/ && cp build/screenshots/*.txt _shots/ 2>/dev/null || true
-          mkdir -p _shots/g1-qa && cp build/screenshots/g1-qa/*.json _shots/g1-qa/ 2>/dev/null || true
+          mkdir -p _shots/g1-qa
+          cp build/screenshots/*.png _shots/ 2>/dev/null || true
+          cp build/screenshots/g1-qa/*.json _shots/g1-qa/ 2>/dev/null || true
+          cp dist/ACCEPTANCE-*.json build/ui-tests.log _shots/ 2>/dev/null || true
+          ls _shots/*.png > /dev/null 2>&1 && (cd _shots && for f in *.png; do sips -Z 1400 "$f" > /dev/null; done) || true
           printf '%s %s run %s\n' "${GITHUB_REF_NAME}" "${GITHUB_SHA::7}" "${GITHUB_RUN_NUMBER}" > _shots/SOURCE.txt
-          cd _shots && for f in *.png; do sips -Z 1400 "$f" > /dev/null; done
-          git init -q && git checkout -q -b shots/native \
+          cd _shots && git init -q && git checkout -q -b shots/native \
             && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com" \
-            && git add -A && git commit -qm "Ảnh chụp ${GITHUB_REF_NAME} ${GITHUB_SHA::7}" \
+            && git add -A && git commit -qm "Nghiệm thu ${GITHUB_REF_NAME} ${GITHUB_SHA::7}" \
             && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" shots/native
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: zoker-native-${{ github.run_number }}
           path: |
+            native/ZokerPoolTrainer/dist/Zoker-Acceptance-*.zip
+            native/ZokerPoolTrainer/dist/ACCEPTANCE-*.json
             native/ZokerPoolTrainer/dist/*.ipa
-            native/ZokerPoolTrainer/build/*.log
-            native/ZokerPoolTrainer/build/screenshots/*.png
-            native/ZokerPoolTrainer/build/screenshots/*.txt
-            native/ZokerPoolTrainer/build/screenshots/g1-qa/*.json
+            native/ZokerPoolTrainer/build/**/*.log
           retention-days: 14
-      - name: Phát hành (Release theo build + link cố định)
+      - name: Phát hành IPA (Release native-* + link cố định dist-zoker-native)
         if: github.event_name == 'push' && github.ref == 'refs/heads/feature/zoker-native'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          IPA=$(ls dist/*.ipa); NAME=$(basename "$IPA" .ipa)
+          IPA=$(ls dist/*.ipa | tail -1); NAME=$(basename "$IPA" .ipa)
           SHA256=$(shasum -a 256 "$IPA" | cut -d' ' -f1)
           TAG="native-${NAME#ZokerPoolTrainer-}"
           LINK="https://github.com/${GITHUB_REPOSITORY}/raw/dist-zoker-native/ZokerPoolTrainer.ipa"
           cp "$IPA" ZokerPoolTrainer.ipa
-          NOTE="${NAME} — nhánh feature/zoker-native, commit ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC').
+          NOTE="${NAME} — nhánh feature/zoker-native, commit ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC'). Đã qua nghiệm thu Simulator + XCTest.
           IPA chưa ký – ký bằng ESign/Sideloadly rồi cài. Link cố định (luôn là bản mới nhất): ${LINK}
           SHA-256: ${SHA256}"
           gh release create "$TAG" ZokerPoolTrainer.ipa --target "$GITHUB_SHA" --prerelease --title "$NAME" --notes "$NOTE"

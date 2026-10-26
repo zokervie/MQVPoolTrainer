@@ -1,0 +1,77 @@
+{
+  "date": "2026-10-26",
+  "status": "SPECIFICATION_ONLY",
+  "basis_sha": "efabf7e3fb853e50612db3b4d5b54b6edd262791",
+  "tasks": [
+    {
+      "id": "COUNCIL-UX-01",
+      "gate": "G1",
+      "status": "PLANNED",
+      "scope": "Reproduce pan/hold interaction; XCUITest plus device multitouch",
+      "evidence_required": [
+        "native build",
+        "30 gesture cases",
+        "device clip"
+      ]
+    },
+    {
+      "id": "COUNCIL-FOCUS-01",
+      "gate": "G1",
+      "status": "PLANNED",
+      "scope": "Practice/Exam state HUD and protected aim corridor; default B stays hold",
+      "evidence_required": [
+        "actual frame intersections",
+        "hit tests",
+        "cancel/background regressions"
+      ]
+    },
+    {
+      "id": "CAL-01",
+      "gate": "G2/G3",
+      "status": "PLANNED",
+      "scope": "Measured planar video-to-data, 5 to 10 repeatable cases; uncertainty and held-out profile validation",
+      "evidence_required": [
+        "raw video hashes",
+        "camera calibration",
+        "tracking uncertainty",
+        "held-out metrics"
+      ]
+    },
+    {
+      "id": "DET-01",
+      "gate": "G2/G3",
+      "status": "PLANNED",
+      "scope": "100 repeats, 10 cases; same platform determinism and timestep convergence",
+      "evidence_required": [
+        "state/event hashes",
+        "compiler/platform/config",
+        "h h/2 h/4 report"
+      ]
+    },
+    {
+      "id": "COACH-01",
+      "gate": "AFTER_G1_BEFORE_ONLINE",
+      "status": "PLANNED",
+      "scope": "Immutable ShotRecord, offline diagnosis, bounded counterfactual and adaptive drills",
+      "evidence_required": [
+        "nonmutation",
+        "replay consistency",
+        "permissions",
+        "advice provenance",
+        "device profiling"
+      ]
+    },
+    {
+      "id": "PERF-01",
+      "gate": "G4",
+      "status": "PLANNED",
+      "scope": "10-minute iPhone/iPad frame-time, thermal and workload profiling",
+      "evidence_required": [
+        "p50 p95 p99",
+        "frames over 25ms",
+        "device graphics thermal context"
+      ]
+    }
+  ]
+}
+

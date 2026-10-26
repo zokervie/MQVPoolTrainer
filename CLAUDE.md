@@ -11,4 +11,4 @@ Nguồn gốc: repo private `ZokerPoolTrainer-0.11-Native-Jump-Masse…` tại `
 - Báo cáo ngắn; không in toàn bộ log.
 
 ## CI
-`.github/workflows/native-ci.yml`: test C++ (Linux) → tài nguyên + Run-All-Checks + Simulator + IPA + ảnh chụp/đầu dò G1 (macOS) → Release `native-*` + nhánh `dist-zoker-native`.
+`.github/workflows/native-ci.yml`: cổng Linux (g++/clang++, check_suite_lists, Run-All-Checks) → `Tools/run_acceptance.py` trên macOS (Simulator, ảnh + đầu dò G1, XCTest cử chỉ, IPA) → Release `native-*` + nhánh `dist-zoker-native`; ảnh ở `shots/native`. Thêm bộ test C++ mới: đăng ký ở cả `CMakeLists.txt` (ZOKER_TEST_SUITES) và `Run-All-Checks.command`. Đọc thêm `AGENTS.md` (hợp đồng của nhánh council).

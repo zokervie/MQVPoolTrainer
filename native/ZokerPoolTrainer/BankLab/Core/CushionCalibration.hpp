@@ -21,7 +21,8 @@ inline CushionFit fitCushion(const std::vector<CushionSample>&samples,Config c,i
    double m=pass==0?.35*b/30:std::clamp(centerM-rangeM+2*rangeM*b/30,0.,.35);
    c.railBounce[rail]=e;c.railGrip[rail]=m;double error=loss(false);
    if(error<best){best=error;winnerE=e;winnerM=m;}
-  }centerE=winnerE;centerM=winnerM;rangeE=pass==0?.03:rangeE/10;rangeM=pass==0?.02:rangeM/10;
+  }
+  centerE=winnerE;centerM=winnerM;rangeE=pass==0?.03:rangeE/10;rangeM=pass==0?.02:rangeM/10;
  }
  c.railBounce[rail]=centerE;c.railGrip[rail]=centerM;fit.bounce=centerE;fit.grip=centerM;fit.train=loss(false);fit.validation=loss(true);
  for(size_t i=0;i<samples.size();i++)if(i%4==0)fit.validationCount++;else fit.trainingCount++;

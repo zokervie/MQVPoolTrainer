@@ -2,30 +2,18 @@ cmake_minimum_required(VERSION 3.16)
 project(BankLabPhysics LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-add_executable(physics_tests Tests/PhysicsTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
-target_compile_options(physics_tests PRIVATE -Wall -Wextra -Wpedantic)
 enable_testing()
-add_test(NAME physics COMMAND physics_tests)
-add_executable(practice_tests Tests/PracticeTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
-target_compile_options(practice_tests PRIVATE -Wall -Wextra -Wpedantic)
-add_test(NAME practice_reachability COMMAND practice_tests)
-add_executable(prediction_tests Tests/PredictionTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
-target_compile_options(prediction_tests PRIVATE -Wall -Wextra -Wpedantic)
-add_test(NAME prediction COMMAND prediction_tests)
-add_executable(contact_tests Tests/ContactTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
-target_compile_options(contact_tests PRIVATE -Wall -Wextra -Wpedantic)
-add_test(NAME analytic_contacts COMMAND contact_tests)
-add_executable(extended_practice_tests Tests/ExtendedPracticeTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
-target_compile_options(extended_practice_tests PRIVATE -Wall -Wextra -Wpedantic)
-add_test(NAME extended_practice_reachability COMMAND extended_practice_tests)
 
-add_executable(research_tests Tests/ResearchTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
-target_compile_options(research_tests PRIVATE -Wall -Wextra -Wpedantic)
-add_test(NAME research_rail_response COMMAND research_tests)
+# Keep this list identical to the suite loop in Run-All-Checks.command.
+# CI checks the two lists match, so a new test file cannot be silently skipped by ctest.
+set(ZOKER_TEST_SUITES
+  Physics Prediction Practice Contact ExtendedPractice Research Elevated KickSearch
+  Calibration Cushion3D Presentation SpinTransfer PresentationPolicy Determinism Literature)
 
-add_executable(elevated_tests Tests/ElevatedTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
-add_test(NAME elevated_cue COMMAND elevated_tests)
-
-add_executable(literature_tests Tests/LiteratureTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
-target_compile_options(literature_tests PRIVATE -Wall -Wextra -Wpedantic)
-add_test(NAME literature COMMAND literature_tests)
+foreach(suite IN LISTS ZOKER_TEST_SUITES)
+  add_executable(${suite}Tests Tests/${suite}Tests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
+  target_compile_options(${suite}Tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  # Tests are assert-based: keep asserts live even in Release, otherwise every suite passes vacuously.
+  target_compile_options(${suite}Tests PRIVATE -UNDEBUG)
+  add_test(NAME ${suite} COMMAND ${suite}Tests)
+endforeach()

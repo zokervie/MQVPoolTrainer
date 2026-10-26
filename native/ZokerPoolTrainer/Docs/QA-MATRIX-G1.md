@@ -30,6 +30,6 @@ bash Tools/ci_screenshots.sh
 bash Build-Unsigned-IPA.command
 ```
 
-Các dependency generator đã có trong root codemagic.yaml; dùng workflow root, không chọn nhầm native/ZokerPoolTrainer/codemagic.yaml cũ. GitHub workflow hiện chỉ auto-push main; feature này không tự chạy Xcode. Workflow_dispatch có thể chọn feature branch trên môi trường có quyền. Không chạy đồng thời hai Mac build.
+Các dependency generator đã có trong root codemagic.yaml; dùng workflow root (file native/ZokerPoolTrainer/codemagic.yaml cũ đã được gỡ để tránh chọn nhầm). GitHub workflow hiện chỉ auto-push main; feature này không tự chạy Xcode. Workflow_dispatch có thể chọn feature branch trên môi trường có quyền. Không chạy đồng thời hai Mac build.
 
 Không coi G1 spectator probe là networking test: localTurn chỉ là cờ quyền offline/QA, chưa có phòng, server, lượt hoặc scoreboard online.

@@ -77,6 +77,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         scn.isPlaying=true;scn.rendersContinuously=true;scn.translatesAutoresizingMaskIntoConstraints=false
         view.addSubview(scn)
         scn.isMultipleTouchEnabled=true
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.isAccessibilityElement=true;scn.accessibilityIdentifier="PoolScene"}
         NSLayoutConstraint.activate([
             scn.leadingAnchor.constraint(equalTo:view.leadingAnchor),
             scn.trailingAnchor.constraint(equalTo:view.trailingAnchor),
@@ -624,6 +625,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let blend=BLCameraTweenBlend(cameraTransition,dt,cameraTransitionDuration)
         table.placeCamera(cue:cameraCue,angle:angle,aspect:scn.bounds.width/max(1,scn.bounds.height),blend:Float(blend))
         cameraTransition=max(0,cameraTransition-dt)
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d",angle,table.cameraMode,shotActive ? 1:0)}
         table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
         let show=guideOn && !presentationBusy && localTurn && !isPlacingBalls
         if !show && lastGuideVisible {
@@ -699,7 +701,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let pinch=UIPinchGestureRecognizer(target:self,action:#selector(pinchTable(_:)));scn.addGestureRecognizer(pinch);aimRecognizers.append(pinch)
         for recognizer in aimRecognizers{recognizer.delegate=self}
         tap.require(toFail:pan);tap.require(toFail:orbit);tap.require(toFail:pinch)
-        pan.require(toFail:orbit);pan.require(toFail:pinch)
+        // One-finger aim must not wait for a two-finger recognizer to fail.
     }
     func gestureRecognizer(_ gestureRecognizer:UIGestureRecognizer,shouldReceive touch:UITouch)->Bool{
         guard !menuOpen,!spinExpanded,!locked else{return false}
@@ -730,6 +732,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if let id=draggedBall {moveBall(id,to:p)}
             if g.state == .ended||g.state == .cancelled {draggedBall=nil}
         }else{
+            guard g.numberOfTouches<=1 else{return}
             let delta=g.translation(in:scn);angle+=Double(delta.x)*0.003;g.setTranslation(.zero,in:scn);refresh()
         }
     }

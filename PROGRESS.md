@@ -14,6 +14,9 @@ Trạng thái ghi theo bằng chứng: CODE_READY (có code) · TESTED_PORTABLE 
 | P-4 A1: pháp tuyến va chạm bi–bi đúng lúc chạm | TESTED_PORTABLE | hướng bi mục tiêu cú nhanh khớp chế độ phẳng (trước lệch tới ~1°) |
 | Cảm giác lực/âm thanh/hình sau các sửa trên | chưa xác minh trên thiết bị | — |
 
+## Hợp nhất 26/10 tối (nhánh `ci/native-hop-nhat`)
+Lấy nền `feature/0.13-council-hardening` @ e86ee7f (repo private, PR #2: XCTest cử chỉ kéo một ngón, đầu dò G1, DeterminismTests 100 lần, cổng Linux GCC+Clang, `check_suite_lists.py`, `run_acceptance.py`, tài liệu hội đồng + AI Coach) và thêm từ nhánh này: vật lý 0.14 (P-1…P-4) + `LiteratureTests.cpp`, `check_gestures.py`, di trú cài đặt μ₀, số build tăng dần, CI phát hành IPA. 15/15 bộ C++ qua với g++ và clang++ (-Werror) trên Linux.
+
 ## Hàng chờ (theo thứ tự đề xuất)
 1. G2 (ChatGPT blueprint): cơ tránh băng + vùng effect khả thi; xếp bi ngẫu nhiên theo seed.
 2. Chế độ Luyện (có trợ giúp, phân tích sau cú) / Chế độ Thi (không trợ giúp) — đường lý tưởng và dự đoán chỉ ở chế độ Luyện hoặc sau cú.
@@ -33,4 +36,5 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 26/10/2026 tối · Hợp nhất council-hardening + vật lý 0.14; CI hợp nhất (cổng Linux 2 trình biên dịch → nghiệm thu Mac bằng run_acceptance.py → phát hành). Lần chạy Mac của bản chép council bị GitHub huỷ do hết máy macOS arm64 (không phải lỗi code); có tuỳ chọn chạy tay trên macos-15-intel.
 - 26/10/2026 · Nhập source native vào `feature/zoker-native` (repo public MQVPoolTrainer), CI `native-ci.yml`. Nhánh `ci/native-vat-ly`: 4 sửa vật lý P-1…P-4 + `LiteratureTests.cpp`; 14/14 bộ C++ qua với -Werror.
