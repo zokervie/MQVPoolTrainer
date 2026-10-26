@@ -22,7 +22,16 @@ struct V2 {
 struct Config {
     double width=1.27,length=2.54,radius=.028575,mass=.17;
     double sliding=.20,rolling=.012,spinDecay=7.0;
-    double ballRestitution=.94,ballFriction=.035;
+    // Ma sát bi–bi phụ thuộc tốc độ trượt tại điểm tiếp xúc (Alciatore TP A.14, khớp dữ liệu Marlow):
+    // μ(v) = a + b·e^(−c·v), a = 0,00995, b = 0,108, c = 1,088 s/m. `ballFriction` là μ khi v → 0 (= a + b).
+    // Trước 0.14 dùng hằng số 0,035 → throw cú chậm chỉ ~2° thay vì 4–6° (Tests/LiteratureTests.cpp).
+    double ballRestitution=.94,ballFriction=.118,ballFrictionMin=.00995,ballFrictionDecay=1.088;
+    double ballFrictionAt(double slip)const{double lo=std::min(ballFrictionMin,ballFriction);return lo+(ballFriction-lo)*std::exp(-ballFrictionDecay*slip);}
+    // Va chạm cơ–bi (Alciatore TP A.30/A.31). `speed` truyền vào strike() là tốc độ bi khi đánh TÂM;
+    // đánh lệch tâm d thì bi đi chậm hơn: v = speed·(1+m/M)/(1+m/M+2,5d²). Squirt theo khối lượng đầu cơ mₑ.
+    // Khối lượng cơ theo cueType (0 thường 19 oz, 1 nhảy, 2 phá); mₑ là GIẢ ĐỊNH (ngọn chuẩn ~7 g), chưa đo.
+    double cueMass()const{return cueType==1?.31:cueType==2?.56:.54;}
+    double cueEndMass()const{return cueType==1?.012:cueType==2?.010:.007;}
     double railRestitution=.82,railFriction=.16;
     bool individualRails=false;
     std::array<double,4> railBounce{{.82,.82,.82,.82}},railGrip{{.16,.16,.16,.16}};
@@ -65,6 +74,8 @@ public:
     static void cushionResponse(Ball& b,const Config& config,V2 n,int rail);
     std::vector<Ball> presentation()const;
     static double energy(const Ball& b,const Config& c);
+    /// Góc squirt (rad, ≥ 0) theo TP A.31; side = độ lệch ngang / R.
+    static double squirtAngle(double side,double ballMass,double endMass);
 private:
     double accumulator=0;
     std::vector<Ball> previousPresentation;

@@ -63,7 +63,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     override func viewDidLoad(){
         super.viewDidLoad();view.backgroundColor = UIColor(red:0.025,green:0.033,blue:0.044,alpha:1)
         // Visual probes must not inherit Jump/elevation from a previous scene.
-        if !ProcessInfo.processInfo.arguments.contains("--visual-qa"),let config=UserDefaults.standard.dictionary(forKey:"physics") as? [String:NSNumber]{engine.settings=config}
+        if !ProcessInfo.processInfo.arguments.contains("--visual-qa"),var config=UserDefaults.standard.dictionary(forKey:"physics") as? [String:NSNumber]{
+            // 0.14: ma sát bi–bi đổi nghĩa (μ₀ của mô hình theo tốc độ). Bỏ giá trị cũ 0,035 đã lưu để dùng mặc định mới.
+            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<14 {
+                config["ballFriction"]=nil;UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(14,forKey:"physicsModelVersion")
+            }
+            engine.settings=config
+        }
         table=TableScene(rails:engine.rails)
         if let color=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int {table.setClothColor(color)}
         scn=SCNView(frame:.zero);scn.scene=table.scene;scn.pointOfView=table.camera

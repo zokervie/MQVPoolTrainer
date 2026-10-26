@@ -41,7 +41,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             slider("Băng \(name) · ma sát","railGrip\(i)",0,0.35,0.16)
         }
         slider("Đàn hồi bi–bi","ballRestitution",0.80,1,0.94)
-        slider("Ma sát bi–bi — throw gần đúng","ballFriction",0,0.12,0.035)
+        slider("Ma sát bi–bi khi trượt chậm μ₀ (giảm theo tốc độ, TP A.14)","ballFriction",0,0.12,0.118)
         slider("Giảm ép phê ngang (rad/s²)","spinDecay",1,20,7)
         slider("Độ nhạy vuốt cơ","sensitivity",0.5,1.8,1)
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định"){[weak self]in
@@ -49,7 +49,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             self.apply?(self.values,self.sensitivity);self.dismiss(animated:true)
         })
         let limits=UILabel();limits.numberOfLines=0;limits.textColor=UIColor(white:0.65,alpha:1);limits.font = .systemFont(ofSize:12)
-        limits.text="Bản hiệu chuẩn 0.12: va chạm băng dạng xung lực gần đúng, lòng lỗ dùng vùng bắt 2D. A1 dùng xung lực 3D, ma sát Coulomb hai chiều và ràng buộc mặt đá khi bi tiếp xúc. Đây chưa phải mô hình băng biến dạng Mathavan/Stronge. Thông số fit của mô hình cũ cần đo lại. Chưa hiệu chuẩn băng biến dạng, độ ẩm, squirt/swerve hoặc Jump/Massé. Hãy đối chiếu bằng bài đo trước khi dùng để suy ra đường thi đấu."
+        limits.text="Hiệu chuẩn: va chạm băng dạng xung lực gần đúng, lòng lỗ dùng vùng bắt 2D. A1 dùng xung lực 3D, ma sát Coulomb hai chiều và ràng buộc mặt đá khi bi tiếp xúc. Đây chưa phải mô hình băng biến dạng Mathavan/Stronge. Thông số fit của mô hình cũ cần đo lại. Bản 0.14: throw theo ma sát phụ thuộc tốc độ (TP A.14), squirt (TP A.31, khối lượng đầu cơ giả định) và tốc độ bi theo điểm chạm (TP A.30). Chưa hiệu chuẩn băng biến dạng, độ ẩm, swerve hoặc Jump/Massé. Hãy đối chiếu bằng bài đo trước khi dùng để suy ra đường thi đấu."
         body.addArrangedSubview(limits)
     }
     private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,_ fallback:Double){

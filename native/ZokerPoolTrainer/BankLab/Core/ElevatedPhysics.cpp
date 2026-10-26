@@ -58,9 +58,14 @@ void World::strikeElevated(double angle,double speed,double side,double top){
     const double stiffness=config.cueType==1?.94:config.cueType==2?.90:.62;
     const double efficiency=config.cueType==1?.88:config.cueType==2?.82:.78;
     const double effective=mass*(.35+.35*stiffness);
-    const double launch=efficiency*1.35*speed/(1+config.mass/effective);
+    // TP A.30: đánh lệch tâm d → bi chậm hơn theo hệ số (1+m/M)/(1+m/M+2,5d²) (0.14, cùng quy tắc với cú phẳng).
+    const double k=1+config.mass/effective;
+    const double launch=efficiency*1.35*speed/k*(k/(k+2.5*(side*side+top*top)));
     it->height=0;setVelocity(*it,direction*launch);
     setOmega(*it,arm.cross(direction*launch)*(2.5/(config.radius*config.radius)));
+    // TP A.31: squirt cho thành phần ngang, cùng chiều quay ω_z (bi lệch ngược phía effect).
+    {const double a=std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin);
+     const double vx=it->v.x,vy=it->v.y;it->v={vx*std::cos(a)-vy*std::sin(a),vx*std::sin(a)+vy*std::cos(a)};}
     // Sequential cue impulse then slate response: explicit approximation, not a fake arc.
     floorImpact(*it,config,true);
     for(auto&b:balls)b.rails=0;
@@ -93,18 +98,40 @@ void World::stepElevated(double dt){
             auto&a=balls[i];auto&b=balls[j];if(a.sunk||b.sunk)continue;
             Vec delta{b.p.x-a.p.x,b.p.y-a.p.y,b.height-a.height};
             const double length=delta.length();if(length>2*r||length<1e-10)continue;
-            const Vec normal=delta*(1/length),relative=velocity(b)-velocity(a);
+            Vec normal=delta*(1/length);const Vec relative=velocity(b)-velocity(a);
             const double closing=relative.dot(normal),overlap=2*r-length;
-            a.p-=V2{normal.x,normal.y}*(overlap/2);b.p+=V2{normal.x,normal.y}*(overlap/2);
-            a.height=std::max(0.0,a.height-normal.z*overlap/2);b.height=std::max(0.0,b.height+normal.z*overlap/2);
+            // Phát hiện sau khi đã chồng lấn: lùi cặp bi về đúng thời điểm chạm (|Δ − v_rel·τ| = 2R) để pháp tuyến
+            // đúng. Trước 0.14 pháp tuyến lấy ở vị trí đã lún tới 0,12R → hướng bi mục tiêu sai tới ~1° ở cú nhanh
+            // (Tests/LiteratureTests.cpp). Trong τ (≤ 1 lát) bỏ qua ma sát nỉ.
+            double rewind=0;
+            if(closing<0){
+                const double a2=relative.dot(relative),dr=delta.dot(relative),c2=delta.dot(delta)-4*r*r;
+                const double disc=dr*dr-a2*c2;
+                if(a2>1e-18&&disc>=0)rewind=std::clamp((dr+std::sqrt(disc))/a2,0.0,h);
+            }
+            if(rewind>0){
+                const Vec va=velocity(a),vb=velocity(b);
+                a.p-=V2{va.x,va.y}*rewind;b.p-=V2{vb.x,vb.y}*rewind;a.height-=va.z*rewind;b.height-=vb.z*rewind;
+                const Vec touch{b.p.x-a.p.x,b.p.y-a.p.y,b.height-a.height};
+                normal=touch*(1/std::max(1e-12,touch.length()));
+            }else{
+                a.p-=V2{normal.x,normal.y}*(overlap/2);b.p+=V2{normal.x,normal.y}*(overlap/2);
+                a.height=std::max(0.0,a.height-normal.z*overlap/2);b.height=std::max(0.0,b.height+normal.z*overlap/2);
+            }
             if(closing>=0)continue;
             const double jn=-(1+config.ballRestitution)*closing/2;
             const Vec arm=normal*r,slip=relative-(omega(a)+omega(b)).cross(arm);
             const Vec tangent=slip-normal*slip.dot(normal);
-            const Vec contactImpulse=normal*jn+cap(tangent*(-1/7.0),config.ballFriction*jn);
+            const Vec contactImpulse=normal*jn+cap(tangent*(-1/7.0),config.ballFrictionAt(tangent.length())*jn);
             impulse(a,arm,contactImpulse*(-1),r);impulse(b,arm*(-1),contactImpulse,r);
             if(a.height<=0)floorImpact(a,config,false);
             if(b.height<=0)floorImpact(b,config,false);
+            if(rewind>0){
+                // Đi tiếp phần thời gian đã lùi với vận tốc mới.
+                const Vec va=velocity(a),vb=velocity(b);
+                a.p+=V2{va.x,va.y}*rewind;b.p+=V2{vb.x,vb.y}*rewind;
+                a.height=std::max(0.0,a.height+va.z*rewind);b.height=std::max(0.0,b.height+vb.z*rewind);
+            }
             events.push_back({1,a.id,b.id,time,(a.p+b.p)*.5,std::abs(closing)});
         }
         for(auto&b:balls){

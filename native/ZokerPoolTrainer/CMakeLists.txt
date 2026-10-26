@@ -25,3 +25,7 @@ add_test(NAME research_rail_response COMMAND research_tests)
 
 add_executable(elevated_tests Tests/ElevatedTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
 add_test(NAME elevated_cue COMMAND elevated_tests)
+
+add_executable(literature_tests Tests/LiteratureTests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)
+target_compile_options(literature_tests PRIVATE -Wall -Wextra -Wpedantic)
+add_test(NAME literature COMMAND literature_tests)

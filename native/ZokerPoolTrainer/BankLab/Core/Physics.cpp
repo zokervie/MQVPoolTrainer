@@ -50,12 +50,22 @@ void World::strike(double angle,double speed,double side,double top){
     side=std::clamp(side,-.7,.7);top=std::clamp(top,-.7,.7);
     double mag=std::hypot(side,top);if(mag>.7){side*=.7/mag;top*=.7/mag;}
     speed=std::clamp(speed,0.0,6.0);
-    V2 d{std::cos(angle),std::sin(angle)};
+    // TP A.30: cùng tốc độ cơ, đánh lệch tâm → bi chậm hơn. `speed` là tốc độ bi khi đánh tâm.
+    const double k=1+config.mass/config.cueMass();
+    speed*=k/(k+2.5*(side*side+top*top));
     // Impulse at an offset cue contact, solid-sphere I=2/5 mR².
-    it->v=d*speed;it->w=d.perp()*(2.5*top*speed/config.radius);
     it->spin=-2.5*side*speed/config.radius;
+    // TP A.31: squirt — bi lệch ngược phía effect, tức cùng chiều quay với ω_z (hệ phải, z lên).
+    const double a=angle+std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin);
+    V2 d{std::cos(angle),std::sin(angle)},dv{std::cos(a),std::sin(a)};
+    it->v=dv*speed;it->w=d.perp()*(2.5*top*speed/config.radius);
     for(auto&b:balls)b.rails=0;
     events.clear();time=0;accumulator=0;
+}
+double World::squirtAngle(double side,double m,double me){
+    const double s=std::clamp(std::abs(side),0.0,1.0),c=1-s*s;
+    if(s<1e-12||me<=0)return 0;
+    return std::atan(2.5*s*std::sqrt(c)/(1+m/me+2.5*c));
 }
 bool World::moving()const{
     for(const auto&b:balls)if(!b.sunk&&(b.height>1e-7||std::abs(b.vertical)>1e-5||b.v.length()>1e-5||b.w.length()>1e-4||std::abs(b.spin)>1e-4))return true;
@@ -106,8 +116,8 @@ void World::ballCollision(Ball&a,Ball&b){
     V3 relative{b.v.x-a.v.x,b.v.y-a.v.y,0};
     V3 slip=relative-(wa+wb).cross(normal*config.radius);
     V3 tangent=slip-normal*slip.dot(normal);
-    // Two solid spheres: tangential inverse effective mass is 7/m.
-    V3 friction=capped(tangent*(-1.0/7.0),config.ballFriction*jn);
+    // Two solid spheres: tangential inverse effective mass is 7/m. μ theo tốc độ trượt (TP A.14).
+    V3 friction=capped(tangent*(-1.0/7.0),config.ballFrictionAt(tangent.length())*jn);
     V3 impulse=normal*jn+friction;
     a.v-=V2{impulse.x,impulse.y};b.v+=V2{impulse.x,impulse.y};
     V3 dw=normal.cross(impulse)*(-2.5/config.radius);
