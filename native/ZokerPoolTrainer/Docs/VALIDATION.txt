@@ -1,0 +1,40 @@
+BankLab 0.6.1 validation — 2026-10-15
+
+0.6.1: Reviewed user's 21.73 s camera video with extracted frames. Overhead rectangular frame/two bars match ceiling fixture geometry at 2.43–2.47 m, between former camera height 4 m and table. Camera now at 1.8 m; orthographic field sizing unchanged. Native render verification still required.
+0.6.1: Added one-click rolling diagnostic. Core unchanged; existing numerical test results retained, not rerun for camera/UI-only changes. Swift syntax PASS. No claim of rolling texture verified from this clip.
+
+0.6 core: PhysicsTests PASS (2286552 assertions); PracticeTests PASS; PredictionTests PASS including half-circumference/half-turn and equal orientation for 30/60 Hz stepping.
+0.6 geometry: Shapely constrained triangulation covers exact bed/deck polygons; six bed apertures; connected deck opening; valid indices, explicit normal and UV counts. Top-view geometry inspected internally, NOT a SceneKit render.
+0.6 rendering: orientation now stored by core and bridge/state snapshots, rather than accumulated per render frame. Render mapping quaternion (x,y,z,w) -> (-x,-z,-y,w) then initial texture orientation.
+0.6 native render, asset-catalog compilation, Swift/ObjC++ type-check/link, FPS and empirical validation: NOT performed here.
+
+0.5: PhysicsTests PASS, 2286552 assertion executions.
+0.5: PracticeTests PASS, all four target-zone drills remain reachable with real-pocket requirement (pocket ID >= 0).
+0.5: PredictionTests PASS: analytic sliding displacement/deceleration, rolling deceleration, overspin acceleration, live-state isolation and 406 prediction samples matching an independently advanced live World.
+0.5: original empirical coefficients/integration retained. New prediction runs a separate world with the same configuration. This is internal consistency, not validation against a physical table.
+0.5: Angular rendering maps (wx,wy,wz) -> (-wx,-wz,-wy), the axial-vector transform for reflected XY->XZ coordinates.
+0.5: six Swift syntax parses, project and plist parsing PASS. New ObjC++ bridge and UIKit/SceneKit have NOT been Apple-SDK type-checked or run here.
+0.5: CMake unavailable in this runtime; all three test executables compiled directly with g++17 -O2 -Wall -Wextra -Wpedantic -Werror and executed.
+0.5: no screenshot/visual/FPS/real-table accuracy result claimed.
+
+0.4.1: refactored TableScene expression complexity after user-reported Xcode type-check timeout. Explicit numeric/SIMD types and intermediate values, separate environment-face rendering. Six Swift syntax parses PASS. Apple SDK build remains unverified; screenshot did not identify the failing source line. Core physics not modified; no repeated physics test needed for this source-only refactor.
+
+0.4: all six Swift files pass tree-sitter syntax parsing; project and plist parse; shell script syntax passes.
+0.4: core regression PASS, 2286552 assertion executions. Physics unchanged from 0.3.
+0.4: PracticeTests.cpp finds successful simulated shots for all four new target-zone drills under the default configuration. This checks reachability, not real-table accuracy or UIKit score integration.
+0.4: SceneKit rendering/HUD and new graphics settings have NOT been executed here. No rendered screenshot, FPS or competitive-quality claim is verified.
+
+Previous core validation detail:
+
+C++17 -O2 -Wall -Wextra -Wpedantic -Werror: PASS.
+Analytic checks: head-on/cut collision momentum and energy; sliding 5/7 transition; rolling stopping distance; draw reversal; flat and tilted frictionless rail responses; spin transfer; pocket capture; deterministic 30/60 Hz advance.
+Seeded stress: 150 shots and 1000 isolated rail contacts, finite states and passive energy bound: PASS.
+Total assertion executions: 2286552 (includes repeated per-step checks; not a count of independent test cases).
+AddressSanitizer + UndefinedBehaviorSanitizer: PASS; leak detection disabled because process scanning unavailable.
+Six Swift files: tree-sitter syntax parse PASS.
+Xcode project OpenStep and Info.plist parse PASS. No new project file references were added.
+
+NOT PERFORMED here: Apple SDK type-check/link, Xcode build, Simulator launch, iPhone runtime, UI layout/touch/menu validation, CSV share UI, FPS, visual quality or empirical table calibration.
+User previously ran 0.1 in Simulator; that is not validation of this new version.
+
+Regression tests establish numerical properties only, not matching a real table.

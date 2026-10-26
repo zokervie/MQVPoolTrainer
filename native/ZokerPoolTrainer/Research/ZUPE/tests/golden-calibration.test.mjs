@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {DEFAULT,makeBall,simulateRails} from '../enhancements/bank-physics.mjs';
+import {validateGoldenShot,shotLoss,fitGolden,evaluate} from '../enhancements/golden-calibration.mjs';
+import {selectCue,equipments} from '../enhancements/cue-equipment-library.mjs';
+import {eventFrame,interpolateDisplay} from '../enhancements/simulation-recorder.mjs';
+const inputs=[{x:0,z:0,vx:1.3,vz:.32,wx:0,wy:0,wz:0},{x:0,z:.1,vx:1.6,vz:.2,wx:0,wy:0,wz:0}];
+const samples=inputs.flatMap((initial,k)=>['train','validation'].map((partition,j)=>{
+ const trace=simulateRails(makeBall(initial),DEFAULT,{maxEvents:1,maxTime:8});
+ assert.equal(trace.events.length,1);
+ return {id:`synthetic-${k}-${j}`,partition,initial,railSequence:[trace.events[0].rail],observed:{contacts:trace.events.map(e=>({x:e.x,z:e.z})),uncertaintyMeters:.01},provenance:{source:'generated-by-simulator-NOT-experimental',method:'synthetic regression only'}};
+}));
+for(const s of samples)assert.equal(validateGoldenShot(s),true);
+assert.ok(shotLoss(samples[0]).loss<1e-10);
+const fit=fitGolden(samples,{iterations:2,keys:['eRail']});
+assert.equal(fit.training.sequencePass,2);assert.equal(fit.validation.sequencePass,2);
+assert.ok(evaluate(samples,DEFAULT,'validation').normalizedLoss<1e-10);
+assert.ok(equipments.length>=3);assert.equal(selectCue('zokerJump').category,'jump');
+const a=eventFrame(0,[{id:0,x:0,y:0.028575,z:0}]);const b=eventFrame(1,[{id:0,x:1,y:0.028575,z:1}]);
+assert.ok(Math.abs(interpolateDisplay(a,b,.25)[0].x-.25)<1e-12);
+console.log('PASS golden dataset validation, deterministic synthetic fit, equipment provenance and display-only interpolation');

@@ -1,0 +1,8 @@
+PASS YAML: .github/workflows/xcode-build.yml
+PASS YAML: codemagic.yaml
+PASS YAML: native/ZokerPoolTrainer/codemagic.yaml
+PASS Info.plist XML
+PASS: Shell syntax
+PASS: C11 policy ABI syntax
+PASS: Whitespace
+PASS Debug/Release: 0.13 build 23; bundle identifier unchanged

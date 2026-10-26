@@ -1,0 +1,431 @@
+{
+  "version": "concept-2026-10-24",
+  "note": "Sơ đồ concept của Zoker, không chép screenshot video. Đường vẽ minh hoạ, chưa giải bằng physics; phải hiệu chỉnh trước khi đưa vào game.",
+  "lessons": [
+    {
+      "id": "D01",
+      "title": "Stop shot - giữ bi cái",
+      "group": "Cơ bản • Kiểm soát bi cái",
+      "desc": "Đưa bi 1 vào lỗ; bi cái dừng gần vị trí tiếp xúc. Giữ cùng thế bi và lực để thử 10 cú.",
+      "balls": [
+        [
+          0,
+          0.52,
+          -0.72
+        ],
+        [
+          1,
+          0.52,
+          0.16
+        ]
+      ],
+      "path": [
+        [
+          0.52,
+          -0.72
+        ],
+        [
+          0.52,
+          0.16
+        ],
+        [
+          0.55,
+          1.23
+        ]
+      ],
+      "target": "7/10 cú đạt vùng dừng",
+      "src": "https://drdavepoolinfo.com/faq/cue-ball-control/drills/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D02",
+      "title": "Follow / Draw - cu-lê và trô",
+      "group": "Cơ bản • Xoáy dọc",
+      "desc": "Giữ nguyên hai bi; thử đánh trên tâm để tiến, dưới tâm để lùi; phân biệt lực và điểm chạm.",
+      "balls": [
+        [
+          0,
+          0.48,
+          -0.65
+        ],
+        [
+          1,
+          0.48,
+          0.17
+        ]
+      ],
+      "path": [
+        [
+          0.48,
+          -0.65
+        ],
+        [
+          0.48,
+          0.17
+        ],
+        [
+          0.48,
+          0.65
+        ]
+      ],
+      "target": "7/10 cú vào vùng đích",
+      "src": "https://drdavepoolinfo.com/faq/cue-ball-control/drills/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D03",
+      "title": "Speed ladder - điều lực",
+      "group": "Cơ bản • Điều lực",
+      "desc": "Chỉ đánh bi cái theo trục dọc, thay lực để dừng ở một trong 5 vùng mục tiêu trên bàn.",
+      "balls": [
+        [
+          0,
+          0,
+          -1.02
+        ]
+      ],
+      "path": [
+        [
+          0,
+          -1.02
+        ],
+        [
+          0,
+          0.82
+        ]
+      ],
+      "target": "3/5 cú đúng mỗi vùng",
+      "src": "https://drdavepoolinfo.com/faq/drill/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D04",
+      "title": "Cut 30° / 45° - điều bi",
+      "group": "Trung bình • Góc cắt",
+      "desc": "Đánh bi mục tiêu lệch tâm vào lỗ; đưa bi cái vào vùng mục tiêu sau va chạm.",
+      "balls": [
+        [
+          0,
+          -0.37,
+          -0.63
+        ],
+        [
+          1,
+          0.02,
+          0.07
+        ]
+      ],
+      "path": [
+        [
+          -0.37,
+          -0.63
+        ],
+        [
+          0.02,
+          0.07
+        ],
+        [
+          0.61,
+          1.2
+        ]
+      ],
+      "target": "7/10 cú vừa pot vừa đạt vùng",
+      "src": "https://drdavepoolinfo.com/faq/drill/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D05",
+      "title": "Kick một băng - 2:1",
+      "group": "Trung bình • Kick 1 băng",
+      "desc": "Bi cái chạm một băng rồi mới tiếp cận bi 1. Đường gương là hướng khởi đầu, không phải đáp án vật lý chính xác.",
+      "balls": [
+        [
+          0,
+          -0.42,
+          -0.72
+        ],
+        [
+          1,
+          0.38,
+          0.44
+        ]
+      ],
+      "path": [
+        [
+          -0.42,
+          -0.72
+        ],
+        [
+          0.605,
+          -0.05
+        ],
+        [
+          0.38,
+          0.44
+        ]
+      ],
+      "target": "7/10 cú chạm đúng sau 1 băng",
+      "src": "https://drdavepoolinfo.com/faq/bank-kick/two-to-one/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D06",
+      "title": "Kick hai băng - xê dịch song song",
+      "group": "Khó • Kick 2 băng",
+      "desc": "Tìm hai lần chạm băng trước khi chạm bi 1. Tự hiệu chỉnh theo lực, hệ số băng và xoáy.",
+      "balls": [
+        [
+          0,
+          -0.12,
+          -0.82
+        ],
+        [
+          1,
+          0.28,
+          0.5
+        ]
+      ],
+      "path": [
+        [
+          -0.12,
+          -0.82
+        ],
+        [
+          0.6,
+          -0.24
+        ],
+        [
+          -0.6,
+          0.21
+        ],
+        [
+          0.28,
+          0.5
+        ]
+      ],
+      "target": "7/10 cú chạm đúng sau 2 băng",
+      "src": "https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D07",
+      "title": "Bank một băng - phản xạ bi đích",
+      "group": "Trung bình • Bank 1 băng",
+      "desc": "Đưa bi 1 chạm băng rồi vào lỗ góc. Thử thay đổi góc cắt để quan sát spin transfer.",
+      "balls": [
+        [
+          0,
+          -0.3,
+          -0.74
+        ],
+        [
+          1,
+          -0.05,
+          0.09
+        ]
+      ],
+      "path": [
+        [
+          -0.05,
+          0.09
+        ],
+        [
+          0.6,
+          0.33
+        ],
+        [
+          0.6,
+          1.24
+        ]
+      ],
+      "target": "7/10 cú bi đích vào đúng lỗ",
+      "src": "https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D08",
+      "title": "Kick ba băng - Corner-5 nghiên cứu",
+      "group": "Khó • Kick 3 băng",
+      "desc": "Quan sát tuyến qua ba băng; hệ Corner-5 chỉ là tham chiếu, cần thử sai theo profile bàn.",
+      "balls": [
+        [
+          0,
+          -0.44,
+          -0.86
+        ],
+        [
+          1,
+          0.13,
+          0.62
+        ]
+      ],
+      "path": [
+        [
+          -0.44,
+          -0.86
+        ],
+        [
+          -0.6,
+          -0.31
+        ],
+        [
+          0.6,
+          0.04
+        ],
+        [
+          -0.6,
+          0.48
+        ],
+        [
+          0.13,
+          0.62
+        ]
+      ],
+      "target": "7/10 cú chạm bi sau 3 băng",
+      "src": "https://drdavepoolinfo.com/faq/bank-kick/corner-5/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D09",
+      "title": "Runout - dọn bi ngẫu nhiên",
+      "group": "Mọi mức • Dọn bi",
+      "desc": "Sinh seed ngẫu nhiên cho N=3/6/9/15; mỗi trận có thể chơi lại từ seed để so hiệu suất.",
+      "balls": [
+        [
+          0,
+          0,
+          -0.86
+        ],
+        [
+          1,
+          -0.31,
+          0.36
+        ],
+        [
+          2,
+          0.22,
+          0.11
+        ],
+        [
+          3,
+          0.39,
+          0.77
+        ],
+        [
+          4,
+          -0.13,
+          0.8
+        ],
+        [
+          5,
+          0.04,
+          -0.03
+        ],
+        [
+          6,
+          -0.42,
+          -0.04
+        ]
+      ],
+      "path": [],
+      "target": "Dọn N bi; ít cú và ít lỗi hơn",
+      "src": "https://drdavepoolinfo.com/faq/drill/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    },
+    {
+      "id": "D10",
+      "title": "Safety - che đường ngắm",
+      "group": "Nâng cao • Chiến thuật",
+      "desc": "Tập đưa bi cái dừng ở vùng bị bi cản che khỏi đường đánh trực tiếp của đối thủ.",
+      "balls": [
+        [
+          0,
+          -0.27,
+          -0.68
+        ],
+        [
+          1,
+          0.3,
+          0.54
+        ],
+        [
+          2,
+          0,
+          0.03
+        ],
+        [
+          3,
+          -0.02,
+          0.2
+        ]
+      ],
+      "path": [
+        [
+          -0.27,
+          -0.68
+        ],
+        [
+          -0.53,
+          0.12
+        ],
+        [
+          -0.05,
+          0.29
+        ]
+      ],
+      "target": "Đến vùng an toàn, không scratch",
+      "src": "https://drdavepoolinfo.com/faq/drill/",
+      "layout_units": "metres",
+      "layout_geometry": "schematic_original",
+      "status": "concept_not_video_frame_verified",
+      "pass_score_target": "7/10 (đề xuất, cần kiểm định lối chơi)",
+      "legal_source": "reference_only",
+      "video_embed_checked": false
+    }
+  ]
+}

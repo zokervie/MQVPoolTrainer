@@ -1,0 +1,26 @@
+workflows:
+  zoker-native-011:
+    name: Zoker 0.13 HUD Camera - unsigned candidate
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      xcode: 16.4
+      node: 22
+    scripts:
+      - name: Generate assets, run tests and build unsigned IPA
+        script: |
+          set -euo pipefail
+          cd "$CM_BUILD_DIR/native/ZokerPoolTrainer"
+          python3 -m venv .ci-venv
+          source .ci-venv/bin/activate
+          python3 -m pip install numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+          python3 Tools/prepare_ci_assets.py
+          bash Run-All-Checks.command
+          bash Verify-on-Mac.command
+          bash Build-Unsigned-IPA.command
+          bash Tools/ci_screenshots.sh
+    artifacts:
+      - native/ZokerPoolTrainer/dist/*.ipa
+      - native/ZokerPoolTrainer/build/*.log
+      - native/ZokerPoolTrainer/build/screenshots/*.png
+      - native/ZokerPoolTrainer/build/screenshots/g1-qa/*.json

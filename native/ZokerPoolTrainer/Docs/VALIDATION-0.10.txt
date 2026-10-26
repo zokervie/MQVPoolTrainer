@@ -1,0 +1,29 @@
+Zoker Pool Trainer 0.10 + ZUPE Lab — 21/10/2026
+Host: Linux, C++17 and Node.js.
+
+PASS: 7 material maps, SHA-256, PNG chunk CRCs and dimensions
+Built offline ZUPE Lab: 6 scoped modules; no CDN or network dependencies
+PASS: native controller, resource build phase, offline bundle, export bridge, plist and scheme XML; NOT an Xcode compilation
+PASS: diamond coordinates, speed/restitution, spin response, cloth deceleration, stroke touch, impact gating, rail events
+PASS: cue presets, downward impulse, slate-generated jump, repeatability, reference loss
+PASS golden dataset validation, deterministic synthetic fit, equipment provenance and display-only interpolation
+PASS: analytic rail sign/energy, residual flight, complete final leg, trace timestamps, all four Lab tabs, native export messages, stroke gate, holdout and stale-export guards
+PASS: 2314233 physics assertions
+PASS: analytic acceleration and prediction/live consistency (378 samples)
+Goal 0 reachable: speed=0.5, top=0.6
+Goal 1 reachable: speed=1.7, top=-0.7
+Goal 2 reachable: speed=0.9, top=0.6
+Goal 3 reachable: speed=1.9, top=-0.7
+PASS: four target-zone drills have successful simulated shots
+PASS: 761 analytic cut/contact, rebound and pocket geometry checks
+PASS: 13 added practice goals have successful simulated shots
+PASS: optional native ZUPE rail response at four speeds; default preserves v0.9
+
+Shell syntax: bash -n PASS.
+Native menu/controller/resource references and plist/scheme: PASS static checks.
+The HTML tests run the exact shipped scripts with a DOM/canvas test harness, not a real browser or WKWebView.
+
+NOT RUN: Xcode Swift/Objective-C++ compile/link, Simulator launch, native SceneKit/WKWebView visual review, device IPA compilation, iPhone/iPad install, JSON share sheet or FPS/memory measurements.
+No new IPA exists. No code uploaded to GitHub/Codemagic by this packaging task.
+No measured Golden Shots supplied; calibration fixtures are synthetic.
+Physics and prototype tests prove internal invariants, not real-table accuracy.

@@ -1,0 +1,68 @@
+[
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/Core/BLWorld.h",
+    "git_blob_sha": "0e48b5ae98b46111a4525502c4a8b61d54d2d84b",
+    "sha256": "7151af74632418bdc516992baf27a936cf2169c631fb5e3ca869fa31a4ff29c8",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/Core/BLWorld.mm",
+    "git_blob_sha": "4090feeb639222aa21ae2f773fcceac2f57b4a7b",
+    "sha256": "0fcbf6f03d9ee877193fef598053cb79e492c2f1ad4b21a8c72f67dd2b464600",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/Core/CushionCalibration.hpp",
+    "git_blob_sha": "bbfbf19de91dc6c4879ada7d97ce9d57789ffdb1",
+    "sha256": "4eacac5745f68371f130efe3f486eb4605210a4df5e9d4b41b291bb998ff15f0",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/Core/CushionContact3D.hpp",
+    "git_blob_sha": "715f02c9ce1acd83079e5b85d2b6f47acaeef847",
+    "sha256": "626968344e6cc8bb89c79e495b5fab88a3ff36a916520326feb1bf303cbf536c",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/Core/ElevatedPhysics.cpp",
+    "git_blob_sha": "52d1037efc924784fd0df95f405d6155c4c75364",
+    "sha256": "f0e5fcc8770e866bb291b93e4b03a6b7513019a8ba112aa709f9ba01e0f14055",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/Core/KickSearch.hpp",
+    "git_blob_sha": "25f3ce6bda9861d4887824be2cb1fcd7ec9de645",
+    "sha256": "873b41a099338309ee00fa560bf1b1e88f9d16b1b1a033ae3360e5ad094de901",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/Core/Physics.cpp",
+    "git_blob_sha": "e338951befbc467e8db3e1f1bdefa5420a729a7b",
+    "sha256": "1c795765dd44682342ca5e7be046bb41bd76e44769fca63f28040b6fe900e0eb",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/Core/Physics.hpp",
+    "git_blob_sha": "e623606af666a4fb4c91fde1646a8eed0a5358ea",
+    "sha256": "c8c09da5ab73757be644bfded522fe4bac4eed302e46dc06230895dfb0ff549b",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/UI/EquipmentLibrary.swift",
+    "git_blob_sha": "380ac8e4c032387362e8474687a7b42f5b4aa306",
+    "sha256": "7d10bd3b0f4522604783d9e2986d8b864eed64266eff023fcc399d12f2902923",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/UI/Models.swift",
+    "git_blob_sha": "4f15810bff9a351c1eb9b7d9c1257d51c5b0a7ed",
+    "sha256": "e1a9e4ebc8eadf99ff8f9a99f0d8808293488132bfb2c4e38946c6b85960e718",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  },
+  {
+    "path": "native/ZokerPoolTrainer/BankLab/UI/TouchControls.swift",
+    "git_blob_sha": "dccf5a497a0d348515fd933bebdd4a60ca8e5b88",
+    "sha256": "4fbba1a3844db8dc5d280c675a1dd1dbcda80c7e560efd598d506e8ea76d6b57",
+    "status": "BYTE_IDENTICAL_TO_BASE"
+  }
+]

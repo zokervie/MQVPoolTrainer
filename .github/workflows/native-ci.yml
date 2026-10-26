@@ -1,0 +1,103 @@
+# CI cho ZokerPoolTrainer bản native (UIKit/SceneKit + C++) trên repo public: máy macOS miễn phí.
+# Thứ tự rẻ trước: test C++ trên Linux → build Simulator + test + ảnh chụp + IPA trên macOS.
+# IPA chỉ phát hành khi mọi bước qua, và chỉ từ nhánh feature/zoker-native.
+name: Zoker native
+on:
+  push:
+    branches: ['feature/zoker-native', 'ci/native-**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    name: Vật lý C++ (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: native/ZokerPoolTrainer
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build + ctest
+        run: |
+          cmake -S . -B build/core -DCMAKE_BUILD_TYPE=Release > /dev/null
+          cmake --build build/core -j4 2>&1 | grep -E "error|warning" || true
+          cd build/core && ctest --output-on-failure 2>&1 | tee ../core-tests.log
+          grep -E "^REPORT" ../core-tests.log | sed 's/^/::notice title=core::/' || true
+
+  mac:
+    name: iOS (Simulator, ảnh chụp, IPA)
+    needs: core
+    runs-on: macos-15
+    timeout-minutes: 50
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: native/ZokerPoolTrainer
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Chọn Xcode 16.4
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app && xcodebuild -version
+      - name: Sinh tài nguyên (texture, mesh)
+        run: |
+          python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4' 'shapely>=2.1,<3'
+          python3 Tools/prepare_ci_assets.py
+      - name: Kiểm tra vật lý, nghiên cứu, tích hợp
+        run: bash Run-All-Checks.command
+      - name: Build Simulator
+        run: |
+          bash Verify-on-Mac.command > /dev/null 2>&1 || { grep -E "error:" build/simulator-build.log | head -30 | sed 's/^/::error::/'; exit 1; }
+      - name: Build IPA chưa ký
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          bash Build-Unsigned-IPA.command > build/ipa.log 2>&1 || { grep -E "error:" build/device-build.log | head -30 | sed 's/^/::error::/'; tail -5 build/ipa.log; exit 1; }
+          tail -3 build/ipa.log
+      - name: Ảnh chụp + đầu dò giao diện (G1)
+        run: bash Tools/ci_screenshots.sh 2>&1 | tail -40
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: zoker-native-${{ github.run_number }}
+          path: |
+            native/ZokerPoolTrainer/dist/*.ipa
+            native/ZokerPoolTrainer/build/*.log
+            native/ZokerPoolTrainer/build/screenshots/*.png
+            native/ZokerPoolTrainer/build/screenshots/*.txt
+            native/ZokerPoolTrainer/build/screenshots/g1-qa/*.json
+          retention-days: 14
+      - name: Phát hành (Release theo build + link cố định)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/zoker-native'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          IPA=$(ls dist/*.ipa); NAME=$(basename "$IPA" .ipa)
+          SHA256=$(shasum -a 256 "$IPA" | cut -d' ' -f1)
+          TAG="native-${NAME#ZokerPoolTrainer-}"
+          LINK="https://github.com/${GITHUB_REPOSITORY}/raw/dist-zoker-native/ZokerPoolTrainer.ipa"
+          cp "$IPA" ZokerPoolTrainer.ipa
+          NOTE="${NAME} — nhánh feature/zoker-native, commit ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC').
+          IPA chưa ký – ký bằng ESign/Sideloadly rồi cài. Link cố định (luôn là bản mới nhất): ${LINK}
+          SHA-256: ${SHA256}"
+          gh release create "$TAG" ZokerPoolTrainer.ipa --target "$GITHUB_SHA" --prerelease --title "$NAME" --notes "$NOTE"
+          mkdir -p _dist && cp ZokerPoolTrainer.ipa _dist/ && printf '%s\n' "$NOTE" > _dist/BUILD.txt
+          ( cd _dist && git init -q && git checkout -q -b dist-zoker-native \
+            && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com" \
+            && git add -A && git commit -qm "$NAME (${GITHUB_SHA::7})" \
+            && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-zoker-native )
+          gh api "repos/$GITHUB_REPOSITORY/contents/ZokerPoolTrainer.ipa?ref=dist-zoker-native" -H "Accept: application/vnd.github.raw" > check.ipa
+          test "$(shasum -a 256 check.ipa | cut -d' ' -f1)" = "$SHA256"
+          gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
+            | grep '^native-' | tail -n +11 | while read -r old; do gh release delete "$old" -y || true; done
+          echo "::notice title=release::$TAG · $LINK"

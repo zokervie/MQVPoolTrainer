@@ -1,0 +1,138 @@
+{
+  "handoff_date": "2026-10-24",
+  "mode": "bootstrap_bundle_excludes_unfetched_private_repo_bytes",
+  "repo_baseline": "aba66d0f21e0816973ef0c13281fa98855ca3ff6",
+  "count": 26,
+  "files": [
+    {
+      "name": "01_START_HERE/README_FIRST_VI.md",
+      "size": 4211,
+      "sha256": "22cbaba70e1a9f6212a26754a39df3cd9eedfe43790b306f06934851e6f5b4d7"
+    },
+    {
+      "name": "02_PROJECT_STATUS/FEATURE_AUDIT.csv",
+      "size": 4617,
+      "sha256": "af468eccd55f4dc91f2a2dacbd4d55458adef9792ce02486e281ef7617b28e0c"
+    },
+    {
+      "name": "02_PROJECT_STATUS/PROJECT_STATE_AND_EVIDENCE.md",
+      "size": 6749,
+      "sha256": "6aa83b75e5e5a46a24ad68400ffa2c337409b17aa851f678cdc91f9726756eb0"
+    },
+    {
+      "name": "02_PROJECT_STATUS/RELEASE_HISTORY_AND_INVARIANTS.md",
+      "size": 3127,
+      "sha256": "62390000826bd127f1292214994c6381d394f23ff20d8f950fb6de53921fead8"
+    },
+    {
+      "name": "03_REQUIREMENTS_AND_ROADMAP/EXECUTION_GATES.md",
+      "size": 2297,
+      "sha256": "4f3a28fb49cc304d11e5633b916f8b5dcb8297f240278e0b6046ab9f42012ceb"
+    },
+    {
+      "name": "03_REQUIREMENTS_AND_ROADMAP/G1_G2_IMPLEMENTATION_BLUEPRINT.md",
+      "size": 4112,
+      "sha256": "8123f9302103752550e521b7d4e5b311d4f3cbd15241a6bd990e1924db35c0b6"
+    },
+    {
+      "name": "03_REQUIREMENTS_AND_ROADMAP/G5_G6_ONLINE_PROTOCOL.md",
+      "size": 3693,
+      "sha256": "c935c0d99459db732a3ec5703b55ed016b3621b9db7a170e427d138dbdc7bbbd"
+    },
+    {
+      "name": "03_REQUIREMENTS_AND_ROADMAP/LONG_TERM_BACKLOG.md",
+      "size": 2312,
+      "sha256": "57ff4f024a2474e2c7d6c8f312883818603dba0ea83d14faa7689d3b0c3a3af0"
+    },
+    {
+      "name": "03_REQUIREMENTS_AND_ROADMAP/ZokerPoolTrainer_0.13_0.14_Master_Patch_Workflow_2026-10-24.md",
+      "size": 34260,
+      "sha256": "5bdd85e9168e65496c34a4ee70afd44b0d92b73aa66d04cbb144847f4a3b82d9"
+    },
+    {
+      "name": "04_AGENT_PROMPTS/AGENT_START_HERE.md",
+      "size": 3067,
+      "sha256": "5ab71b636dc83c9ec52ee39c1516d2d2b3c038e62624440a517de3dff1c68e06"
+    },
+    {
+      "name": "04_AGENT_PROMPTS/SHORT_CLAUDE_PROMPT.txt",
+      "size": 984,
+      "sha256": "fe257f8ad6701885bfdb96ca7cba873a88d04f7ab63edd412f0883ccf076a082"
+    },
+    {
+      "name": "05_BOOTSTRAP/BUILD_FULL_HANDOFF_MAC.command",
+      "size": 223,
+      "sha256": "0874f3389dc67d4b7a3ec31c739fbaef10c7ffbd27d0134393edb19739fc49b9"
+    },
+    {
+      "name": "05_BOOTSTRAP/BUILD_FULL_HANDOFF_WINDOWS.ps1",
+      "size": 430,
+      "sha256": "4fb5929ac6f04e4767bfeb496417710069d6cd82439ed9766724d10cac98630b"
+    },
+    {
+      "name": "05_BOOTSTRAP/CHECKOUT_AND_BUILD_RUNBOOK.md",
+      "size": 2584,
+      "sha256": "035c7ec530e187c5c73fa47e149bcd71239cdaaf052c6bf88bda22a2a7a5b0e6"
+    },
+    {
+      "name": "05_BOOTSTRAP/assemble_full_source.py",
+      "size": 7378,
+      "sha256": "1dadcc5351520ba031a7d61b303c998b98824e928cda3eba1641e998d14440c5"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/PDF_PREVIEWS/page-1.png",
+      "size": 65649,
+      "sha256": "b4251aac61a45cde42633f653135da584fee48e49fd7a58402a6282b2e181060"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/PDF_PREVIEWS/page-2.png",
+      "size": 87348,
+      "sha256": "e4ebcf3208ec4445cdb01b3b6add5b7cd4001418b7f39a23318081575fb87891"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/PDF_PREVIEWS/page-3.png",
+      "size": 84873,
+      "sha256": "918397f19021dd189ddc25ebeefec4038662ea171cc2fac01078b12256e306ea"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/PDF_PREVIEWS/page-4.png",
+      "size": 95944,
+      "sha256": "4cac5607f5be097f5571a48d4939a1292c83a78d9fff76eedae78d6a5df593bb"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/PDF_PREVIEWS/page-5.png",
+      "size": 94722,
+      "sha256": "42201cd789e310d7210656395015491c5855eda6a7701fe96594133365ba1a7b"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/PDF_PREVIEWS/page-6.png",
+      "size": 93818,
+      "sha256": "1e742f7f31615883e38af81fbbe37864ffe9419fbfd97fb6d371dada505f1cec"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/PDF_PREVIEWS/page-7.png",
+      "size": 93570,
+      "sha256": "bcdc1ddf81078df05f6156b5ac606a04b260a617a307c104a4310eb06a9fe52e"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/SOURCE_AND_LICENSE_POLICY.md",
+      "size": 1466,
+      "sha256": "3fdc900979888ce5e08aff8d9d91e6484592d7d1b5d4d6cca0801a7ddb8af226"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/ZokerPoolTrainer_Training_Catalog_Concept_2026-10-24.json",
+      "size": 10586,
+      "sha256": "8d970f963e79c9e7e5d9249f4a172413b629f29ceaaec1bfec361055868acbf7"
+    },
+    {
+      "name": "07_RESEARCH_AND_TRAINING/ZokerPoolTrainer_Training_Schematic_Concept_2026-10-24.pdf",
+      "size": 69543,
+      "sha256": "7246f4c77131751c18195cd363d3a85b2c815beb3aa6c4da26e5733175dc019f"
+    },
+    {
+      "name": "08_MANIFESTS/REFERENCE_BASELINE.json",
+      "size": 1061,
+      "sha256": "0464db5f863f13c97f2e9be333e9e0435ac5713e9bfb79654432d60d31da5c49"
+    }
+  ]
+}

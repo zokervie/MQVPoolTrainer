@@ -1,0 +1,31 @@
+﻿id,feature,status_as_of_2026_10_24,evidence_or_source,next_action
+ARCH-01,Native iOS UIKit/SceneKit & Objective-C++ bridge,SOURCE_PRESENT,BankLab/UI/TrainingController.swift; BankLab/Rendering/TableScene.swift; BankLab/Core/BLWorld.mm,Run baseline build/QA before changing target
+PHY-01,"Fixed-step C++ physics, ball/cushion/pocket events",SOURCE_PRESENT,BankLab/Core/Physics.cpp; ElevatedPhysics.cpp; Tests/,"Keep single authoritative engine, regression"
+PHY-02,"Spin transfer 3D, multiple cushions",SOURCE_PRESENT_TESTED_SIM,Docs/RELEASE-BUILD22.md; Tests/SpinTransferTests.cpp,Needs measured real-table calibration
+PHY-03,Jump & massé experimental 3D,EXPERIMENTAL,Docs/RELEASE-0.11.md; Core/ElevatedPhysics.cpp,Improve bench/rail collision; no claim physically calibrated
+SCENE-01,"3D pool tables, cloth, ball, pockets, shadows",SOURCE_PRESENT,Rendering/TableScene.swift; Tools/generate_materials.py,Visual quality on real device; further realism
+SCENE-02,Brand-like tables/cues library,SOURCE_PRESENT_ILLUSTRATIVE,UI/EquipmentLibrary.swift,"Verify counts, geometry, licensing; models not manufacturer calibrated"
+SCENE-03,"Pocket hole fall animation, cue shadows",SOURCE_PRESENT,Docs/RELEASE-BUILD22.md,QA 6 pockets and replay on device
+AIM-01,Touch B lock + stroke control,SOURCE_PRESENT,UI/TouchControls.swift,Regression multi-touch & misfires on iPhone
+AIM-02,Effect pad left beside B,SOURCE_PRESENT_SUPERSEDED,UI/TrainingController.swift:buildHUD,Move RIGHT of elevation according latest spec
+HUD-01,Right quick toolbar including exercises,SOURCE_PRESENT_SUPERSEDED,UI/TrainingController.swift:buildQuickRail,Move Exercises to Menu; declutter right flyout
+HUD-02,Undo on left above B,SOURCE_PRESENT_SUPERSEDED,UI/TrainingController.swift:retryButton,Move right; preserve snapshot rotation
+CAM-01,Post-shot orbit/pinch observation,SOURCE_PRESENT_NEEDS_CHANGE,UI/TrainingController.swift:shoot/tick; Rendering/TableScene.swift:placeCamera,Add automatic return to Aim3D at rest; spectator exception
+CAM-02,Top view spin/orbit and overview 3D,SOURCE_PRESENT,UI/TrainingController.swift:orbitTable/pinchTable,QA rotation/zoom all states
+CAM-03,Default Aim3D,MISSING,TableScene.swift:cameraMode=1; TrainingController.swift:buildHUD,Set Aim3D and persist user settings
+CUE-01,Cue tip/effect/elevation 3D alignment,SOURCE_PRESENT_TESTED_SIM,Rendering/TableScene.swift:cuePose,Geometry rail clearance + dynamic effect limits
+CUE-02,Cue above close rail without clipping,NOT_VERIFIED,Rendering/TableScene.swift:cuePose/showCue,"Implement cue–rail envelope, impossible position UX"
+CUE-03,Effect clamp depending on rail distance,NOT_IMPLEMENTED,TouchControls.swift:maximumOffset constant,"Dynamic legal contact area, auto elevation decision"
+RAND-01,Add one target ball in static grid,SOURCE_PRESENT_SUPERSEDED,UI/TrainingController.swift:addBall,Random N 1–15 with seed; legal placement
+AUDIO-01,Physics-event procedural PCM sound,SOURCE_PRESENT,UI/TrainingController.swift:PoolAudio,Add licensed samples & mix by impact/type/pan
+EDU-01,46 lesson layouts with preview/criteria,DOCUMENTED_IN_BUILD21,Docs/RELEASE-BUILD21.md; UI/Models.swift,Verify runtime count and scoring on device
+EDU-02,Lesson links + videos from external sites,PARTIAL,UI/Models.swift:Lesson,Embed only when permitted; curated source/timestamp/licenses
+EDU-03,10 new drill schematics,CONCEPT_DELIVERED_NOT_IN_APP,Handoff/07_RESEARCH_AND_TRAINING/*,Transform schematic JSON to world coordinates and validate
+NET-01,Online room code six digits for 2 players,NOT_IMPLEMENTED,No room/realtime module in inspected repository tree,Implement after 0.13 G4
+NET-02,Rules engine 8/9-ball + match settings,NOT_IMPLEMENTED_NATIVE,Docs/RELEASE-0.11.md,"Formal rules tests, versioned JSON contract"
+NET-03,Two-device sync + scoreboard + reconnect,NOT_IMPLEMENTED,No network protocol modules,"Authoritative turns/shots, reconnect, jitter"
+CI-01,C++/JS resource tests,SOURCE_PRESENT_RECORDED_PASS,Run-All-Checks.command; Docs/RELEASE-BUILD22.md,"Rerun on HEAD, compare logs"
+CI-02,Xcode Simulator/iPhone unsigned build,RECORDED_PASS_BUILD22,Docs/RELEASE-BUILD22.md; Codemagic #24,Do not treat as real-device tested
+CI-03,Real-device FPS/thermal/multitouch,NOT_VERIFIED,Docs/NEXT-ACCEPTANCE-2026-10-24.md,Run iPhone 14 Pro Max QA
+CI-04,Signed IPA/TestFlight/App Store,NOT_VERIFIED,Build-Unsigned-IPA.command,Requires approved signing & distribution path
+MEDIA-01,Sound/video/source license manifest,TO_DO,Handoff/07_RESEARCH_AND_TRAINING/SOURCE_AND_LICENSE_POLICY.md,Document license and attribution before commercial release

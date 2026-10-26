@@ -1,0 +1,23 @@
+{
+  "created_date": "2026-10-24",
+  "project_name": "Zoker Pool Trainer",
+  "repo_name": "zokervie/ZokerPoolTrainer-0.11-Native-Jump-Masse-2026-10-21-0858",
+  "repo_url": "https://github.com/zokervie/ZokerPoolTrainer-0.11-Native-Jump-Masse-2026-10-21-0858",
+  "default_branch": "main",
+  "audited_commit_sha": "aba66d0f21e0816973ef0c13281fa98855ca3ff6",
+  "release_documented": "0.12 build 22",
+  "codemagic_build_source_sha": "2dd1a55e51a55c4e2d0c5d697b79fcdd4df3f1bd",
+  "files_tracked": 113,
+  "tree_entries_including_dirs": 147,
+  "git_blob_total_bytes": 588522,
+  "app_bundle_id": "com.maiquocviet.BankLabS",
+  "codemagic_build_link": "https://codemagic.io/app/6ad8240a50a68ff0a344a214/build/6adc7d5e4a72334e32e4ab8b",
+  "documented_ipa_sha256": "eb8dc207b5b94aecb325bc86701b61f80517ec5b902e989cd89eddbc3b109d70",
+  "physical_device_qa": "not demonstrated",
+  "source_in_bootstrap_zip": false,
+  "source_can_be_embedded_by": "05_BOOTSTRAP/assemble_full_source.py",
+  "planned_releases": [
+    "0.13 offline UX/practice",
+    "0.14 multiplayer online"
+  ]
+}

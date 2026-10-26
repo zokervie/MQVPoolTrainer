@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "units": "SI",
+  "description": "Replace all placeholders with camera/measurement-derived references before calibration",
+  "shotExample": {
+    "id": "measured-shot-001",
+    "partition": "train",
+    "tableProfile": "9ft-reference-001",
+    "initial": {
+      "x": 0,
+      "z": 0,
+      "vx": 1.0,
+      "vz": 0.4,
+      "wx": 0,
+      "wy": 0,
+      "wz": 0
+    },
+    "railSequence": [
+      "right",
+      "bottom"
+    ],
+    "observed": {
+      "contacts": [
+        {
+          "x": 1.241425,
+          "z": 0.3
+        },
+        {
+          "x": 0.7,
+          "z": 0.606425
+        }
+      ],
+      "uncertaintyMeters": 0.01
+    },
+    "provenance": {
+      "source": "MEASURED_VIDEO_ID_REQUIRED",
+      "method": "overhead homography + timestamps",
+      "notes": "ILLUSTRATIVE VALUES ONLY - NOT A VALID TRAINING DATASET"
+    }
+  }
+}
