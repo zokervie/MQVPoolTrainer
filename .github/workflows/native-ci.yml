@@ -65,6 +65,21 @@ jobs:
           tail -3 build/ipa.log
       - name: Ảnh chụp + đầu dò giao diện (G1)
         run: bash Tools/ci_screenshots.sh 2>&1 | tail -40
+      - name: Đẩy ảnh chụp lên nhánh shots/native (xem được qua API, không cần tải artifact)
+        if: always() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls build/screenshots/*.png > /dev/null 2>&1 || exit 0
+          mkdir -p _shots && cp build/screenshots/*.png _shots/ && cp build/screenshots/*.txt _shots/ 2>/dev/null || true
+          mkdir -p _shots/g1-qa && cp build/screenshots/g1-qa/*.json _shots/g1-qa/ 2>/dev/null || true
+          printf '%s %s run %s\n' "${GITHUB_REF_NAME}" "${GITHUB_SHA::7}" "${GITHUB_RUN_NUMBER}" > _shots/SOURCE.txt
+          cd _shots && for f in *.png; do sips -Z 1400 "$f" > /dev/null; done
+          git init -q && git checkout -q -b shots/native \
+            && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com" \
+            && git add -A && git commit -qm "Ảnh chụp ${GITHUB_REF_NAME} ${GITHUB_SHA::7}" \
+            && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" shots/native
       - uses: actions/upload-artifact@v6
         if: always()
         with:
