@@ -1,0 +1,26 @@
+Zoker 0.11 — 21/10/2026
+PASS: 7 material maps, SHA-256, PNG chunk CRCs and dimensions
+Built offline ZUPE Lab: 6 scoped modules; no CDN or network dependencies
+PASS: native controller, resource build phase, offline bundle, export bridge, plist and scheme XML; NOT an Xcode compilation
+PASS: diamond coordinates, speed/restitution, spin response, cloth deceleration, stroke touch, impact gating, rail events
+PASS: cue presets, downward impulse, slate-generated jump, repeatability, reference loss
+PASS golden dataset validation, deterministic synthetic fit, equipment provenance and display-only interpolation
+PASS: analytic rail sign/energy, residual flight, complete final leg, trace timestamps, all four Lab tabs, native export messages, stroke gate, holdout and stale-export guards
+PASS: 2314233 physics assertions
+PASS: analytic acceleration and prediction/live consistency (378 samples)
+Goal 0 reachable: speed=0.5, top=0.6
+Goal 1 reachable: speed=1.7, top=-0.7
+Goal 2 reachable: speed=0.9, top=0.6
+Goal 3 reachable: speed=1.9, top=-0.7
+PASS: four target-zone drills have successful simulated shots
+PASS: 761 analytic cut/contact, rebound and pocket geometry checks
+PASS: 13 added practice goals have successful simulated shots
+PASS: optional native ZUPE rail response at four speeds; default preserves v0.9
+PASS: native ballistic flight, jump clearance, grounded collision, spin reversal, and display-rate determinism
+
+Additional native elevated-path curvature check: PASS (ElevatedTests.cpp).
+Native Swift/Objective-C++ compilation: NOT RUN.
+Simulator launch / screenshots: NOT RUN.
+New IPA: NOT BUILT.
+CI upload blocked by automatic approval review: proposed substantial private source upload to zokervie/MQVPoolTrainer. Repository verified public. No source-tree upload completed; only an empty branch based on existing commit was created.
+No measured calibration or physical iPhone acceptance.

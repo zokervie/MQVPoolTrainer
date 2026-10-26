@@ -1,0 +1,23 @@
+PASS: 7 material maps, SHA-256, PNG chunk CRCs and dimensions
+Built offline ZUPE Lab: 6 scoped modules; no CDN or network dependencies
+PASS: native controller, resource build phase, offline bundle, export bridge, plist and scheme XML; NOT an Xcode compilation
+PASS: diamond coordinates, speed/restitution, spin response, cloth deceleration, stroke touch, impact gating, rail events
+PASS: cue presets, downward impulse, slate-generated jump, repeatability, reference loss
+PASS golden dataset validation, deterministic synthetic fit, equipment provenance and display-only interpolation
+PASS: analytic rail sign/energy, residual flight, complete final leg, trace timestamps, all four Lab tabs, native export messages, stroke gate, holdout and stale-export guards
+PASS: 2304486 physics assertions
+PASS: analytic acceleration and prediction/live consistency (378 samples)
+Goal 0 reachable: speed=0.5, top=0.6
+Goal 1 reachable: speed=1.7, top=-0.7
+Goal 2 reachable: speed=0.9, top=0.6
+Goal 3 reachable: speed=1.9, top=-0.7
+PASS: four target-zone drills have successful simulated shots
+PASS: 761 analytic cut/contact, rebound and pocket geometry checks
+PASS: 13 added practice goals have successful simulated shots
+PASS: optional native ZUPE rail response at four speeds; default preserves v0.9
+PASS: native ballistic flight, jump clearance, grounded collision, spin reversal, and display-rate determinism
+Kick search: direct, 1/2/3 rails, obstruction, invalid input and nonmutation passed
+PASS calibration: synthetic recovery (not real-world validation), holdout, four rail profiles and passive impacts
+PASS A1: geometry, free/grounded response, Coulomb disks, restitution, passivity, symmetry, multi-rail state
+PASS presentation: variable frame intervals, nonmutation, physics equality and reset
+PASS: gearing, cut/spin transfer, mirror symmetry, passive collisions and spin retained across two opposing cushions

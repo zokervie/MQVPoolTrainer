@@ -1,0 +1,56 @@
+PASS: 7 material maps, SHA-256, PNG chunk CRCs and dimensions
+Built offline ZUPE Lab: 6 scoped modules; no CDN or network dependencies
+PASS: native controller, resource build phase, offline bundle, export bridge, plist and scheme XML; NOT an Xcode compilation
+PASS: diamond coordinates, speed/restitution, spin response, cloth deceleration, stroke touch, impact gating, rail events
+PASS: cue presets, downward impulse, slate-generated jump, repeatability, reference loss
+PASS golden dataset validation, deterministic synthetic fit, equipment provenance and display-only interpolation
+PASS: analytic rail sign/energy, residual flight, complete final leg, trace timestamps, all four Lab tabs, native export messages, stroke gate, holdout and stale-export guards
+PASS: 2304486 physics assertions
+PASS: analytic acceleration and prediction/live consistency (378 samples)
+Goal 0 reachable: speed=0.5, top=0.6
+Goal 1 reachable: speed=1.7, top=-0.7
+Goal 2 reachable: speed=0.9, top=0.6
+Goal 3 reachable: speed=1.9, top=-0.7
+PASS: four target-zone drills have successful simulated shots
+PASS: 761 analytic cut/contact, rebound and pocket geometry checks
+PASS: 13 added practice goals have successful simulated shots
+PASS: optional native ZUPE rail response at four speeds; default preserves v0.9
+PASS: native ballistic flight, jump clearance, grounded collision, spin reversal, and display-rate determinism
+Kick search: direct, 1/2/3 rails, obstruction, invalid input and nonmutation passed
+PASS calibration: synthetic recovery (not real-world validation), holdout, four rail profiles and passive impacts
+PASS A1: geometry, free/grounded response, Coulomb disks, restitution, passivity, symmetry, multi-rail state
+PASS presentation: variable frame intervals, nonmutation, physics equality and reset
+PASS: gearing, cut/spin transfer, mirror symmetry, passive collisions and spin retained across two opposing cushions
+PASS G1: idle has no unsolicited camera return
+PASS G1: all motion blocks return
+PASS G1: return starts at 0.5 seconds, never earlier
+PASS G1: renewed motion resets uninterrupted rest
+PASS G1: pocket fall blocks return
+PASS G1: pocket completion requires a fresh rest window
+PASS G1: replay never forces aim
+PASS G1: replay exit restarts the full settle window
+PASS G1: spectator remains free to observe
+PASS G1: local turn resumes aim after settling
+PASS G1: ball editing suppresses automatic return
+PASS G1: editing exit requires stable rest
+PASS G1: an active orbit or pinch defers recentering
+PASS G1: manual observation still returns after gesture ends
+PASS G1: invalid timing cannot complete a shot
+PASS G1: resume gaps do not count as 0.5 seconds of observed rest
+PASS G1: return is emitted once per shot
+PASS G1: stroke remains blocked throughout the 0.45 second transition
+PASS G1: Undo cancels pending camera work
+PASS G1: a new shot cannot inherit settle time
+PASS G1: 30/60/120 Hz produce the same settle deadline
+PASS G1: spectator cannot shoot
+PASS G1: simulation and return cannot shoot
+PASS G1: Menu cannot shoot
+PASS G1: expanded effect cannot arm B or shoot
+PASS G1: editing cannot shoot
+PASS G1: scratch cannot shoot before ball placement
+PASS G1: all 64 input flag combinations fail closed
+PASS G1: collapsed HUD fits small phone, 14 Pro Max, larger phone and iPad safe areas
+PASS G1: expanded HUD keeps B, Menu, elevation, View and Undo hit regions separate
+PASS G1: camera tween reaches its target at 0.45 seconds at every display rate
+PASS G1: camera easing is smoothstep with a stable midpoint and explicit endpoints
+PASS: 32 G1 policy scenarios (portable production C policy; UIKit integration still requires Xcode)

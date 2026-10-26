@@ -1,0 +1,60 @@
+{
+  "repository": "https://github.com/zokervie/ZokerPoolTrainer-0.11-Native-Jump-Masse-2026-10-21-0858",
+  "main_sha": "aba66d0f21e0816973ef0c13281fa98855ca3ff6",
+  "tree_sha": "d0fad303831a8c4a257a31e38d688093d2d21b1e",
+  "tracked_files": 113,
+  "tracked_bytes": 588522,
+  "retrieval": "Authenticated GitHub connector: recursive Git tree plus all blobs; every raw UTF-8 byte length and Git object SHA verified. Exact tree and commit reproduced locally. Snapshot is shallow, not full Git history.",
+  "bootstrap": "Original handoff/05_BOOTSTRAP/assemble_full_source.py, unmodified, --mode pinned --repo-url <verified local snapshot>. Its manifest records the local mirror path; this provenance records the canonical private GitHub repository.",
+  "baseline_ci": [
+    {
+      "id": 40083592188,
+      "branch": "main",
+      "sha": "aba66d0f21e0816973ef0c13281fa98855ca3ff6",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/zokervie/ZokerPoolTrainer-0.11-Native-Jump-Masse-2026-10-21-0858/actions/runs/40083592188"
+    },
+    {
+      "id": 40083581384,
+      "branch": "main",
+      "sha": "789a30c41351d2783ee7f2d9f47e5ed185e5e609",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/zokervie/ZokerPoolTrainer-0.11-Native-Jump-Masse-2026-10-21-0858/actions/runs/40083581384"
+    },
+    {
+      "id": 40082790206,
+      "branch": "main",
+      "sha": "2dd1a55e51a55c4e2d0c5d697b79fcdd4df3f1bd",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/zokervie/ZokerPoolTrainer-0.11-Native-Jump-Masse-2026-10-21-0858/actions/runs/40082790206"
+    },
+    {
+      "id": 40082507254,
+      "branch": "main",
+      "sha": "5f1dabd5f0a60a9dd28b5bd850e40e239c4e1e02",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/zokervie/ZokerPoolTrainer-0.11-Native-Jump-Masse-2026-10-21-0858/actions/runs/40082507254"
+    },
+    {
+      "id": 40081573008,
+      "branch": "main",
+      "sha": "10ac2f8394f4487544ffd0cfef3580a470e350f9",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/zokervie/ZokerPoolTrainer-0.11-Native-Jump-Masse-2026-10-21-0858/actions/runs/40081573008"
+    }
+  ],
+  "baseline_job": {
+    "id": 120841915560,
+    "runner_name": "",
+    "steps": [],
+    "status": "completed",
+    "conclusion": "failure"
+  },
+  "failure_reason": "Not established: job has no recorded steps; job log retrieval returned 404 and annotations endpoint is not supported. Do not infer billing or a source compilation failure.",
+  "codemagic": "Build #24 success recorded in RELEASE-BUILD22.md only; not independently queried live in this session."
+}

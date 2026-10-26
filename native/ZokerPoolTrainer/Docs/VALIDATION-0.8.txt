@@ -1,0 +1,22 @@
+Zoker Pool Trainer 0.8 — 2026-10-16
+Host: Linux. No Xcode, Apple SDK or swiftc available.
+
+PASS: PhysicsTests compiled with g++ C++17, -O2 -Wall -Wextra -Wpedantic -Werror.
+PASS: 2,286,552 physics assertions.
+PASS: PredictionTests, analytic acceleration / prediction-live consistency, 406 samples.
+PASS: PracticeTests, four target-zone drills have reachable successful simulated shots.
+PASS: seven material maps fully decoded using Pillow.
+PASS: SHA-256, PNG chunk CRCs, dimensions, asset JSON, scheme XML and Info.plist.
+PASS: bash -n on the three .command scripts.
+Material maps: 75,134,948 bytes, all used by SceneKit materials.
+
+Native Swift type-check / link: NOT RUN.
+Native scene rendering / iPhone screen fit / touch input: NOT RUN.
+IPA device build / IPA size / installation: NOT RUN.
+Signing, external build upload and publication: NOT PERFORMED.
+
+Physics engine unchanged from 0.7. New work is the full-screen HUD,
+hold-to-lock / full-screen stroke controls, text-free table, matte cloth maps,
+light/exposure changes, product rename and unsigned packaging path.
+
+Native release gates: see START-HERE-VI.md and DEVICE-QA.md.

@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/c2a6aad53634/source/native/ZokerPoolTrainer/Tools/check_resources.py", line 7, in <module>
+    p=root/item['path'];data=p.read_bytes()
+                             ^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1019, in read_bytes
+    with self.open(mode='rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/workspace/scratch/c2a6aad53634/source/native/ZokerPoolTrainer/BankLab/Assets.xcassets/ClothAlbedo.dataset/map.png'

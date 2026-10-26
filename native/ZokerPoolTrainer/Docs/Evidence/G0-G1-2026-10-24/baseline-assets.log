@@ -1,0 +1,11 @@
+ClothAlbedo 13.44 MB
+ClothNormal 35.42 MB
+ClothRoughness 1.77 MB
+WalnutAlbedo 3.9 MB
+WalnutNormal 7.5 MB
+WalnutRoughness 2.4 MB
+LeatherNormal 3.02 MB
+All maps generated.
+PASS: six regular apertures, exact bed/deck area, constrained boundary edges, no deck triangle bridges a pocket
+{'bed': 8106, 'deck': 18541, 'trim': 24576}
+Prepared generated material/mesh assets and local repository app icon sizes.

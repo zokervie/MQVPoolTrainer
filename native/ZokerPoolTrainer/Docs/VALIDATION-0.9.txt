@@ -1,0 +1,35 @@
+Zoker Pool Trainer 0.9 — 2026-10-16
+Host: Linux. Xcode, Apple SDK and swiftc not available.
+
+C++ compiled with g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror:
+PASS PhysicsTests: 2,314,233 assertions, including passive-contact energy and fixed-step determinism.
+PASS PredictionTests: analytic acceleration and prediction/live consistency, 378 samples.
+PASS PracticeTests: four original target-zone goals have reachable successful shots.
+PASS ContactTests: 761 independent analytic cut/contact, rebound and pocket geometry checks.
+PASS ExtendedPracticeTests: all 13 added goals have reachable successful shots.
+PASS ContactTests under AddressSanitizer + UndefinedBehaviorSanitizer (LeakSanitizer disabled).
+
+Mesh generator:
+PASS six regular bed apertures, analytic bed area, no triangle crossing an aperture.
+PASS deck Boolean contour, exact polygon area, constrained boundary-edge coverage.
+A radial-strip draft was rejected after topology inspection showed a corner hole bridge.
+Final deck uses triangulation of the actual rectangle/circle union boundary.
+Topological QA plot inspected. This is NOT a SceneKit render.
+Renderer cushion strips are swept along six connected paths with miter joins,
+not separate overlapping rail/jaw solids. End profiles are capped.
+
+Materials and package:
+All seven maps were fully decoded, PNG CRCs and SHA-256 checked.
+JSON, plist, scheme XML and Xcode input paths checked.
+Shell scripts checked with bash -n.
+
+Native Swift type-check/link: NOT RUN.
+Native SceneKit screenshot / FPS / multi-touch input: NOT RUN.
+Unsigned device IPA build / installation: NOT RUN.
+Signing / external build upload / publication: NOT PERFORMED.
+
+Physical limitations:
+No measured Predator bank/kick data. Cushion impulse/friction is approximate;
+not a full Mathavan model, no speed-dependent measured rubber deformation,
+no jump/squirt/swerve or true 3D pocket contact. Pocket fall is visual only.
+Analytic limiting-case tests are not empirical validation on a real table.

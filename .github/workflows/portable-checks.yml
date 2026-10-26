@@ -1,0 +1,52 @@
+name: Portable checks - Linux gate
+# Cheap gate before any Mac build: resources, ZUPE JS, and every C++ physics/policy suite
+# with both GCC and Clang (-Werror). Linux runner minutes cost ~1/10 of macOS minutes,
+# so compile/test mistakes are caught here instead of burning a Mac build.
+on:
+  push:
+    paths: ['native/ZokerPoolTrainer/**', '.github/workflows/portable-checks.yml']
+  pull_request:
+    paths: ['native/ZokerPoolTrainer/**', '.github/workflows/portable-checks.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: portable-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  portable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        cxx: [g++, clang++]
+    defaults:
+      run:
+        working-directory: native/ZokerPoolTrainer
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Suite lists match test files
+        run: python3 Tools/check_suite_lists.py
+      - name: Generate original assets
+        run: |
+          python3 -m pip install numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+          python3 Tools/prepare_ci_assets.py
+      - name: Report manifest drift after regeneration (informational)
+        run: |
+          if git diff --quiet -- Tools/materials-manifest.json; then
+            echo "Generated assets match the committed manifest."
+          else
+            echo "::notice title=Asset manifest drift::Regenerating assets changed Tools/materials-manifest.json; generator output is not byte-identical to the committed manifest."
+            git diff --stat -- Tools/materials-manifest.json
+          fi
+      - name: Resource, ZUPE and C++ checks (${{ matrix.cxx }})
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: bash Run-All-Checks.command

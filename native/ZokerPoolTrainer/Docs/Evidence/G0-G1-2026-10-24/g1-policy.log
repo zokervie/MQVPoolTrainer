@@ -1,0 +1,33 @@
+PASS G1: idle has no unsolicited camera return
+PASS G1: all motion blocks return
+PASS G1: return starts at 0.5 seconds, never earlier
+PASS G1: renewed motion resets uninterrupted rest
+PASS G1: pocket fall blocks return
+PASS G1: pocket completion requires a fresh rest window
+PASS G1: replay never forces aim
+PASS G1: replay exit restarts the full settle window
+PASS G1: spectator remains free to observe
+PASS G1: local turn resumes aim after settling
+PASS G1: ball editing suppresses automatic return
+PASS G1: editing exit requires stable rest
+PASS G1: an active orbit or pinch defers recentering
+PASS G1: manual observation still returns after gesture ends
+PASS G1: invalid timing cannot complete a shot
+PASS G1: resume gaps do not count as 0.5 seconds of observed rest
+PASS G1: return is emitted once per shot
+PASS G1: stroke remains blocked throughout the 0.45 second transition
+PASS G1: Undo cancels pending camera work
+PASS G1: a new shot cannot inherit settle time
+PASS G1: 30/60/120 Hz produce the same settle deadline
+PASS G1: spectator cannot shoot
+PASS G1: simulation and return cannot shoot
+PASS G1: Menu cannot shoot
+PASS G1: expanded effect cannot arm B or shoot
+PASS G1: editing cannot shoot
+PASS G1: scratch cannot shoot before ball placement
+PASS G1: all 64 input flag combinations fail closed
+PASS G1: collapsed HUD fits small phone, 14 Pro Max, larger phone and iPad safe areas
+PASS G1: expanded HUD keeps B, Menu, elevation, View and Undo hit regions separate
+PASS G1: camera tween reaches its target at 0.45 seconds at every display rate
+PASS G1: camera easing is smoothstep with a stable midpoint and explicit endpoints
+PASS: 32 G1 policy scenarios (portable production C policy; UIKit integration still requires Xcode)

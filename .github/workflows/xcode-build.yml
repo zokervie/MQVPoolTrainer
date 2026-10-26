@@ -1,0 +1,51 @@
+name: Zoker 0.13 - HUD Camera Candidate
+on:
+  push:
+    branches: ['main']
+    paths: ['native/ZokerPoolTrainer/**', '.github/workflows/xcode-build.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-011-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  xcode-build:
+    runs-on: macos-15
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: native/ZokerPoolTrainer
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select Xcode 16.4
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app && xcodebuild -version
+      - name: Generate original high-resolution assets
+        run: |
+          python3 -m pip install numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+          python3 Tools/prepare_ci_assets.py
+      - name: Physics, research and integration regression checks
+        run: bash Run-All-Checks.command
+      - name: Build iOS Simulator
+        run: bash Verify-on-Mac.command
+      - name: Build unsigned iPhone IPA
+        run: bash Build-Unsigned-IPA.command
+      - name: Capture native scene screenshots
+        run: bash Tools/ci_screenshots.sh
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: Zoker-0.13-Candidate-${{ github.run_number }}
+          path: |
+            native/ZokerPoolTrainer/dist/*.ipa
+            native/ZokerPoolTrainer/build/*.log
+            native/ZokerPoolTrainer/build/screenshots/*.png
+            native/ZokerPoolTrainer/build/screenshots/*.txt
+            native/ZokerPoolTrainer/build/screenshots/g1-qa/*.json
+          retention-days: 14

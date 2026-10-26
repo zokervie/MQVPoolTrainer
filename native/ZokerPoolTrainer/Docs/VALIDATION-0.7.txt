@@ -1,0 +1,15 @@
+BankLab 0.7 — 2026-10-15
+Host: Linux; no Xcode, Apple SDK, swiftc or CMake.
+Built directly with g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror.
+PhysicsTests: PASS, 2,286,552 assertions.
+PredictionTests: PASS, analytic acceleration and prediction/live consistency, 406 samples.
+PracticeTests: PASS, all four target-zone drills have reachable successful simulated shots.
+bash -n: PASS for build, verify and graphics-review scripts.
+Native Swift type-check/link: NOT RUN.
+Simulator rendering / screenshot QA: NOT RUN.
+Physical iPhone install / FPS / heat: NOT RUN.
+IPA: NOT BUILT; source includes manual unsigned build script.
+Signing / publication / external build upload: NOT PERFORMED.
+Visual changes: larger cue markers; softer contact shadow; less sharp ball reflection.
+Replay changes: capture each display tick, position and quaternion interpolation.
+No physics coefficients changed. Native visual changes remain unverified.
