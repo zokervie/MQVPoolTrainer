@@ -56,17 +56,19 @@ for camera in overview top aim spin jump table-arc table-classic library cue-lib
  fi
  # Cold-start shader compilation can outlast the first eight seconds.
  # Retry only first-scene readiness; retain the same final visibility gate.
- for attempt in 1 2 3 4 5 6; do
+ for attempt in 1 2 3 4 5 6 7 8; do
   if [ "$camera" = observation ]; then sleep 2; else sleep 8; fi
   xcrun simctl io "$device_id" screenshot "build/screenshots/$camera.png"
-  if [ "$camera" != overview ]; then break; fi
-  if python3 - <<'READY'
+  case "$camera" in cue-library|calibration|drill-list|g1-*) break;; esac
+  if CAMERA="$camera" python3 - <<'READY'
+import os
 from PIL import Image
-with Image.open("build/screenshots/overview.png") as image:
- pixels=image.convert("RGB").resize((256,256)).get_flattened_data()
+name=os.environ["CAMERA"]
+with Image.open(f"build/screenshots/{name}.png") as image:
+ pixels=list(image.convert("RGB").resize((256,256)).getdata())
  count=sum(1 for r,g,b in pixels if g>35 and g>r*1.25 and b>25)
- print(f"Overview readiness: {count} cloth-color pixels")
- raise SystemExit(0 if count>=1500 else 1)
+ print(f"{name} readiness: {count} cloth-color pixels")
+ raise SystemExit(0 if count>=(250 if name=="library" else 1500) else 1)
 READY
   then break; fi
  done

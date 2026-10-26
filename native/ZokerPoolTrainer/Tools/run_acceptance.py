@@ -16,7 +16,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 
 # Giới hạn từng bước (giây): một bước treo không được ăn hết giờ của cả job.
-STAGE_TIMEOUT = {'assets':600,'portable-regressions':1200,'simulator-build':1800,'screenshots-and-runtime-probes':1500,'ui-gesture-tests':1800,'unsigned-iphone-build':1500}
+STAGE_TIMEOUT = {'assets':600,'portable-regressions':1200,'simulator-build':1800,'screenshots-and-runtime-probes':2400,'ui-gesture-tests':1800,'unsigned-iphone-build':1500}
 
 def run(portable=False):
     out = ROOT/'dist'
