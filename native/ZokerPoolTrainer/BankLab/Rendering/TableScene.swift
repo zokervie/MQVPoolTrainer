@@ -21,7 +21,10 @@ final class TableScene {
     private let ballRoot=SCNNode(),guideRoot=SCNNode(),trailRoot=SCNNode(),cueRoot=SCNNode(),numberRoot=SCNNode()
     private var nodes:[Int:SCNNode]=[:],contactShadows:[Int:SCNNode]=[:]
     private var restOrientations:[Int:simd_quatf]=[:]
-    private var falling:[Int:(time:Double,start:SCNVector3)]=[:]
+    private var falling:[Int:(time:Double,start:SCNVector3,velocity:SIMD2<Float>)]=[:]
+    /// Vận tốc ngang ước lượng từ khung trước (m/s) để bi giữ đà khi rơi vào lỗ.
+    private var lastPlanar:[Int:SIMD2<Float>]=[:],planarVelocity:[Int:SIMD2<Float>]=[:]
+    static let pocketFallDuration=0.42
     private var light:SCNLight!
     private var highDetail=true
     var cameraMode=2 // Aim3D; numeric IDs remain 0=overview, 1=top, 2=aim.
@@ -623,11 +626,27 @@ final class TableScene {
                 plane.materials=[shadow];let sn=SCNNode(geometry:plane);sn.eulerAngles.x = -.pi/2;sn.castsShadow=false;sn.renderingOrder=2
                 scene.rootNode.addChildNode(sn);contactShadows[b.id]=sn
             }
-            node.position=SCNVector3(Float(b.x),Float(radius)+Float(b.height ?? 0),Float(b.y))
+            let planar=SIMD2<Float>(Float(b.x),Float(b.y))
+            if !b.sunk {
+                if dt>0,let previous=lastPlanar[b.id] {planarVelocity[b.id]=(planar-previous)/Float(dt)}
+                lastPlanar[b.id]=planar
+            }
+            if b.sunk,let fall=falling[b.id] {
+                // Đang rơi: animatePockets điều khiển vị trí; không kéo bi về toạ độ sunk của solver.
+                node.isHidden=fall.time>=Self.pocketFallDuration
+            }else{
+                node.position=SCNVector3(Float(b.x),Float(radius)+Float(b.height ?? 0),Float(b.y))
+            }
             if b.sunk {
-                if falling[b.id]==nil{falling[b.id]=(0,node.position)}
-                node.isHidden=(falling[b.id]?.time ?? 0)>=0.40
+                if falling[b.id]==nil{
+                    // Vị trí bắt đầu = khung trước khi lọt lỗ (solver đã xoá vận tốc khi sunk).
+                    let from=lastPlanar[b.id] ?? planar
+                    let velocity=planarVelocity[b.id] ?? .zero
+                    let speed=simd_length(velocity)
+                    falling[b.id]=(0,SCNVector3(from.x,Float(radius),from.y),speed>4 ? velocity*(4/speed):velocity)
+                }
             }else{falling.removeValue(forKey:b.id);node.isHidden=false;node.scale=SCNVector3(1,1,1)}
+            if b.sunk {lastPlanar.removeValue(forKey:b.id);planarVelocity.removeValue(forKey:b.id)}
             contactShadows[b.id]?.isHidden=b.sunk;contactShadows[b.id]?.position=SCNVector3(Float(b.x),0.001,Float(b.y))
             let height=Float(b.height ?? 0)
             contactShadows[b.id]?.opacity=CGFloat(max(0.05,1.0/(1+height*13)))
@@ -642,21 +661,35 @@ final class TableScene {
             }
         }
     }
-    var hasActivePocketAnimations:Bool{falling.values.contains{$0.time<0.40}}
+    var hasActivePocketAnimations:Bool{falling.values.contains{$0.time<Self.pocketFallDuration}}
     func animatePockets(_ dt:Double){
         SCNTransaction.begin();SCNTransaction.animationDuration=0
         defer{SCNTransaction.commit()}
         for id in Array(falling.keys){
             guard var state=falling[id],let node=nodes[id] else{continue}
-            state.time=min(0.40,state.time+max(0,dt));falling[id]=state
-            let t=Float(min(1,state.time/0.40)),ease=t*t*(3-2*t)
+            state.time=min(Self.pocketFallDuration,state.time+max(0,dt));falling[id]=state
+            // Rơi tự nhiên: giữ đà ngang lúc lọt lỗ, chạm thành sau của túi lỗ thì dừng ngang;
+            // rơi theo trọng lực thật 9,81 m/s², bi lăn tiếp quanh trục ngang theo hướng chạy.
             let centers:[SIMD2<Float>]=[SIMD2(-0.67,-1.305),SIMD2(0.67,-1.305),SIMD2(-0.706,0),SIMD2(0.706,0),SIMD2(-0.67,1.305),SIMD2(0.67,1.305)]
             let start=SIMD2(state.start.x,state.start.z)
             let center=centers.min{simd_distance_squared($0,start)<simd_distance_squared($1,start)} ?? start
-            node.position=SCNVector3(state.start.x+(center.x-state.start.x)*ease,state.start.y-Float(0.5*4.9*state.time*state.time),state.start.z+(center.y-state.start.z)*ease)
-            // Keep regulation size: real geometry occlusion hides the falling ball.
+            let t=Float(state.time)
+            var planar=start+state.velocity*t
+            // Túi lỗ: bán kính khoảng 0,05 m quanh tâm lỗ; bi không đi xuyên thành túi.
+            let offset=planar-center,limit:Float=0.045
+            if simd_length(offset)>limit {planar=center+simd_normalize(offset)*limit}
+            // Rơi hút về tâm lỗ dần khi đã thấp hơn mặt bàn (thành túi dẫn hướng).
+            let guide=min(1,max(0,(t-0.08)/0.25))
+            planar=planar+(center-planar)*guide*0.6
+            let drop=0.5*9.81*t*t
+            node.position=SCNVector3(planar.x,state.start.y-drop,planar.y)
+            let speed=simd_length(state.velocity)
+            if speed>1e-4 {
+                let axis=simd_normalize(SIMD3<Float>(state.velocity.y,0,-state.velocity.x))
+                node.simdOrientation=simd_quatf(angle:Float(speed*Float(dt))/Float(radius),axis:axis)*node.simdOrientation
+            }
             node.scale=SCNVector3(1,1,1)
-            node.isHidden=state.time>=0.40
+            node.isHidden=state.time>=Self.pocketFallDuration
         }
     }
     func replay(_ from:[BallState],to:[BallState],fraction:Double){
@@ -858,6 +891,50 @@ final class TableScene {
         let m=SCNMaterial();m.lightingModel = .constant;m.diffuse.contents=UIColor(red:0.76,green:0.91,blue:0.88,alpha:0.6);m.isDoubleSided=true;m.writesToDepthBuffer=false
         g.materials=[m];let node=SCNNode(geometry:g);node.castsShadow=false;guideRoot.addChildNode(node)
     }
+    // MARK: Nút số kim cương và điểm va băng (chế độ Luyện; ẩn khi đang vuốt cơ)
+    private var diamondLabels:SCNNode?
+    private var railMarks=SCNNode()
+    private func labelImage(_ text:String,size:CGFloat,color:UIColor,background:UIColor?)->UIImage{
+        let font=UIFont.systemFont(ofSize:size,weight:.bold)
+        let attrs:[NSAttributedString.Key:Any]=[.font:font,.foregroundColor:color]
+        let textSize=(text as NSString).size(withAttributes:attrs)
+        let side=max(textSize.width,textSize.height)+size*0.5
+        return UIGraphicsImageRenderer(size:CGSize(width:side,height:side)).image{_ in
+            if let background=background {background.setFill();UIBezierPath(ovalIn:CGRect(x:0,y:0,width:side,height:side)).fill()}
+            (text as NSString).draw(at:CGPoint(x:(side-textSize.width)/2,y:(side-textSize.height)/2),withAttributes:attrs)
+        }
+    }
+    private func billboard(_ image:UIImage,size:CGFloat,at p:SCNVector3)->SCNNode{
+        let plane=SCNPlane(width:size,height:size),m=SCNMaterial()
+        m.lightingModel = .constant;m.diffuse.contents=image;m.isDoubleSided=true;m.writesToDepthBuffer=false;m.readsFromDepthBuffer=false
+        plane.materials=[m];let n=SCNNode(geometry:plane);n.position=p;n.renderingOrder=40;n.castsShadow=false
+        n.constraints=[SCNBillboardConstraint()];return n
+    }
+    /// Số nút: băng dài 0…8 (4 = lỗ giữa), băng ngắn 0…4, đặt ngoài mép gỗ cạnh từng nút.
+    var showsDiamondNumbers:Bool=false {didSet{
+        if showsDiamondNumbers && diamondLabels==nil {
+            let root=SCNNode();root.name="diamond-numbers"
+            for i in 0...8 {for side:Float in [-1,1]{
+                let z=Float(i)*2.54/8-1.27
+                root.addChildNode(billboard(labelImage("\(i)",size:40,color:.white,background:UIColor(white:0,alpha:0.45)),size:0.045,at:SCNVector3(side*0.79,0.075,z)))
+            }}
+            for i in 0...4 {for side:Float in [-1,1]{
+                let x=Float(i)*1.27/4-0.635
+                root.addChildNode(billboard(labelImage("\(i)",size:40,color:UIColor(red:1,green:0.85,blue:0.45,alpha:1),background:UIColor(white:0,alpha:0.45)),size:0.045,at:SCNVector3(x,0.075,side*1.425)))
+            }}
+            scene.rootNode.addChildNode(root);diamondLabels=root
+        }
+        diamondLabels?.isHidden = !showsDiamondNumbers
+    }}
+    /// Điểm va băng của cú vừa đánh: vòng tròn đánh số thứ tự trên mũi băng (x, y toạ độ bàn).
+    func showRailContacts(_ points:[(x:Double,y:Double)]){
+        railMarks.removeFromParentNode();railMarks=SCNNode();railMarks.name="rail-contacts"
+        for (index,p) in points.prefix(9).enumerated(){
+            railMarks.addChildNode(billboard(labelImage("\(index+1)",size:40,color:.black,background:UIColor(red:1,green:0.78,blue:0.2,alpha:0.95)),size:0.04,at:SCNVector3(Float(p.x),0.07,Float(p.y))))
+        }
+        scene.rootNode.addChildNode(railMarks)
+    }
+    func setTrainingOverlaysHidden(_ hidden:Bool){diamondLabels?.isHidden = hidden || !showsDiamondNumbers;railMarks.isHidden=hidden}
     func target(_ goal:PracticeGoal?){
         targetRoot.childNodes.forEach{$0.removeFromParentNode()}
         guard let goal=goal,!goal.potOnly else{return}

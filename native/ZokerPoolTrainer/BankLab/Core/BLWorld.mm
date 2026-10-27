@@ -42,7 +42,7 @@ using namespace banklab;
     c.coupledCushions=get(@"coupledCushions",c.coupledCushions,0,1)>.5;
     c.experimental3D=get(@"experimental3D",c.experimental3D,0,1)>.5;
     c.cueType=(int)get(@"cueType",c.cueType,0,2);
-    c.cueElevationDegrees=get(@"cueElevationDegrees",c.cueElevationDegrees,0,80);
+    c.cueElevationDegrees=get(@"cueElevationDegrees",c.cueElevationDegrees,0,90);
     c.rolling=get(@"rolling",c.rolling,.003,.04);c.sliding=get(@"sliding",c.sliding,.08,.35);
     c.railRestitution=get(@"railRestitution",c.railRestitution,.4,.98);c.railFriction=get(@"railFriction",c.railFriction,0,.35);
     c.railSpeedSensitivity=get(@"railSpeedSensitivity",c.railSpeedSensitivity,0,.08);
@@ -68,6 +68,13 @@ using namespace banklab;
         [r addObject:@{@"id":@(p.id),@"time":@(p.time),@"x":@(p.p.x),@"y":@(p.p.y),@"sunk":@(p.sunk),@"height":@(p.height)}];
     }
     return r;
+}
+- (NSDictionary*)simulateAngle:(double)a speed:(double)s side:(double)x top:(double)y{
+    auto o=_world->simulate(a,s,x,y);
+    NSMutableArray*events=[NSMutableArray array],*balls=[NSMutableArray array];
+    for(const auto&e:o.events)[events addObject:@{@"kind":@(e.kind),@"a":@(e.a),@"b":@(e.b),@"time":@(e.time),@"x":@(e.p.x),@"y":@(e.p.y),@"impact":@(e.impact)}];
+    for(const auto&b:o.balls)[balls addObject:@{@"id":@(b.id),@"x":@(b.p.x),@"y":@(b.p.y),@"sunk":@(b.sunk)}];
+    return @{@"events":events,@"balls":balls,@"time":@(o.time),@"settled":@(o.settled)};
 }
 - (NSDictionary*)kickTarget:(NSInteger)target rails:(NSInteger)rails speed:(double)speed side:(double)side top:(double)top {
     auto r=searchKick(*_world,(int)target,(int)rails,speed,side,top);

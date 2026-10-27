@@ -49,7 +49,7 @@ void World::strikeElevated(double angle,double speed,double side,double top){
     if(it==balls.end())return;
     speed=std::clamp(speed,0.0,8.0);
     const double offset=std::hypot(side,top);if(offset>.60){side*=.60/offset;top*=.60/offset;}
-    const double elevation=std::clamp(config.cueElevationDegrees,0.0,80.0)*pi/180;
+    const double elevation=std::clamp(config.cueElevationDegrees,0.0,88.0)*pi/180; // 90° trên giao diện ≈ dựng đứng; 88° tránh hướng suy biến
     const double ca=std::cos(angle),sa=std::sin(angle),ce=std::cos(elevation),se=std::sin(elevation);
     const Vec direction{ca*ce,sa*ce,-se},lateral{-sa,ca,0},up{ca*se,sa*se,ce};
     const Vec arm=(direction*(-std::sqrt(1-side*side-top*top))+lateral*side+up*top)*config.radius;
@@ -66,7 +66,9 @@ void World::strikeElevated(double angle,double speed,double side,double top){
     {const double a=std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin);
      const double vx=it->v.x,vy=it->v.y;it->v={vx*std::cos(a)-vy*std::sin(a),vx*std::sin(a)+vy*std::cos(a)};}
     // Sequential cue impulse then slate response: explicit approximation, not a fake arc.
-    floorImpact(*it,config,true);
+    // 0.15 (yêu cầu 27/10): chỉ cơ Phá/Jump (cueType 1, 2) làm bi bật khỏi mặt bàn. Cơ Đánh/Massé (0)
+    // nâng cơ thì mặt bàn hấp thụ thành phần thẳng đứng; ma sát mặt bàn vẫn tạo xoáy cong (massé).
+    floorImpact(*it,config,config.cueType!=0);
     for(auto&b:balls)b.rails=0;
     events.clear();time=0;accumulator=0;
 }

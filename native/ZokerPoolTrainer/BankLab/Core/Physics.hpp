@@ -54,6 +54,8 @@ struct Ball { int id=0;V2 p{},v{},w{};double spin=0;bool sunk=false;int rails=0;
 struct Segment {V2 a,b;int rail;};
 struct Event {int kind;int a,b;double time;V2 p;double impact=0;}; // 0 cushion, 1 ball, 2 pocket
 struct PredictionSample {int id;double time;V2 p;bool sunk;double height=0;};
+/// Kết quả đầy đủ của một cú mô phỏng trên bản sao (Coach: phản thực tế, không đụng world thật).
+struct Outcome {std::vector<Event> events;std::vector<Ball> balls;double time=0;bool settled=false;};
 class World {
 public:
     Config config;
@@ -71,6 +73,7 @@ public:
     bool moving()const;
     std::vector<V2> idealGuide(V2 start,double angle,int count)const;
     std::vector<PredictionSample> predict(double angle,double speed,double side,double top,double seconds=12)const;
+    Outcome simulate(double angle,double speed,double side,double top,double seconds=60)const;
     static void cushionResponse(Ball& b,const Config& config,V2 n,int rail);
     std::vector<Ball> presentation()const;
     static double energy(const Ball& b,const Config& c);

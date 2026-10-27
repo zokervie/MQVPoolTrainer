@@ -231,25 +231,41 @@ final class StrokePad:UIControl {
     func cancelStroke(){finger=nil;samples=[];fired=false;pullChanged?(0)}
 }
 
+/// Độ dốc cơ 0–90°: kéo lên/xuống; con trỏ là hình cây cơ nhỏ nằm ngang ở 0°, chéo ở 45°, dựng đứng ở 90°.
 final class ElevationPad:UIControl {
+    static let maximum=90.0
     var degrees:Double=0 {didSet{accessibilityValue="\(Int(degrees)) độ";setNeedsDisplay()}}
     var changed:((Double)->Void)?
-    override init(frame:CGRect){super.init(frame:frame);backgroundColor = .clear;isAccessibilityElement=true;accessibilityLabel="Độ nâng cơ Jump và massé";accessibilityTraits = .adjustable}
+    override init(frame:CGRect){super.init(frame:frame);backgroundColor = .clear;isAccessibilityElement=true;accessibilityLabel="Độ dốc cơ";accessibilityTraits = .adjustable}
     required init?(coder:NSCoder){fatalError()}
     override func draw(_ rect:CGRect){
         guard let ctx=UIGraphicsGetCurrentContext() else{return}
         let track=CGRect(x:bounds.midX-2,y:22,width:4,height:bounds.height-42)
         UIColor.white.withAlphaComponent(0.14).setFill();UIBezierPath(roundedRect:track,cornerRadius:2).fill()
-        let y=track.maxY-CGFloat(degrees/80)*track.height
         ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.3).cgColor);ctx.setLineWidth(1)
-        for tick in stride(from:0,through:80,by:20){let ty=track.maxY-CGFloat(tick)/80*track.height;ctx.move(to:CGPoint(x:bounds.midX-9,y:ty));ctx.addLine(to:CGPoint(x:bounds.midX+9,y:ty))};ctx.strokePath()
-        UIColor.white.withAlphaComponent(isTracking ? 0.9:0.55).setFill();ctx.fillEllipse(in:CGRect(x:bounds.midX-6,y:y-6,width:12,height:12))
+        for tick in stride(from:0,through:90,by:45){let ty=track.maxY-CGFloat(tick)/CGFloat(Self.maximum)*track.height;ctx.move(to:CGPoint(x:bounds.midX-9,y:ty));ctx.addLine(to:CGPoint(x:bounds.midX+9,y:ty))}
+        ctx.strokePath()
+        // Hình cây cơ: đầu cơ chạm bi nhỏ, thân cơ quay theo góc dốc.
+        let y=track.maxY-CGFloat(degrees/Self.maximum)*track.height
+        let ball=CGPoint(x:bounds.midX+7,y:y+6),radius:CGFloat=4.5
+        let theta=CGFloat(degrees*Double.pi/180)
+        let tip=CGPoint(x:ball.x-radius*cos(theta)-1,y:ball.y-radius*sin(theta)-1)
+        let length:CGFloat=24
+        let butt=CGPoint(x:tip.x-length*cos(theta),y:tip.y-length*sin(theta))
+        let alpha:CGFloat=isTracking ? 0.95:0.7
+        UIColor.white.withAlphaComponent(alpha).setFill();ctx.fillEllipse(in:CGRect(x:ball.x-radius,y:ball.y-radius,width:2*radius,height:2*radius))
+        ctx.setLineCap(.round)
+        ctx.setStrokeColor(UIColor(red:0.86,green:0.70,blue:0.45,alpha:alpha).cgColor);ctx.setLineWidth(3.2)
+        ctx.move(to:butt);ctx.addLine(to:CGPoint(x:(tip.x+butt.x)/2,y:(tip.y+butt.y)/2));ctx.strokePath()
+        ctx.setStrokeColor(UIColor(white:0.95,alpha:alpha).cgColor);ctx.setLineWidth(2.2)
+        ctx.move(to:CGPoint(x:(tip.x+butt.x)/2,y:(tip.y+butt.y)/2));ctx.addLine(to:tip);ctx.strokePath()
         let attrs:[NSAttributedString.Key:Any]=[.font:UIFont.monospacedDigitSystemFont(ofSize:11,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.75)]
         let text="\(Int(degrees))°" as NSString,sz=text.size(withAttributes:attrs);text.draw(at:CGPoint(x:bounds.midX-sz.width/2,y:2),withAttributes:attrs)
     }
-    private func set(_ p:CGPoint){degrees=(max(0,min(80,Double((bounds.height-20-p.y)/(bounds.height-42))*80))).rounded();changed?(degrees)}
+    private func set(_ p:CGPoint){degrees=(max(0,min(Self.maximum,Double((bounds.height-20-p.y)/(bounds.height-42))*Self.maximum))).rounded();changed?(degrees)}
     override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};set(touch.location(in:self));return true}
     override func continueTracking(_ touch:UITouch,with event:UIEvent?)->Bool{set(touch.location(in:self));return true}
-    override func accessibilityIncrement(){degrees=min(80,degrees+5);changed?(degrees)}
+    override func endTracking(_ touch:UITouch?,with event:UIEvent?){setNeedsDisplay()}
+    override func accessibilityIncrement(){degrees=min(Self.maximum,degrees+5);changed?(degrees)}
     override func accessibilityDecrement(){degrees=max(0,degrees-5);changed?(degrees)}
 }

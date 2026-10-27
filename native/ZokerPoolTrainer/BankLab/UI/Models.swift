@@ -31,6 +31,28 @@ struct BallState: Codable {
     var dictionary: [String:NSNumber] { ["id":NSNumber(value:id),"x":NSNumber(value:x),"y":NSNumber(value:y),"sunk":NSNumber(value:sunk),"qx":NSNumber(value:qx ?? 0),"qy":NSNumber(value:qy ?? 0),"qz":NSNumber(value:qz ?? 0),"qw":NSNumber(value:qw ?? 1)] }
 }
 struct Layout: Codable { var name: String; var balls:[BallState]; var angle:Double }
+/// Cú đã lưu (thư viện cú đẹp): đủ đầu vào để mô phỏng lại đúng cú (solver tất định).
+struct SavedShot: Codable {
+    var name: String
+    var date: Date
+    var balls: [BallState]
+    var aimAngle: Double
+    var speed: Double
+    var side: Double
+    var top: Double
+    var elevation: Double
+    var cueType: Int
+    /// Hướng đánh thật gửi cho solver (sau hiệu chỉnh hình học cơ); nil với bản lưu cũ.
+    var strikeAngle: Double? = nil
+    static let key="savedShots015"
+    static func all()->[SavedShot]{
+        guard let data=UserDefaults.standard.data(forKey:key) else{return []}
+        return (try? JSONDecoder().decode([SavedShot].self,from:data)) ?? []
+    }
+    static func store(_ shots:[SavedShot]){
+        if let data=try? JSONEncoder().encode(Array(shots.suffix(60))){UserDefaults.standard.set(data,forKey:key)}
+    }
+}
 final class DrillsController:UITableViewController {
     var load:((Int)->Void)?
     private lazy var headings=["KICK · 1 BĂNG","KICK · 2 BĂNG","KICK · 3 BĂNG","BANK · 1 BĂNG","BANK · 2 BĂNG","BANK · 3 BĂNG","KIỂM SOÁT & VÀO LỖ","ĐO BÀN / TỰ DO"]

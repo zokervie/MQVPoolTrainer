@@ -78,8 +78,15 @@ typedef struct {
     double railBottomInset;
 } BLRightHUDMetrics;
 
-// Safe-area coordinates: 44 pt menu, 48 pt tool row, 120 pt elevation.
-// The effect pad grows left/up while the row remains above both controls.
+// 0.15 (yêu cầu người dùng 27/10): thanh phím tắt DỌC sát mép phải (Dụng cụ, Góc nhìn, Lùi, Xem lại),
+// thanh độ dốc cơ nằm BÊN PHẢI bi effect, giữa effect và thanh phím tắt. Menu ở góc trên phải.
+#define BL_HUD_EDGE 6.0
+#define BL_HUD_RAIL_WIDTH 56.0
+#define BL_HUD_RAIL_ITEMS 4
+#define BL_HUD_ELEVATION_WIDTH 44.0
+#define BL_HUD_ELEVATION_HEIGHT 120.0
+static inline double BLHUDRailHeight(void) { return BL_HUD_RAIL_ITEMS * 48.0 + (BL_HUD_RAIL_ITEMS - 1) * 5.0; }
+// Effect pad lớn dần sang trái/lên trên; không bao giờ đè thanh độ dốc hay thanh phím tắt.
 static inline BLRightHUDMetrics BLRightHUDLayout(double safeHeight, bool expanded) {
     BLRightHUDMetrics result;
     result.spinSize = expanded ? fmax(78, fmin(190, safeHeight - 130)) : 78;

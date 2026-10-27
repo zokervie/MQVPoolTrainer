@@ -262,6 +262,14 @@ std::vector<PredictionSample> World::predict(double angle,double speed,double si
     }
     return result;
 }
+Outcome World::simulate(double angle,double speed,double side,double top,double seconds)const{
+    World preview(config);
+    preview.reset(balls);
+    preview.strike(angle,speed,side,top);
+    const int limit=static_cast<int>(std::clamp(seconds,0.0,120.0)/stepSize);
+    for(int i=0;i<limit&&preview.moving();++i)preview.step();
+    return {preview.events,preview.balls,preview.time,!preview.moving()};
+}
 std::vector<V2> World::idealGuide(V2 p,double angle,int count)const{
     std::vector<V2> points{p};V2 d{std::cos(angle),std::sin(angle)};
     double x=config.width/2-config.railRadius(),y=config.length/2-config.railRadius();

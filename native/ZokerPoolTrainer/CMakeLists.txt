@@ -8,7 +8,7 @@ enable_testing()
 # CI checks the two lists match, so a new test file cannot be silently skipped by ctest.
 set(ZOKER_TEST_SUITES
   Physics Prediction Practice Contact ExtendedPractice Research Elevated KickSearch
-  Calibration Cushion3D Presentation SpinTransfer PresentationPolicy Determinism Literature CueClearance)
+  Calibration Cushion3D Presentation SpinTransfer PresentationPolicy Determinism Literature CueClearance DiamondSystem)
 
 foreach(suite IN LISTS ZOKER_TEST_SUITES)
   add_executable(${suite}Tests Tests/${suite}Tests.cpp BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp)

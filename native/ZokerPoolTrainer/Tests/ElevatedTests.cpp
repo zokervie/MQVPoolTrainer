@@ -27,6 +27,11 @@ int main(){
      check(!clears(45,3,.25),"soft stroke at 45 deg must not clear a diamond-away obstacle");
      check(!clears(60,3,.50),"steep short jump lands before a far obstacle");
      check(clears(45,6,.50),"hard stroke at 45 deg carries over a far obstacle");}
+    // Cơ Đánh/Massé (cueType 0): nâng cơ không làm bi nhảy, chỉ tạo xoáy cong.
+    {Config m=c;m.cueType=0;m.cueElevationDegrees=60;World w(m);w.reset({ball(0,0,-.9)});w.strike(pi/2,6,.4,0);
+     double peak=0;for(int i=0;i<960;i++){w.step();peak=std::max(peak,w.balls[0].height);}
+     check(peak<1e-9,"masse/normal cue must keep the ball on the slate");
+     check(std::abs(w.balls[0].p.x)>.01,"elevated side spin on the masse cue still curves");}
     {c.cueElevationDegrees=0;World w(c);w.reset({ball(0,.1,-.8),ball(1,.1,-.6)});w.strike(pi/2,3,0,0);
      for(int i=0;i<1000;i++)w.step();
      check(std::any_of(w.events.begin(),w.events.end(),[](auto e){return e.kind==1;}),"ground shot must hit obstacle");}

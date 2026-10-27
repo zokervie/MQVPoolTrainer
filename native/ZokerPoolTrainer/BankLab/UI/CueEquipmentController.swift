@@ -24,7 +24,7 @@ final class CueEquipmentController:UIViewController {
         let toggle=UIStackView();let heading=UILabel();heading.text="Bật bộ giải 3D thử nghiệm trên bàn";heading.textColor = .white
         toggle.addArrangedSubview(heading);toggle.addArrangedSubview(enabled);body.addArrangedSubview(toggle)
         enabled.isOn=values["experimental3D"]?.boolValue ?? false
-        elevation.minimumValue=0;elevation.maximumValue=80;elevation.value=values["cueElevationDegrees"]?.floatValue ?? 0
+        elevation.minimumValue=0;elevation.maximumValue=90;elevation.value=values["cueElevationDegrees"]?.floatValue ?? 0
         elevation.accessibilityLabel="Góc nâng cơ";body.addArrangedSubview(elevation);label.textColor = .mint;label.numberOfLines=0;body.addArrangedSubview(label)
         let note=UILabel();note.numberOfLines=0;note.textColor=UIColor(white:0.76,alpha:1);note.font = .systemFont(ofSize:13)
         note.text="Thử Jump: chọn Jump, bật 3D, nâng 35–60°, đánh gần tâm. Thử massé: chọn Playing, nâng 55–75°, đặt ép phê ngang rồi dùng lực nhẹ. Cú đánh có thể chỉ hop hoặc không cong tùy thông số.\n\nChọn mẫu cơ và lưu vào bao trong Thư viện. Ba loại cơ dùng cấu hình vật lý minh hoạ của Zoker. Quỹ đạo, độ cao, va bi và xoáy lấy từ mô phỏng; tiếp xúc mặt đá/băng còn gần đúng, chưa hiệu chuẩn bằng cú thật. Tắt 3D để trở lại bộ giải 0.9."

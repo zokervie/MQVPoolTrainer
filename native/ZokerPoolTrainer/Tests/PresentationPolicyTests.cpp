@@ -26,10 +26,11 @@ bool overlaps(Rect a, Rect b) {
 }
 void checkLayout(double width, double height, bool expanded) {
     const auto m = BLRightHUDLayout(height, expanded);
-    const Rect spin{width-12-m.spinSize,height-12-m.spinSize,m.spinSize,m.spinSize};
-    const Rect elevation{spin.x-8-44,height-12-120,44,120};
-    const Rect row{width-12-154,height-m.railBottomInset-48,154,48};
-    const Rect menu{width-12-78,10,78,44}, bridge{12,height-12-68,68,68};
+    const double railX = width-BL_HUD_EDGE-BL_HUD_RAIL_WIDTH;
+    const Rect row{railX,10+44+8,BL_HUD_RAIL_WIDTH,BLHUDRailHeight()};
+    const Rect elevation{railX-8-BL_HUD_ELEVATION_WIDTH,height-12-BL_HUD_ELEVATION_HEIGHT,BL_HUD_ELEVATION_WIDTH,BL_HUD_ELEVATION_HEIGHT};
+    const Rect spin{elevation.x-8-m.spinSize,height-12-m.spinSize,m.spinSize,m.spinSize};
+    const Rect menu{width-BL_HUD_EDGE-78,10,78,44}, bridge{12,height-12-68,68,68};
     const std::array<Rect,5> controls{spin,elevation,row,menu,bridge};
     for (const auto &r : controls) {
         assert(r.x >= 0 && r.y >= 0 && r.x+r.w <= width+1e-8 && r.y+r.h <= height+1e-8);
@@ -37,10 +38,13 @@ void checkLayout(double width, double height, bool expanded) {
     }
     for (unsigned i = 0; i < controls.size(); ++i)
         for (unsigned j = i+1; j < controls.size(); ++j) assert(!overlaps(controls[i],controls[j]));
-    assert(spin.x > elevation.x+elevation.w);
+    assert(elevation.x > spin.x+spin.w);              // độ dốc ở bên phải bi effect
+    assert(row.x > elevation.x+elevation.w);          // thanh phím tắt sát mép phải
+    assert(width-(row.x+row.w) <= BL_HUD_EDGE+1e-8);
     assert(row.y >= menu.y+menu.h+8-1e-8);
     if (!expanded) {
-        const Rect fine{width/2-95,height-14-44,190,44};
+        const Rect fine{spin.x-12-190,height-14-44,190,44};
+        assert(fine.x >= bridge.x+bridge.w);
         for (const auto &r : controls) assert(!overlaps(fine,r));
     }
 }
@@ -104,7 +108,7 @@ int main() {
     for(auto size : {std::array<double,2>{568,299},{750,369},{830,388},{1024,744}})checkLayout(size[0],size[1],false);
     passed("collapsed HUD fits small phone, 14 Pro Max, larger phone and iPad safe areas");
     for(auto size : {std::array<double,2>{568,299},{750,369},{830,388},{1024,744}})checkLayout(size[0],size[1],true);
-    passed("expanded HUD keeps B, Menu, elevation, View and Undo hit regions separate");
+    passed("expanded HUD keeps B, Menu, elevation, View, Undo and Replay hit regions separate");
     for(int fps : {30,60,120}) {
         double remaining=0.45,value=0;
         while(remaining>0) {
