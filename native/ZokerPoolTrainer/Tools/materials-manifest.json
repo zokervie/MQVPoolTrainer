@@ -5,8 +5,8 @@
       4096,
       4096
     ],
-    "bytes": 9292784,
-    "sha256": "6b1831ac8c161a98ce6d75862a36a682da1c0fd7ac03e063dcd00f6f22acf46f"
+    "bytes": 13443365,
+    "sha256": "b4a12bac114b936dd2d9f187cc95083ae86868430a0671c423473d197c887eae"
   },
   {
     "path": "BankLab/Assets.xcassets/ClothNormal.dataset/map.png",
@@ -14,8 +14,8 @@
       4096,
       4096
     ],
-    "bytes": 27128235,
-    "sha256": "30e797c5d9ff8cd31e036ea09cd0c515312ef3f5233f5601da365ff157bbd62d"
+    "bytes": 35421138,
+    "sha256": "f675c0bc68e74a04f52bc81257f27546fbb719ea539216682ee98f21369876b7"
   },
   {
     "path": "BankLab/Assets.xcassets/ClothRoughness.dataset/map.png",
@@ -23,8 +23,8 @@
       2048,
       2048
     ],
-    "bytes": 1207426,
-    "sha256": "603c41b511811c577f35ade5b68ccd68ea3e2fbbfa47d84e8abc97fe681e7b90"
+    "bytes": 1765468,
+    "sha256": "1d173b95c51242c8f696483ddadaf9f2781df6b887f836967f75fb4551fce809"
   },
   {
     "path": "BankLab/Assets.xcassets/LeatherNormal.dataset/map.png",

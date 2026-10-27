@@ -53,14 +53,13 @@ void World::strikeElevated(double angle,double speed,double side,double top){
     const double ca=std::cos(angle),sa=std::sin(angle),ce=std::cos(elevation),se=std::sin(elevation);
     const Vec direction{ca*ce,sa*ce,-se},lateral{-sa,ca,0},up{ca*se,sa*se,ce};
     const Vec arm=(direction*(-std::sqrt(1-side*side-top*top))+lateral*side+up*top)*config.radius;
-    // Illustrative effective masses/efficiencies: no manufacturer calibration.
-    const double mass=config.cueType==1?.31:config.cueType==2?.56:.54;
-    const double stiffness=config.cueType==1?.94:config.cueType==2?.90:.62;
-    const double efficiency=config.cueType==1?.88:config.cueType==2?.82:.78;
-    const double effective=mass*(.35+.35*stiffness);
-    // TP A.30: đánh lệch tâm d → bi chậm hơn theo hệ số (1+m/M)/(1+m/M+2,5d²) (0.14, cùng quy tắc với cú phẳng).
-    const double k=1+config.mass/effective;
-    const double launch=efficiency*1.35*speed/k*(k/(k+2.5*(side*side+top*top)));
+    // 0.15: lực vuốt = tốc độ bi khi đánh tâm, cơ ngang — cùng thang với cú phẳng (trước đây bi chỉ đạt
+    // 0,66× số đo vuốt nên cú nhảy hụt dù vuốt mạnh). Hiệu suất tương đối theo loại cơ [giả định]:
+    // cơ nhảy (nhẹ, cứng, đầu phenolic) 1,00; cơ massé 0,93; cơ thường 0,89 (tỉ lệ giữ từ bản 0.11).
+    const double relative=config.cueType==1?1.0:config.cueType==2?.82/.88:.78/.88;
+    // TP A.30: đánh lệch tâm d → bi chậm hơn theo (1+m/M)/(1+m/M+2,5d²).
+    const double k=1+config.mass/config.cueMass();
+    const double launch=relative*speed*(k/(k+2.5*(side*side+top*top)));
     it->height=0;setVelocity(*it,direction*launch);
     setOmega(*it,arm.cross(direction*launch)*(2.5/(config.radius*config.radius)));
     // TP A.31: squirt cho thành phần ngang, cùng chiều quay ω_z (bi lệch ngược phía effect).

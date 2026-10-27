@@ -43,6 +43,10 @@ final class SpinPad:UIControl {
     var side=0.0,top=0.0
     var maximumOffset=0.7 {didSet{select(side:side,top:top)}}
     var changed:((Double,Double)->Void)?
+    /// Điểm chạm có với tới được không (cơ phải qua được băng khi bi cái gần băng). nil = mọi điểm.
+    var reachable:((Double,Double)->Bool)? {didSet{setNeedsDisplay()}}
+    /// Đưa điểm không với tới về điểm gần nhất phía trên (giữ ngang), như ngoài đời chỉ đánh được phần trên bi.
+    var clampTop:((Double,Double)->Double)?
     var expandedChanged:((Bool)->Void)?
     private var finger:UITouch?
     private var origin=CGPoint.zero
@@ -58,6 +62,17 @@ final class SpinPad:UIControl {
         ctx.saveGState();ctx.addEllipse(in:circle);ctx.clip()
         if let gradient=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:[UIColor.white.cgColor,UIColor(white:0.89,alpha:1).cgColor,UIColor(white:0.46,alpha:1).cgColor] as CFArray,locations:[0,0.55,1]){
             ctx.drawRadialGradient(gradient,startCenter:CGPoint(x:c.x-r*0.32,y:c.y-r*0.36),startRadius:0,endCenter:c,endRadius:r*1.15,options:[])
+        }
+        if let reachable=reachable {
+            // Vùng bị băng che: tô xám sọc để thấy ngay phần bi không đánh tới được.
+            ctx.saveGState();ctx.addEllipse(in:circle);ctx.clip()
+            UIColor(white:0.18,alpha:0.62).setFill()
+            let cells=22,cell=2*r/CGFloat(cells)
+            for i in 0..<cells {for j in 0..<cells {
+                let x=(CGFloat(i)+0.5)*cell-r,y=(CGFloat(j)+0.5)*cell-r
+                if !reachable(Double(x/r),Double(-y/r)) {ctx.fill(CGRect(x:c.x+x-cell/2,y:c.y+y-cell/2,width:cell+0.5,height:cell+0.5))}
+            }}
+            ctx.restoreGState()
         }
         ctx.restoreGState()
         let detailed=bounds.width>110
@@ -104,6 +119,7 @@ final class SpinPad:UIControl {
         var x=initialSide+Double(p.x-origin.x)/r,y=initialTop-Double(p.y-origin.y)/r
         let length=hypot(x,y);if length>maximumOffset{x*=maximumOffset/length;y*=maximumOffset/length}
         if hypot(x,y)<0.045{x=0;y=0}
+        if let reachable=reachable,!reachable(x,y),let clampTop=clampTop {y=clampTop(x,y)}
         side=x;top=y;accessibilityValue=String(format:"Ngang %.0f%%, dọc %.0f%%",x*100,y*100)
         changed?(x,y);setNeedsDisplay()
     }
@@ -126,7 +142,9 @@ final class SpinPad:UIControl {
     func reset(){side=0;top=0;changed?(0,0);setNeedsDisplay()}
     func select(side:Double,top:Double){
         let length=hypot(side,top),scale=length>maximumOffset ? maximumOffset/length:1
-        self.side=side*scale;self.top=top*scale;accessibilityValue=String(format:"Ngang %.0f%% bán kính, dọc %.0f%% bán kính",self.side*100,self.top*100);changed?(self.side,self.top);setNeedsDisplay()
+        self.side=side*scale;self.top=top*scale
+        if let reachable=reachable,!reachable(self.side,self.top),let clampTop=clampTop {self.top=clampTop(self.side,self.top)}
+        accessibilityValue=String(format:"Ngang %.0f%% bán kính, dọc %.0f%% bán kính",self.side*100,self.top*100);changed?(self.side,self.top);setNeedsDisplay()
     }
 }
 // A separate control owns the holding finger. It never toggles a latched state.

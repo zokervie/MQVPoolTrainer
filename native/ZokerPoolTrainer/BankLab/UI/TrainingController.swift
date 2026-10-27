@@ -104,6 +104,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 precondition(startupCameraMode==2,"G1: startup must use Aim3D")
                 table.cameraMode=2;recordG1QA("default",["cameraMode":startupCameraMode])
             }
+            if args.contains("--g1-audio-qa") {
+                DispatchQueue.main.asyncAfter(deadline:.now()+0.8){[weak self] in
+                    guard let self=self else{return}
+                    for kind in 0...3 {self.poolAudio.play(kind:kind,impact:1.2,pan:0)}
+                    // Máy CI có thể không có thiết bị âm thanh; khi engine chạy được thì cả 4 loại tiếng phải được phát.
+                    if self.poolAudio.isRunning {precondition(self.poolAudio.scheduled==4,"All four impact kinds must be scheduled")}
+                    self.recordG1QA("audio",["engineRunning":self.poolAudio.isRunning,"scheduled":self.poolAudio.scheduled])
+                }
+            }
             if args.contains("--g1-hud-qa") {
                 DispatchQueue.main.asyncAfter(deadline:.now()+1){[weak self] in self?.verifyRightHUD()}
             }
@@ -500,7 +509,32 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         BLShotCameraReset(&shotCameraState);table.trails([:]);guideDirty=true
         if observationCamera{restoreAimCamera()};shotCameraAnchor=nil
     }
-    private func refresh(){table.update(balls,dt:0);guideDirty=true;scoreLabel.text="\(successes) / \(attempts) đạt · góc \(String(format:"%.1f",angle*180/Double.pi))°"}
+    // MARK: Cơ tránh băng (BankLab/UI/CueClearance.h, Tests/CueClearanceTests.cpp)
+    private struct TableGeometry {var width=1.27,length=2.54,radius=0.028575,nose=0.27}
+    private var geometry=TableGeometry()
+    /// Góc nghiêng tối đa cho cú thường (không bật cơ nâng 3D): 35° — giả định, cần đối chiếu trên bàn thật.
+    private var maxStrokeElevation:Double{(engine.settings["experimental3D"]?.boolValue ?? false) ? 80:35}
+    private func cueClearance(side s:Double,top t:Double)->Double{
+        guard let c=cue,!c.sunk else{return 0}
+        return BLCueMinimumElevation(c.x,c.y,angle,s,t,geometry.width,geometry.length,geometry.radius,geometry.nose)
+    }
+    private func updateCueClearance(){
+        let g=engine.settings
+        geometry=TableGeometry(width:g["tableWidth"]?.doubleValue ?? 1.27,length:g["tableLength"]?.doubleValue ?? 2.54,
+                               radius:g["ballRadius"]?.doubleValue ?? 0.028575,nose:g["railHeight"]?.doubleValue ?? 0.27)
+        let limit=maxStrokeElevation
+        if spin.reachable==nil {
+            spin.reachable={[weak self] x,y in guard let self=self else{return true};return self.cueClearance(side:x,top:y)<=self.maxStrokeElevation}
+            spin.clampTop={[weak self] x,y in
+                guard let self=self,let c=self.cue else{return y}
+                return BLCueClampTop(c.x,c.y,self.angle,x,y,self.geometry.width,self.geometry.length,self.geometry.radius,self.geometry.nose,self.maxStrokeElevation,self.spin.maximumOffset)
+            }
+        }
+        if cueClearance(side:side,top:top)>limit {spin.select(side:side,top:top)} // select() kẹp lên vùng với tới
+        table.clearanceElevation=cueClearance(side:side,top:top)
+        spin.setNeedsDisplay()
+    }
+    private func refresh(){updateCueClearance();table.update(balls,dt:0);guideDirty=true;scoreLabel.text="\(successes) / \(attempts) đạt · góc \(String(format:"%.1f",angle*180/Double.pi))°"}
     private func updateControls(){
         let busy=presentationBusy
         fineSlider.isEnabled = !busy && localTurn && !isPlacingBalls && !spinExpanded
@@ -1009,37 +1043,65 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
 }
 
 /// Original synthesized pool impacts; no third-party recording is bundled.
-private final class PoolAudio {
-    private var voices=[AVAudioPlayer]()
-    private let worker=DispatchQueue(label:"zoker.pool.audio",qos:.userInitiated)
-    // Only worker accesses PCM cache; only main accesses player voices.
-    private var cache=[Int:Data]()
+/// 0.15: AVAudioEngine + bộ đệm PCM nạp sẵn + 12 voice cố định (không tạo AVAudioPlayer mỗi va chạm).
+/// Phiên âm thanh .playback + mixWithOthers: vẫn có tiếng khi iPhone gạt im lặng (bản cũ .ambient bị câm).
+final class PoolAudio {
+    private let engine=AVAudioEngine()
+    private let format=AVAudioFormat(standardFormatWithSampleRate:44100,channels:1)!
+    private var nodes=[AVAudioPlayerNode]()
+    private var next=0
+    private var buffers=[Int:AVAudioPCMBuffer]()
+    private(set) var scheduled=0
+    private(set) var started=false
     init(){
-        try? AVAudioSession.sharedInstance().setCategory(.ambient,options:[.mixWithOthers])
-        worker.async {[weak self] in
-            guard let self=self else{return}
-            for kind in 0...3 {for level in 1...8 {self.cache[kind*8+level]=Self.synthesize(kind:kind,impact:Double(level)*0.4)}}
+        let session=AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback,mode:.default,options:[.mixWithOthers])
+        try? session.setActive(true)
+        for _ in 0..<12 {
+            let node=AVAudioPlayerNode();engine.attach(node)
+            engine.connect(node,to:engine.mainMixerNode,format:format);nodes.append(node)
         }
+        for kind in 0...3 {for level in 1...8 {buffers[kind*8+level]=Self.buffer(Self.synthesize(kind:kind,impact:Double(level)*0.4),format:format)}}
+        engine.prepare();start()
+        NotificationCenter.default.addObserver(forName:AVAudioSession.interruptionNotification,object:nil,queue:.main){[weak self] note in
+            let raw=note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            if raw==AVAudioSession.InterruptionType.ended.rawValue {self?.start()}
+        }
+        NotificationCenter.default.addObserver(forName:.AVAudioEngineConfigurationChange,object:engine,queue:.main){[weak self] _ in self?.start()}
+        NotificationCenter.default.addObserver(forName:UIApplication.didBecomeActiveNotification,object:nil,queue:.main){[weak self] _ in self?.start()}
     }
+    private func start(){
+        if engine.isRunning {started=true;return}
+        do {try AVAudioSession.sharedInstance().setActive(true);try engine.start();started=true}
+        catch {started=false;NSLog("PoolAudio: engine start failed %@",String(describing:error))}
+    }
+    var isRunning:Bool{engine.isRunning}
+    /// kind: 0 băng, 1 bi–bi, 2 rơi lỗ, 3 đầu cơ chạm bi.
     func play(kind:Int,impact:Double,pan:Double){
+        if !engine.isRunning {start()}
+        guard engine.isRunning else{return}
         let level=max(1,min(8,Int(ceil(max(0,impact)/0.4))))
-        let type=max(0,min(3,kind)),key=type*8+level
-        let requested=CACurrentMediaTime()
-        worker.async {[weak self] in
-            guard let self=self else{return}
-            let data=self.cache[key] ?? Self.synthesize(kind:type,impact:Double(level)*0.4)
-            self.cache[key]=data
-            DispatchQueue.main.async {[weak self] in
-                guard let self=self,CACurrentMediaTime()-requested<0.15 else{return}
-                self.voices.removeAll{!$0.isPlaying}
-                if self.voices.count>=12{self.voices.removeFirst().stop()}
-                guard let voice=try? AVAudioPlayer(data:data) else{return}
-                voice.pan=Float(max(-1,min(1,pan/0.72)));voice.volume=0.72
-                voice.play();self.voices.append(voice)
-            }
-        }
+        let type=max(0,min(3,kind))
+        guard let buffer=buffers[type*8+level] else{return}
+        let node=nodes[next];next=(next+1)%nodes.count
+        node.stop()
+        node.pan=Float(max(-1,min(1,pan/0.72)))
+        node.volume=Float(type==2 ? 0.95:(type==3 ? 0.85:0.75))
+        node.scheduleBuffer(buffer,at:nil,options:[],completionHandler:nil)
+        node.play();scheduled+=1
     }
-    private static func synthesize(kind:Int,impact:Double)->Data{
+    private static func buffer(_ wav:Data,format:AVAudioFormat)->AVAudioPCMBuffer{
+        // WAV 16-bit mono 44,1 kHz; dữ liệu PCM bắt đầu sau header 44 byte.
+        let pcm=wav.dropFirst(44),frames=pcm.count/2
+        let out=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(frames))!
+        out.frameLength=AVAudioFrameCount(frames)
+        let channel=out.floatChannelData![0]
+        pcm.withUnsafeBytes{raw in
+            for i in 0..<frames {channel[i]=Float(Int16(littleEndian:raw.loadUnaligned(fromByteOffset:i*2,as:Int16.self)))/32768}
+        }
+        return out
+    }
+    static func synthesize(kind:Int,impact:Double)->Data{
         let count=kind==2 ? 15000:(kind==0 ? 10500:8500)
         let force=min(1,max(0.12,impact/3.2)),decay=kind==2 ? 22.0:(kind==0 ? 31.0:38.0)
         let mode:Double=kind==2 ? 510:(kind==0 ? 930:(kind==3 ? 1280:1650))

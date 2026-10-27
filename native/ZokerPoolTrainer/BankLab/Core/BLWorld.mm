@@ -29,6 +29,8 @@ using namespace banklab;
 - (NSDictionary*)settings{
     auto&c=_world->config;
     NSMutableDictionary *result=[@{@"experimental3D":@(c.experimental3D),@"cueType":@(c.cueType),@"cueElevationDegrees":@(c.cueElevationDegrees),@"rolling":@(c.rolling),@"sliding":@(c.sliding),@"railRestitution":@(c.railRestitution),@"railFriction":@(c.railFriction),@"railSpeedSensitivity":@(c.railSpeedSensitivity),@"ballRestitution":@(c.ballRestitution),@"ballFriction":@(c.ballFriction),@"spinDecay":@(c.spinDecay),@"individualRails":@(c.individualRails),@"coupledCushions":@(c.coupledCushions),@"railNoseHeightMeters":@(c.railNoseHeightMeters())} mutableCopy];
+    // Chỉ đọc (hình học bàn) cho UIKit: cơ tránh băng, đánh số nút kim cương.
+    result[@"tableWidth"]=@(c.width);result[@"tableLength"]=@(c.length);result[@"ballRadius"]=@(c.radius);result[@"railHeight"]=@(c.railHeight);
     for(int i=0;i<4;i++){result[[NSString stringWithFormat:@"railBounce%d",i]]=@(c.railBounce[i]);result[[NSString stringWithFormat:@"railGrip%d",i]]=@(c.railGrip[i]);}
     return result;
 }

@@ -38,6 +38,8 @@ final class TableScene {
     private var lastCameraTarget:SIMD3<Float>?
     var cueType=0
     var cueElevation:Double=0
+    /// Góc nghiêng tối thiểu để cơ qua được băng (BLCueMinimumElevation); chỉ ảnh hưởng hình vẽ cây cơ.
+    var clearanceElevation:Double=0
     var showNumbers=false // Text-free table in every camera mode.
     private let radius:CGFloat=0.028575
     private lazy var shadowTexture=contactShadowTexture()
@@ -759,7 +761,7 @@ final class TableScene {
     }
     private func cuePose(_ c:BallState,angle:Double,side:Double,top:Double)->(contact:SIMD3<Float>,axis:SIMD3<Float>){
         let d=SIMD3<Float>(Float(cos(angle)),0,Float(sin(angle)))
-        let elevation=Float(cueElevation*Double.pi/180)
+        let elevation=Float(max(cueElevation,min(clearanceElevation,85))*Double.pi/180)
         let axis=d*cos(elevation)-SIMD3<Float>(0,1,0)*sin(elevation)
         let right=SIMD3<Float>(-d.z,0,d.x)
         let up=d*sin(elevation)+SIMD3<Float>(0,1,0)*cos(elevation)
@@ -804,7 +806,7 @@ final class TableScene {
         };return m
     }()
     private func updateCueShadow(){
-        let key=[cueRoot.position.x,cueRoot.position.z,Float(cueElevation),cueRoot.rotation.x,cueRoot.rotation.y,cueRoot.rotation.z,cueRoot.rotation.w,Float(cueType)]
+        let key=[cueRoot.position.x,cueRoot.position.z,Float(max(cueElevation,clearanceElevation)),cueRoot.rotation.x,cueRoot.rotation.y,cueRoot.rotation.z,cueRoot.rotation.w,Float(cueType)]
         guard key != cueShadowKey else{return};cueShadowKey=key
         var vertices:[SCNVector3]=[],uv:[CGPoint]=[],indices:[Int32]=[]
         let length:Float=cueType==1 ? 1.044:1.45

@@ -16,6 +16,17 @@ int main(){
      double peak=0;for(int i=0;i<550;i++){w.step();peak=std::max(peak,w.balls[0].height);for(auto&b:w.balls)check(std::isfinite(b.height+b.vertical+b.p.x+b.p.y),"finite jump");}
      check(peak>.06,"jump must lift above a ball diameter");
      check(std::none_of(w.events.begin(),w.events.end(),[](auto e){return e.kind==1;}),"high cue ball must clear object, not collide in 2D");}
+    // 0.15 thang lực nhảy: vuốt = tốc độ bi cơ ngang (như cú phẳng). Bi cản gần cần cơ dốc, bi cản xa cần lực.
+    {auto clears=[&](double elevation,double speed,double gap){
+        Config j=c;j.cueType=1;j.cueElevationDegrees=elevation;World w(j);w.reset({ball(0,0,-.9),ball(1,0,-.9+gap)});w.strike(pi/2,speed,0,0);
+        for(int i=0;i<2880;i++){w.step();if(w.balls[0].p.y>-.9+gap+.06)return true;
+            if(std::any_of(w.events.begin(),w.events.end(),[](auto e){return e.kind==1;}))return false;}
+        return false;};
+     check(clears(60,3,.12),"medium stroke, steep jump cue clears a close obstacle");
+     check(clears(45,4,.25),"firm stroke at 45 deg clears an obstacle a diamond away");
+     check(!clears(45,3,.25),"soft stroke at 45 deg must not clear a diamond-away obstacle");
+     check(!clears(60,3,.50),"steep short jump lands before a far obstacle");
+     check(clears(45,6,.50),"hard stroke at 45 deg carries over a far obstacle");}
     {c.cueElevationDegrees=0;World w(c);w.reset({ball(0,.1,-.8),ball(1,.1,-.6)});w.strike(pi/2,3,0,0);
      for(int i=0;i<1000;i++)w.step();
      check(std::any_of(w.events.begin(),w.events.end(),[](auto e){return e.kind==1;}),"ground shot must hit obstacle");}
