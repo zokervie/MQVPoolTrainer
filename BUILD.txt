@@ -1,0 +1,3 @@
+ZokerPoolTrainer-0.15-Build46 — nhánh feature/zoker-native, commit 28f1d4d, 2026-10-27 03:22 UTC. Đã qua nghiệm thu Simulator + XCTest.
+IPA chưa ký – ký bằng ESign/Sideloadly rồi cài. Link cố định (luôn là bản mới nhất): https://github.com/zokervie/MQVPoolTrainer/raw/dist-zoker-native/ZokerPoolTrainer.ipa
+SHA-256: 319f408f101186a2d5810c2aafde16b376a4360daf3039948aa492a47e7b5ce1
