@@ -478,6 +478,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickRail.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen
         if !locked{stroke.cancelStroke();pull=0}
     }
+    /// Trục của lần kéo một ngón hiện tại: 0 chưa quyết, 1 ngang (hướng ngắm), 2 dọc (độ cao camera).
+    private var aimPanAxis=0
     private var presentationBusy:Bool{shotActive || replayIndex != nil || BLShotCameraBusy(shotCameraState)}
     private var strokeAllowed:Bool{
         BLStrokeAllowed(localTurn,presentationBusy,menuOpen,spinExpanded,isPlacingBalls,cue?.sunk==false)
@@ -630,7 +632,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let blend=BLCameraTweenBlend(cameraTransition,dt,cameraTransitionDuration)
         table.placeCamera(cue:cameraCue,angle:angle,aspect:scn.bounds.width/max(1,scn.bounds.height),blend:Float(blend))
         cameraTransition=max(0,cameraTransition-dt)
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d",angle,table.cameraMode,shotActive ? 1:0)}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch)}
         table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
         let show=guideOn && !presentationBusy && localTurn && !isPlacingBalls
         if !show && lastGuideVisible {
@@ -739,11 +741,25 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }else{
             guard g.numberOfTouches<=1 else{return}
             // Một ngón: ngang = xoay hướng đánh; dọc = hạ/nâng camera ngắm (sát mặt bàn → nhìn từ trên).
-            let delta=g.translation(in:scn);angle+=Double(delta.x)*0.003
-            if table.cameraMode==2 && !observationCamera && replayIndex==nil{
+            // Khoá trục theo mỗi lần kéo: chưa áp dụng gì cho tới khi đi đủ 6 pt, rồi chọn trục trội.
+            // Rung tay dọc không làm lệch hướng ngắm và ngược lại; cú nhích ngắn < 6 pt vẫn tính là xoay ngang.
+            if g.state == .began {aimPanAxis=0}
+            let delta=g.translation(in:scn)
+            let aimCamera=table.cameraMode==2 && !observationCamera && replayIndex==nil
+            let finishing=g.state == .ended||g.state == .cancelled
+            if aimPanAxis==0 {
+                if hypot(delta.x,delta.y)>=6 {aimPanAxis = (aimCamera && abs(delta.y)>abs(delta.x)*1.3) ? 2:1}
+                else if finishing {aimPanAxis=1}
+                else {return}
+            }
+            if aimPanAxis==1 {angle+=Double(delta.x)*0.003}
+            if aimCamera && aimPanAxis==2 {
                 table.aimPitch=min(max(table.aimPitch+Float(delta.y)*0.004,TableScene.aimPitchRange.lowerBound),TableScene.aimPitchRange.upperBound)
                 cameraTransition=0
-                if g.state == .ended||g.state == .cancelled{UserDefaults.standard.set(Double(table.aimPitch),forKey:"aimCameraPitch014")}
+            }
+            if finishing{
+                if aimPanAxis==2 {UserDefaults.standard.set(Double(table.aimPitch),forKey:"aimCameraPitch014")}
+                aimPanAxis=0
             }
             g.setTranslation(.zero,in:scn);refresh()
         }
@@ -827,7 +843,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
     }
     private func help(){
-        let message="Ngắm: kéo ngang hoặc chạm mặt bàn.\n\nĐánh: giữ nút khóa trong suốt cú vuốt. Ngón khác kéo xuống rồi đẩy lên ở bất kỳ vùng trống nào trên bàn; đẩy nhanh hơn cho lực lớn hơn. Buông nút khóa để ngắm lại. Hủy vuốt khi buông khóa trước lúc đánh.\n\nGiữ quả bi effect bên phải thanh nâng cơ để phóng to, kéo để chỉnh ép phê; buông để thu nhỏ. Khi effect mở rộng, nút B và vuốt cơ bị khóa. Vòng 25 / 50 là phần trăm bán kính bi; vòng cam là giới hạn nhập của mô phỏng, không phải bảo đảm tránh trượt cơ ngoài thực tế. X dương sang phải, Y dương lên trên, nhìn từ đuôi cơ. Về tâm trong Menu. Cụm phải có Góc nhìn, Lùi cú và Dụng cụ (cơ, bao cơ, đặt bi, thêm 1 bi). Bài tập chỉ nằm trong Menu. Khi toàn bộ bi dừng ổn định 0,5 giây, camera trở về góc ngắm 3D; khi xem lại hoặc quan sát lượt khác, camera không bị ép trả. Mặt bàn không có chữ hay số nút; nút kim cương vẫn giữ nguyên. Trong lúc bi lăn, kéo hai ngón để xoay camera và chụm/mở để thu phóng toàn cảnh.\n\nTrên Simulator không thể giữ hai điểm bằng một chuột: dùng Đánh thử trong Menu để kiểm tra.\n\n\(Drill.all[drillIndex].note)"
+        let message="Ngắm: kéo một ngón ngang để xoay hướng đánh, hoặc chạm mặt bàn. Kéo một ngón dọc để hạ camera sát mặt bàn hoặc nâng lên cao; mỗi lần kéo chỉ đổi một việc. Chụm/mở hai ngón để thu phóng từ góc đó.\n\nĐánh: giữ nút khóa trong suốt cú vuốt. Ngón khác kéo xuống rồi đẩy lên ở bất kỳ vùng trống nào trên bàn; đẩy nhanh hơn cho lực lớn hơn. Buông nút khóa để ngắm lại. Hủy vuốt khi buông khóa trước lúc đánh.\n\nGiữ quả bi effect bên phải thanh nâng cơ để phóng to, kéo để chỉnh ép phê; buông để thu nhỏ. Khi effect mở rộng, nút B và vuốt cơ bị khóa. Vòng 25 / 50 là phần trăm bán kính bi; vòng cam là giới hạn nhập của mô phỏng, không phải bảo đảm tránh trượt cơ ngoài thực tế. X dương sang phải, Y dương lên trên, nhìn từ đuôi cơ. Về tâm trong Menu. Cụm phải có Góc nhìn, Lùi cú và Dụng cụ (cơ, bao cơ, đặt bi, thêm 1 bi). Bài tập chỉ nằm trong Menu. Sau cú đánh camera giữ nguyên góc ngắm (đổi sang toàn cảnh trong Menu > Sau cú đánh). Khi toàn bộ bi dừng ổn định 0,5 giây, camera trở về góc ngắm 3D; khi xem lại hoặc quan sát lượt khác, camera không bị ép trả. Mặt bàn không có chữ hay số nút; nút kim cương vẫn giữ nguyên. Trong lúc bi lăn, kéo hai ngón để xoay camera và chụm/mở để thu phóng toàn cảnh.\n\nTrên Simulator không thể giữ hai điểm bằng một chuột: dùng Đánh thử trong Menu để kiểm tra.\n\n\(Drill.all[drillIndex].note)"
         let a=UIAlertController(title:"Zoker Pool Trainer",message:message,preferredStyle:.alert);a.addAction(UIAlertAction(title:"Đã hiểu",style:.default));presentSheet(a)
     }
     private func layouts(){
@@ -925,7 +941,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         a.addAction(UIAlertAction(title:overviewOn ? "✓ Sau cú đánh: chuyển toàn cảnh":"Sau cú đánh: giữ góc ngắm",style:.default){_ in
             UserDefaults.standard.set(!overviewOn,forKey:"overviewAfterShot014")
         })
-        a.addAction(UIAlertAction(title:"Khôi phục góc máy",style:.default){[weak self]_ in self?.table.orbit=0;self?.table.zoom=1;self?.table.aimPitch=TableScene.defaultAimPitch})
+        a.addAction(UIAlertAction(title:"Khôi phục góc máy",style:.default){[weak self]_ in self?.table.orbit=0;self?.table.zoom=1;self?.table.aimPitch=TableScene.defaultAimPitch
+            UserDefaults.standard.removeObject(forKey:"aimCameraPitch014");UserDefaults.standard.removeObject(forKey:"aimCameraZoom013")})
         if !shotActive,replayIndex==nil {
             a.addAction(UIAlertAction(title:"Mở cảnh studio 15 bi",style:.default){[weak self]_ in self?.loadShowcase()})
             a.addAction(UIAlertAction(title:"Kiểm tra lăn · 0.5 m/s",style:.default){[weak self]_ in self?.rollingCheck()})

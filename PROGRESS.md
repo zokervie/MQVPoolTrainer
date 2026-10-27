@@ -36,5 +36,6 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 27/10/2026 · Nhánh `ci/native-camera-dieu-khien` (B1, B2 — CODE_READY, chờ CI Mac; chưa xác minh trên thiết bị): một ngón kéo ngang = hướng đánh, kéo dọc = độ cao camera ngắm 0,02–1,25 rad, khoá trục mỗi lần kéo (không áp dụng gì trước 6 pt); mắt camera không chui vào băng/gỗ khi bi cái sát băng (tối thiểu 8,6 cm trên khung, 2 cm trên nỉ); sau cú giữ góc ngắm, toàn cảnh là tuỳ chọn trong Menu; XCTest kéo dọc không đổi hướng ngắm.
 - 26/10/2026 tối · Hợp nhất council-hardening + vật lý 0.14; CI hợp nhất (cổng Linux 2 trình biên dịch → nghiệm thu Mac bằng run_acceptance.py → phát hành). Lần chạy Mac của bản chép council bị GitHub huỷ do hết máy macOS arm64 (không phải lỗi code); có tuỳ chọn chạy tay trên macos-15-intel.
 - 26/10/2026 · Nhập source native vào `feature/zoker-native` (repo public MQVPoolTrainer), CI `native-ci.yml`. Nhánh `ci/native-vat-ly`: 4 sửa vật lý P-1…P-4 + `LiteratureTests.cpp`; 14/14 bộ C++ qua với -Werror.

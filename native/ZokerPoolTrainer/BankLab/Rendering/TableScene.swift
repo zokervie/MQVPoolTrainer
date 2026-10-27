@@ -32,6 +32,9 @@ final class TableScene {
     static let aimPitchRange:ClosedRange<Float> = 0.02...1.25
     static let defaultAimPitch:Float = 0.325
     var aimPitch:Float=TableScene.defaultAimPitch
+    /// Độ cao mắt tối thiểu (m, so với mặt nỉ): trên mặt nỉ 2 cm; trên băng/gỗ 0,056 + 0,03.
+    static let minAimEyeHeightBed:Float = 0.02
+    static let minAimEyeHeightRail:Float = 0.086
     private var lastCameraTarget:SIMD3<Float>?
     var cueType=0
     var cueElevation:Double=0
@@ -696,7 +699,14 @@ final class TableScene {
             // Camera đi trên mặt cầu quanh bi cái: bán kính = khoảng cách cũ (0,46 ; 0,155) × zoom.
             // Pitch mặc định 0,325 rad cho đúng vị trí cũ; kéo ngón dọc để hạ sát mặt bàn hoặc nâng cao.
             let radiusAim:Float = 0.4854*zoom
-            let pitch=min(max(aimPitch,TableScene.aimPitchRange.lowerBound),TableScene.aimPitchRange.upperBound)
+            var pitch=min(max(aimPitch,TableScene.aimPitchRange.lowerBound),TableScene.aimPitchRange.upperBound)
+            // Không để mắt camera chui vào băng/khung gỗ khi bi cái sát băng: nếu mắt nằm ngoài mặt nỉ
+            // (|x|>0,635 hoặc |z|>1,27) thì nâng tối thiểu lên trên mặt gỗ (0,056 m) + 3 cm.
+            let horizontal=radiusAim*cos(pitch)
+            let eyeXZ=SIMD2<Float>(origin.x-d.x*horizontal,origin.z-d.z*horizontal)
+            let overBed=abs(eyeXZ.x)<0.635 && abs(eyeXZ.y)<1.27
+            let minEyeY:Float = overBed ? TableScene.minAimEyeHeightBed:TableScene.minAimEyeHeightRail
+            if radiusAim*sin(pitch)<minEyeY {pitch=asin(min(1,minEyeY/radiusAim))}
             let retreat:SIMD3<Float> = d*(radiusAim*cos(pitch))
             let lift=SIMD3<Float>(0,radiusAim*sin(pitch),0)
             let behind:SIMD3<Float> = origin-retreat

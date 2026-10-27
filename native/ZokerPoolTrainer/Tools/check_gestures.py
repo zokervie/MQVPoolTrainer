@@ -15,3 +15,6 @@ print("PASS: cử chỉ ngắm một ngón không bị cử chỉ hai ngón ch�
 if not re.search(r"func panTable.*?aimPitch", text, re.S):
     print("FAIL: kéo một ngón phải điều khiển cả độ cao camera ngắm (aimPitch)"); sys.exit(1)
 print("PASS: kéo một ngón điều khiển hướng ngắm + độ cao camera")
+if not re.search(r"func panTable.*?aimPanAxis", text, re.S):
+    print("FAIL: kéo một ngón phải khoá trục (aimPanAxis) để không lệch hướng khi chỉnh camera"); sys.exit(1)
+print("PASS: kéo một ngón khoá trục ngang/dọc theo từng lần kéo")
