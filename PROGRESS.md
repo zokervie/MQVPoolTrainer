@@ -31,6 +31,11 @@ Nhóm C — giao diện:
 - C2 Thanh Dụng cụ/Góc nhìn/Lùi dọc sát cạnh trái; thứ tự camera: Toàn cảnh, Trên cao, Ngắm cơ.
 - C3 Dụng cụ thi đấu: Thêm bi mục tiêu (từng bi/ngẫu nhiên), Đặt bi, Bao cơ, Loại cơ (Phá/Jump; Đánh/Massé — cơ Đánh/Massé không nhảy, chỉ cong xoáy).
 - C4 Replay ra màn hình chính (nhóm phải), lưu lại, camera xoay tự do từ góc 3D ban đầu. Còn lại vào Menu.
+Nhóm D — bài tập và Coach (yêu cầu 27/10 07:45):
+- D1 Đánh số nút số trên bàn (1…) khi vào bài tập, bật/tắt; ghi chú vị trí bi và mục tiêu, giữ nguyên khi chơi lại để quen mắt. Chỉ ở chế độ Luyện; ẩn khi đánh và ở chế độ Thi.
+- D2 Công thức hệ thống (corner-5, plus, 3 băng) tính từ solver, hiện thành lời giải sau cú hoặc theo yêu cầu; ghi rõ giả thiết và độ bất định. Phụ thuộc A1.
+- D3 Chơi lại cùng bố cục (một chạm), lịch sử từng bài; logic bài tập: mục tiêu cụ thể, điều kiện đạt, kiểm 46 bài.
+- D4 AI Coach offline (rule + thống kê, theo Docs/AI-COACH-SPEC.md): ghi ShotRecord, thẻ Kết quả → Có thể thử → Tập lại; hiện chưa có mã `BankLab/Coach`.
 
 ## Hàng chờ (theo thứ tự đề xuất)
 1. G2 (ChatGPT blueprint): cơ tránh băng + vùng effect khả thi; xếp bi ngẫu nhiên theo seed.
