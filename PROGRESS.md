@@ -17,6 +17,21 @@ Trạng thái ghi theo bằng chứng: CODE_READY (có code) · TESTED_PORTABLE 
 ## Hợp nhất 26/10 tối (nhánh `ci/native-hop-nhat`)
 Lấy nền `feature/0.13-council-hardening` @ e86ee7f (repo private, PR #2: XCTest cử chỉ kéo một ngón, đầu dò G1, DeterminismTests 100 lần, cổng Linux GCC+Clang, `check_suite_lists.py`, `run_acceptance.py`, tài liệu hội đồng + AI Coach) và thêm từ nhánh này: vật lý 0.14 (P-1…P-4) + `LiteratureTests.cpp`, `check_gestures.py`, di trú cài đặt μ₀, số build tăng dần, CI phát hành IPA. 15/15 bộ C++ qua với g++ và clang++ (-Werror) trên Linux.
 
+## Yêu cầu của người dùng 27/10 (đã nhận, chưa làm — theo thứ tự đề xuất)
+Nhóm A — vật lý (test trước, có nguồn):
+- A1 Hiệu chuẩn băng theo hệ thống kim cương (Dr. Dave: corner-5, plus, 3 băng): `Tests/DiamondSystemTests.cpp` so góc ra theo tốc độ × effect × số băng; bật `railSpeedSensitivity` có nguồn (hiện mặc định 0, chưa hiệu chuẩn).
+- A2 Kiểm chứng truyền xoáy bi–bi (bánh răng 3 bi thẳng hàng) bằng test định lượng, ghi hệ số theo μ(v).
+- A3 Băng nhiều lần (2–5 băng): spin còn lại sau mỗi băng, so với số liệu công bố.
+Nhóm B — điều khiển/camera:
+- B1 Một ngón trên vùng trống: xoay ngang + nghiêng lên/xuống sát mặt bàn; hai ngón: zoom từ góc đó.
+- B2 Camera giữ góc ngắm sau cú đánh; chỉ về toàn cảnh khi người dùng chọn.
+- B3 Cơ không xuyên bàn/băng: giới hạn độ dốc và điểm effect theo vị trí bi cái sát băng (G2).
+Nhóm C — giao diện:
+- C1 Chỉ báo độ dốc cơ: hình cây gậy nhỏ 0°→45°→90°, đặt bên phải bi effect.
+- C2 Thanh Dụng cụ/Góc nhìn/Lùi dọc sát cạnh trái; thứ tự camera: Toàn cảnh, Trên cao, Ngắm cơ.
+- C3 Dụng cụ thi đấu: Thêm bi mục tiêu (từng bi/ngẫu nhiên), Đặt bi, Bao cơ, Loại cơ (Phá/Jump; Đánh/Massé — cơ Đánh/Massé không nhảy, chỉ cong xoáy).
+- C4 Replay ra màn hình chính (nhóm phải), lưu lại, camera xoay tự do từ góc 3D ban đầu. Còn lại vào Menu.
+
 ## Hàng chờ (theo thứ tự đề xuất)
 1. G2 (ChatGPT blueprint): cơ tránh băng + vùng effect khả thi; xếp bi ngẫu nhiên theo seed.
 2. Chế độ Luyện (có trợ giúp, phân tích sau cú) / Chế độ Thi (không trợ giúp) — đường lý tưởng và dự đoán chỉ ở chế độ Luyện hoặc sau cú.
