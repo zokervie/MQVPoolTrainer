@@ -12,3 +12,6 @@ if bad:
 if not re.search(r"pan\.maximumNumberOfTouches\s*=\s*1", text):
     print("FAIL: pan ngắm phải giới hạn một ngón"); sys.exit(1)
 print("PASS: cử chỉ ngắm một ngón không bị cử chỉ hai ngón chặn")
+if not re.search(r"func panTable.*?aimPitch", text, re.S):
+    print("FAIL: kéo một ngón phải điều khiển cả độ cao camera ngắm (aimPitch)"); sys.exit(1)
+print("PASS: kéo một ngón điều khiển hướng ngắm + độ cao camera")

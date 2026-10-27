@@ -86,6 +86,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         buildHUD();buildQuickRail();configureGestures();loadDrill(drillIndex)
         let aimZoom=UserDefaults.standard.double(forKey:"aimCameraZoom013")
         table.zoom=Float(aimZoom>=0.45 && aimZoom<=2.6 ? aimZoom:1)
+        let savedPitch=Float(UserDefaults.standard.double(forKey:"aimCameraPitch014"))
+        table.aimPitch=TableScene.aimPitchRange.contains(savedPitch) ? savedPitch:TableScene.defaultAimPitch
         let configured=engine.settings
         spin.maximumOffset=(configured["experimental3D"]?.boolValue ?? false) ? 0.6:0.7
         table.selectCue(configured["cueType"]?.intValue ?? 0)
@@ -553,7 +555,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         shotCameraAnchor=cue
         if table.cameraMode==2 {savedAimCamera=(2,table.zoom,table.orbit,table.orbitPitch)}
         BLShotCameraStart(&shotCameraState)
-        observationCamera=true;table.cameraMode=0;table.zoom=1;table.orbitPitch=0.72;beginCameraTransition(0.45)
+        // Mặc định giữ góc ngắm vừa đánh (camera neo ở vị trí bi cái trước cú); chỉ chuyển toàn cảnh khi người dùng bật.
+        if UserDefaults.standard.bool(forKey:"overviewAfterShot014") {
+            observationCamera=true;table.cameraMode=0;table.zoom=1;table.orbitPitch=0.72;beginCameraTransition(0.45)
+        }
         before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0
         engine.strike(angle:table.shotAngle(cue,angle:angle,side:side,top:top),speed:speed,side:side,top:top)
         if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:cue?.x ?? 0)}
@@ -733,7 +738,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if g.state == .ended||g.state == .cancelled {draggedBall=nil}
         }else{
             guard g.numberOfTouches<=1 else{return}
-            let delta=g.translation(in:scn);angle+=Double(delta.x)*0.003;g.setTranslation(.zero,in:scn);refresh()
+            // Một ngón: ngang = xoay hướng đánh; dọc = hạ/nâng camera ngắm (sát mặt bàn → nhìn từ trên).
+            let delta=g.translation(in:scn);angle+=Double(delta.x)*0.003
+            if table.cameraMode==2 && !observationCamera && replayIndex==nil{
+                table.aimPitch=min(max(table.aimPitch+Float(delta.y)*0.004,TableScene.aimPitchRange.lowerBound),TableScene.aimPitchRange.upperBound)
+                cameraTransition=0
+                if g.state == .ended||g.state == .cancelled{UserDefaults.standard.set(Double(table.aimPitch),forKey:"aimCameraPitch014")}
+            }
+            g.setTranslation(.zero,in:scn);refresh()
         }
     }
     @objc private func orbitTable(_ g:UIPanGestureRecognizer){
@@ -909,7 +921,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
             alert.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(alert)
         })
-        a.addAction(UIAlertAction(title:"Khôi phục góc máy",style:.default){[weak self]_ in self?.table.orbit=0;self?.table.zoom=1})
+        let overviewOn=UserDefaults.standard.bool(forKey:"overviewAfterShot014")
+        a.addAction(UIAlertAction(title:overviewOn ? "✓ Sau cú đánh: chuyển toàn cảnh":"Sau cú đánh: giữ góc ngắm",style:.default){_ in
+            UserDefaults.standard.set(!overviewOn,forKey:"overviewAfterShot014")
+        })
+        a.addAction(UIAlertAction(title:"Khôi phục góc máy",style:.default){[weak self]_ in self?.table.orbit=0;self?.table.zoom=1;self?.table.aimPitch=TableScene.defaultAimPitch})
         if !shotActive,replayIndex==nil {
             a.addAction(UIAlertAction(title:"Mở cảnh studio 15 bi",style:.default){[weak self]_ in self?.loadShowcase()})
             a.addAction(UIAlertAction(title:"Kiểm tra lăn · 0.5 m/s",style:.default){[weak self]_ in self?.rollingCheck()})

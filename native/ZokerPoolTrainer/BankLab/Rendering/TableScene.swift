@@ -28,6 +28,10 @@ final class TableScene {
     var zoom:Float=1
     var orbit:Float=0
     var orbitPitch:Float=0.57
+    /// Độ cao camera ngắm (rad so với mặt bàn quanh bi cái). 0,325 = góc mặc định cũ; nhỏ nhất gần sát mặt nỉ.
+    static let aimPitchRange:ClosedRange<Float> = 0.02...1.25
+    static let defaultAimPitch:Float = 0.325
+    var aimPitch:Float=TableScene.defaultAimPitch
     private var lastCameraTarget:SIMD3<Float>?
     var cueType=0
     var cueElevation:Double=0
@@ -689,8 +693,12 @@ final class TableScene {
             eye=SIMD3(0,1.8,0);target=SIMD3(0,0,0);up=SCNVector3(cos(orbit),0,sin(orbit))
         }else if cameraMode==2{
             let origin=SIMD3<Float>(Float(c.x),0,Float(c.y))
-            let retreat:SIMD3<Float> = d*(0.46*zoom)
-            let lift=SIMD3<Float>(0,0.155*zoom,0)
+            // Camera đi trên mặt cầu quanh bi cái: bán kính = khoảng cách cũ (0,46 ; 0,155) × zoom.
+            // Pitch mặc định 0,325 rad cho đúng vị trí cũ; kéo ngón dọc để hạ sát mặt bàn hoặc nâng cao.
+            let radiusAim:Float = 0.4854*zoom
+            let pitch=min(max(aimPitch,TableScene.aimPitchRange.lowerBound),TableScene.aimPitchRange.upperBound)
+            let retreat:SIMD3<Float> = d*(radiusAim*cos(pitch))
+            let lift=SIMD3<Float>(0,radiusAim*sin(pitch),0)
             let behind:SIMD3<Float> = origin-retreat
             eye=behind+lift
             let forward:SIMD3<Float> = d*Float(0.75)
