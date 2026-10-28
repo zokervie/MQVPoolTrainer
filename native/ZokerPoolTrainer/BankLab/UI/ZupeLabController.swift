@@ -9,7 +9,7 @@ final class ZupeLabController: UIViewController, WKScriptMessageHandler, WKNavig
         super.viewDidLoad()
         title = "ZUPE 2.0 · Thử nghiệm"
         view.backgroundColor = .black
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Xong", style: .done, target: self, action: #selector(close))
         let content = WKUserContentController()
         content.add(self, name: "zupeExport")
         let config = WKWebViewConfiguration()

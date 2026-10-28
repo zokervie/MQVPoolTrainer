@@ -68,7 +68,7 @@ final class DrillsController:UITableViewController {
         tableView.backgroundColor=UIColor(red:0.09,green:0.05,blue:0.025,alpha:1)
         navigationController?.navigationBar.barStyle = .black
         tableView.rowHeight=UITableView.automaticDimension;tableView.estimatedRowHeight=100
-        navigationItem.rightBarButtonItem=UIBarButtonItem(barButtonSystemItem:.done,target:self,action:#selector(close))
+        navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Xong",style:.done,target:self,action:#selector(close))
     }
     @objc private func close(){dismiss(animated:true)}
     override func numberOfSections(in tableView:UITableView)->Int{groups.count}
@@ -190,7 +190,7 @@ private final class DrillLessonController:UIViewController {
         func label(_ text:String,_ size:CGFloat,_ color:UIColor,_ weight:UIFont.Weight = .regular)->UILabel{let v=UILabel();v.text=text;v.textColor=color;v.font = .systemFont(ofSize:size,weight:weight);v.numberOfLines=0;return v}
         stack.addArrangedSubview(label(drill.title,22,MenuSkin.gold,.bold))
         stack.addArrangedSubview(label(drill.familyName+"  ·  Mục tiêu: đúng \(drill.rails) băng",15,.white,.semibold))
-        let diagram=DrillPreviewView(drill:drill);diagram.heightAnchor.constraint(equalToConstant:210).isActive=true;stack.addArrangedSubview(diagram)
+        let diagram=DrillPreviewView(drill:drill);diagram.heightAnchor.constraint(equalToConstant:236).isActive=true;diagram.contentMode = .redraw;stack.addArrangedSubview(diagram)
         stack.addArrangedSubview(label("Cách tính tham khảo",16,MenuSkin.gold,.bold));stack.addArrangedSubview(label(drill.formula,14,.white))
         stack.addArrangedSubview(label("Hướng dẫn luyện",16,MenuSkin.gold,.bold));stack.addArrangedSubview(label(drill.coaching,14,.white))
         let button=UIButton(type:.system);var config=UIButton.Configuration.filled();config.title="Bắt đầu luyện";config.baseBackgroundColor=MenuSkin.gold;config.baseForegroundColor = .black;button.configuration=config;button.addAction(UIAction{[weak self]_ in self?.start?()},for:.touchUpInside);stack.addArrangedSubview(button)
@@ -199,19 +199,49 @@ private final class DrillLessonController:UIViewController {
 }
 private final class DrillPreviewView:UIView {
     let drill:Drill
-    init(drill:Drill){self.drill=drill;super.init(frame:.zero);backgroundColor=UIColor(red:0.04,green:0.28,blue:0.25,alpha:1);layer.cornerRadius=12;clipsToBounds=true}
+    init(drill:Drill){self.drill=drill;super.init(frame:.zero);backgroundColor=UIColor(red:0.07,green:0.045,blue:0.03,alpha:1);layer.cornerRadius=12;clipsToBounds=true}
     required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
     override func draw(_ rect:CGRect){
         guard let c=UIGraphicsGetCurrentContext() else{return}
-        let bounds=rect.insetBy(dx:16,dy:16), scale=min(bounds.width/1.27,bounds.height/2.54)
-        let table=CGRect(x:bounds.midX-1.27*scale/2,y:bounds.midY-2.54*scale/2,width:1.27*scale,height:2.54*scale)
-        func point(_ x:Double,_ y:Double)->CGPoint{CGPoint(x:table.midX+CGFloat(x)*scale,y:table.midY-CGFloat(y)*scale)}
-        c.setStrokeColor(UIColor(white:0.88,alpha:0.8).cgColor);c.setLineWidth(1);c.stroke(table)
+        // 0.16: màn ngang → vẽ bàn nằm ngang (trục dài theo chiều rộng khung) để sơ đồ lấp đầy khung, không còn là ô nhỏ giữa nền xanh.
+        let bounds=self.bounds.insetBy(dx:18,dy:22)
+        let landscape=bounds.width>=bounds.height
+        let long=2.54,short=1.27
+        let scale=landscape ? min(bounds.width/long,bounds.height/short):min(bounds.width/short,bounds.height/long)
+        let w=CGFloat(landscape ? long:short)*scale,h=CGFloat(landscape ? short:long)*scale
+        let table=CGRect(x:bounds.midX-w/2,y:bounds.midY-h/2,width:w,height:h)
+        // Toạ độ bàn: x theo cạnh ngắn, y theo cạnh dài (đầu bàn y dương).
+        func point(_ x:Double,_ y:Double)->CGPoint{
+            landscape ? CGPoint(x:table.midX+CGFloat(y)*scale,y:table.midY+CGFloat(x)*scale)
+                      : CGPoint(x:table.midX+CGFloat(x)*scale,y:table.midY-CGFloat(y)*scale)
+        }
+        c.setFillColor(UIColor(red:0.06,green:0.38,blue:0.34,alpha:1).cgColor);c.fill(table)
+        c.setStrokeColor(UIColor(white:0.88,alpha:0.8).cgColor);c.setLineWidth(1.5);c.stroke(table)
+        // Nút kim cương: 8 khoảng trên cạnh dài, 4 trên cạnh ngắn.
+        c.setFillColor(UIColor(white:0.92,alpha:0.55).cgColor)
+        for i in 1..<8 where i != 4 {let y=-long/2+Double(i)*long/8;for x in [-short/2,short/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
+        for i in 1..<4 {let x=-short/2+Double(i)*short/4;for y in [-long/2,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
+        let pocket=max(6,min(11,CGFloat(0.06)*scale))
         c.setFillColor(UIColor(white:0.02,alpha:1).cgColor)
-        for x in [-0.67,0.67]{for y in [-1.305,0.0,1.305]{c.fillEllipse(in:CGRect(x:point(x,y).x-7,y:point(x,y).y-7,width:14,height:14))}}
-        for b in drill.balls {let p=point(b.x,b.y);c.setFillColor((b.id==0 ? UIColor.white:UIColor(red:1,green:0.63,blue:0.1,alpha:1)).cgColor);c.fillEllipse(in:CGRect(x:p.x-7,y:p.y-7,width:14,height:14));c.setStrokeColor(UIColor.black.withAlphaComponent(0.55).cgColor);c.strokeEllipse(in:CGRect(x:p.x-7,y:p.y-7,width:14,height:14))}
-        let note="Thế bi mẫu · hướng ngắm bắt đầu" as NSString
-        note.draw(at:CGPoint(x:bounds.minX+5,y:bounds.maxY-20),withAttributes:[.font:UIFont.systemFont(ofSize:11,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.85)])
+        for x in [-short/2,short/2]{for y in [-long/2,0.0,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-pocket,y:q.y-pocket,width:2*pocket,height:2*pocket))}}
+        let r=max(6,min(10,CGFloat(0.0286)*scale*1.6))
+        // Mũi tên hướng ngắm bắt đầu từ bi cái (trước đây chỉ có chữ, không có hình).
+        if let cue=drill.balls.first(where:{$0.id==0}) {
+            let from=point(cue.x,cue.y),to=point(cue.x+cos(drill.angle)*0.45,cue.y+sin(drill.angle)*0.45)
+            let dx=to.x-from.x,dy=to.y-from.y,len=max(1,hypot(dx,dy)),ux=dx/len,uy=dy/len
+            c.setStrokeColor(UIColor.white.withAlphaComponent(0.85).cgColor);c.setLineWidth(1.5);c.setLineDash(phase:0,lengths:[5,4])
+            c.move(to:CGPoint(x:from.x+ux*r,y:from.y+uy*r));c.addLine(to:to);c.strokePath();c.setLineDash(phase:0,lengths:[])
+            c.setFillColor(UIColor.white.withAlphaComponent(0.85).cgColor)
+            c.move(to:to);c.addLine(to:CGPoint(x:to.x-ux*9-uy*5,y:to.y-uy*9+ux*5));c.addLine(to:CGPoint(x:to.x-ux*9+uy*5,y:to.y-uy*9-ux*5));c.closePath();c.fillPath()
+        }
+        for b in drill.balls {
+            let q=point(b.x,b.y),box=CGRect(x:q.x-r,y:q.y-r,width:2*r,height:2*r)
+            let color:UIColor = b.id==0 ? .white:(b.id==1 ? UIColor(red:1,green:0.63,blue:0.1,alpha:1):UIColor(white:0.35,alpha:1))
+            c.setFillColor(color.cgColor);c.fillEllipse(in:box)
+            c.setStrokeColor(UIColor.black.withAlphaComponent(0.55).cgColor);c.setLineWidth(1);c.strokeEllipse(in:box)
+        }
+        let note="Trắng: bi cái · Cam: bi 1 · Xám: bi cản · Nét đứt: hướng ngắm gợi ý ban đầu" as NSString
+        note.draw(at:CGPoint(x:bounds.minX,y:self.bounds.maxY-18),withAttributes:[.font:UIFont.systemFont(ofSize:11,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.85)])
     }
 }
 
@@ -271,7 +301,7 @@ final class LessonsController: UITableViewController {
     var load: ((Int)->Void)?
     override func viewDidLoad() {
         super.viewDidLoad(); title="Giáo trình · Nguồn gốc"
-        navigationItem.rightBarButtonItem=UIBarButtonItem(barButtonSystemItem:.done,target:self,action:#selector(close))
+        navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Xong",style:.done,target:self,action:#selector(close))
         tableView.rowHeight=UITableView.automaticDimension
         tableView.estimatedRowHeight=70
     }

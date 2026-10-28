@@ -45,6 +45,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private var aimRecognizers:[UIGestureRecognizer]=[]
     private var graphicsButton:UIButton!
     private let lockButton=HoldLockControl(frame:.zero)
+    private let powerPad=PowerPad(frame:.zero)
     private var cameraButton:UIButton!,guideButton:UIButton!,editButton:UIButton!
     private var replayButton:UIButton!,undoButton:UIButton!,resetButton:UIButton!
     private var drillButton:UIButton!,layoutButton:UIButton!,settingsButton:UIButton!
@@ -183,7 +184,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spinExpanded=true;quickRail.isHidden=false
             spin.select(side:0.25,top:0.35)
         }
-        stroke.shot={[weak self]v in self?.shoot(v)}
+        stroke.shot={[weak self]v in guard let self=self else{return};self.shoot(self.powerPad.fixed ? self.powerPad.speed:v)}
         stroke.pullChanged={[weak self]p in self?.pull=p}
         displayLink=CADisplayLink(target:self,selector:#selector(tick(_:)));displayLink?.preferredFramesPerSecond=60
         displayLink?.add(to:.main,forMode:.common)
@@ -219,7 +220,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     private func verifyRightHUD(){
         view.layoutIfNeeded()
-        let controls:[UIView]=[spin,elevationPad,quickRail,menuButton,lockButton]
+        let controls:[UIView]=[spin,elevationPad,quickRail,menuButton,lockButton,powerPad]
         let safe=view.safeAreaLayoutGuide.layoutFrame
         for (index,control) in controls.enumerated(){
             precondition(safe.contains(control.frame),"G1: control outside safe area")
@@ -262,6 +263,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self.spin.alpha=expanded ? 0.97:0.60
             self.layoutRightHUD();self.updateControls()
             self.fineSlider.isHidden=expanded || self.menuOpen || !self.fineAim
+            self.powerPad.isHidden=expanded || self.menuOpen
             self.view.layoutIfNeeded()
         }
         lockButton.heldChanged={[weak self] held in self?.setHold(held)}
@@ -271,6 +273,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             lockButton.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),
             lockButton.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12),
             lockButton.widthAnchor.constraint(equalToConstant:68),lockButton.heightAnchor.constraint(equalToConstant:68)])
+        // 0.16 Lực cố định: ngay trên nút khoá, cùng phía tay trái đang giữ khoá.
+        powerPad.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(powerPad)
+        NSLayoutConstraint.activate([
+            powerPad.leadingAnchor.constraint(equalTo:lockButton.leadingAnchor),
+            powerPad.bottomAnchor.constraint(equalTo:lockButton.topAnchor,constant:-10),
+            powerPad.widthAnchor.constraint(equalToConstant:206),powerPad.heightAnchor.constraint(equalToConstant:44)])
+        let savedLevel=UserDefaults.standard.integer(forKey:"powerLevel016")
+        powerPad.level=savedLevel>0 ? savedLevel:Int(BL_POWER_DEFAULT_LEVEL)
+        powerPad.fixed=UserDefaults.standard.object(forKey:"fixedPower016") as? Bool ?? true
+        powerPad.changed={level in UserDefaults.standard.set(level,forKey:"powerLevel016")}
+        powerPad.modeChanged={[weak self] on in
+            UserDefaults.standard.set(on,forKey:"fixedPower016");self?.hintLabel.text=self?.strokeHint
+        }
 
         fineSlider.translatesAutoresizingMaskIntoConstraints=false
         fineSlider.minimumValue = -1;fineSlider.maximumValue=1;fineSlider.value=0
@@ -307,10 +322,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             panel.widthAnchor.constraint(equalToConstant:318),
             scroll.leadingAnchor.constraint(equalTo:panel.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:panel.trailingAnchor),
             scroll.topAnchor.constraint(equalTo:panel.topAnchor),scroll.bottomAnchor.constraint(equalTo:panel.bottomAnchor)])
-        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Zoker Pool Trainer · 0.15 · Luyện tập";brand.textColor=MenuSkin.gold
+        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Zoker Pool Trainer · 0.16 · Luyện tập";brand.textColor=MenuSkin.gold
         text(titleLabel,14,.white,.bold);text(statusLabel,12,.mint);text(scoreLabel,12,.white);text(hintLabel,12,.mint)
         for label in [titleLabel,statusLabel,scoreLabel,hintLabel]{label.numberOfLines=0}
-        hintLabel.text="Giữ nút khóa bằng một ngón. Ngón khác kéo xuống rồi đẩy lên ở bất kỳ chỗ nào trên bàn. Buông khóa để ngắm lại."
+        hintLabel.text=strokeHint
         drillButton = .lab("Bài tập"){[weak self]in self?.chooseDrill()}
         layoutButton = .lab("Thế bi / Nhật ký"){[weak self]in self?.layouts()}
         settingsButton = .lab("Hiệu chỉnh vật lý"){[weak self]in self?.settings()}
@@ -391,7 +406,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         menuOpen=open;focusMode = !open;panel.isHidden = !open
         menuButton.setTitle(open ? "Đóng":"Menu",for:.normal)
         fineSlider.isHidden=open || !fineAim
-        spin.isHidden=open;lockButton.isHidden=open
+        spin.isHidden=open;lockButton.isHidden=open;powerPad.isHidden=open || spinExpanded
         quickRail.isHidden=open;elevationPad.isHidden=open
         coachCard.isHidden=open || coachCard.alpha==0
         updateControls()
@@ -512,11 +527,18 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         fineSlider.isHidden=locked || menuOpen || !fineAim
         spin.isHidden=locked || menuOpen
         quickRail.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen
+        // Khi đang khoá: vẫn hiện mức lực để người dùng thấy sẽ đánh bao nhiêu, nhưng chạm xuyên qua để vuốt cơ.
+        powerPad.isUserInteractionEnabled = !locked;powerPad.alpha=locked ? 0.55:1
+        powerPad.isHidden=menuOpen || spinExpanded
         if !locked{stroke.cancelStroke();pull=0}
     }
     /// Trục của lần kéo một ngón hiện tại: 0 chưa quyết, 1 ngang (hướng ngắm), 2 dọc (độ cao camera).
     private var aimPanAxis=0
     private var presentationBusy:Bool{shotActive || replayIndex != nil || BLShotCameraBusy(shotCameraState)}
+    private var strokeHint:String{
+        powerPad.fixed ? "Đặt Lực bằng − / +. Giữ nút khoá 🔒; ngón khác kéo xuống rồi đẩy lên trên bàn để đánh đúng mức lực đó. Buông khoá để ngắm lại."
+                       : "Lực theo cảm giác: giữ nút khoá 🔒; ngón khác kéo xuống rồi đẩy lên — đẩy nhanh hơn là mạnh hơn. Buông khoá để ngắm lại."
+    }
     private var strokeAllowed:Bool{
         BLStrokeAllowed(localTurn,presentationBusy,menuOpen,spinExpanded,isPlacingBalls,cue?.sunk==false)
     }
@@ -528,7 +550,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         table.target(drill.goal)
         initial=drill.balls;before=initial;angle=drill.angle
         engine.loadLayout(initial.map{$0.dictionary});clearShot();locked=false;isPlacingBalls=false;spin.reset()
-        titleLabel.text=drill.title;hintLabel.text="Giữ nút khóa; ngón khác kéo xuống rồi đẩy lên trên bàn. Buông nút để ngắm lại."
+        titleLabel.text=drill.title;hintLabel.text=strokeHint
         statusLabel.text="Trắng: bi cái · Vàng: bi 1";updateControls();refresh()
         table.showRailContacts([])
         table.showsDiamondNumbers=diamondNumbersOn && (drill.goal != nil || drill.rails>0)
@@ -608,7 +630,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private func toggleEdit(){
         guard !presentationBusy,localTurn else{return};isPlacingBalls.toggle();locked=false
         if isPlacingBalls {table.cameraMode=1;cameraButton.configuration?.title="Trên cao";hintLabel.text="Kéo từng bi để đặt · Chạm trống để đặt bi cái"}
-        else{hintLabel.text="Giữ nút khóa; ngón khác kéo xuống rồi đẩy lên trên bàn. Buông nút để ngắm lại.";initial=balls;before=balls;clearShot();selectCamera(2)}
+        else{hintLabel.text=strokeHint;initial=balls;before=balls;clearShot();selectCamera(2)}
         updateControls();syncQuickRail()
     }
     private func shoot(_ speed:Double){
@@ -617,7 +639,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         displayDurations=[]
         let levels=[0.8,1.3,2.0,3.0,4.3,6.0,8.0]
         let band=min(7,(levels.firstIndex(where:{speed<=$0}) ?? 6)+1)
-        hintLabel.text=String(format:"Lực liên tục · mức %d/7 · %.2f m/s · %@",band,speed,(engine.settings["experimental3D"]?.boolValue ?? false) ? "tốc độ cơ thử nghiệm":"tốc độ bi đầu")
+        hintLabel.text=String(format:"Lực %d/%d%@ · mức %d/7 · %.2f m/s · %@",Int(BLPowerLevelForSpeed(speed)),Int(BL_POWER_LEVELS),powerPad.fixed ? "":" (ước từ vuốt)",band,speed,(engine.settings["experimental3D"]?.boolValue ?? false) ? "tốc độ cơ thử nghiệm":"tốc độ bi đầu")
         shotCameraAnchor=cue
         if table.cameraMode==2 {savedAimCamera=(2,table.zoom,table.orbit,table.orbitPitch)}
         BLShotCameraStart(&shotCameraState)
@@ -927,7 +949,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
     }
     private func help(){
-        let message="Ngắm: kéo một ngón ngang để xoay hướng đánh, hoặc chạm mặt bàn. Kéo một ngón dọc để hạ camera sát mặt bàn hoặc nâng lên cao; mỗi lần kéo chỉ đổi một việc. Chụm/mở hai ngón để thu phóng từ góc đó.\n\nĐánh: giữ nút khóa trong suốt cú vuốt. Ngón khác kéo xuống rồi đẩy lên ở bất kỳ vùng trống nào trên bàn; đẩy nhanh hơn cho lực lớn hơn. Buông nút khóa để ngắm lại. Hủy vuốt khi buông khóa trước lúc đánh.\n\nGiữ quả bi effect bên phải thanh nâng cơ để phóng to, kéo để chỉnh ép phê; buông để thu nhỏ. Khi effect mở rộng, nút B và vuốt cơ bị khóa. Vòng 25 / 50 là phần trăm bán kính bi; vòng cam là giới hạn nhập của mô phỏng, không phải bảo đảm tránh trượt cơ ngoài thực tế. X dương sang phải, Y dương lên trên, nhìn từ đuôi cơ. Về tâm trong Menu. Cụm phải có Góc nhìn, Lùi cú và Dụng cụ (cơ, bao cơ, đặt bi, thêm 1 bi). Bài tập chỉ nằm trong Menu. Sau cú đánh camera giữ nguyên góc ngắm (đổi sang toàn cảnh trong Menu > Sau cú đánh). Khi toàn bộ bi dừng ổn định 0,5 giây, camera trở về góc ngắm 3D; khi xem lại hoặc quan sát lượt khác, camera không bị ép trả. Mặt bàn không có chữ hay số nút; nút kim cương vẫn giữ nguyên. Trong lúc bi lăn, kéo hai ngón để xoay camera và chụm/mở để thu phóng toàn cảnh.\n\nTrên Simulator không thể giữ hai điểm bằng một chuột: dùng Đánh thử trong Menu để kiểm tra.\n\n\(Drill.all[drillIndex].note)"
+        let message="Ngắm: kéo một ngón ngang để xoay hướng đánh, hoặc chạm mặt bàn. Kéo một ngón dọc để hạ camera sát mặt bàn hoặc nâng lên cao; mỗi lần kéo chỉ đổi một việc. Chụm/mở hai ngón để thu phóng từ góc đó.\n\nLực: đặt bằng − / + ở góc trái (thang 1–30, mỗi nấc ≈ 10% tốc độ bi). Chạm vào chữ Lực để đổi sang chế độ Cảm giác (lực theo tốc độ vuốt).\n\nĐánh: giữ nút khoá 🔒 trong suốt cú vuốt. Ngón khác kéo xuống rồi đẩy lên ở bất kỳ vùng trống nào trên bàn. Buông nút khóa để ngắm lại. Hủy vuốt khi buông khóa trước lúc đánh.\n\nGiữ quả bi effect bên phải thanh nâng cơ để phóng to, kéo để chỉnh ép phê; buông để thu nhỏ. Khi effect mở rộng, nút khoá và vuốt cơ bị khóa. Vòng 25 / 50 là phần trăm bán kính bi; vòng cam là giới hạn nhập của mô phỏng, không phải bảo đảm tránh trượt cơ ngoài thực tế. X dương sang phải, Y dương lên trên, nhìn từ đuôi cơ. Về tâm trong Menu. Cụm phải có Góc nhìn, Lùi cú và Dụng cụ (cơ, bao cơ, đặt bi, thêm 1 bi). Bài tập chỉ nằm trong Menu. Sau cú đánh camera giữ nguyên góc ngắm (đổi sang toàn cảnh trong Menu > Sau cú đánh). Khi toàn bộ bi dừng ổn định 0,5 giây, camera trở về góc ngắm 3D; khi xem lại hoặc quan sát lượt khác, camera không bị ép trả. Mặt bàn không có chữ hay số nút; nút kim cương vẫn giữ nguyên. Trong lúc bi lăn, kéo hai ngón để xoay camera và chụm/mở để thu phóng toàn cảnh.\n\nTrên Simulator không thể giữ hai điểm bằng một chuột: dùng Đánh thử trong Menu để kiểm tra.\n\n\(Drill.all[drillIndex].note)"
         let a=UIAlertController(title:"Zoker Pool Trainer",message:message,preferredStyle:.alert);a.addAction(UIAlertAction(title:"Đã hiểu",style:.default));presentSheet(a)
     }
     private func layouts(){
@@ -1005,10 +1027,26 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         body()
         engine.loadLayout(after)
     }
+    /// Điểm chạm theo đúng quy ước bánh xe effect (vòng 25/50 = % bán kính), để người dùng chỉnh lại y hệt.
+    private func effectLabel(_ side:Double,_ top:Double)->String{
+        if hypot(side,top)<0.05 {return " · đánh tâm"}
+        var parts:[String]=[]
+        if abs(top)>=0.05 {parts.append((top>0 ? "trên ":"dưới ")+String(format:"%.0f%%",abs(top)*100))}
+        if abs(side)>=0.05 {parts.append((side>0 ? "phải ":"trái ")+String(format:"%.0f%%",abs(side)*100))}
+        return " · effect "+parts.joined(separator:", ")
+    }
     private func coachReport(drill d:Drill,events:[[String:NSNumber]],passed:Bool,scratch:Bool)->String{
         guard let shot=lastShot else{return passed ? "ĐẠT":"Chưa đạt"}
         var lines=[passed ? "✅ ĐẠT":(scratch ? "❌ Bi cái vào lỗ":"❌ Chưa đạt")]
         let strike=shot.strikeAngle ?? shot.aimAngle
+        // 0.16: mọi lời khuyên về lực nói bằng nấc Lực 1–30 mà người dùng chỉnh được bằng − / +.
+        let base=Int(BLPowerLevelForSpeed(shot.speed))
+        func levelSpeed(_ l:Int)->Double{BLPowerSpeed(Int32(l))}
+        func levelChange(_ to:Int)->String{
+            let d=to-base
+            return "Lực \(base) → \(to) ("+(d<0 ? "nhẹ hơn":"mạnh hơn")+" \(abs(d)) nấc)"
+        }
+        lines.append("Cú vừa rồi: Lực \(base)/\(BL_POWER_LEVELS)"+(powerPad.fixed ? "":" (ước từ tốc độ vuốt)")+effectLabel(shot.side,shot.top))
         if d.kick {
             let contacts=railContacts(events,ball:0,untilFirstHit:true)
             if contacts.isEmpty {lines.append("Bi cái không chạm băng trước khi gặp bi.")}
@@ -1028,7 +1066,21 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         let delta=ideal.diamond-first.diamond
                         lines.append(abs(delta)<0.05 ? "Điểm va băng đã đúng; xem lại lực và effect.":"👉 Một thay đổi: dời điểm va băng thứ nhất \(n1(abs(delta))) nút về phía nút \(n1(ideal.diamond)). Giữ nguyên lực và effect.")
                     } else {lines.append("👉 Một thay đổi: chọn đúng băng thứ nhất như trên.")}
-                } else {lines.append("Với lực/effect này, vật lý app không tìm được đường \(d.rails) băng chắc chắn — thử đổi lực trước.")}
+                } else {
+                    var alternative:(level:Int,rail:BLRail,diamond:Double)?
+                    counterfactual{
+                        for delta in [-1,1,-2,2] {
+                            let level=Int(BLPowerClampLevel(Int32(base+delta)));guard level != base else{continue}
+                            let k=engine.kick(target:1,rails:d.rails,speed:levelSpeed(level),side:shot.side,top:shot.top)
+                            guard (k["hit"]?.intValue ?? 0)==1,let a=k["angle"]?.doubleValue else{continue}
+                            let o=engine.simulate(angle:a,speed:levelSpeed(level),side:shot.side,top:shot.top)
+                            if let ev=o["events"] as? [[String:NSNumber]],let first=railContacts(ev,ball:0,untilFirstHit:true).first {alternative=(level,first.rail,first.diamond);break}
+                        }
+                    }
+                    if let alt=alternative {
+                        lines.append("👉 Một thay đổi: \(levelChange(alt.level)), giữ effect. Khi đó băng 1 cần chạm \(railLabel(alt.rail)) · nút \(n1(alt.diamond)).")
+                    } else {lines.append("Trong khoảng ±2 nấc lực quanh Lực \(base), vật lý app không tìm được đường \(d.rails) băng — thử đổi effect.")}
+                }
             }
         } else if let goal=d.goal {
             if let cb=balls.first(where:{$0.id==0}),!cb.sunk {
@@ -1036,10 +1088,17 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 lines.append("Bi cái dừng: "+diamondPoint(cb.x,cb.y)+String(format:" · cách tâm vùng %.0f cm",miss*100))
                 if !passed {
                     var best:(label:String,miss:Double)?
+                    var candidates:[(String,Double,Double)]=[]
+                    for delta in [-2,-1,1,2] {
+                        let level=Int(BLPowerClampLevel(Int32(base+delta)))
+                        if level != base {candidates.append((levelChange(level)+", giữ effect",levelSpeed(level),0))}
+                    }
+                    candidates.append(("giữ Lực \(base), điểm chạm cao hơn 20% bán kính (gần tới vòng 25)",shot.speed,0.2))
+                    candidates.append(("giữ Lực \(base), điểm chạm thấp hơn 20% bán kính (gần tới vòng 25)",shot.speed,-0.2))
                     counterfactual{
-                        for (label,factor,dTop) in [("nhẹ hơn ~15%",0.85,0.0),("nhẹ hơn ~8%",0.92,0.0),("mạnh hơn ~8%",1.08,0.0),("mạnh hơn ~15%",1.15,0.0),("cùng lực, điểm chạm cao hơn",1.0,0.2),("cùng lực, điểm chạm thấp hơn",1.0,-0.2)] {
+                        for (label,speed,dTop) in candidates {
                             let top=max(-0.6,min(0.6,shot.top+dTop))
-                            let o=engine.simulate(angle:strike,speed:shot.speed*factor,side:shot.side,top:top)
+                            let o=engine.simulate(angle:strike,speed:speed,side:shot.side,top:top)
                             guard let bs=o["balls"] as? [[String:NSNumber]],let c=bs.first(where:{$0["id"]?.intValue==0}),!(c["sunk"]?.boolValue ?? false),
                                   let x=c["x"]?.doubleValue,let y=c["y"]?.doubleValue else{continue}
                             let ev=o["events"] as? [[String:NSNumber]] ?? []
@@ -1050,7 +1109,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         }
                     }
                     if let best=best,best.miss<miss*0.7 {
-                        lines.append("👉 Một thay đổi: đánh \(best.label). Vật lý app dự báo bi cái dừng cách vùng "+String(format:"%.0f cm",best.miss*100)+(best.miss<=goal.radius ? " (vào vùng).":"."))
+                        lines.append("👉 Một thay đổi: \(best.label). Vật lý app dự báo bi cái dừng cách vùng "+String(format:"%.0f cm",best.miss*100)+(best.miss<=goal.radius ? " (vào vùng).":"."))
                     } else {lines.append("Đổi lực/điểm chạm đơn lẻ không cải thiện rõ — giữ nguyên, tập lại cho đều tay.")}
                 }
             }
@@ -1072,7 +1131,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         if ok && cueSafe {fix=(delta>0 ? "sang phải":"sang trái")+(abs(delta)<0.004 ? " rất ít (dưới nửa bề rộng đầu cơ)":(abs(delta)<0.007 ? " một chút":" rõ hơn"));break}
                     }
                 }
-                lines.append(fix.map{"👉 Một thay đổi: lệch hướng ngắm \($0); giữ nguyên lực và effect."} ?? "Lệch ngắm nhỏ không cứu được cú này — thử đổi lực hoặc effect.")
+                lines.append(fix.map{"👉 Một thay đổi: lệch hướng ngắm \($0); giữ Lực \(base) và effect."} ?? "Lệch ngắm nhỏ không cứu được cú này — thử đổi lực hoặc effect.")
             }
         }
         lines.append("Dự báo theo vật lý của app, chưa đối chiếu bàn thật. Chạm để ẩn.")
@@ -1092,7 +1151,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             coachCard.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:10),
             coachCard.widthAnchor.constraint(lessThanOrEqualToConstant:360),
             coachCard.trailingAnchor.constraint(lessThanOrEqualTo:menuButton.leadingAnchor,constant:-12),
-            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:lockButton.topAnchor,constant:-10),
+            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:powerPad.topAnchor,constant:-10),
             coachLabel.leadingAnchor.constraint(equalTo:coachCard.leadingAnchor,constant:12),coachLabel.trailingAnchor.constraint(equalTo:coachCard.trailingAnchor,constant:-12),
             coachLabel.topAnchor.constraint(equalTo:coachCard.topAnchor,constant:10),coachLabel.bottomAnchor.constraint(equalTo:coachCard.bottomAnchor,constant:-10)])
         coachCard.addGestureRecognizer(UITapGestureRecognizer(target:self,action:#selector(coachTapped)))
