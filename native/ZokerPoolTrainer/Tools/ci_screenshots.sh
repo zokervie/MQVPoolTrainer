@@ -59,7 +59,13 @@ for camera in overview top aim spin jump table-arc table-classic library cue-lib
  for attempt in 1 2 3 4 5 6 7 8; do
   if [ "$camera" = observation ]; then sleep 2; else sleep 8; fi
   xcrun simctl io "$device_id" screenshot "build/screenshots/$camera.png"
-  case "$camera" in cue-library|calibration|drill-list|g1-*) break;; esac
+  case "$camera" in cue-library|calibration|drill-list) break;; esac
+  # Đầu dò G1: chờ tới khi controller thật ghi bản ghi PASS (máy Mac Intel biên dịch shader lâu hơn 8 giây,
+  # đầu dò "return" còn phải đánh và chờ bi dừng). Cổng kiểm tra bản ghi phía dưới giữ nguyên.
+  if [[ "$camera" = g1-* ]]; then
+   [ -f "$data_path/Documents/g1-qa/${camera#g1-}.json" ] && break
+   continue
+  fi
   if CAMERA="$camera" python3 - <<'READY'
 import os
 from PIL import Image
