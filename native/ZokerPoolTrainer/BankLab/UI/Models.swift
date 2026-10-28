@@ -219,8 +219,8 @@ private final class DrillPreviewView:UIView {
         c.setStrokeColor(UIColor(white:0.88,alpha:0.8).cgColor);c.setLineWidth(1.5);c.stroke(table)
         // Nút kim cương: 8 khoảng trên cạnh dài, 4 trên cạnh ngắn.
         c.setFillColor(UIColor(white:0.92,alpha:0.55).cgColor)
-        for i in 1..<8 where i != 4 {let y=-long/2+Double(i)*long/8;for x in [-short/2,short/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
-        for i in 1..<4 {let x=-short/2+Double(i)*short/4;for y in [-long/2,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
+        for i in 1..<8 where i != 4 {let y = -long/2+Double(i)*long/8;for x in [-short/2,short/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
+        for i in 1..<4 {let x = -short/2+Double(i)*short/4;for y in [-long/2,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
         let pocket=max(6,min(11,CGFloat(0.06)*scale))
         c.setFillColor(UIColor(white:0.02,alpha:1).cgColor)
         for x in [-short/2,short/2]{for y in [-long/2,0.0,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-pocket,y:q.y-pocket,width:2*pocket,height:2*pocket))}}
