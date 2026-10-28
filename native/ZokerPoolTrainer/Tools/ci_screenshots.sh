@@ -62,10 +62,8 @@ for camera in overview top aim spin jump table-arc table-classic library cue-lib
   case "$camera" in cue-library|calibration|drill-list) break;; esac
   # Đầu dò G1: chờ tới khi controller thật ghi bản ghi PASS (máy Mac Intel biên dịch shader lâu hơn 8 giây,
   # đầu dò "return" còn phải đánh và chờ bi dừng). Cổng kiểm tra bản ghi phía dưới giữ nguyên.
-  if [[ "$camera" = g1-* ]]; then
-   [ -f "$data_path/Documents/g1-qa/${camera#g1-}.json" ] && break
-   continue
-  fi
+  # Chưa có bản ghi → thử lại; có rồi thì vẫn phải qua kiểm tra "bàn đã hiện" như các ảnh khác.
+  if [[ "$camera" = g1-* ]] && [ ! -f "$data_path/Documents/g1-qa/${camera#g1-}.json" ]; then continue; fi
   if CAMERA="$camera" python3 - <<'READY'
 import os
 from PIL import Image
