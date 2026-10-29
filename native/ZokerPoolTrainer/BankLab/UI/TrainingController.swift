@@ -318,7 +318,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         fineSlider.tintColor=UIColor.white.withAlphaComponent(0.20);fineSlider.thumbTintColor=UIColor.white.withAlphaComponent(0.35)
         fineSlider.accessibilityLabel="Vi chỉnh góc ngắm"
         view.addSubview(fineSlider)
-        NSLayoutConstraint.activate([fineSlider.centerXAnchor.constraint(equalTo:view.centerXAnchor),fineSlider.bottomAnchor.constraint(equalTo:quickRail.topAnchor,constant:-8),fineSlider.widthAnchor.constraint(equalToConstant:190),fineSlider.heightAnchor.constraint(equalToConstant:44)])
+        NSLayoutConstraint.activate([fineSlider.centerXAnchor.constraint(equalTo:view.centerXAnchor),fineSlider.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-130),fineSlider.widthAnchor.constraint(equalToConstant:190),fineSlider.heightAnchor.constraint(equalToConstant:44)])
         fineSlider.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.fineStartAngle=self.angle},for:.touchDown)
         fineSlider.addAction(UIAction{[weak self]_ in guard let self=self,!self.locked,!self.shotActive else{return};self.angle=self.fineStartAngle+Double(self.fineSlider.value)*0.018;self.refresh()},for:.valueChanged)
         fineSlider.addAction(UIAction{[weak self]_ in self?.fineSlider.value=0},for:[.touchUpInside,.touchUpOutside,.touchCancel])
