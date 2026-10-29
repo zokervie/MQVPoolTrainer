@@ -240,7 +240,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let directory=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("g1-qa")
         do {
             try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
-            var record=values;record["result"]="PASS";record["probe"]=name
+            var record=values;if record["result"]==nil{record["result"]="PASS"};record["probe"]=name
             let data=try JSONSerialization.data(withJSONObject:record,options:[.prettyPrinted,.sortedKeys])
             try data.write(to:directory.appendingPathComponent(name+".json"),options:.atomic)
         }catch{preconditionFailure("Cannot write G1 QA evidence: \(error)")}
@@ -249,20 +249,30 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         view.layoutIfNeeded()
         let controls:[UIView]=[spin,elevationPad,quickRail,menuButton,lockButton,coachButton]
         let safe=view.safeAreaLayoutGuide.layoutFrame
+        var failures:[String]=[],frames:[String:String]=[:],hitResults:[String:String]=[:]
         for (index,control) in controls.enumerated(){
-            precondition(safe.contains(control.frame),"G1: control outside safe area")
-            precondition(control.bounds.width>=44 && control.bounds.height>=44)
-            for other in controls.dropFirst(index+1){precondition(!control.frame.intersects(other.frame),"G1: overlapping HUD controls")}
+            let name=String(describing:type(of:control))+"-\(index)"
+            frames[name]=NSStringFromCGRect(control.frame)
+            if !safe.contains(control.frame){failures.append("Outside safe area: \(name)")}
+            if control.bounds.width<44 || control.bounds.height<44{failures.append("Touch area below 44 pt: \(name)")}
+            for other in controls.dropFirst(index+1){if control.frame.intersects(other.frame){failures.append("Overlapping HUD containers: \(name)")}}
         }
-        precondition(elevationPad.frame.minX>spin.frame.maxX,"G1: độ dốc cơ phải ở bên phải bi effect")
-        precondition(quickRail.frame.minX>elevationPad.frame.maxX,"G1: thanh phím tắt sát mép phải")
+        if elevationPad.frame.minX<=spin.frame.maxX{failures.append("Elevation is not right of effect")}
+        if quickRail.frame.minX<=elevationPad.frame.maxX{failures.append("Shortcuts are not right of elevation")}
         let interactive:[UIControl]=[spin,lockButton,coachButton,quickCamera!,retryButton,quickReplay!,quickRole!,quickPlace!,quickAdd!]
-        for control in interactive{
+        for control in interactive {
+            let name=control.accessibilityIdentifier ?? control.accessibilityLabel ?? String(describing:type(of:control))
+            frames[name]=NSStringFromCGRect(control.convert(control.bounds,to:view))
+            if control.bounds.width<44 || control.bounds.height<44{failures.append("Child touch area below 44 pt: \(name)")}
+            // Replay is deliberately disabled before a shot. Its enabled hit path is exercised by XCUITest.
+            guard control.isEnabled else{hitResults[name]="intentionally disabled";continue}
             let point=control.convert(CGPoint(x:control.bounds.midX,y:control.bounds.midY),to:view)
             let hit=view.hitTest(point,with:nil)
-            precondition(hit===control || hit?.isDescendant(of:control)==true,"G1: another view intercepts the HUD")
+            hitResults[name]=hit.map{String(describing:type(of:$0))} ?? "nil"
+            if !(hit===control || hit?.isDescendant(of:control)==true){failures.append("Another view intercepts enabled control: \(name)")}
         }
-        recordG1QA(spinExpanded ? "hud-expanded":"hud",["width":safe.width,"height":safe.height,"elevationRightOfEffect":true,"railOnRightEdge":true,"controlsDoNotOverlap":true])
+        // Persist FAIL as evidence instead of crashing before diagnostics can be retrieved. CI still requires PASS.
+        recordG1QA(spinExpanded ? "hud-expanded":"hud",["result":failures.isEmpty ? "PASS":"FAIL","failures":failures,"frames":frames,"hitResults":hitResults,"safeArea":NSStringFromCGRect(safe),"width":safe.width,"height":safe.height])
     }
     private func text(_ label:UILabel,_ size:CGFloat,_ color:UIColor,_ weight:UIFont.Weight = .medium){label.font = .systemFont(ofSize:size,weight:weight);label.textColor=color}
     private func stack(_ axis:NSLayoutConstraint.Axis,_ spacing:CGFloat,_ views:[UIView])->UIStackView {
