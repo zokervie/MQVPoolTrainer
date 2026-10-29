@@ -258,7 +258,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         var failures:[String]=[],frames:[String:String]=[:],hitResults:[String:String]=[:]
         for (index,control) in controls.enumerated(){
             let name=String(describing:type(of:control))+"-\(index)"
-            frames[name]=NSStringFromCGRect(control.frame)
+            frames[name]=String(describing:control.frame)
             if !safe.contains(control.frame){failures.append("Outside safe area: \(name)")}
             if control.bounds.width<44 || control.bounds.height<44{failures.append("Touch area below 44 pt: \(name)")}
             for other in controls.dropFirst(index+1){if control.frame.intersects(other.frame){failures.append("Overlapping HUD containers: \(name)")}}
@@ -268,7 +268,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let interactive:[UIControl]=[spin,lockButton,coachButton,quickCamera!,retryButton,quickReplay!,quickRole!,quickPlace!,quickAdd!]
         for control in interactive {
             let name=control.accessibilityIdentifier ?? control.accessibilityLabel ?? String(describing:type(of:control))
-            frames[name]=NSStringFromCGRect(control.convert(control.bounds,to:view))
+            frames[name]=String(describing:control.convert(control.bounds,to:view))
             if control.bounds.width<44 || control.bounds.height<44{failures.append("Child touch area below 44 pt: \(name)")}
             // Replay is deliberately disabled before a shot. Its enabled hit path is exercised by XCUITest.
             guard control.isEnabled else{hitResults[name]="intentionally disabled";continue}
@@ -278,7 +278,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if !(hit===control || hit?.isDescendant(of:control)==true){failures.append("Another view intercepts enabled control: \(name)")}
         }
         // Persist FAIL as evidence instead of crashing before diagnostics can be retrieved. CI still requires PASS.
-        recordG1QA(spinExpanded ? "hud-expanded":"hud",["result":failures.isEmpty ? "PASS":"FAIL","failures":failures,"frames":frames,"hitResults":hitResults,"safeArea":NSStringFromCGRect(safe),"width":safe.width,"height":safe.height])
+        recordG1QA(spinExpanded ? "hud-expanded":"hud",["result":failures.isEmpty ? "PASS":"FAIL","failures":failures,"frames":frames,"hitResults":hitResults,"safeArea":String(describing:safe),"width":safe.width,"height":safe.height])
     }
     private func text(_ label:UILabel,_ size:CGFloat,_ color:UIColor,_ weight:UIFont.Weight = .medium){label.font = .systemFont(ofSize:size,weight:weight);label.textColor=color}
     private func stack(_ axis:NSLayoutConstraint.Axis,_ spacing:CGFloat,_ views:[UIView])->UIStackView {
