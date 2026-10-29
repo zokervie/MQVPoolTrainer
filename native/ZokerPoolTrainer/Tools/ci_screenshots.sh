@@ -18,7 +18,13 @@ app_path="$PWD/build/Simulator/Build/Products/Debug-iphonesimulator/ZokerPoolTra
 xcrun simctl install "$device_id" "$app_path"
 data_path=$(xcrun simctl get_app_container "$device_id" com.maiquocviet.BankLabS data)
 # Always retain runtime diagnostics even when a probe or visibility check fails.
-trap 'qa_exit_code=$?; xcrun simctl spawn "$device_id" log show --last 8m --style compact --predicate '''process == "ZokerPoolTrainer"''' > build/ios-runtime.log 2>&1 || true; exit "$qa_exit_code"' EXIT
+capture_runtime() {
+ qa_exit_code=$?
+ trap - EXIT
+ xcrun simctl spawn "$device_id" log show --last 8m --style compact --predicate 'process == "ZokerPoolTrainer"' > build/ios-runtime.log 2>&1 || true
+ exit "$qa_exit_code"
+}
+trap capture_runtime EXIT
 # Remove only generated probe records, so a previous run cannot satisfy a gate.
 for probe in default hud hud-expanded return spectator audio; do
  rm -f "$data_path/Documents/g1-qa/$probe.json"
