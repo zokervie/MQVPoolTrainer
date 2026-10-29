@@ -20,7 +20,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private var cameraTransitionDuration=0.45
     private var shotCameraState=BLShotCameraState()
     private var localTurn=true // Offline by default; future networking owns this value.
-    private var qaAwaitingAimReturn=false
+    private var qaAwaitingAimReturn=false,qaPeekReleased=false
     private var frames:[[BallState]]=[],frameTimes:[Double]=[],replayIndex:Int?,replayClock=0.0
     private var paths:[Int:[SIMD3<Float>]]=[:]
     private var sampleClock=0.0,draggedBall:Int?
@@ -151,7 +151,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     self.loadDrill(8);self.table.cameraMode=2;self.table.zoom=1.18
                     self.spin.select(side:0,top:0.4);self.locked=true;self.shoot(0.15)
                     precondition(self.shotActive,"G1 return probe must really strike")
-                    self.qaAwaitingAimReturn=true
+                    self.qaAwaitingAimReturn=true;self.qaPeekReleased=false
+                    self.quickCamera.sendActions(for:.touchDown)
+                    DispatchQueue.main.asyncAfter(deadline:.now()+4){[weak self] in
+                        guard let self=self else{return}
+                        precondition(self.peekPose != nil,"Held eye must defer automatic camera return")
+                        self.quickCamera.sendActions(for:.touchUpInside);self.qaPeekReleased=true
+                    }
                 }
             }
             if args.contains("--g1-spectator-qa") {
@@ -829,7 +835,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if shotActive,autoCamera {directCamera(time:engine.elapsed,state:balls,replay:false)}
         table.animatePockets(dt)
         let wasBusy=BLShotCameraBusy(shotCameraState)
-        let cameraGestureActive=aimRecognizers.contains{recognizer in
+        let cameraGestureActive=peekPose != nil || aimRecognizers.contains{recognizer in
             (recognizer is UIPinchGestureRecognizer || (recognizer as? UIPanGestureRecognizer)?.minimumNumberOfTouches==2) && (recognizer.state == .began || recognizer.state == .changed)
         }
         if BLShotCameraTick(&shotCameraState,dt,wasSimulating || shotActive || engine.moving,table.hasActivePocketAnimations,wasReplaying || replayIndex != nil,localTurn,isPlacingBalls,cameraGestureActive) {
@@ -837,6 +843,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         if wasBusy != BLShotCameraBusy(shotCameraState){updateControls()}
         if qaAwaitingAimReturn && !presentationBusy {
+            precondition(qaPeekReleased,"Camera returned before eye release")
             precondition(table.cameraMode==2 && !observationCamera)
             precondition(abs(table.zoom-1.18)<0.001,"G1: saved aim zoom was lost")
             precondition(!table.hasActivePocketAnimations && !engine.moving)
