@@ -83,7 +83,7 @@ final class InteractionTests: XCTestCase {
 
     func testCameraRoundTripPreservesAimHeightAndZoom() {
         let (app,scene)=launch(["--ux017-qa"])
-        scene.pinch(withScale:0.8,velocity:1)
+        scene.pinch(withScale:0.8,velocity:-1)
         let zoom=field(scene,"zoom"),pitch=field(scene,"pitch")
         app.buttons["QuickCamera"].tap();app.buttons["QuickCamera"].tap()
         let returned=NSPredicate { _,_ in self.field(scene,"mode")==2 }
