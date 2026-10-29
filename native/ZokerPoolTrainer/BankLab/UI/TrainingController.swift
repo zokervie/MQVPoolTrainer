@@ -56,7 +56,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private let replayBar=UIStackView(),replaySlider=UISlider(),replayPause=UIButton(type:.system),replayRate=UIButton(type:.system),replayAutoButton=UIButton(type:.system)
     private var replayPaused=false,replaySpeed=1.0,replayAuto=true,replayAudioIndex=0
     private var lastShotEvents:[[String:NSNumber]]=[]
-    private struct CameraPose {var mode:Int;var zoom:Float;var yaw:Float;var pitch:Float;var aimPitch:Float}
+    private struct CameraPose {var mode:Int;var zoom:Float;var yaw:Float;var pitch:Float;var aimPitch:Float;var focus:SIMD4<Float>?=nil}
     private var cameraMemory:[Int:CameraPose]=[:]
     private var peekPose:CameraPose?,replayOrigin:CameraPose?,editingPose:CameraPose?
     private var editingSnapshot:[BallState]?
@@ -664,10 +664,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         retryButton.isEnabled = !before.isEmpty && !isPlacingBalls && localTurn && !spinExpanded
     }
     private func nudge(_ amount:Double){guard !locked,!isPlacingBalls,!shotActive,replayIndex==nil else{return};angle+=amount;refresh()}
-    private func captureCamera()->CameraPose{CameraPose(mode:table.cameraMode,zoom:table.zoom,yaw:table.orbit,pitch:table.orbitPitch,aimPitch:table.aimPitch)}
+    private func captureCamera()->CameraPose{CameraPose(mode:table.cameraMode,zoom:table.zoom,yaw:table.orbit,pitch:table.orbitPitch,aimPitch:table.aimPitch,focus:table.focusBounds)}
     private func applyCamera(_ pose:CameraPose){
         table.cameraMode=pose.mode;table.zoom=pose.zoom;table.orbit=pose.yaw;table.orbitPitch=pose.pitch;table.aimPitch=pose.aimPitch
-        table.focusBounds=nil;beginCameraTransition(0.35)
+        table.focusBounds=pose.focus;beginCameraTransition(0.35)
     }
     private func selectCamera(_ mode:Int){
         guard (0...2).contains(mode),!locked else{return}
