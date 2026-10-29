@@ -232,7 +232,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private func layoutRightHUD(){
         guard spinWidth != nil,quickRailBottom != nil else{return}
         let metrics=BLRightHUDLayout(Double(view.safeAreaLayoutGuide.layoutFrame.height),spinExpanded)
-        let available=view.safeAreaLayoutGuide.layoutFrame.width-164-8-CGFloat(BL_HUD_RAIL_WIDTH)-8-CGFloat(BL_HUD_ELEVATION_WIDTH)-8
+        let reserved:CGFloat = 188 + CGFloat(BL_HUD_RAIL_WIDTH) + CGFloat(BL_HUD_ELEVATION_WIDTH)
+        let available:CGFloat = view.safeAreaLayoutGuide.layoutFrame.width - reserved
         let size=min(CGFloat(metrics.spinSize),max(78,available));spinWidth.constant=size;spinHeight.constant=size
     }
     private func recordG1QA(_ name:String,_ values:[String:Any]){
@@ -388,9 +389,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self?.statusLabel.text=enabled ? "Âm thanh bi: bật":"Âm thanh bi: tắt"
         }
         let kick=UIButton.lab("Tìm góc kick · 1–3 băng"){[weak self]in self?.chooseKick()}
-        let coachToggle=UIButton.lab("C · Bật / tắt toàn bộ trợ giúp"){[weak self]_ in self?.toggleCoach()}
-        let cameraOptions=UIButton.lab("Camera tự động / Góc nhìn"){[weak self]_ in self?.cycleCamera()}
-        let recordings=UIButton.lab("Lưu cú / Cú đã lưu"){[weak self]_ in
+        let coachToggle=UIButton.lab("C · Bật / tắt toàn bộ trợ giúp"){[weak self] in self?.toggleCoach()}
+        let cameraOptions=UIButton.lab("Camera tự động / Góc nhìn"){[weak self] in self?.cycleCamera()}
+        let recordings=UIButton.lab("Lưu cú / Cú đã lưu"){[weak self] in
             guard let self=self else{return}
             let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
             sheet.addAction(UIAlertAction(title:"Lưu cú vừa đánh",style:.default){[weak self]_ in self?.saveLastShot()})
@@ -1597,3 +1598,5 @@ final class PoolAudio {
         return out
     }
 }
+
+private extension String {var nilIfEmpty:String?{isEmpty ? nil:self}}
