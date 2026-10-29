@@ -289,7 +289,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         spinHeight=spin.heightAnchor.constraint(equalToConstant:78)
         spin.expandedChanged={[weak self] expanded in
             guard let self=self else{return}
-            if expanded{self.lockButton.releaseHold();self.setHold(false)}
+            if expanded{self.lockButton.releaseHold();self.setHold(false);self.hideCoach()}
             self.spinExpanded=expanded
             self.spin.alpha=expanded ? 0.97:0.60
             self.layoutRightHUD();self.updateControls()
@@ -456,6 +456,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickCamera.addAction(UIAction{[weak self]_ in self?.releasePeek()},for:[.touchUpOutside,.touchCancel])
         quickReplay=button("play.circle","Xem lại","QuickReplay")
         quickReplay.addAction(UIAction{[weak self]_ in self?.replay()},for:.touchUpInside)
+        quickReplay.menu=UIMenu(title:"Lưu cú / Thư viện",children:[UIDeferredMenuElement.uncached{[weak self] completion in completion(self?.replayMenu().children ?? [])}])
         retryButton.configuration=button("arrow.uturn.backward","Tập lại","unused").configuration
         retryButton.accessibilityIdentifier="QuickRetry"
         quickRole=button("line.diagonal","Đánh","QuickCue");quickRole.showsMenuAsPrimaryAction=true
@@ -667,7 +668,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private func captureCamera()->CameraPose{CameraPose(mode:table.cameraMode,zoom:table.zoom,yaw:table.orbit,pitch:table.orbitPitch,aimPitch:table.aimPitch,focus:table.focusBounds)}
     private func applyCamera(_ pose:CameraPose){
         table.cameraMode=pose.mode;table.zoom=pose.zoom;table.orbit=pose.yaw;table.orbitPitch=pose.pitch;table.aimPitch=pose.aimPitch
-        table.focusBounds=pose.focus;beginCameraTransition(0.35)
+        table.focusBounds=pose.focus;observationCamera=pose.mode != 2;beginCameraTransition(0.35)
     }
     private func selectCamera(_ mode:Int){
         guard (0...2).contains(mode),!locked else{return}

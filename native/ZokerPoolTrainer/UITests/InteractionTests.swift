@@ -103,6 +103,14 @@ final class InteractionTests: XCTestCase {
         let cancelled=NSPredicate { _,_ in self.field(scene,"editing")==0 }
         expectation(for:cancelled,evaluatedWith:scene);waitForExpectations(timeout:5)
         XCTAssertEqual(field(scene,"cueX"),x,accuracy:0.001);XCTAssertEqual(field(scene,"cueY"),y,accuracy:0.001)
+        // Cancelling editing must restore input mode as well as the visible camera transform.
+        let pitch=field(scene,"pitch"),down=pitch<0.8
+        let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.40,dy:down ? 0.30:0.50))
+        let end=scene.coordinate(withNormalizedOffset:CGVector(dx:0.40,dy:down ? 0.50:0.30))
+        start.press(forDuration:0.05,thenDragTo:end)
+        let heightChanged=NSPredicate { _,_ in abs(self.field(scene,"pitch")-pitch)>0.01 }
+        expectation(for:heightChanged,evaluatedWith:scene);waitForExpectations(timeout:5)
+
     }
 
     func testFourCueChoicesKeepMasséAndBreakDistinct() {
