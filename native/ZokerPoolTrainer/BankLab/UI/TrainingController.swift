@@ -47,6 +47,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private var aimRecognizers:[UIGestureRecognizer]=[]
     private var graphicsButton:UIButton!
     private let lockButton=HoldLockControl(frame:.zero)
+    private let statusToast=UILabel()
     private let coachButton=UIButton(type:.system)
     private var coaching=false
     private var guidedCoachBefore:Bool?
@@ -105,7 +106,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             scn.trailingAnchor.constraint(equalTo:view.trailingAnchor),
             scn.topAnchor.constraint(equalTo:view.topAnchor),
             scn.bottomAnchor.constraint(equalTo:view.bottomAnchor)])
-        buildHUD();buildQuickRail();buildCoachCard();configureGestures();loadDrill(drillIndex)
+        buildHUD();buildQuickRail();buildCoachCard();buildStatusToast();configureGestures();loadDrill(drillIndex)
         let aimZoom=UserDefaults.standard.double(forKey:"aimCameraZoom013")
         table.zoom=Float(aimZoom>=0.45 && aimZoom<=2.6 ? aimZoom:1)
         let savedPitch=Float(UserDefaults.standard.double(forKey:"aimCameraPitch014"))
@@ -114,7 +115,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         spin.maximumOffset=(configured["experimental3D"]?.boolValue ?? false) ? 0.6:0.7
         table.selectCue(configured["cueType"]?.intValue ?? 0)
         table.cueElevation=(configured["experimental3D"]?.boolValue ?? false) ? (configured["cueElevationDegrees"]?.doubleValue ?? 0):0
-        shotKind=UserDefaults.standard.object(forKey:"shotKind017") as? Int ?? (configured["cueType"]?.intValue ?? 0)
+        shotKind=ProcessInfo.processInfo.arguments.contains("--visual-qa") ? 0:(UserDefaults.standard.object(forKey:"shotKind017") as? Int ?? (configured["cueType"]?.intValue ?? 0))
         syncQuickRail()
         highGraphics=UserDefaults.standard.object(forKey:"highGraphics") as? Bool ?? true
         applyGraphics()
@@ -509,6 +510,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         spin.select(side:preset?["side"] ?? 0,top:preset?["top"] ?? 0)
         syncQuickRail()
     }
+    private var toastGeneration=0
+    private func buildStatusToast(){
+        statusToast.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(statusToast)
+        statusToast.textColor = .white;statusToast.backgroundColor=UIColor(white:0.035,alpha:0.9)
+        statusToast.font = .systemFont(ofSize:13,weight:.medium);statusToast.textAlignment = .center;statusToast.numberOfLines=2
+        statusToast.layer.cornerRadius=10;statusToast.clipsToBounds=true;statusToast.isHidden=true
+        NSLayoutConstraint.activate([statusToast.centerXAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerXAnchor),statusToast.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),statusToast.widthAnchor.constraint(lessThanOrEqualToConstant:390),statusToast.widthAnchor.constraint(lessThanOrEqualTo:view.safeAreaLayoutGuide.widthAnchor,multiplier:0.7),statusToast.heightAnchor.constraint(greaterThanOrEqualToConstant:44)])
+    }
+    private func notifyStatus(_ text:String){
+        statusLabel.text=text;statusToast.text="  "+text+"  ";statusToast.isHidden=false;view.bringSubviewToFront(statusToast)
+        toastGeneration+=1;let generation=toastGeneration
+        DispatchQueue.main.asyncAfter(deadline:.now()+3){[weak self] in guard let self=self,self.toastGeneration==generation else{return};self.statusToast.isHidden=true}
+    }
     private func toggleCoach(){
         guard !locked,!spinExpanded else{return};coaching.toggle();applyCoachVisibility()
         if coaching {if lastShot != nil,!shotActive{showCoach(coachReport(drill:Drill.all[drillIndex],events:lastShotEvents,passed:lastPassed,scratch:lastScratch))}else{showCoach(drillBrief(Drill.all[drillIndex]))}}
@@ -719,15 +733,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private func toggleEdit(){
         guard !presentationBusy,localTurn,!locked else{return}
         if isPlacingBalls {
-            guard placementValid() else{statusLabel.text="Vị trí đang vướng bi khác — kéo bi cái ra vùng trống";return}
+            guard placementValid() else{notifyStatus("Vị trí đang vướng bi khác — kéo bi cái ra vùng trống");return}
             isPlacingBalls=false;table.placementBlocked=false;editingSnapshot=nil
             initial=balls;before=balls;clearShot();if let pose=editingPose{applyCamera(pose)};editingPose=nil
         }else{
-            editingSnapshot=balls;editingPose=captureCamera();isPlacingBalls=true
+            hideCoach();editingSnapshot=balls;editingPose=captureCamera();isPlacingBalls=true
             var state=balls
             if let i=state.firstIndex(where:{$0.id==0}){state[i].x=0;state[i].y=0;state[i].sunk=false}else{state.append(BallState(id:0,x:0,y:0))}
             engine.loadLayout(state.map{$0.dictionary});selectCamera(1)
-            table.placementBlocked = !placementValid();statusLabel.text="Kéo bi cái từ giữa bàn · Xong để nhận · Hủy để phục hồi"
+            table.placementBlocked = !placementValid();notifyStatus("Kéo bi cái từ giữa bàn · Xong để nhận · Hủy để phục hồi")
         }
         refresh();updateControls();syncQuickRail()
     }
@@ -899,7 +913,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard localTurn,!shotActive,!frames.isEmpty,!isPlacingBalls else{return}
         lockButton.releaseHold();setHold(false)
         if replayIndex != nil{stopReplay();return}
-        replayOrigin=captureCamera();replayIndex=0;replayClock=0;replayYaw=0;replayAudioIndex=0
+        hideCoach();replayOrigin=captureCamera();replayIndex=0;replayClock=0;replayYaw=0;replayAudioIndex=0
         replayPaused=false;replayAuto=true;cameraManual=false;lastDirectorTime = -10
         if let pose=savedAimCamera{applyCamera(pose)}else{table.cameraMode=2}
         replaySlider.maximumValue=Float(frameTimes.last ?? 1);replaySlider.value=0
@@ -1295,7 +1309,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         return lines.joined(separator:"\n")
     }
     private func showCoach(_ text:String){
-        guard coachOn else{return}
+        guard coachOn,replayIndex==nil,!isPlacingBalls else{return}
         coachLabel.text=text;coachCard.alpha=1;coachCard.isHidden=locked || menuOpen || !coachOn
     }
     private func hideCoach(){coachCard.alpha=0;coachCard.isHidden=true}
@@ -1403,7 +1417,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 let previous=balls
                 state.append(BallState(id:id,x:x,y:y));engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls
                 editingSnapshot=previous;editingPose=captureCamera();isPlacingBalls=true;selectCamera(1)
-                statusLabel.text="Đã thêm bi \(id) · kéo bi mới để đặt · Xong / Hủy"
+                notifyStatus("Đã thêm bi \(id) · kéo bi mới để đặt · Xong / Hủy")
                 refresh();updateControls();return
             }
         }}
