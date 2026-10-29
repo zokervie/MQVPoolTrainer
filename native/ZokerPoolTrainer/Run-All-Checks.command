@@ -3,6 +3,7 @@ set -euo pipefail
 cd -- "$(dirname -- "$0")"
 python3 Tools/check_suite_lists.py
 python3 Tools/check_resources.py
+python3 Tools/check_audio.py
 python3 Tools/build_zupe_lab.py
 python3 Tools/check_zupe_integration.py
 python3 Tools/check_gestures.py
@@ -16,3 +17,4 @@ for suite in Physics Prediction Practice Contact ExtendedPractice Research Eleva
   "${compiler[@]}" -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror "Tests/${suite}Tests.cpp" BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp -o "build/physics-checks/$suite"
   "build/physics-checks/$suite"
 done
+

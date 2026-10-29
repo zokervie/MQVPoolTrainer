@@ -27,6 +27,8 @@ final class TableScene {
     static let pocketFallDuration=0.42
     private var light:SCNLight!
     private var highDetail=true
+    var focusBounds:SIMD4<Float>?
+    var placementBlocked=false
     var cameraMode=2 // Aim3D; numeric IDs remain 0=overview, 1=top, 2=aim.
     var zoom:Float=1
     var orbit:Float=0
@@ -626,6 +628,7 @@ final class TableScene {
                 plane.materials=[shadow];let sn=SCNNode(geometry:plane);sn.eulerAngles.x = -.pi/2;sn.castsShadow=false;sn.renderingOrder=2
                 scene.rootNode.addChildNode(sn);contactShadows[b.id]=sn
             }
+            node.opacity=(b.id==0 && placementBlocked) ? 0.45:1
             let planar=SIMD2<Float>(Float(b.x),Float(b.y))
             if !b.sunk {
                 if dt>0,let previous=lastPlanar[b.id] {planarVelocity[b.id]=(planar-previous)/Float(dt)}
@@ -750,7 +753,8 @@ final class TableScene {
             let targetOrigin=SIMD3<Float>(Float(c.x),0.032,Float(c.y))
             target=targetOrigin+forward
         }else{
-            target=SIMD3(0,-0.18,0)
+            let bounds=focusBounds ?? SIMD4<Float>(-0.78,0.78,-1.43,1.43)
+            target=SIMD3((bounds.x+bounds.y)/2,0.025,(bounds.z+bounds.w)/2)
             let yaw:Float=orbit+0.20
             let elevation:Float=orbitPitch
             let cosElevation:Float=cos(elevation)
@@ -766,18 +770,19 @@ final class TableScene {
             let tanX:Float=tanY*safeAspect
             var distance:Float=1
             // Fit all table corners including feet; avoid cropping with different viewport ratios.
-            for x:Float in [-0.86,0.86]{for y:Float in [-0.75,0.09]{for z:Float in [-1.50,1.50]{
+            for x:Float in [bounds.x,bounds.y]{for y:Float in [0,0.18]{for z:Float in [bounds.z,bounds.w]{
                 let corner=SIMD3<Float>(x,y,z)
                 let delta:SIMD3<Float> = corner-target
                 let towards:Float = simd_dot(delta,backward)
                 let horizontalSpan:Float = abs(simd_dot(delta,right))
                 let verticalSpan:Float = abs(simd_dot(delta,vertical))
-                let fitX:Float = towards+horizontalSpan/(tanX*0.90)
-                let fitY:Float = towards+verticalSpan/(tanY*0.90)
+                let fitX:Float = towards+horizontalSpan/(tanX*0.66)
+                let fitY:Float = towards+verticalSpan/(tanY*0.78)
                 distance=max(distance,fitX)
                 distance=max(distance,fitY)
             }}}
             let offset:SIMD3<Float> = backward*(distance*zoom)
+            target += right*0.15
             eye=target+offset
         }
         // Instant during aim, so the camera never lags behind the chosen direction.
@@ -995,3 +1000,4 @@ final class TableScene {
         }
     }
 }
+

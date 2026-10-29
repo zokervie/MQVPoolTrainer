@@ -78,14 +78,13 @@ typedef struct {
     double railBottomInset;
 } BLRightHUDMetrics;
 
-// 0.15 (yêu cầu người dùng 27/10): thanh phím tắt DỌC sát mép phải (Dụng cụ, Góc nhìn, Lùi, Xem lại),
-// thanh độ dốc cơ nằm BÊN PHẢI bi effect, giữa effect và thanh phím tắt. Menu ở góc trên phải.
+// 0.17: two rows of three shortcuts at bottom-right, beside effect/elevation.
 #define BL_HUD_EDGE 6.0
-#define BL_HUD_RAIL_WIDTH 56.0
-#define BL_HUD_RAIL_ITEMS 4
+#define BL_HUD_RAIL_WIDTH 186.0
+#define BL_HUD_RAIL_ITEMS 6
 #define BL_HUD_ELEVATION_WIDTH 44.0
 #define BL_HUD_ELEVATION_HEIGHT 120.0
-static inline double BLHUDRailHeight(void) { return BL_HUD_RAIL_ITEMS * 48.0 + (BL_HUD_RAIL_ITEMS - 1) * 5.0; }
+static inline double BLHUDRailHeight(void) { return 110.0; }
 // Effect pad lớn dần sang trái/lên trên; không bao giờ đè thanh độ dốc hay thanh phím tắt.
 static inline BLRightHUDMetrics BLRightHUDLayout(double safeHeight, bool expanded) {
     BLRightHUDMetrics result;
@@ -95,3 +94,4 @@ static inline BLRightHUDMetrics BLRightHUDLayout(double safeHeight, bool expande
 }
 
 #endif
+

@@ -44,6 +44,7 @@ struct SavedShot: Codable {
     var cueType: Int
     /// Hướng đánh thật gửi cho solver (sau hiệu chỉnh hình học cơ); nil với bản lưu cũ.
     var strikeAngle: Double? = nil
+    var shotKind: Int? = nil
     static let key="savedShots015"
     static func all()->[SavedShot]{
         guard let data=UserDefaults.standard.data(forKey:key) else{return []}
@@ -55,6 +56,7 @@ struct SavedShot: Codable {
 }
 final class DrillsController:UITableViewController {
     var load:((Int)->Void)?
+    var guidedLoad:((Int)->Void)?
     private lazy var headings=["KICK · 1 BĂNG","KICK · 2 BĂNG","KICK · 3 BĂNG","BANK · 1 BĂNG","BANK · 2 BĂNG","BANK · 3 BĂNG","KIỂM SOÁT & VÀO LỖ","ĐO BÀN / TỰ DO"]
     private lazy var groups:[[Int]]={
         let drills=Drill.all
@@ -91,6 +93,7 @@ final class DrillsController:UITableViewController {
         let index=groups[indexPath.section][indexPath.row],drill=Drill.all[groups[indexPath.section][indexPath.row]]
         let lesson=DrillLessonController(drill:drill)
         lesson.start={[weak self] in guard let self=self else{return};self.dismiss(animated:true){self.load?(index)}}
+        lesson.guidedStart={[weak self] in guard let self=self else{return};self.dismiss(animated:true){self.guidedLoad?(index)}}
         navigationController?.pushViewController(lesson,animated:true)
     }
 }
@@ -181,6 +184,7 @@ struct Drill {
 private final class DrillLessonController:UIViewController {
     let drill:Drill
     var start:(()->Void)?
+    var guidedStart:(()->Void)?
     init(drill:Drill){self.drill=drill;super.init(nibName:nil,bundle:nil)}
     required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
     override func viewDidLoad(){
@@ -193,7 +197,8 @@ private final class DrillLessonController:UIViewController {
         let diagram=DrillPreviewView(drill:drill);diagram.heightAnchor.constraint(equalToConstant:236).isActive=true;diagram.contentMode = .redraw;stack.addArrangedSubview(diagram)
         stack.addArrangedSubview(label("Cách tính tham khảo",16,MenuSkin.gold,.bold));stack.addArrangedSubview(label(drill.formula,14,.white))
         stack.addArrangedSubview(label("Hướng dẫn luyện",16,MenuSkin.gold,.bold));stack.addArrangedSubview(label(drill.coaching,14,.white))
-        let button=UIButton(type:.system);var config=UIButton.Configuration.filled();config.title="Bắt đầu luyện";config.baseBackgroundColor=MenuSkin.gold;config.baseForegroundColor = .black;button.configuration=config;button.addAction(UIAction{[weak self]_ in self?.start?()},for:.touchUpInside);stack.addArrangedSubview(button)
+        let button=UIButton(type:.system);var config=UIButton.Configuration.filled();config.title="Tự tập";config.baseBackgroundColor=MenuSkin.gold;config.baseForegroundColor = .black;button.configuration=config;button.addAction(UIAction{[weak self]_ in self?.start?()},for:.touchUpInside);stack.addArrangedSubview(button)
+        let guided=UIButton(type:.system);guided.setTitle("Tập có HLV · bật C",for:.normal);guided.heightAnchor.constraint(greaterThanOrEqualToConstant:44).isActive=true;guided.addAction(UIAction{[weak self]_ in self?.guidedStart?()},for:.touchUpInside);stack.addArrangedSubview(guided)
         NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:20),scroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-20),scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:12),scroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12),stack.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor),stack.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor),stack.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor),stack.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor),stack.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor)])
     }
 }
@@ -332,3 +337,4 @@ final class LessonsController: UITableViewController {
         sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));present(sheet,animated:true)
     }
 }
+

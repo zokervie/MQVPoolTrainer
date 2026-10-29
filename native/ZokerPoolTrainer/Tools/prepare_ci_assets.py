@@ -23,3 +23,13 @@ if missing:
    size=round(float(entry['size'].split('x')[0])*float(entry['scale'][:-1]))
    image.convert('RGB').resize((size,size),Image.Resampling.LANCZOS).save(icons/entry['filename'])
 print('Prepared generated material/mesh assets and local repository app icon sizes.')
+
+
+# Real pool audio is versioned as base64 for connector-safe transport; verify every decoded byte.
+audio_root=root/'Tools/AudioSources'
+for item in json.loads((audio_root/'manifest.json').read_text()):
+ data=base64.b64decode((audio_root/(item['asset']+'.wav.b64')).read_text(),validate=False)
+ assert hashlib.sha256(data).hexdigest()==item['sha256'],item['asset']
+ target=assets/(item['asset']+'.dataset')/'audio.wav'
+ target.write_bytes(data)
+print('Prepared seven attributed field-recording pool samples.')

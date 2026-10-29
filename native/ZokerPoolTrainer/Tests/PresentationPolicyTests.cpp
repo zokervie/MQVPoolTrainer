@@ -25,9 +25,10 @@ bool overlaps(Rect a, Rect b) {
            a.y < b.y+b.h-1e-8 && b.y < a.y+a.h-1e-8;
 }
 void checkLayout(double width, double height, bool expanded) {
-    const auto m = BLRightHUDLayout(height, expanded);
+    auto m = BLRightHUDLayout(height, expanded);
+    m.spinSize=std::min(m.spinSize,std::max(78.0,width-164-8-BL_HUD_RAIL_WIDTH-8-BL_HUD_ELEVATION_WIDTH-8));
     const double railX = width-BL_HUD_EDGE-BL_HUD_RAIL_WIDTH;
-    const Rect row{railX,10+44+8,BL_HUD_RAIL_WIDTH,BLHUDRailHeight()};
+    const Rect row{railX,height-12-BLHUDRailHeight(),BL_HUD_RAIL_WIDTH,BLHUDRailHeight()};
     const Rect elevation{railX-8-BL_HUD_ELEVATION_WIDTH,height-12-BL_HUD_ELEVATION_HEIGHT,BL_HUD_ELEVATION_WIDTH,BL_HUD_ELEVATION_HEIGHT};
     const Rect spin{elevation.x-8-m.spinSize,height-12-m.spinSize,m.spinSize,m.spinSize};
     const Rect menu{width-BL_HUD_EDGE-78,10,78,44}, bridge{12,height-12-68,68,68};
@@ -42,11 +43,9 @@ void checkLayout(double width, double height, bool expanded) {
     assert(row.x > elevation.x+elevation.w);          // thanh phím tắt sát mép phải
     assert(width-(row.x+row.w) <= BL_HUD_EDGE+1e-8);
     assert(row.y >= menu.y+menu.h+8-1e-8);
-    if (!expanded) {
-        const Rect fine{spin.x-12-190,height-14-44,190,44};
-        assert(fine.x >= bridge.x+bridge.w);
-        for (const auto &r : controls) assert(!overlaps(fine,r));
-    }
+    const Rect coach{90,height-12-58,48,48};
+    for(const auto &r:controls) assert(!overlaps(coach,r));
+
 }
 }
 
@@ -126,3 +125,4 @@ int main() {
     passed("camera easing is smoothstep with a stable midpoint and explicit endpoints");
     std::cout << "PASS: " << scenarios << " G1 policy scenarios (portable production C policy; UIKit integration still requires Xcode)\n";
 }
+

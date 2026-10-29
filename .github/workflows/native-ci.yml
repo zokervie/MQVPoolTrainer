@@ -55,7 +55,7 @@ jobs:
   mac:
     name: Nghiệm thu Mac (Simulator, XCTest, IPA)
     needs: portable
-    runs-on: ${{ github.event.inputs.runner || 'macos-15' }}
+    runs-on: ${{ github.event.inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 75
     permissions:
       contents: write
@@ -152,3 +152,4 @@ jobs:
           gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
             | grep '^native-' | tail -n +11 | while read -r old; do gh release delete "$old" -y || true; done
           echo "::notice title=release::$TAG · $LINK"
+

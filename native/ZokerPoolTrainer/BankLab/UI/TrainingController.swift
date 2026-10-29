@@ -14,7 +14,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private var drillIndex=1,attempts=0,successes=0
     private var before:[BallState]=[],initial:[BallState]=[]
     private var shotCameraAnchor:BallState?
-    private var savedAimCamera:(mode:Int,zoom:Float,orbit:Float,pitch:Float)?
+    private var savedAimCamera:CameraPose?
     private var observationCamera=false
     private var cameraTransition=0.0
     private var cameraTransitionDuration=0.45
@@ -27,8 +27,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private var displayDurations:[Double]=[]
     private var lastEventCount=0
     private let titleLabel=UILabel(),statusLabel=UILabel(),scoreLabel=UILabel(),hintLabel=UILabel()
+    private let spinCenter=UIButton(type:.system)
     private let spin=SpinPad(frame:.zero),stroke=StrokePad(frame:.zero)
     private var testShotButton:UIButton!
+    private var lastPassed=false,lastScratch=false
     private var lastShotSpeed=0.0
     private var testSpeed=2.0
     private var highGraphics=true
@@ -45,7 +47,22 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private var aimRecognizers:[UIGestureRecognizer]=[]
     private var graphicsButton:UIButton!
     private let lockButton=HoldLockControl(frame:.zero)
-    private let powerPad=PowerPad(frame:.zero)
+    private let coachButton=UIButton(type:.system)
+    private var coaching=false
+    private var guidedCoachBefore:Bool?
+    private var shotKind=0 // Stable legacy IDs: 0 playing, 1 jump, 2 break; 3 massé preset.
+    private var quickPlace:UIButton!,quickAdd:UIButton!
+    private let replayBar=UIStackView(),replaySlider=UISlider(),replayPause=UIButton(type:.system),replayRate=UIButton(type:.system),replayAutoButton=UIButton(type:.system)
+    private var replayPaused=false,replaySpeed=1.0,replayAuto=true,replayAudioIndex=0
+    private var lastShotEvents:[[String:NSNumber]]=[]
+    private struct CameraPose {var mode:Int;var zoom:Float;var yaw:Float;var pitch:Float;var aimPitch:Float}
+    private var cameraMemory:[Int:CameraPose]=[:]
+    private var peekPose:CameraPose?,replayOrigin:CameraPose?,editingPose:CameraPose?
+    private var editingSnapshot:[BallState]?
+    private var cameraManual=false,lastDirectorTime = -10.0
+    private var lastObservedMode=0
+    private var autoCamera:Bool{UserDefaults.standard.object(forKey:"autoCamera017") as? Bool ?? true}
+    private var referenceSpeed:Double{lastShotSpeed>0 ? lastShotSpeed:testSpeed}
     private var cameraButton:UIButton!,guideButton:UIButton!,editButton:UIButton!
     private var replayButton:UIButton!,undoButton:UIButton!,resetButton:UIButton!
     private var drillButton:UIButton!,layoutButton:UIButton!,settingsButton:UIButton!
@@ -97,6 +114,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         spin.maximumOffset=(configured["experimental3D"]?.boolValue ?? false) ? 0.6:0.7
         table.selectCue(configured["cueType"]?.intValue ?? 0)
         table.cueElevation=(configured["experimental3D"]?.boolValue ?? false) ? (configured["cueElevationDegrees"]?.doubleValue ?? 0):0
+        shotKind=UserDefaults.standard.object(forKey:"shotKind017") as? Int ?? (configured["cueType"]?.intValue ?? 0)
         syncQuickRail()
         highGraphics=UserDefaults.standard.object(forKey:"highGraphics") as? Bool ?? true
         applyGraphics()
@@ -105,9 +123,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             let startupCameraMode=table.cameraMode
             loadShowcase()
             let args=ProcessInfo.processInfo.arguments
+            if args.contains("--ux017-qa"){loadDrill(0)}
+            if args.contains("--ux017-shot-qa") {
+                DispatchQueue.main.asyncAfter(deadline:.now()+1){[weak self] in guard let self=self else{return};self.loadDrill(8);self.spin.select(side:0,top:0.4);self.locked=true;self.shoot(0.2)}
+            }
             if args.contains("--g1-default-qa") {
                 precondition(startupCameraMode==2,"G1: startup must use Aim3D")
-                table.cameraMode=2;recordG1QA("default",["cameraMode":startupCameraMode])
+                table.cameraMode=2;recordG1QA("default",["cameraMode":startupCameraMode,"coachDefaultOff":!coaching,"gesturePower":true])
             }
             if args.contains("--g1-audio-qa") {
                 DispatchQueue.main.asyncAfter(deadline:.now()+0.8){[weak self] in
@@ -115,7 +137,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     for kind in 0...3 {self.poolAudio.play(kind:kind,impact:1.2,pan:0)}
                     // Máy CI có thể không có thiết bị âm thanh; khi engine chạy được thì cả 4 loại tiếng phải được phát.
                     if self.poolAudio.isRunning {precondition(self.poolAudio.scheduled==4,"All four impact kinds must be scheduled")}
-                    self.recordG1QA("audio",["engineRunning":self.poolAudio.isRunning,"scheduled":self.poolAudio.scheduled])
+                    precondition(self.poolAudio.sampleCount==7,"Seven real audio assets must load")
+                    self.recordG1QA("audio",["engineRunning":self.poolAudio.isRunning,"scheduled":self.poolAudio.scheduled,"recordedSamples":self.poolAudio.sampleCount])
                 }
             }
             if args.contains("--g1-hud-qa") {
@@ -175,6 +198,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
             setMenu(false)
         }
+        applyCoachVisibility()
 
         stroke.sensitivity=UserDefaults.standard.double(forKey:"sensitivity");if stroke.sensitivity==0{stroke.sensitivity=1}
         spin.changed={[weak self]x,y in self?.side=x;self?.top=y;self?.guideDirty=true}
@@ -184,7 +208,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spinExpanded=true;quickRail.isHidden=false
             spin.select(side:0.25,top:0.35)
         }
-        stroke.shot={[weak self]v in guard let self=self else{return};self.shoot(self.powerPad.fixed ? self.powerPad.speed:v)}
+        stroke.shot={[weak self]v in guard let self=self else{return};self.shoot(v)}
         stroke.pullChanged={[weak self]p in self?.pull=p}
         displayLink=CADisplayLink(target:self,selector:#selector(tick(_:)));displayLink?.preferredFramesPerSecond=60
         displayLink?.add(to:.main,forMode:.common)
@@ -207,7 +231,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private func layoutRightHUD(){
         guard spinWidth != nil,quickRailBottom != nil else{return}
         let metrics=BLRightHUDLayout(Double(view.safeAreaLayoutGuide.layoutFrame.height),spinExpanded)
-        spinWidth.constant=CGFloat(metrics.spinSize);spinHeight.constant=CGFloat(metrics.spinSize)
+        let available=view.safeAreaLayoutGuide.layoutFrame.width-164-8-CGFloat(BL_HUD_RAIL_WIDTH)-8-CGFloat(BL_HUD_ELEVATION_WIDTH)-8
+        let size=min(CGFloat(metrics.spinSize),max(78,available));spinWidth.constant=size;spinHeight.constant=size
     }
     private func recordG1QA(_ name:String,_ values:[String:Any]){
         let directory=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("g1-qa")
@@ -220,7 +245,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     private func verifyRightHUD(){
         view.layoutIfNeeded()
-        let controls:[UIView]=[spin,elevationPad,quickRail,menuButton,lockButton,powerPad]
+        let controls:[UIView]=[spin,elevationPad,quickRail,menuButton,lockButton,coachButton]
         let safe=view.safeAreaLayoutGuide.layoutFrame
         for (index,control) in controls.enumerated(){
             precondition(safe.contains(control.frame),"G1: control outside safe area")
@@ -229,7 +254,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         precondition(elevationPad.frame.minX>spin.frame.maxX,"G1: độ dốc cơ phải ở bên phải bi effect")
         precondition(quickRail.frame.minX>elevationPad.frame.maxX,"G1: thanh phím tắt sát mép phải")
-        let interactive:[UIControl]=[spin,lockButton,quickCamera!,retryButton,quickReplay!]
+        let interactive:[UIControl]=[spin,lockButton,coachButton,quickCamera!,retryButton,quickReplay!,quickRole!,quickPlace!,quickAdd!]
         for control in interactive{
             let point=control.convert(CGPoint(x:control.bounds.midX,y:control.bounds.midY),to:view)
             let hit=view.hitTest(point,with:nil)
@@ -253,6 +278,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         for overlay in [spin,lockButton] {
             overlay.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(overlay)
         }
+        spinCenter.setTitle("Về tâm",for:.normal);spinCenter.titleLabel?.font = .systemFont(ofSize:12,weight:.semibold)
+        spinCenter.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(spinCenter);spinCenter.isHidden=true
+        spinCenter.addAction(UIAction{[weak self]_ in self?.spin.reset()},for:.touchUpInside)
+        NSLayoutConstraint.activate([spinCenter.centerXAnchor.constraint(equalTo:spin.centerXAnchor),spinCenter.bottomAnchor.constraint(equalTo:spin.topAnchor,constant:-4),spinCenter.widthAnchor.constraint(equalToConstant:78),spinCenter.heightAnchor.constraint(equalToConstant:44)])
         spin.alpha=0.60
         spinWidth=spin.widthAnchor.constraint(equalToConstant:78)
         spinHeight=spin.heightAnchor.constraint(equalToConstant:78)
@@ -263,7 +292,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self.spin.alpha=expanded ? 0.97:0.60
             self.layoutRightHUD();self.updateControls()
             self.fineSlider.isHidden=expanded || self.menuOpen || !self.fineAim
-            self.powerPad.isHidden=expanded || self.menuOpen
+            self.coachButton.isEnabled = !expanded
+            self.spinCenter.isHidden = !expanded
             self.view.layoutIfNeeded()
         }
         lockButton.heldChanged={[weak self] held in self?.setHold(held)}
@@ -273,26 +303,20 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             lockButton.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),
             lockButton.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12),
             lockButton.widthAnchor.constraint(equalToConstant:68),lockButton.heightAnchor.constraint(equalToConstant:68)])
-        // 0.16 Lực cố định: ngay trên nút khoá, cùng phía tay trái đang giữ khoá.
-        powerPad.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(powerPad)
-        NSLayoutConstraint.activate([
-            powerPad.leadingAnchor.constraint(equalTo:lockButton.leadingAnchor),
-            powerPad.bottomAnchor.constraint(equalTo:lockButton.topAnchor,constant:-10),
-            powerPad.widthAnchor.constraint(equalToConstant:206),powerPad.heightAnchor.constraint(equalToConstant:44)])
-        let savedLevel=UserDefaults.standard.integer(forKey:"powerLevel016")
-        powerPad.level=savedLevel>0 ? savedLevel:Int(BL_POWER_DEFAULT_LEVEL)
-        powerPad.fixed=UserDefaults.standard.object(forKey:"fixedPower016") as? Bool ?? true
-        powerPad.changed={level in UserDefaults.standard.set(level,forKey:"powerLevel016")}
-        powerPad.modeChanged={[weak self] on in
-            UserDefaults.standard.set(on,forKey:"fixedPower016");self?.hintLabel.text=self?.strokeHint
-        }
+        coachButton.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(coachButton)
+        coachButton.setTitle("C",for:.normal);coachButton.titleLabel?.font = .systemFont(ofSize:22,weight:.bold)
+        coachButton.layer.cornerRadius=24;coachButton.backgroundColor=UIColor(white:0.08,alpha:0.7)
+        coachButton.accessibilityIdentifier="CoachToggle";coachButton.accessibilityLabel="C · Huấn luyện viên"
+        coachButton.addAction(UIAction{[weak self]_ in self?.toggleCoach()},for:.touchUpInside)
+        NSLayoutConstraint.activate([coachButton.leadingAnchor.constraint(equalTo:lockButton.trailingAnchor,constant:10),
+            coachButton.centerYAnchor.constraint(equalTo:lockButton.centerYAnchor),coachButton.widthAnchor.constraint(equalToConstant:48),coachButton.heightAnchor.constraint(equalToConstant:48)])
 
         fineSlider.translatesAutoresizingMaskIntoConstraints=false
         fineSlider.minimumValue = -1;fineSlider.maximumValue=1;fineSlider.value=0
         fineSlider.tintColor=UIColor.white.withAlphaComponent(0.20);fineSlider.thumbTintColor=UIColor.white.withAlphaComponent(0.35)
         fineSlider.accessibilityLabel="Vi chỉnh góc ngắm"
         view.addSubview(fineSlider)
-        NSLayoutConstraint.activate([fineSlider.trailingAnchor.constraint(equalTo:spin.leadingAnchor,constant:-12),fineSlider.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-14),fineSlider.widthAnchor.constraint(equalToConstant:190),fineSlider.heightAnchor.constraint(equalToConstant:44)])
+        NSLayoutConstraint.activate([fineSlider.centerXAnchor.constraint(equalTo:view.centerXAnchor),fineSlider.bottomAnchor.constraint(equalTo:quickRail.topAnchor,constant:-8),fineSlider.widthAnchor.constraint(equalToConstant:190),fineSlider.heightAnchor.constraint(equalToConstant:44)])
         fineSlider.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.fineStartAngle=self.angle},for:.touchDown)
         fineSlider.addAction(UIAction{[weak self]_ in guard let self=self,!self.locked,!self.shotActive else{return};self.angle=self.fineStartAngle+Double(self.fineSlider.value)*0.018;self.refresh()},for:.valueChanged)
         fineSlider.addAction(UIAction{[weak self]_ in self?.fineSlider.value=0},for:[.touchUpInside,.touchUpOutside,.touchCancel])
@@ -322,7 +346,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             panel.widthAnchor.constraint(equalToConstant:318),
             scroll.leadingAnchor.constraint(equalTo:panel.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:panel.trailingAnchor),
             scroll.topAnchor.constraint(equalTo:panel.topAnchor),scroll.bottomAnchor.constraint(equalTo:panel.bottomAnchor)])
-        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Zoker Pool Trainer · 0.16 · Luyện tập";brand.textColor=MenuSkin.gold
+        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Zoker Pool Trainer · 0.17 · Luyện tập";brand.textColor=MenuSkin.gold
         text(titleLabel,14,.white,.bold);text(statusLabel,12,.mint);text(scoreLabel,12,.white);text(hintLabel,12,.mint)
         for label in [titleLabel,statusLabel,scoreLabel,hintLabel]{label.numberOfLines=0}
         hintLabel.text=strokeHint
@@ -332,7 +356,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         graphicsButton = .lab("Hình ảnh"){[weak self]in self?.graphics()}
         cameraButton = .lab("Ngắm cơ"){[weak self]in self?.cycleCamera()}
         guideButton = .lab("Dự báo: tắt"){[weak self]in
-            guard let self=self else{return};self.guideOn.toggle();self.guideDirty=true
+            guard let self=self else{return};guard self.coachOn else{self.statusLabel.text="Bật C để xem trợ giúp";return};self.guideOn.toggle();self.guideDirty=true
             self.guideButton.configuration?.title=self.guideOn ? "Dự báo: bật":"Dự báo: tắt"
         }
         editButton = .lab("Đặt bi"){[weak self]in self?.toggleEdit()}
@@ -351,9 +375,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         })
         let equipment=UIButton.lab("Cơ 3D · Jump / Massé"){[weak self]in self?.equipment()}
         let lessons=UIButton.lab("Bài học / Nguồn tham khảo"){[weak self]in self?.lessons()}
-        let help=UIButton.lab("Cách điều khiển"){[weak self]in self?.help()}
+        let help=UIButton.lab("Cách điều khiển / Nguồn âm"){[weak self]in self?.help()}
         let trails=UIButton.lab("Vệt bi: bật / tắt"){[weak self]in
-            guard let self=self else{return};self.trailsOn.toggle()
+            guard let self=self else{return};guard self.coachOn else{return};self.trailsOn.toggle()
             self.table.trails(self.trailsOn ? self.paths:[:])
         }
         let felt=UIButton.lab("Màu nỉ bàn"){[weak self]in self?.chooseClothColor()}
@@ -363,13 +387,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self?.statusLabel.text=enabled ? "Âm thanh bi: bật":"Âm thanh bi: tắt"
         }
         let kick=UIButton.lab("Tìm góc kick · 1–3 băng"){[weak self]in self?.chooseKick()}
-        let coachToggle=UIButton.lab("HLV sau cú + nút số: bật / tắt"){[weak self]in
+        let coachToggle=UIButton.lab("C · Bật / tắt toàn bộ trợ giúp"){[weak self]_ in self?.toggleCoach()}
+        let cameraOptions=UIButton.lab("Camera tự động / Góc nhìn"){[weak self]_ in self?.cycleCamera()}
+        let recordings=UIButton.lab("Lưu cú / Cú đã lưu"){[weak self]_ in
             guard let self=self else{return}
-            let on = !self.coachOn
-            UserDefaults.standard.set(on,forKey:"coachEnabled015");UserDefaults.standard.set(on,forKey:"diamondNumbers015")
-            if !on {self.hideCoach();self.table.showRailContacts([])}
-            self.table.showsDiamondNumbers=on && (Drill.all[self.drillIndex].goal != nil || Drill.all[self.drillIndex].rails>0)
-            self.statusLabel.text=on ? "HLV và nút số: bật (chỉ ở bài tập, ẩn khi vuốt)":"HLV và nút số: tắt"
+            let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
+            sheet.addAction(UIAlertAction(title:"Lưu cú vừa đánh",style:.default){[weak self]_ in self?.saveLastShot()})
+            for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
+            sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)
         }
         let center=UIButton.lab("Ép phê về tâm"){[weak self]in self?.spin.reset()}
         let close=UIButton.lab("Đóng Menu"){[weak self]in self?.setMenu(false)}
@@ -381,9 +406,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             a.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(a,source:self.menuButton)
         }
         let controls=stack(.vertical,10,[brand,titleLabel,statusLabel,scoreLabel,hintLabel,
-            row([drillButton,layoutButton]),guideButton,row([editButton,resetButton]),
-            replayButton,testShotButton,row([center,trails]),
-            row([graphicsButton,fine]),row([felt,sound]),coachToggle,equipment,kick,advanced,lessons,help,close])
+            row([drillButton,layoutButton]),guideButton,resetButton,
+            row([center,trails]),
+            row([graphicsButton,fine]),row([felt,sound]),coachToggle,cameraOptions,recordings,equipment,kick,advanced,lessons,help,close])
         controls.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(controls)
         NSLayoutConstraint.activate([
             controls.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),
@@ -397,7 +422,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         var retry=UIButton.Configuration.plain();retry.title="Lùi cú";retry.image=UIImage(systemName:"arrow.uturn.backward");retry.imagePadding=5;retry.baseForegroundColor=UIColor.white.withAlphaComponent(0.8);retry.background.backgroundColor=UIColor(white:0.03,alpha:0.3);retry.background.cornerRadius=18
         retry.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:11,weight:.medium);return a}
-        retryButton.configuration=retry;retryButton.translatesAutoresizingMaskIntoConstraints=false;retryButton.accessibilityLabel="Dừng và đánh lại cú vừa rồi";view.addSubview(retryButton)
+        retry.title="Tập lại";retryButton.configuration=retry;retryButton.translatesAutoresizingMaskIntoConstraints=false;retryButton.accessibilityLabel="Dừng và đánh lại cú vừa rồi";view.addSubview(retryButton)
         retryButton.addAction(UIAction{[weak self]_ in self?.undo()},for:.touchUpInside)
         panel.isHidden=true;table.cameraMode=2;table.showNumbers=false
     }
@@ -406,36 +431,42 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         menuOpen=open;focusMode = !open;panel.isHidden = !open
         menuButton.setTitle(open ? "Đóng":"Menu",for:.normal)
         fineSlider.isHidden=open || !fineAim
-        spin.isHidden=open;lockButton.isHidden=open;powerPad.isHidden=open || spinExpanded
+        spinCenter.isHidden=true;spin.isHidden=open;lockButton.isHidden=open;coachButton.isHidden=open
         quickRail.isHidden=open;elevationPad.isHidden=open
-        coachCard.isHidden=open || coachCard.alpha==0
+        coachCard.isHidden=open || !coachOn || coachCard.alpha==0
         updateControls()
     }
     private func buildQuickRail(){
-        quickRail.axis = .vertical;quickRail.spacing=5;quickRail.distribution = .fillEqually;quickRail.translatesAutoresizingMaskIntoConstraints=false
-        quickRail.backgroundColor=UIColor(white:0.04,alpha:0.16);quickRail.layer.cornerRadius=16
-        func button(_ symbol:String,_ name:String)->UIButton {
-            let b=UIButton(type:.system);var c=UIButton.Configuration.plain();c.image=UIImage(systemName:symbol)
-            c.title=name;c.imagePlacement = .top;c.imagePadding=2;c.baseForegroundColor=UIColor.white.withAlphaComponent(0.70)
-            c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:16,weight:.regular)
+        quickRail.axis = .vertical;quickRail.spacing=6;quickRail.distribution = .fillEqually
+        quickRail.translatesAutoresizingMaskIntoConstraints=false
+        func button(_ symbol:String,_ name:String,_ id:String)->UIButton {
+            let b=UIButton(type:.system);var c=UIButton.Configuration.plain()
+            c.image=UIImage(systemName:symbol);c.title=name;c.imagePlacement = .top;c.imagePadding=3
+            c.baseForegroundColor = .white;c.background.backgroundColor=UIColor(white:0.035,alpha:0.65);c.background.cornerRadius=12
+            c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:17,weight:.medium)
             c.contentInsets=NSDirectionalEdgeInsets(top:4,leading:2,bottom:4,trailing:2)
-            c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:9,weight:.medium);return a}
-            b.configuration=c;b.showsMenuAsPrimaryAction=true;let height=b.heightAnchor.constraint(equalToConstant:48);height.priority = .defaultHigh;height.isActive=true
-            quickRail.addArrangedSubview(b);return b
+            c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:11,weight:.medium);return a}
+            b.configuration=c;b.accessibilityIdentifier=id;return b
         }
-        quickTools=button("slider.horizontal.3","Dụng cụ");quickTools.accessibilityLabel="Cơ, bao cơ và đặt bi"
-        quickCamera=button("camera","Góc nhìn");quickCamera.accessibilityLabel="Chọn góc camera"
-        // Retain the existing equipment menus inside one flyout, without
-        // creating duplicate on-screen controls or removing their functions.
-        quickRole=UIButton(type:.system);quickCue=UIButton(type:.system);quickBag=UIButton(type:.system)
-        quickRail.addArrangedSubview(retryButton)
-        retryButton.configuration?.title="Lùi";retryButton.configuration?.imagePlacement = .top
-        retryButton.configuration?.imagePadding=2
-        quickReplay=button("play.circle","Xem lại");quickReplay.accessibilityLabel="Xem lại cú vừa đánh, lưu cú, cú đã lưu"
-        quickReplay.accessibilityIdentifier="QuickReplay"
+        quickCamera=button("eye","Mắt","QuickCamera")
+        quickCamera.addAction(UIAction{[weak self]_ in self?.eyeDown()},for:.touchDown)
+        quickCamera.addAction(UIAction{[weak self]_ in self?.eyeUp()},for:.touchUpInside)
+        quickCamera.addAction(UIAction{[weak self]_ in self?.releasePeek()},for:[.touchUpOutside,.touchCancel])
+        quickReplay=button("play.circle","Xem lại","QuickReplay")
+        quickReplay.addAction(UIAction{[weak self]_ in self?.replay()},for:.touchUpInside)
+        retryButton.configuration=button("arrow.uturn.backward","Tập lại","unused").configuration
+        retryButton.accessibilityIdentifier="QuickRetry"
+        quickRole=button("line.diagonal","Đánh","QuickCue");quickRole.showsMenuAsPrimaryAction=true
+        quickPlace=button("hand.draw","Đặt bi","QuickPlace")
+        quickPlace.addAction(UIAction{[weak self]_ in self?.toggleEdit()},for:.touchUpInside)
+        quickAdd=button("plus.circle","+ Bi","QuickAdd")
+        quickAdd.addAction(UIAction{[weak self]_ in guard let self=self else{return};if self.isPlacingBalls{self.cancelPlacement()}else{self.addBall()}},for:.touchUpInside)
+        quickTools=UIButton(type:.system);quickCue=UIButton(type:.system);quickBag=UIButton(type:.system)
+        for items in [[quickCamera!,quickReplay!,retryButton],[quickRole!,quickPlace!,quickAdd!]] {
+            let row=UIStackView(arrangedSubviews:items);row.axis = .horizontal;row.spacing=6;row.distribution = .fillEqually;quickRail.addArrangedSubview(row)
+        }
         view.addSubview(quickRail);elevationPad.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(elevationPad)
-        // Thanh phím tắt dọc sát mép phải; độ dốc cơ bên phải bi effect (PresentationPolicy.h, Tests/PresentationPolicyTests.cpp).
-        quickRailBottom=quickRail.topAnchor.constraint(equalTo:menuButton.bottomAnchor,constant:8)
+        quickRailBottom=quickRail.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12)
         NSLayoutConstraint.activate([
             quickRail.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-CGFloat(BL_HUD_EDGE)),
             quickRail.widthAnchor.constraint(equalToConstant:CGFloat(BL_HUD_RAIL_WIDTH)),quickRail.heightAnchor.constraint(equalToConstant:CGFloat(BLHUDRailHeight())),quickRailBottom,
@@ -444,44 +475,55 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             elevationPad.widthAnchor.constraint(equalToConstant:CGFloat(BL_HUD_ELEVATION_WIDTH)),elevationPad.heightAnchor.constraint(equalToConstant:CGFloat(BL_HUD_ELEVATION_HEIGHT)),
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-8)])
         elevationPad.changed={[weak self] value in self?.setElevation(value)}
-        syncQuickRail()
+        buildReplayBar();syncQuickRail();applyCoachVisibility()
     }
     private func syncQuickRail(){
         guard quickRole != nil else{return}
         let role=engine.settings["cueType"]?.intValue ?? 0
         elevationPad.degrees=table.cueElevation
-        quickRole.configuration?.title=CueLook.roles[max(0,min(2,role))]
-        quickCue.configuration?.title=CueBag.cue(role).brand
-        quickBag.configuration?.title="Bao cơ"
-        // Quan sát cú đánh: đúng thứ tự Toàn cảnh → Trên cao → Ngắm cơ (camera mode 0, 1, 2).
-        quickCamera.menu=UIMenu(title:"Quan sát cú đánh",children:["Toàn cảnh","Trên cao","Ngắm cơ"].enumerated().map{i,title in
-            UIAction(title:title,state:table.cameraMode==i ? .on:.off){[weak self]_ in self?.selectCamera(i)}
-        }+[UIAction(title:"Trở về góc ngắm đã lưu",image:UIImage(systemName:"scope")){[weak self]_ in self?.restoreAimCamera()}])
-        // Hai loại cơ theo yêu cầu: Đánh / Massé (cueType 0: nâng cơ chỉ tạo xoáy cong, không nhảy)
-        // và Phá / Jump (cueType 1; bản cũ "Phá" = 2 vẫn hiểu là Phá / Jump).
-        let jumpFamily=role != 0
-        quickRole.menu=UIMenu(title:"Loại cơ",children:[
-            UIAction(title:"Đánh / Massé",subtitle:"Nâng cơ chỉ cho xoáy cong, bi không nhảy",state:jumpFamily ? .off:.on){[weak self]_ in self?.chooseRole(0)},
-            UIAction(title:"Phá / Jump",subtitle:"Cơ nhảy – nâng cơ để bi bật qua bi cản",state:jumpFamily ? .on:.off){[weak self]_ in self?.chooseRole(1)}])
-        quickCue.menu=UIMenu(title:"Bao "+CueBag.names[CueBag.active],children:[0,1].map{i in
-            let cue=CueBag.cue(i)
-            return UIAction(title:(i==0 ? "Đánh / Massé":"Phá / Jump")+" · "+cue.title,state:(i==0) != jumpFamily ? .on:.off){[weak self]_ in self?.chooseRole(i)}
+        let names=[0:"Đánh",1:"Jump",2:"Break",3:"Massé"]
+        quickRole.configuration?.title=names[shotKind] ?? "Đánh"
+        quickRole.menu=UIMenu(title:"Kiểu cú / loại cơ",children:[0,3,1,2].map{kind in
+            UIAction(title:names[kind]!,state:shotKind==kind ? .on:.off){[weak self]_ in self?.chooseShotKind(kind)}
         })
-        quickBag.menu=UIMenu(title:"Bao cơ",children:[quickCue.menu!,UIMenu(title:"Đổi bao",children:CueBag.names.enumerated().map{i,title in
-            UIAction(title:title,state:CueBag.active==i ? .on:.off){[weak self]_ in CueBag.active=i;self?.chooseRole(role)}
-        }),UIAction(title:"Mở thư viện bàn & cơ",image:UIImage(systemName:"square.grid.2x2")){[weak self]_ in self?.openLibrary()}])
-        // Dụng cụ thi đấu: chỉ 4 mục — Thêm bi mục tiêu, Đặt bi, Bao cơ, Loại cơ.
-        let addTargets=UIMenu(title:"Thêm bi mục tiêu",image:UIImage(systemName:"plus.circle"),children:[
-            UIAction(title:"Từng bi"){[weak self]_ in self?.addBall()},
-            UIMenu(title:"Ngẫu nhiên",children:[3,5,8,15].map{count in
-                UIAction(title:"\(count) bi"){[weak self]_ in self?.addRandomBalls(count)}})])
-        quickTools.menu=UIMenu(title:"Dụng cụ thi đấu",children:[addTargets,
-            UIAction(title:isPlacingBalls ? "Xong đặt bi":"Đặt bi",image:UIImage(systemName:"hand.draw")){[weak self]_ in self?.toggleEdit()},
-            quickBag.menu!,quickRole.menu!])
-        // Menu dựng lại mỗi lần mở để trạng thái (có cú vừa đánh, cú đã lưu) luôn đúng.
-        quickReplay?.menu=UIMenu(title:"Xem lại",children:[UIDeferredMenuElement.uncached{[weak self] completion in
-            completion(self?.replayMenu().children ?? [])}])
+        quickPlace.configuration?.title=isPlacingBalls ? "Xong":"Đặt bi"
+        quickAdd.configuration?.title=isPlacingBalls ? "Hủy":"+ Bi"
+        quickAdd.menu=isPlacingBalls ? nil:UIMenu(title:"Xếp bi ngẫu nhiên",children:[
+            UIMenu(title:"Thêm vào bàn",children:[3,6,9,15].map{n in UIAction(title:"Thêm \(n) bi"){[weak self]_ in self?.addRandomBalls(n)}}),
+            UIMenu(title:"Tạo thế mới",children:[3,6,9,15].map{n in UIAction(title:"Tạo thế \(n) bi"){[weak self]_ in self?.addRandomBalls(n,replacing:true)}}),
+            UIAction(title:"Chọn số bi / nhập seed"){[weak self]_ in self?.randomOptions()}])
+        quickCamera.menu=shotActive ? nil:UIMenu(title:"Góc nhìn",children:[0,1,2].map{mode in
+            UIAction(title:["Toàn bàn","Trên cao","Ngắm cơ"][mode],state:table.cameraMode==mode ? .on:.off){[weak self]_ in self?.selectCamera(mode)}
+        }+[UIAction(title:"Camera tự động sau cú",state:autoCamera ? .on:.off){[weak self]_ in guard let self=self else{return};UserDefaults.standard.set(!self.autoCamera,forKey:"autoCamera017");self.syncQuickRail()}])
+        quickCue.menu=UIMenu(title:"Cơ",children:(0...2).map{i in UIAction(title:CueBag.cue(i).title){[weak self]_ in self?.chooseRole(i)}})
+        quickBag.menu=UIMenu(title:"Bao cơ",children:[quickCue.menu!,UIMenu(title:"Đổi bao",children:CueBag.names.enumerated().map{i,title in UIAction(title:title){[weak self]_ in CueBag.active=i;self?.chooseRole(role)}}),UIAction(title:"Thư viện bàn & cơ"){[weak self]_ in self?.openLibrary()}])
     }
+    private func chooseShotKind(_ kind:Int){
+        guard !presentationBusy,!locked,localTurn,(0...3).contains(kind) else{return}
+        UserDefaults.standard.set(["elevation":table.cueElevation,"side":side,"top":top],forKey:"cuePreset017-\(shotKind)")
+        shotKind=kind;UserDefaults.standard.set(kind,forKey:"shotKind017")
+        let role=kind==3 ? 0:kind
+        var values=engine.settings;values["cueType"]=NSNumber(value:role);engine.settings=values;table.selectCue(role)
+        let preset=UserDefaults.standard.dictionary(forKey:"cuePreset017-\(kind)") as? [String:Double]
+        setElevation(preset?["elevation"] ?? (kind==1 ? 45:(kind==3 ? 60:0)))
+        spin.select(side:preset?["side"] ?? 0,top:preset?["top"] ?? 0)
+        syncQuickRail()
+    }
+    private func toggleCoach(){
+        guard !locked,!spinExpanded else{return};coaching.toggle();applyCoachVisibility()
+        if coaching {if lastShot != nil,!shotActive{showCoach(coachReport(drill:Drill.all[drillIndex],events:lastShotEvents,passed:lastPassed,scratch:lastScratch))}else{showCoach(drillBrief(Drill.all[drillIndex]))}}
+    }
+    private func applyCoachVisibility(){
+        guard table != nil else{return}
+        coachButton.setTitleColor(coaching ? .systemMint:.white,for:.normal)
+        coachButton.accessibilityValue=coaching ? "Bật":"Tắt"
+        table.showsDiamondNumbers=coaching
+        table.target(coaching ? Drill.all[drillIndex].goal:nil)
+        table.setTrainingOverlaysHidden(!coaching || locked)
+        if !coaching {hideCoach();table.showRailContacts([]);table.trails([:]);table.prediction([],visible:false);guideOn=false;lastGuideVisible=false;guideButton?.configuration?.title="Dự báo: tắt"}
+        hintLabel.isHidden = !coaching;scoreLabel.isHidden = !coaching
+    }
+
     private func setElevation(_ degrees:Double){
         guard !presentationBusy,localTurn,!locked else{return}
         var values=engine.settings;values["cueElevationDegrees"]=NSNumber(value:degrees);values["experimental3D"]=NSNumber(value:degrees>0)
@@ -489,11 +531,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         spin.maximumOffset=degrees>0 ? 0.6:0.7
         UserDefaults.standard.set(engine.settings,forKey:"physics");guideDirty=true;syncQuickRail()
     }
-    private func chooseRole(_ role:Int){
-        guard !presentationBusy,localTurn else{return}
-        var values=engine.settings;values["cueType"]=NSNumber(value:role);engine.settings=values
-        table.selectCue(role);setElevation(role==1 ? 45:0);syncQuickRail()
-    }
+    private func chooseRole(_ role:Int){chooseShotKind(max(0,min(2,role)))}
+
     private func openLibrary(initialTab:Int=0){
         guard localTurn,!presentationBusy else{return};setMenu(false)
         let controller=EquipmentLibraryController(table:table);controller.initialTab=initialTab
@@ -527,18 +566,17 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         fineSlider.isHidden=locked || menuOpen || !fineAim
         spin.isHidden=locked || menuOpen
         quickRail.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen
-        // Khi đang khoá: vẫn hiện mức lực để người dùng thấy sẽ đánh bao nhiêu, nhưng chạm xuyên qua để vuốt cơ.
-        powerPad.isUserInteractionEnabled = !locked;powerPad.alpha=locked ? 0.55:1
-        powerPad.isHidden=menuOpen || spinExpanded
+        coachButton.isHidden=locked || menuOpen
+        table.setTrainingOverlaysHidden(!coachOn || locked)
         if !locked{stroke.cancelStroke();pull=0}
     }
     /// Trục của lần kéo một ngón hiện tại: 0 chưa quyết, 1 ngang (hướng ngắm), 2 dọc (độ cao camera).
     private var aimPanAxis=0
     private var presentationBusy:Bool{shotActive || replayIndex != nil || BLShotCameraBusy(shotCameraState)}
     private var strokeHint:String{
-        powerPad.fixed ? "Đặt Lực bằng − / +. Giữ nút khoá 🔒; ngón khác kéo xuống rồi đẩy lên trên bàn để đánh đúng mức lực đó. Buông khoá để ngắm lại."
-                       : "Lực theo cảm giác: giữ nút khoá 🔒; ngón khác kéo xuống rồi đẩy lên — đẩy nhanh hơn là mạnh hơn. Buông khoá để ngắm lại."
+        "Giữ B để khóa hướng. Ngón khác kéo lùi rồi đẩy tới: đẩy nhanh hơn là mạnh hơn. Buông B để hủy/ngắm lại. C bật/tắt trợ giúp."
     }
+
     private var strokeAllowed:Bool{
         BLStrokeAllowed(localTurn,presentationBusy,menuOpen,spinExpanded,isPlacingBalls,cue?.sunk==false)
     }
@@ -547,7 +585,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     private func loadDrill(_ index:Int){
         guard !presentationBusy,localTurn else{return}
         drillIndex=index;attempts=0;successes=0;let drill=Drill.all[index]
-        table.target(drill.goal)
+        table.target(coachOn ? drill.goal:nil)
         initial=drill.balls;before=initial;angle=drill.angle
         engine.loadLayout(initial.map{$0.dictionary});clearShot();locked=false;isPlacingBalls=false;spin.reset()
         titleLabel.text=drill.title;hintLabel.text=strokeHint
@@ -557,6 +595,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if coachOn && (drill.goal != nil || drill.rails>0) {showCoach(drillBrief(drill))}else{hideCoach()}
     }
     private func clearShot(){
+        if replayIndex != nil{stopReplay()};releasePeek();replayBar.isHidden=true
         frames=[];frameTimes=[];paths=[:];shotActive=false;replayIndex=nil;lastEventCount=0
         BLShotCameraReset(&shotCameraState);table.trails([:]);guideDirty=true
         if observationCamera{restoreAimCamera()};shotCameraAnchor=nil
@@ -596,7 +635,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         testShotButton.isEnabled = !busy && localTurn && !isPlacingBalls && cue?.sunk == false
         elevationPad.isEnabled = !busy && localTurn && !isPlacingBalls && !spinExpanded
         quickTools?.isEnabled = !busy && localTurn && !spinExpanded
-        spin.isEnabled = !busy && localTurn;editButton.configuration?.title=isPlacingBalls ? "Xong đặt bi":"Đặt bi"
+        quickRole?.isEnabled = !busy && localTurn && !spinExpanded && !isPlacingBalls
+        quickPlace?.isEnabled = !busy && localTurn && !spinExpanded
+        quickAdd?.isEnabled = !busy && localTurn && !spinExpanded
+        quickReplay?.isEnabled = !shotActive && !frames.isEmpty && !isPlacingBalls
+        coachButton.isEnabled = !locked && !spinExpanded
+        syncQuickRail()
+        spin.isEnabled = !busy && localTurn && !isPlacingBalls;editButton.configuration?.title=isPlacingBalls ? "Xong đặt bi":"Đặt bi"
         for b in [drillButton,layoutButton,settingsButton,editButton] {b?.isEnabled = !busy && localTurn}
         replayButton.isEnabled = !shotActive && !frames.isEmpty && localTurn
         replayButton.configuration?.title=replayIndex == nil ? "Xem lại":"Dừng xem"
@@ -604,56 +649,111 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         retryButton.isEnabled = !before.isEmpty && !isPlacingBalls && localTurn && !spinExpanded
     }
     private func nudge(_ amount:Double){guard !locked,!isPlacingBalls,!shotActive,replayIndex==nil else{return};angle+=amount;refresh()}
+    private func captureCamera()->CameraPose{CameraPose(mode:table.cameraMode,zoom:table.zoom,yaw:table.orbit,pitch:table.orbitPitch,aimPitch:table.aimPitch)}
+    private func applyCamera(_ pose:CameraPose){
+        table.cameraMode=pose.mode;table.zoom=pose.zoom;table.orbit=pose.yaw;table.orbitPitch=pose.pitch;table.aimPitch=pose.aimPitch
+        table.focusBounds=nil;beginCameraTransition(0.35)
+    }
     private func selectCamera(_ mode:Int){
-        guard (0...2).contains(mode) else{return}
-        table.cameraMode=mode;table.zoom=1;table.orbit=0;table.orbitPitch=0.57
-        beginCameraTransition(0.35);cameraButton.configuration?.title=["Toàn bàn","Trên cao","Ngắm cơ"][mode];syncQuickRail()
+        guard (0...2).contains(mode),!locked else{return}
+        cameraMemory[table.cameraMode]=captureCamera()
+        let pose=cameraMemory[mode] ?? CameraPose(mode:mode,zoom:1,yaw:0,pitch:0.85,aimPitch:table.aimPitch)
+        applyCamera(pose);observationCamera=mode != 2
+        if mode != 2{lastObservedMode=mode}
+        if shotActive{cameraManual=true}
+        cameraButton.configuration?.title=["Toàn bàn","Trên cao","Ngắm cơ"][mode];syncQuickRail()
     }
     private func beginCameraTransition(_ duration:Double){cameraTransitionDuration=duration;cameraTransition=duration}
     private func restoreAimCamera(){
         guard localTurn,replayIndex==nil else{return}
-        let saved=savedAimCamera ?? (mode:2,zoom:Float(1),orbit:Float(0),pitch:Float(0.57))
-        table.cameraMode=2;table.zoom=saved.zoom;table.orbit=saved.orbit;table.orbitPitch=saved.pitch
-        observationCamera=false;beginCameraTransition(0.45);cameraButton.configuration?.title="Ngắm cơ";syncQuickRail()
+        releasePeek()
+        let saved=savedAimCamera ?? cameraMemory[2] ?? CameraPose(mode:2,zoom:1,yaw:0,pitch:0.57,aimPitch:table.aimPitch)
+        applyCamera(saved);table.cameraMode=2;observationCamera=false;table.focusBounds=nil
+        beginCameraTransition(0.45);cameraButton.configuration?.title="Ngắm cơ";syncQuickRail()
     }
+    private func eyeDown(){
+        guard !locked,!spinExpanded else{return}
+        if shotActive {peekPose=captureCamera();table.cameraMode=0;table.zoom=1;table.orbitPitch=0.95;table.focusBounds=nil;beginCameraTransition(0.18)}
+    }
+    private func releasePeek(){
+        guard let pose=peekPose else{return};peekPose=nil;applyCamera(pose)
+    }
+    private func eyeUp(){
+        if peekPose != nil{releasePeek();return}
+        guard !shotActive,replayIndex==nil,!isPlacingBalls,!locked else{return}
+        selectCamera(table.cameraMode==2 ? lastObservedMode:2)
+    }
+    private func directCamera(time:Double,state:[BallState],replay:Bool){
+        guard peekPose==nil,!cameraManual,(!replay || replayAuto),time>0.25,time-lastDirectorTime>1.5 else{return}
+        let events=replay ? lastShotEvents:engine.events
+        // Avoid switching viewpoint in the middle of an impact.
+        if events.contains(where:{abs(($0["time"]?.doubleValue ?? -10)-time)<0.12}){return}
+        lastDirectorTime=time;observationCamera=true
+        let aerial=(lastShot?.elevation ?? 0)>15
+        table.cameraMode=0;table.zoom=1;table.orbitPitch=aerial ? 0.4:0.95
+        let moving=state.filter{!$0.sunk && ($0.id==0 || hypot($0.vx ?? 0,$0.vy ?? 0)>0.03)}
+        if moving.count>0 && moving.count<5 {
+            let xs=moving.map{Float($0.x)},ys=moving.map{Float($0.y)}
+            table.focusBounds=SIMD4(max(-0.78,(xs.min() ?? 0)-0.35),min(0.78,(xs.max() ?? 0)+0.35),max(-1.43,(ys.min() ?? 0)-0.45),min(1.43,(ys.max() ?? 0)+0.45))
+        }else{table.focusBounds=nil}
+        beginCameraTransition(0.45)
+    }
+
     private func cycleCamera(){
         let sheet=UIAlertController(title:"Góc nhìn",message:nil,preferredStyle:.actionSheet)
-        for (index,title) in ["Toàn bàn · xem chân bàn","Trên cao · luyện thế bi","Ngắm cơ · sát bi"].enumerated(){
+        for (index,title) in ["Toàn bàn · quan sát cú đánh","Trên cao · luyện thế bi","Ngắm cơ · sát bi"].enumerated(){
             sheet.addAction(UIAlertAction(title:title,style:.default){[weak self]_ in
                 self?.selectCamera(index)
                 self?.cameraButton.configuration?.title=["Toàn bàn","Trên cao","Ngắm cơ"][index]
                 self?.setMenu(false);self?.syncQuickRail()
             })
         }
-        sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));presentSheet(sheet,source:cameraButton)
+        sheet.addAction(UIAlertAction(title:autoCamera ? "Tắt tự động sau cú":"Bật tự động sau cú",style:.default){[weak self]_ in guard let self=self else{return};UserDefaults.standard.set(!self.autoCamera,forKey:"autoCamera017");self.syncQuickRail()})
+        sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));presentSheet(sheet,source:menuButton)
+    }
+    private func placementValid()->Bool{
+        let state=balls.filter{!$0.sunk}
+        for (i,a) in state.enumerated(){for b in state.dropFirst(i+1){if hypot(a.x-b.x,a.y-b.y)<geometry.radius*2+0.0001{return false}}}
+        return state.contains{$0.id==0}
     }
     private func toggleEdit(){
-        guard !presentationBusy,localTurn else{return};isPlacingBalls.toggle();locked=false
-        if isPlacingBalls {table.cameraMode=1;cameraButton.configuration?.title="Trên cao";hintLabel.text="Kéo từng bi để đặt · Chạm trống để đặt bi cái"}
-        else{hintLabel.text=strokeHint;initial=balls;before=balls;clearShot();selectCamera(2)}
-        updateControls();syncQuickRail()
+        guard !presentationBusy,localTurn,!locked else{return}
+        if isPlacingBalls {
+            guard placementValid() else{statusLabel.text="Vị trí đang vướng bi khác — kéo bi cái ra vùng trống";return}
+            isPlacingBalls=false;table.placementBlocked=false;editingSnapshot=nil
+            initial=balls;before=balls;clearShot();if let pose=editingPose{applyCamera(pose)};editingPose=nil
+        }else{
+            editingSnapshot=balls;editingPose=captureCamera();isPlacingBalls=true
+            var state=balls
+            if let i=state.firstIndex(where:{$0.id==0}){state[i].x=0;state[i].y=0;state[i].sunk=false}else{state.append(BallState(id:0,x:0,y:0))}
+            engine.loadLayout(state.map{$0.dictionary});selectCamera(1)
+            table.placementBlocked = !placementValid();statusLabel.text="Kéo bi cái từ giữa bàn · Xong để nhận · Hủy để phục hồi"
+        }
+        refresh();updateControls();syncQuickRail()
     }
+    private func cancelPlacement(){
+        guard isPlacingBalls,let snapshot=editingSnapshot else{return}
+        engine.loadLayout(snapshot.map{$0.dictionary});isPlacingBalls=false;table.placementBlocked=false;editingSnapshot=nil
+        if let pose=editingPose{applyCamera(pose)};editingPose=nil;refresh();updateControls()
+    }
+
     private func shoot(_ speed:Double){
         guard locked,strokeAllowed,speed.isFinite,speed>0 else{return}
         lastShotSpeed=speed
         displayDurations=[]
-        let levels=[0.8,1.3,2.0,3.0,4.3,6.0,8.0]
-        let band=min(7,(levels.firstIndex(where:{speed<=$0}) ?? 6)+1)
-        hintLabel.text=String(format:"Lực %d/%d%@ · mức %d/7 · %.2f m/s · %@",Int(BLPowerLevelForSpeed(speed)),Int(BL_POWER_LEVELS),powerPad.fixed ? "":" (ước từ vuốt)",band,speed,(engine.settings["experimental3D"]?.boolValue ?? false) ? "tốc độ cơ thử nghiệm":"tốc độ bi đầu")
+        testSpeed=speed
+        hintLabel.text=String(format:"Cú vuốt vừa rồi · %.2f m/s · %@",speed,CueLook.roles[engine.settings["cueType"]?.intValue ?? 0])
         shotCameraAnchor=cue
-        if table.cameraMode==2 {savedAimCamera=(2,table.zoom,table.orbit,table.orbitPitch)}
+        if table.cameraMode==2 {savedAimCamera=captureCamera()}
         BLShotCameraStart(&shotCameraState)
-        // Mặc định giữ góc ngắm vừa đánh (camera neo ở vị trí bi cái trước cú); chỉ chuyển toàn cảnh khi người dùng bật.
-        if UserDefaults.standard.bool(forKey:"overviewAfterShot014") {
-            observationCamera=true;table.cameraMode=0;table.zoom=1;table.orbitPitch=0.72;beginCameraTransition(0.45)
-        }
+        cameraManual=false;lastDirectorTime = -10;peekPose=nil;lastShotEvents=[]
         before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0
         let strikeAngle=table.shotAngle(cue,angle:angle,side:side,top:top)
         lastShot=SavedShot(name:"",date:Date(),balls:balls,aimAngle:angle,speed:speed,side:side,top:top,
-                           elevation:table.cueElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle)
+                           elevation:table.cueElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle,shotKind:shotKind)
         hideCoach()
         engine.strike(angle:strikeAngle,speed:speed,side:side,top:top)
-        if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:cue?.x ?? 0)}
+        if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
         shotActive=true;attempts+=1;statusLabel.text=String(format:"Đang chạy · tốc độ đầu %.2f m/s",speed)
         feedback.impactOccurred();guideDirty=true;table.trails([:]);setMenu(false);updateControls()
     }
@@ -661,15 +761,17 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let dt=lastTime==0 ? 0:min(0.1,max(0,link.timestamp-lastTime));lastTime=link.timestamp
         let wasSimulating=shotActive,wasReplaying=replayIndex != nil
         if let index=replayIndex {
-            replayClock+=dt
+            replayClock += replayPaused ? 0:dt*replaySpeed
             var i=index
             while i+1<frames.count && replayClock>=frameTimes[i+1] {i+=1}
-            if replayClock>=(frameTimes.last ?? 0)+0.25 {replayIndex=nil;table.update(balls,dt:0);statusLabel.text="Xem lại xong";updateControls()}
+            if replayClock>=(frameTimes.last ?? 0)+0.25 {stopReplay()}
             else{
                 replayIndex=i
                 let j=min(i+1,frames.count-1)
                 let span=frameTimes[j]-frameTimes[i]
                 table.replay(frames[i],to:frames[j],fraction:span>0 ? (replayClock-frameTimes[i])/span:0)
+                replaySlider.value=Float(replayClock);directCamera(time:replayClock,state:frames[i],replay:true)
+                if !replayPaused {playReplayAudio()}
             }
         }else if shotActive {
             if dt>0 {displayDurations.append(dt)}
@@ -692,17 +794,17 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 let fresh=events.suffix(events.count-lastEventCount)
                 if fresh.contains(where:{$0["kind"]?.intValue==0}){feedback.impactOccurred(intensity:0.25)}
                 if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {
-                    for event in fresh {poolAudio.play(kind:event["kind"]?.intValue ?? 1,impact:event["impact"]?.doubleValue ?? 0.3,pan:event["x"]?.doubleValue ?? 0)}
+                    for event in fresh {poolAudio.play(kind:event["kind"]?.intValue ?? 1,impact:event["impact"]?.doubleValue ?? 0.3,pan:audioPan(event["x"]?.doubleValue ?? 0,event["y"]?.doubleValue ?? 0))}
                 }
                 lastEventCount=events.count
             }
-            if !engine.moving||engine.elapsed>60 {finishShot(timedOut:engine.moving)}
+            if !engine.moving || engine.elapsed>60 {finishShot(timedOut:engine.moving)}
         }
+        if shotActive,autoCamera {directCamera(time:engine.elapsed,state:balls,replay:false)}
         table.animatePockets(dt)
         let wasBusy=BLShotCameraBusy(shotCameraState)
         let cameraGestureActive=aimRecognizers.contains{recognizer in
-            (recognizer is UIPinchGestureRecognizer || (recognizer as? UIPanGestureRecognizer)?.minimumNumberOfTouches==2) &&
-            (recognizer.state == .began || recognizer.state == .changed)
+            (recognizer is UIPinchGestureRecognizer || (recognizer as? UIPanGestureRecognizer)?.minimumNumberOfTouches==2) && (recognizer.state == .began || recognizer.state == .changed)
         }
         if BLShotCameraTick(&shotCameraState,dt,wasSimulating || shotActive || engine.moving,table.hasActivePocketAnimations,wasReplaying || replayIndex != nil,localTurn,isPlacingBalls,cameraGestureActive) {
             restoreAimCamera()
@@ -723,25 +825,26 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let blend=BLCameraTweenBlend(cameraTransition,dt,cameraTransitionDuration)
         table.placeCamera(cue:cameraCue,angle:cameraAngle,aspect:scn.bounds.width/max(1,scn.bounds.height),blend:Float(blend))
         cameraTransition=max(0,cameraTransition-dt)
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch)}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)}
         table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
-        let show=guideOn && !presentationBusy && localTurn && !isPlacingBalls
+        let show=coachOn && guideOn && !presentationBusy && localTurn && !isPlacingBalls
         if !show && lastGuideVisible {
             table.prediction([],visible:false);lastGuideVisible=false
         }
         let changed=guideDirty || abs(angle-lastGuideAngle)>0.00001 || !lastGuideVisible
         if show && changed && link.timestamp-lastPredictionTime>=0.18 {
-            let samples=engine.prediction(angle:table.shotAngle(cue,angle:angle,side:side,top:top),speed:testSpeed,side:side,top:top)
+            let samples=engine.prediction(angle:table.shotAngle(cue,angle:angle,side:side,top:top),speed:referenceSpeed,side:side,top:top)
             table.prediction(samples,visible:true)
             lastGuideAngle=angle;lastGuideVisible=true;guideDirty=false;lastPredictionTime=link.timestamp
-            if !focusMode {scoreLabel.text=String(format:"%d/%d đạt · Dự báo %.1f m/s",successes,attempts,testSpeed)}
+            if !focusMode {scoreLabel.text=String(format:"%d/%d đạt · Tham chiếu cú trước %.1f m/s",successes,attempts,referenceSpeed)}
         }
     }
     private func finishShot(timedOut:Bool){
         let d=Drill.all[drillIndex],events=engine.events
+        lastShotEvents=events
         frames.append(balls);frameTimes.append(engine.elapsed)
         if timedOut {let stopped=balls;engine.loadLayout(stopped.map{$0.dictionary})}
-        shotActive=false;locked=false;table.trails(trailsOn ? paths:[:])
+        shotActive=false;locked=false;table.trails(coachOn && trailsOn ? paths:[:])
         let scratch=events.contains{$0["kind"]?.intValue==2 && $0["a"]?.intValue==0}
         var passed=false,railCount=0
         if let goal=d.goal {
@@ -752,7 +855,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }else if d.kick {
             for e in events {
                 if e["kind"]?.intValue==0 && e["a"]?.intValue==0{railCount+=1}
-                if e["kind"]?.intValue==1 && (e["a"]?.intValue==0||e["b"]?.intValue==0) {
+                if e["kind"]?.intValue==1 && (e["a"]?.intValue==0 || e["b"]?.intValue==0) {
                     let target=(e["a"]?.intValue==0 ? e["b"]:e["a"])?.intValue
                     passed=target==1 && railCount==d.rails;break
                 }
@@ -764,6 +867,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
         }
         passed=passed && !scratch && !timedOut
+        lastPassed=passed;lastScratch=scratch
         if passed{successes+=1}
         if d.goal != nil || d.rails>0 {
             var history=practiceRecords()
@@ -776,7 +880,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         else if d.goal != nil {statusLabel.text=passed ? "ĐẠT · đúng vùng / điều kiện":"Chưa đạt · xem vùng dừng và bi 1"}
         else if d.rails==0 {statusLabel.text=String(format:"Quãng đường bi cái ≈ %.2f m",distance)}
         else {statusLabel.text="\(passed ? "ĐẠT":"Chưa đạt") · \(railCount) băng / yêu cầu \(d.rails)"}
-        hintLabel.text="Trắng: bi cái · Cam: bi mục tiêu · Lùi cú để thử lại cùng thế bi"
+        hintLabel.text="Tập lại: trở về trước cú · Xem lại: phân tích đường bi"
         refresh();updateControls()
         if coachOn && !timedOut && (d.goal != nil || d.rails>0) {
             let tracked=d.kick || d.goal != nil ? 0:1
@@ -784,7 +888,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             showCoach(coachReport(drill:d,events:events,passed:passed,scratch:scratch))
         }
     }
-    private func undo(){guard localTurn,!before.isEmpty,!isPlacingBalls else{return};lockButton.releaseHold();setHold(false);engine.loadLayout(before.map{$0.dictionary});clearShot();locked=false;statusLabel.text="Đã trở về trước cú đánh";refresh();updateControls()}
+    private func undo(){guard localTurn,!before.isEmpty,!isPlacingBalls else{return};lockButton.releaseHold();setHold(false);engine.loadLayout(before.map{$0.dictionary});clearShot();restoreAimCamera();locked=false;statusLabel.text="Đã trở về trước cú đánh";refresh();updateControls()}
     private func reset(){
         guard localTurn else{return}
         if shotActive {shotActive=false}
@@ -792,15 +896,57 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         statusLabel.text="Đã khôi phục thế bi bài tập";refresh();updateControls()
     }
     private func replay(){
-        guard localTurn,!shotActive,!frames.isEmpty else{return}
-        lockButton.releaseHold();setHold(false);cameraTransition=0
-        if replayIndex != nil {replayIndex=nil;table.update(balls,dt:0)}else{
-            // Bắt đầu từ góc 3D lúc ngắm; một ngón xoay quanh điểm đánh, hai ngón zoom/xoay quanh bàn.
-            replayIndex=0;replayClock=0;replayYaw=0;observationCamera=false;table.cameraMode=2
-            statusLabel.text="Xem lại · kéo một ngón để xoay góc nhìn"
-        }
-        guideDirty=true;updateControls()
+        guard localTurn,!shotActive,!frames.isEmpty,!isPlacingBalls else{return}
+        lockButton.releaseHold();setHold(false)
+        if replayIndex != nil{stopReplay();return}
+        replayOrigin=captureCamera();replayIndex=0;replayClock=0;replayYaw=0;replayAudioIndex=0
+        replayPaused=false;replayAuto=true;cameraManual=false;lastDirectorTime = -10
+        if let pose=savedAimCamera{applyCamera(pose)}else{table.cameraMode=2}
+        replaySlider.maximumValue=Float(frameTimes.last ?? 1);replaySlider.value=0
+        replayBar.isHidden=false;menuButton.isHidden=true;replayPause.setTitle("Dừng",for:.normal)
+        statusLabel.text="Xem lại · kéo để đổi góc · tua để xem điểm chạm"
+        updateControls()
     }
+    private func stopReplay(){
+        replayIndex=nil;replayBar.isHidden=true;menuButton.isHidden=false;table.update(balls,dt:0)
+        if let pose=replayOrigin{applyCamera(pose)};replayOrigin=nil;observationCamera=false
+        statusLabel.text="Xem lại xong";updateControls();applyCoachVisibility()
+    }
+    private func buildReplayBar(){
+        replayBar.axis = .horizontal;replayBar.spacing=8;replayBar.alignment = .fill
+        replayBar.backgroundColor=UIColor(white:0.04,alpha:0.9);replayBar.layer.cornerRadius=12
+        replayBar.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(replayBar)
+        replayPause.setTitle("Dừng",for:.normal);replayRate.setTitle("1×",for:.normal);replayAutoButton.setTitle("Auto",for:.normal)
+        let close=UIButton(type:.system);close.setTitle("Xong",for:.normal)
+        for item in [replayPause,replayRate,replayAutoButton,close]{item.titleLabel?.font = .systemFont(ofSize:13,weight:.semibold);item.widthAnchor.constraint(equalToConstant:52).isActive=true}
+        for item in [replayPause,replayRate,replaySlider,replayAutoButton,close] as [UIView]{replayBar.addArrangedSubview(item)}
+        NSLayoutConstraint.activate([replayBar.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),replayBar.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-12),replayBar.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),replayBar.heightAnchor.constraint(equalToConstant:48)])
+        replayPause.accessibilityIdentifier="ReplayPause";replaySlider.accessibilityIdentifier="ReplaySeek"
+        replayPause.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.replayPaused.toggle();self.replayPause.setTitle(self.replayPaused ? "Tiếp":"Dừng",for:.normal)},for:.touchUpInside)
+        replayRate.showsMenuAsPrimaryAction=true;replayRate.menu=UIMenu(children:[0.25,0.5,1.0].map{rate in UIAction(title:"\(rate)×"){[weak self]_ in self?.replaySpeed=rate;self?.replayRate.setTitle("\(rate)×",for:.normal)}})
+        replayAutoButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.replayAuto.toggle();self.cameraManual = !self.replayAuto;self.lastDirectorTime = -10;self.replayAutoButton.setTitle(self.replayAuto ? "Auto":"Tay",for:.normal)},for:.touchUpInside)
+        close.addAction(UIAction{[weak self]_ in self?.stopReplay()},for:.touchUpInside)
+        replaySlider.addAction(UIAction{[weak self]_ in
+            guard let self=self,self.replayIndex != nil else{return};self.replayClock=Double(self.replaySlider.value)
+            self.replayIndex=self.frameTimes.lastIndex(where:{$0<=self.replayClock}) ?? 0
+            self.replayAudioIndex=self.lastShotEvents.prefix(while:{($0["time"]?.doubleValue ?? 0)<=self.replayClock}).count
+            self.lastDirectorTime = -10
+        },for:.valueChanged)
+        replayBar.isHidden=true
+    }
+    private func playReplayAudio(){
+        while replayAudioIndex<lastShotEvents.count {
+            let event=lastShotEvents[replayAudioIndex]
+            guard (event["time"]?.doubleValue ?? 0)<=replayClock else{break}
+            if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {poolAudio.play(kind:event["kind"]?.intValue ?? 1,impact:event["impact"]?.doubleValue ?? 0.3,pan:audioPan(event["x"]?.doubleValue ?? 0,event["y"]?.doubleValue ?? 0))}
+            replayAudioIndex+=1
+        }
+    }
+    private func audioPan(_ x:Double,_ y:Double)->Double{
+        let point=scn.projectPoint(SCNVector3(Float(x),0.03,Float(y)))
+        return max(-1,min(1,Double(point.x/max(1,Float(scn.bounds.width)))*2-1))
+    }
+
     private func configureGestures(){
         let tap=UITapGestureRecognizer(target:self,action:#selector(tapTable(_:)));scn.addGestureRecognizer(tap);aimRecognizers.append(tap)
         let pan=UIPanGestureRecognizer(target:self,action:#selector(panTable(_:)));pan.maximumNumberOfTouches=1;scn.addGestureRecognizer(pan);aimRecognizers.append(pan)
@@ -813,7 +959,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer:UIGestureRecognizer,shouldReceive touch:UITouch)->Bool{
         guard !menuOpen,!spinExpanded,!locked else{return false}
         if gestureRecognizer is UIPinchGestureRecognizer || (gestureRecognizer as? UIPanGestureRecognizer)?.minimumNumberOfTouches==2{return true}
-        return localTurn && !presentationBusy
+        return localTurn && (!presentationBusy || replayIndex != nil)
     }
     func gestureRecognizer(_ gestureRecognizer:UIGestureRecognizer,shouldRecognizeSimultaneouslyWith other:UIGestureRecognizer)->Bool{
         let pair=[gestureRecognizer,other]
@@ -831,8 +977,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     @objc private func panTable(_ g:UIPanGestureRecognizer){
         if replayIndex != nil,!menuOpen {
+            cameraManual=true;replayAuto=false;replayAutoButton.setTitle("Tay",for:.normal)
             let delta=g.translation(in:scn)
-            replayYaw+=Double(delta.x)*0.004
+            if table.cameraMode==2{replayYaw+=Double(delta.x)*0.004}else{table.orbit+=Float(delta.x)*0.006;table.orbitPitch=max(0.2,min(1.4,table.orbitPitch+Float(delta.y)*0.004))}
             table.aimPitch=min(max(table.aimPitch+Float(delta.y)*0.004,TableScene.aimPitchRange.lowerBound),TableScene.aimPitchRange.upperBound)
             cameraTransition=0;g.setTranslation(.zero,in:scn);return
         }
@@ -843,7 +990,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 draggedBall=balls.filter{!$0.sunk}.min{hypot($0.x-p.x,$0.y-p.y)<hypot($1.x-p.x,$1.y-p.y)}.flatMap{hypot($0.x-p.x,$0.y-p.y)<0.12 ? $0.id:nil}
             }
             if let id=draggedBall {moveBall(id,to:p)}
-            if g.state == .ended||g.state == .cancelled {draggedBall=nil}
+            if g.state == .ended || g.state == .cancelled {draggedBall=nil}
         }else{
             guard g.numberOfTouches<=1 else{return}
             // Một ngón: ngang = xoay hướng đánh; dọc = hạ/nâng camera ngắm (sát mặt bàn → nhìn từ trên).
@@ -852,7 +999,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if g.state == .began {aimPanAxis=0}
             let delta=g.translation(in:scn)
             let aimCamera=table.cameraMode==2 && !observationCamera && replayIndex==nil
-            let finishing=g.state == .ended||g.state == .cancelled
+            let finishing=g.state == .ended || g.state == .cancelled
             if aimPanAxis==0 {
                 if hypot(delta.x,delta.y)>=6 {aimPanAxis = (aimCamera && abs(delta.y)>abs(delta.x)*1.3) ? 2:1}
                 else if finishing {aimPanAxis=1}
@@ -873,8 +1020,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     @objc private func orbitTable(_ g:UIPanGestureRecognizer){
         guard !menuOpen,!spinExpanded,!locked else{return}
         let delta=g.translation(in:scn)
+        cameraManual=true;if replayIndex != nil{replayAuto=false;replayAutoButton.setTitle("Tay",for:.normal)};table.focusBounds=nil
         if table.cameraMode==2 {
-            if !observationCamera{savedAimCamera=(2,table.zoom,table.orbit,table.orbitPitch)}
+            if !observationCamera{savedAimCamera=captureCamera()}
             table.cameraMode=0;table.zoom=1
         }
         table.orbit+=Float(delta.x)*0.006;table.orbitPitch=max(0.20,min(1.40,table.orbitPitch+Float(delta.y)*0.004))
@@ -882,6 +1030,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     @objc private func pinchTable(_ g:UIPinchGestureRecognizer){
         guard !menuOpen,!spinExpanded,!locked else{return}
+        cameraManual=true;if replayIndex != nil{replayAuto=false;replayAutoButton.setTitle("Tay",for:.normal)};table.focusBounds=nil
         cameraTransition=0;table.zoom=max(0.45,min(2.6,table.zoom/Float(g.scale)));g.scale=1
         if table.cameraMode==2 && !observationCamera && replayIndex==nil{
             UserDefaults.standard.set(Double(table.zoom),forKey:"aimCameraZoom013")
@@ -898,22 +1047,28 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         var state=balls;guard let i=state.firstIndex(where:{$0.id==id}) else{return}
         let x=max(-0.590,min(0.590,p.x)),y=max(-1.225,min(1.225,p.y))
         guard !state.contains(where:{$0.id != id && !$0.sunk && hypot($0.x-x,$0.y-y)<0.0573}) else{return}
-        state[i].x=x;state[i].y=y;state[i].sunk=false;engine.loadLayout(state.map{$0.dictionary});refresh()
+        state[i].x=x;state[i].y=y;state[i].sunk=false;engine.loadLayout(state.map{$0.dictionary});table.placementBlocked = isPlacingBalls && !placementValid();refresh()
     }
     private func presentSheet(_ sheet:UIAlertController,source:UIView?=nil){
         sheet.popoverPresentationController?.sourceView=source ?? view
         sheet.popoverPresentationController?.sourceRect=source?.bounds ?? CGRect(x:view.bounds.midX,y:view.bounds.midY,width:1,height:1)
         present(sheet,animated:true)
     }
+    private func beginDrill(_ index:Int,guided:Bool){
+        if let previous=guidedCoachBefore{coaching=previous;guidedCoachBefore=nil}
+        if guided{guidedCoachBefore=coaching;coaching=true}
+        loadDrill(index);applyCoachVisibility()
+    }
     private func chooseDrill(){
         guard !shotActive,replayIndex==nil else{return}
         let vc=DrillsController(style:.insetGrouped)
-        vc.load={[weak self]index in self?.loadDrill(index)}
+        vc.load={[weak self]index in self?.beginDrill(index,guided:false)}
+        vc.guidedLoad={[weak self]index in self?.beginDrill(index,guided:true)}
         present(UINavigationController(rootViewController:vc),animated:true)
     }
     private func chooseKick(){
         guard !shotActive,replayIndex==nil,!engine.moving,!isPlacingBalls,cue?.sunk==false else{return}
-        let sheet=UIAlertController(title:"Chọn bi đích",message:"Giữ lực Đánh thử và ép phê hiện tại. Tìm trong bộ mô phỏng; chưa hiệu chuẩn bàn thật.",preferredStyle:.actionSheet)
+        let sheet=UIAlertController(title:"Chọn bi đích",message:"Dùng tốc độ cú vuốt gần nhất (hoặc tốc độ tham chiếu của bài) và ép phê hiện tại. Chưa hiệu chuẩn bàn thật.",preferredStyle:.actionSheet)
         for ball in balls.filter({$0.id != 0 && !$0.sunk}).sorted(by:{$0.id<$1.id}) {
             sheet.addAction(UIAlertAction(title:"Bi \(ball.id)",style:.default){[weak self]_ in
                 guard let self=self else{return}
@@ -925,7 +1080,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         sheet.addAction(UIAlertAction(title:"Hủy",style:.cancel));presentSheet(sheet)
     }
     private func findKick(target:Int,rails:Int){
-        let layout=engine.states,settings=engine.settings,speed=testSpeed,x=side,y=top
+        let layout=engine.states,settings=engine.settings,speed=referenceSpeed,x=side,y=top
         let progress=UIAlertController(title:"Đang tìm góc kick",message:"Đối chiếu đường chạy, bi cản và số băng…",preferredStyle:.alert)
         presentSheet(progress)
         DispatchQueue.global(qos:.userInitiated).async { [weak self] in
@@ -941,7 +1096,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         self.guideOn=true;self.guideDirty=true
                         self.guideButton.configuration?.title="Dự báo: bật";self.refresh()
                     }
-                    let message=hit ? String(format:"Đã tìm góc trong mô phỏng: %d băng → bi %d, %.1f m/s.\nX %+.0f / Y %+.0f %% bán kính.\n\nDùng Đánh thử để kiểm tra. Kết quả phụ thuộc thông số bàn; chưa xác nhận độ chính xác ngoài thực tế.",rails,target,speed,x*100,y*100):"Chưa tìm được góc ở lực và ép phê hiện tại trong phạm vi tìm kiếm. Thử đổi lực hoặc điểm chạm; điều này không chứng minh cú đánh bất khả thi."
+                    let message=hit ? String(format:"Đã tìm góc trong mô phỏng: %d băng → bi %d, %.1f m/s.\nX %+.0f / Y %+.0f %% bán kính.\n\nTốc độ tham chiếu từ cú trước; lực cú vuốt tiếp theo có thể khác. Kết quả phụ thuộc thông số bàn; chưa xác nhận độ chính xác ngoài thực tế.",rails,target,speed,x*100,y*100):"Chưa tìm được góc ở lực và ép phê hiện tại trong phạm vi tìm kiếm. Thử đổi lực hoặc điểm chạm; điều này không chứng minh cú đánh bất khả thi."
                     let alert=UIAlertController(title:hit ? "Đã cập nhật góc ngắm":"Chưa tìm được lời giải",message:message,preferredStyle:.alert)
                     alert.addAction(UIAlertAction(title:"Đã hiểu",style:.default));self.presentSheet(alert)
                 }
@@ -949,9 +1104,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
     }
     private func help(){
-        let message="Ngắm: kéo một ngón ngang để xoay hướng đánh, hoặc chạm mặt bàn. Kéo một ngón dọc để hạ camera sát mặt bàn hoặc nâng lên cao; mỗi lần kéo chỉ đổi một việc. Chụm/mở hai ngón để thu phóng từ góc đó.\n\nLực: đặt bằng − / + ở góc trái (thang 1–30, mỗi nấc ≈ 10% tốc độ bi). Chạm vào chữ Lực để đổi sang chế độ Cảm giác (lực theo tốc độ vuốt).\n\nĐánh: giữ nút khoá 🔒 trong suốt cú vuốt. Ngón khác kéo xuống rồi đẩy lên ở bất kỳ vùng trống nào trên bàn. Buông nút khóa để ngắm lại. Hủy vuốt khi buông khóa trước lúc đánh.\n\nGiữ quả bi effect bên phải thanh nâng cơ để phóng to, kéo để chỉnh ép phê; buông để thu nhỏ. Khi effect mở rộng, nút khoá và vuốt cơ bị khóa. Vòng 25 / 50 là phần trăm bán kính bi; vòng cam là giới hạn nhập của mô phỏng, không phải bảo đảm tránh trượt cơ ngoài thực tế. X dương sang phải, Y dương lên trên, nhìn từ đuôi cơ. Về tâm trong Menu. Cụm phải có Góc nhìn, Lùi cú và Dụng cụ (cơ, bao cơ, đặt bi, thêm 1 bi). Bài tập chỉ nằm trong Menu. Sau cú đánh camera giữ nguyên góc ngắm (đổi sang toàn cảnh trong Menu > Sau cú đánh). Khi toàn bộ bi dừng ổn định 0,5 giây, camera trở về góc ngắm 3D; khi xem lại hoặc quan sát lượt khác, camera không bị ép trả. Mặt bàn không có chữ hay số nút; nút kim cương vẫn giữ nguyên. Trong lúc bi lăn, kéo hai ngón để xoay camera và chụm/mở để thu phóng toàn cảnh.\n\nTrên Simulator không thể giữ hai điểm bằng một chuột: dùng Đánh thử trong Menu để kiểm tra.\n\n\(Drill.all[drillIndex].note)"
-        let a=UIAlertController(title:"Zoker Pool Trainer",message:message,preferredStyle:.alert);a.addAction(UIAlertAction(title:"Đã hiểu",style:.default));presentSheet(a)
+        let message="Giữ B: khóa hướng. Ngón khác kéo lùi rồi đẩy tới: tốc độ vuốt quyết định lực. Buông B để hủy. C: bật/tắt toàn bộ trợ giúp. Ngang: ngắm, dọc: nâng mắt, hai ngón: quan sát. Giữ Mắt khi bi chạy để xem toàn bàn, buông về góc cũ. Chạm + Bi thêm từng bi, giữ để xếp ngẫu nhiên.\n\nÂm thanh thu thật: bsumusictech, Za-Games, mccarthy@bedmas.com, AmberdeMeillon (CC0). ‘Pool Ball in pocket.wav’ — jtroan, CC BY 3.0, freesound.org/people/jtroan/sounds/241373/ ; creativecommons.org/licenses/by/3.0/ . Đã cắt, đổi mono/PCM, chỉnh gain và fade. Bản dùng từ HQ MP3 preview."
+        let alert=UIAlertController(title:"Điều khiển 0.17 & ghi công",message:message,preferredStyle:.alert)
+        alert.addAction(UIAlertAction(title:"Xong",style:.cancel));present(alert,animated:true)
     }
+
     private func layouts(){
         let a=UIAlertController(title:"Thế bi cá nhân",message:"Lưu vị trí, góc ngắm và tên vào máy. Có thể thêm bi trong chế độ đặt bi.",preferredStyle:.actionSheet)
         a.addAction(UIAlertAction(title:"Nhật ký luyện tập",style:.default){[weak self]_ in self?.showPracticeHistory()})
@@ -983,8 +1140,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     // MARK: HLV offline (Docs/AI-COACH-SPEC.md): luật + mô phỏng phản thực tế bằng chính solver.
     // Chỉ chạy sau cú hoặc lúc mở bài, ở chế độ Luyện; ẩn khi giữ khoá/vuốt cơ. Không có số độ khi đánh.
-    private var coachOn:Bool{UserDefaults.standard.object(forKey:"coachEnabled015") as? Bool ?? true}
-    private var diamondNumbersOn:Bool{UserDefaults.standard.object(forKey:"diamondNumbers015") as? Bool ?? true}
+    private var coachOn:Bool{coaching}
+    private var diamondNumbersOn:Bool{coaching}
     private func n1(_ v:Double)->String{String(format:"%.1f",v).replacingOccurrences(of:".",with:",")}
     private func diamondPoint(_ x:Double,_ y:Double)->String{
         "ngắn \(n1(BLDiamondAlongShort(x,geometry.width))) · dài \(n1(BLDiamondAlongLong(y,geometry.length)))"
@@ -1039,14 +1196,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard let shot=lastShot else{return passed ? "ĐẠT":"Chưa đạt"}
         var lines=[passed ? "✅ ĐẠT":(scratch ? "❌ Bi cái vào lỗ":"❌ Chưa đạt")]
         let strike=shot.strikeAngle ?? shot.aimAngle
-        // 0.16: mọi lời khuyên về lực nói bằng nấc Lực 1–30 mà người dùng chỉnh được bằng − / +.
+        // Internal numerical bins explore nearby speeds; advice uses the swipe vocabulary.
         let base=Int(BLPowerLevelForSpeed(shot.speed))
         func levelSpeed(_ l:Int)->Double{BLPowerSpeed(Int32(l))}
         func levelChange(_ to:Int)->String{
             let d=to-base
-            return "Lực \(base) → \(to) ("+(d<0 ? "nhẹ hơn":"mạnh hơn")+" \(abs(d)) nấc)"
+            return (d<0 ? "đẩy nhẹ hơn một chút":"đẩy mạnh hơn một chút")
         }
-        lines.append("Cú vừa rồi: Lực \(base)/\(BL_POWER_LEVELS)"+(powerPad.fixed ? "":" (ước từ tốc độ vuốt)")+effectLabel(shot.side,shot.top))
+        lines.append("Cú vuốt vừa rồi"+effectLabel(shot.side,shot.top))
         if d.kick {
             let contacts=railContacts(events,ball:0,untilFirstHit:true)
             if contacts.isEmpty {lines.append("Bi cái không chạm băng trước khi gặp bi.")}
@@ -1079,7 +1236,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     }
                     if let alt=alternative {
                         lines.append("👉 Một thay đổi: \(levelChange(alt.level)), giữ effect. Khi đó băng 1 cần chạm \(railLabel(alt.rail)) · nút \(n1(alt.diamond)).")
-                    } else {lines.append("Trong khoảng ±2 nấc lực quanh Lực \(base), vật lý app không tìm được đường \(d.rails) băng — thử đổi effect.")}
+                    } else {lines.append("Với vài mức vận tốc gần cú vừa rồi, vật lý app không tìm được đường \(d.rails) băng — thử đổi effect.")}
                 }
             }
         } else if let goal=d.goal {
@@ -1093,8 +1250,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         let level=Int(BLPowerClampLevel(Int32(base+delta)))
                         if level != base {candidates.append((levelChange(level)+", giữ effect",levelSpeed(level),0))}
                     }
-                    candidates.append(("giữ Lực \(base), điểm chạm cao hơn 20% bán kính (gần tới vòng 25)",shot.speed,0.2))
-                    candidates.append(("giữ Lực \(base), điểm chạm thấp hơn 20% bán kính (gần tới vòng 25)",shot.speed,-0.2))
+                    candidates.append(("giữ nhịp đẩy, điểm chạm cao hơn 20% bán kính (gần tới vòng 25)",shot.speed,0.2))
+                    candidates.append(("giữ nhịp đẩy, điểm chạm thấp hơn 20% bán kính (gần tới vòng 25)",shot.speed,-0.2))
                     counterfactual{
                         for (label,speed,dTop) in candidates {
                             let top=max(-0.6,min(0.6,shot.top+dTop))
@@ -1131,14 +1288,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         if ok && cueSafe {fix=(delta>0 ? "sang phải":"sang trái")+(abs(delta)<0.004 ? " rất ít (dưới nửa bề rộng đầu cơ)":(abs(delta)<0.007 ? " một chút":" rõ hơn"));break}
                     }
                 }
-                lines.append(fix.map{"👉 Một thay đổi: lệch hướng ngắm \($0); giữ Lực \(base) và effect."} ?? "Lệch ngắm nhỏ không cứu được cú này — thử đổi lực hoặc effect.")
+                lines.append(fix.map{"👉 Một thay đổi: lệch hướng ngắm \($0); giữ nhịp đẩy và effect."} ?? "Lệch ngắm nhỏ không cứu được cú này — thử đổi lực hoặc effect.")
             }
         }
         lines.append("Dự báo theo vật lý của app, chưa đối chiếu bàn thật. Chạm để ẩn.")
         return lines.joined(separator:"\n")
     }
     private func showCoach(_ text:String){
-        coachLabel.text=text;coachCard.alpha=1;coachCard.isHidden=locked||menuOpen
+        guard coachOn else{return}
+        coachLabel.text=text;coachCard.alpha=1;coachCard.isHidden=locked || menuOpen || !coachOn
     }
     private func hideCoach(){coachCard.alpha=0;coachCard.isHidden=true}
     private func buildCoachCard(){
@@ -1151,7 +1309,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             coachCard.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:10),
             coachCard.widthAnchor.constraint(lessThanOrEqualToConstant:360),
             coachCard.trailingAnchor.constraint(lessThanOrEqualTo:menuButton.leadingAnchor,constant:-12),
-            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:powerPad.topAnchor,constant:-10),
+            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:lockButton.topAnchor,constant:-10),
             coachLabel.leadingAnchor.constraint(equalTo:coachCard.leadingAnchor,constant:12),coachLabel.trailingAnchor.constraint(equalTo:coachCard.trailingAnchor,constant:-12),
             coachLabel.topAnchor.constraint(equalTo:coachCard.topAnchor,constant:10),coachLabel.bottomAnchor.constraint(equalTo:coachCard.bottomAnchor,constant:-10)])
         coachCard.addGestureRecognizer(UITapGestureRecognizer(target:self,action:#selector(coachTapped)))
@@ -1193,7 +1351,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard localTurn,!presentationBusy else{return}
         lockButton.releaseHold();setHold(false)
         engine.loadLayout(shot.balls.map{$0.dictionary});clearShot();initial=balls;before=balls;locked=false
-        if (engine.settings["cueType"]?.intValue ?? 0) != shot.cueType {chooseRole(shot.cueType)}
+        chooseShotKind(shot.shotKind ?? shot.cueType)
         setElevation(shot.elevation);angle=shot.aimAngle;spin.select(side:shot.side,top:shot.top)
         selectCamera(2);refresh();updateControls()
     }
@@ -1204,13 +1362,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         statusLabel.text="Đánh lại: "+shot.name
     }
     /// Xếp bi ngẫu nhiên theo seed (in ra để tái tạo): không chồng bi, cách miệng lỗ và băng.
-    private func addRandomBalls(_ count:Int){
+    private func addRandomBalls(_ count:Int,replacing:Bool=false,chosenSeed:UInt64?=nil){
         guard localTurn,!presentationBusy,!locked else{return}
-        var seed=UInt64(Date().timeIntervalSince1970*1000) & 0xFFFFFF
+        var seed=chosenSeed ?? (UInt64(Date().timeIntervalSince1970*1000) & 0xFFFFFF)
         let shown=seed
         func next()->Double{seed &+= 0x9E3779B97F4A7C15;var z=seed;z=(z^(z>>30)) &* 0xBF58476D1CE4E5B9;z=(z^(z>>27)) &* 0x94D049BB133111EB;return Double((z^(z>>31))>>11)/Double(1<<53)}
         let g=engine.settings,width=g["tableWidth"]?.doubleValue ?? 1.27,length=g["tableLength"]?.doubleValue ?? 2.54,r=g["ballRadius"]?.doubleValue ?? 0.028575
-        var state=balls.filter{!$0.sunk || $0.id==0}
+        var state=balls.filter{($0.id==0) || (!replacing && !$0.sunk)}
         var added=0,tries=0
         while added<count && tries<4000 {
             tries+=1
@@ -1224,13 +1382,29 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls
         statusLabel.text="Xếp ngẫu nhiên \(added) bi · seed \(shown)";refresh();updateControls();syncQuickRail()
     }
+    private func randomOptions(){
+        guard !presentationBusy,!isPlacingBalls else{return}
+        let alert=UIAlertController(title:"Thêm bi ngẫu nhiên",message:"Nhập seed để tái tạo cùng thế bi. Giữ nguyên bi cái và các bi đang có.",preferredStyle:.alert)
+        alert.addTextField{$0.placeholder="Số bi 1–15";$0.keyboardType = .numberPad}
+        alert.addTextField{$0.placeholder="Seed (để trống: ngẫu nhiên)";$0.keyboardType = .numberPad}
+        alert.addAction(UIAlertAction(title:"Thêm",style:.default){[weak self,weak alert]_ in
+            let count=Int(alert?.textFields?[0].text ?? "") ?? 3
+            let seed=UInt64(alert?.textFields?[1].text ?? "")
+            self?.addRandomBalls(max(1,min(15,count)),chosenSeed:seed)
+        })
+        alert.addAction(UIAlertAction(title:"Hủy",style:.cancel));present(alert,animated:true)
+    }
     private func addBall(){
         guard localTurn,!presentationBusy,!locked else{return}
-        var state=balls;guard let id=(1...15).first(where:{id in !state.contains{$0.id==id}})else{return}
+        var state=balls.filter{!$0.sunk || $0.id==0};guard let id=(1...15).first(where:{id in !state.contains{$0.id==id}})else{statusLabel.text="Đã đủ 15 bi mục tiêu";return}
         for row in 0..<8 {for col in 0..<5 {
             let x = -0.4+Double(col)*0.2,y = -0.9+Double(row)*0.25
             if !state.contains(where:{!$0.sunk && hypot($0.x-x,$0.y-y)<0.065}) {
-                state.append(BallState(id:id,x:x,y:y));engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls;if !isPlacingBalls{toggleEdit()};refresh();updateControls();return
+                let previous=balls
+                state.append(BallState(id:id,x:x,y:y));engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls
+                editingSnapshot=previous;editingPose=captureCamera();isPlacingBalls=true;selectCamera(1)
+                statusLabel.text="Đã thêm bi \(id) · kéo bi mới để đặt · Xong / Hủy"
+                refresh();updateControls();return
             }
         }}
     }
@@ -1286,9 +1460,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
             alert.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(alert)
         })
-        let overviewOn=UserDefaults.standard.bool(forKey:"overviewAfterShot014")
+        let overviewOn=autoCamera
         a.addAction(UIAlertAction(title:overviewOn ? "✓ Sau cú đánh: chuyển toàn cảnh":"Sau cú đánh: giữ góc ngắm",style:.default){_ in
-            UserDefaults.standard.set(!overviewOn,forKey:"overviewAfterShot014")
+            UserDefaults.standard.set(!overviewOn,forKey:"autoCamera017")
         })
         a.addAction(UIAlertAction(title:"Khôi phục góc máy",style:.default){[weak self]_ in self?.table.orbit=0;self?.table.zoom=1;self?.table.aimPitch=TableScene.defaultAimPitch
             UserDefaults.standard.removeObject(forKey:"aimCameraPitch014");UserDefaults.standard.removeObject(forKey:"aimCameraZoom013")})
@@ -1357,90 +1531,55 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
 }
 
-/// Original synthesized pool impacts; no third-party recording is bundled.
-/// 0.15: AVAudioEngine + bộ đệm PCM nạp sẵn + 12 voice cố định (không tạo AVAudioPlayer mỗi va chạm).
-/// Phiên âm thanh .playback + mixWithOthers: vẫn có tiếng khi iPhone gạt im lặng (bản cũ .ambient bị câm).
+/// Recorded pool impacts. Source, licence, trimming and hashes: Tools/AudioSources/manifest.json.
 final class PoolAudio {
     private let engine=AVAudioEngine()
     private let format=AVAudioFormat(standardFormatWithSampleRate:44100,channels:1)!
     private var nodes=[AVAudioPlayerNode]()
-    private var next=0
-    private var buffers=[Int:AVAudioPCMBuffer]()
+    private var next=0,variation=0
+    private var buffers=[[AVAudioPCMBuffer]]()
     private(set) var scheduled=0
     private(set) var started=false
+    var sampleCount:Int{buffers.reduce(0){$0+$1.count}}
     init(){
         let session=AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback,mode:.default,options:[.mixWithOthers])
-        try? session.setActive(true)
-        for _ in 0..<12 {
-            let node=AVAudioPlayerNode();engine.attach(node)
-            engine.connect(node,to:engine.mainMixerNode,format:format);nodes.append(node)
+        try? session.setCategory(.playback,mode:.default,options:[.mixWithOthers]);try? session.setActive(true)
+        for _ in 0..<12 {let node=AVAudioPlayerNode();engine.attach(node);engine.connect(node,to:engine.mainMixerNode,format:format);nodes.append(node)}
+        for names in [["PoolRail0"],["PoolBall0","PoolBall1","PoolBall2","PoolBall3"],["PoolPocket0"],["PoolCue0"]] {
+            buffers.append(names.map{name in
+                guard let data=NSDataAsset(name:name)?.data else{preconditionFailure("Missing recorded audio: \(name)")}
+                return Self.buffer(data,format:format)
+            })
         }
-        for kind in 0...3 {for level in 1...8 {buffers[kind*8+level]=Self.buffer(Self.synthesize(kind:kind,impact:Double(level)*0.4),format:format)}}
         engine.prepare();start()
         NotificationCenter.default.addObserver(forName:AVAudioSession.interruptionNotification,object:nil,queue:.main){[weak self] note in
-            let raw=note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
-            if raw==AVAudioSession.InterruptionType.ended.rawValue {self?.start()}
+            if (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt)==AVAudioSession.InterruptionType.ended.rawValue{self?.start()}
         }
-        NotificationCenter.default.addObserver(forName:.AVAudioEngineConfigurationChange,object:engine,queue:.main){[weak self] _ in self?.start()}
-        NotificationCenter.default.addObserver(forName:UIApplication.didBecomeActiveNotification,object:nil,queue:.main){[weak self] _ in self?.start()}
+        NotificationCenter.default.addObserver(forName:.AVAudioEngineConfigurationChange,object:engine,queue:.main){[weak self]_ in self?.start()}
+        NotificationCenter.default.addObserver(forName:UIApplication.didBecomeActiveNotification,object:nil,queue:.main){[weak self]_ in self?.start()}
     }
     private func start(){
-        if engine.isRunning {started=true;return}
-        do {try AVAudioSession.sharedInstance().setActive(true);try engine.start();started=true}
-        catch {started=false;NSLog("PoolAudio: engine start failed %@",String(describing:error))}
+        if engine.isRunning{started=true;return}
+        do{try AVAudioSession.sharedInstance().setActive(true);try engine.start();started=true}catch{started=false;NSLog("PoolAudio: %@",String(describing:error))}
     }
     var isRunning:Bool{engine.isRunning}
-    /// kind: 0 băng, 1 bi–bi, 2 rơi lỗ, 3 đầu cơ chạm bi.
     func play(kind:Int,impact:Double,pan:Double){
-        if !engine.isRunning {start()}
-        guard engine.isRunning else{return}
-        let level=max(1,min(8,Int(ceil(max(0,impact)/0.4))))
-        let type=max(0,min(3,kind))
-        guard let buffer=buffers[type*8+level] else{return}
-        let node=nodes[next];next=(next+1)%nodes.count
-        node.stop()
-        node.pan=Float(max(-1,min(1,pan/0.72)))
-        node.volume=Float(type==2 ? 0.95:(type==3 ? 0.85:0.75))
-        node.scheduleBuffer(buffer,at:nil,options:[],completionHandler:nil)
-        node.play();scheduled+=1
+        guard impact.isFinite,pan.isFinite else{return}
+        if !engine.isRunning{start()};guard engine.isRunning else{return}
+        let type=max(0,min(3,kind)),variants=buffers[max(0,min(3,kind))]
+        let buffer=variants[variation%variants.count];variation+=1
+        let node=nodes.first(where:{!$0.isPlaying}) ?? nodes[next];next=(next+1)%nodes.count
+        node.stop();node.pan=Float(max(-1,min(1,pan)))
+        let gain=pow(max(0.005,min(1,impact/3.2)),0.65)
+        node.volume=Float(min(0.95,gain * (type==0 ? 0.8:1)))
+        node.scheduleBuffer(buffer,at:nil,options:[]);node.play();scheduled+=1
     }
     private static func buffer(_ wav:Data,format:AVAudioFormat)->AVAudioPCMBuffer{
-        // WAV 16-bit mono 44,1 kHz; dữ liệu PCM bắt đầu sau header 44 byte.
+        precondition(wav.count>44 && String(data:wav.prefix(4),encoding:.ascii)=="RIFF","Invalid recorded WAV")
         let pcm=wav.dropFirst(44),frames=pcm.count/2
-        let out=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(frames))!
-        out.frameLength=AVAudioFrameCount(frames)
+        let out=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(frames))!;out.frameLength=AVAudioFrameCount(frames)
         let channel=out.floatChannelData![0]
-        pcm.withUnsafeBytes{raw in
-            for i in 0..<frames {channel[i]=Float(Int16(littleEndian:raw.loadUnaligned(fromByteOffset:i*2,as:Int16.self)))/32768}
-        }
+        pcm.withUnsafeBytes{raw in for i in 0..<frames{channel[i]=Float(Int16(littleEndian:raw.loadUnaligned(fromByteOffset:i*2,as:Int16.self)))/32768}}
         return out
     }
-    static func synthesize(kind:Int,impact:Double)->Data{
-        let count=kind==2 ? 15000:(kind==0 ? 10500:8500)
-        let force=min(1,max(0.12,impact/3.2)),decay=kind==2 ? 22.0:(kind==0 ? 31.0:38.0)
-        let mode:Double=kind==2 ? 510:(kind==0 ? 930:(kind==3 ? 1280:1650))
-        var pcm=Data();pcm.reserveCapacity(count*2)
-        var seed=UInt32(0x7a09e667 ^ UInt32(truncatingIfNeeded:Int(impact*10000)))
-        for i in 0..<count{
-            seed=1664525 &* seed &+ 1013904223
-            let noise=Double(Int32(bitPattern:seed))/Double(Int32.max),t=Double(i)/44100
-            let env=exp(-decay*t),ring=sin(2*Double.pi*mode*t)*exp(-55*t)
-            let secondary=sin(2*Double.pi*(mode*1.91)*t)*exp(-78*t)
-            let rattle=(kind==0 || kind==2) ? sin(2*Double.pi*(mode*2.7)*t)*exp(-18*t)*0.18:0
-            let sample=max(-1,min(1,force*(noise*0.22*env+ring*0.52+secondary*0.23+rattle)*0.78))
-            let value=Int16(sample*32767);var little=value.littleEndian
-            withUnsafeBytes(of:&little){pcm.append(contentsOf:$0)}
-        }
-        var wav=Data("RIFF".utf8)
-        func u16(_ value:UInt16){var v=value.littleEndian;withUnsafeBytes(of:&v){wav.append(contentsOf:$0)}}
-        func u32(_ value:UInt32){var v=value.littleEndian;withUnsafeBytes(of:&v){wav.append(contentsOf:$0)}}
-        u32(UInt32(36+pcm.count));wav.append(contentsOf:"WAVEfmt ".utf8);u32(16);u16(1);u16(1);u32(44100);u32(88200);u16(2);u16(16)
-        wav.append(contentsOf:"data".utf8);u32(UInt32(pcm.count));wav.append(pcm)
-        return wav
-    }
-}
-
-private extension String {
-    var nilIfEmpty:String?{isEmpty ? nil:self}
 }
