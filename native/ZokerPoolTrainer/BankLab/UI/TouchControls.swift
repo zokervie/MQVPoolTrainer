@@ -167,18 +167,11 @@ final class HoldLockControl:UIControl {
         ctx.fillEllipse(in:circle)
         ctx.setStrokeColor(UIColor.white.withAlphaComponent(isEnabled ? (held ? 0.65:0.24):0.1).cgColor)
         ctx.setLineWidth(1);ctx.strokeEllipse(in:circle)
-        // 0.16: biểu tượng ổ khoá + chữ "GIỮ" thay chữ "B" (hành vi giữ-để-khoá không đổi).
-        let ink=UIColor.white.withAlphaComponent(isEnabled ? (held ? 0.95:0.70):0.18)
-        let symbol=UIImage(systemName:held ? "lock.fill":"lock.open",withConfiguration:UIImage.SymbolConfiguration(pointSize:20,weight:.semibold))?
-            .withTintColor(ink,renderingMode:.alwaysOriginal)
-        let caption=(held ? "B · VUỐT" : "B · GIỮ") as NSString
-        let attributes:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:10,weight:.bold),.foregroundColor:ink,.kern:0.6]
-        let captionSize=caption.size(withAttributes:attributes)
-        if let symbol=symbol {
-            let total=symbol.size.height+2+captionSize.height
-            symbol.draw(at:CGPoint(x:bounds.midX-symbol.size.width/2,y:bounds.midY-total/2))
-            caption.draw(at:CGPoint(x:bounds.midX-captionSize.width/2,y:bounds.midY-total/2+symbol.size.height+2),withAttributes:attributes)
-        }
+        let ink=UIColor.white.withAlphaComponent(isEnabled ? (held ? 1:0.80):0.18)
+        let caption="B" as NSString
+        let attributes:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:bounds.height*0.46,weight:.bold),.foregroundColor:ink]
+        let size=caption.size(withAttributes:attributes)
+        caption.draw(at:CGPoint(x:bounds.midX-size.width/2,y:bounds.midY-size.height/2),withAttributes:attributes)
     }
     override func touchesBegan(_ touches:Set<UITouch>,with event:UIEvent?){
         guard isEnabled,finger==nil,let touch=touches.first else{return}

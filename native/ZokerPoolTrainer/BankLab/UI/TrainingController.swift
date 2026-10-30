@@ -344,7 +344,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spinWidth,spinHeight,
             lockButton.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),
             lockButton.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12),
-            lockButton.widthAnchor.constraint(equalToConstant:68),lockButton.heightAnchor.constraint(equalToConstant:68)])
+            lockButton.widthAnchor.constraint(equalToConstant:UIDevice.current.userInterfaceIdiom == .pad ? 92:72),lockButton.heightAnchor.constraint(equalToConstant:UIDevice.current.userInterfaceIdiom == .pad ? 92:72)])
         coachButton.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(coachButton)
         coachButton.setTitle("Coach",for:.normal);coachButton.titleLabel?.font = .systemFont(ofSize:11,weight:.bold)
         coachButton.layer.cornerRadius=9;coachButton.backgroundColor=UIColor(white:0.08,alpha:0.7)
@@ -379,7 +379,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             panel.widthAnchor.constraint(equalToConstant:318),
             scroll.leadingAnchor.constraint(equalTo:panel.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:panel.trailingAnchor),
             scroll.topAnchor.constraint(equalTo:panel.topAnchor),scroll.bottomAnchor.constraint(equalTo:panel.bottomAnchor)])
-        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Z-Trainer · 0.18 · Luyện tập";brand.textColor=MenuSkin.gold
+        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Z-Trainer · 0.19 · Luyện tập";brand.textColor=MenuSkin.gold
         text(titleLabel,14,.white,.bold);text(statusLabel,12,.mint);text(scoreLabel,12,.white);text(hintLabel,12,.mint)
         for label in [titleLabel,statusLabel,scoreLabel,hintLabel]{label.numberOfLines=0}
         hintLabel.text=strokeHint
@@ -1452,16 +1452,28 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         statusLabel.text="Xếp ngẫu nhiên \(added) bi · seed \(shown)";refresh();updateControls();syncQuickRail()
     }
     func randomOptions(){
-        guard !presentationBusy,!isPlacingBalls else{return}
-        let alert=UIAlertController(title:"Thêm bi ngẫu nhiên",message:"Nhập seed để tái tạo cùng thế bi. Giữ nguyên bi cái và các bi đang có.",preferredStyle:.alert)
+        guard matchAllowsEditing,!presentationBusy,!isPlacingBalls else{return}
+        let alert=UIAlertController(title:"Thêm bi",message:"Nhập số bi 1–15. Ngẫu nhiên tạo vị trí mới; Mặc định xếp theo hàng, giữ nguyên bi trên bàn.",preferredStyle:.alert)
         alert.addTextField{$0.placeholder="Số bi 1–15";$0.keyboardType = .numberPad}
-        alert.addTextField{$0.placeholder="Seed (để trống: ngẫu nhiên)";$0.keyboardType = .numberPad}
-        alert.addAction(UIAlertAction(title:"Thêm",style:.default){[weak self,weak alert]_ in
-            let count=Int(alert?.textFields?[0].text ?? "") ?? 3
-            let seed=UInt64(alert?.textFields?[1].text ?? "")
-            self?.addRandomBalls(max(1,min(15,count)),chosenSeed:seed)
-        })
+        for random in [true,false] {
+            alert.addAction(UIAlertAction(title:random ? "Ngẫu nhiên":"Mặc định",style:.default){[weak self,weak alert]_ in
+                guard let self=self,let count=Int(alert?.textFields?.first?.text ?? ""),(1...15).contains(count) else{self?.notifyStatus("Nhập số nguyên từ 1 đến 15");return}
+                if random{self.addRandomBalls(count)}else{self.addDefaultBalls(count)}
+            })
+        }
         alert.addAction(UIAlertAction(title:"Hủy",style:.cancel));present(alert,animated:true)
+    }
+    func addDefaultBalls(_ count:Int){
+        guard matchAllowsEditing,localTurn,!presentationBusy,!locked else{return}
+        var state=balls.filter{!$0.sunk || $0.id==0};var added=0
+        for row in 0..<7 {for col in 0..<5 {
+            guard added<count,let id=(1...15).first(where:{id in !state.contains{$0.id==id}}) else{continue}
+            let x = -0.4+Double(col)*0.2,y = -0.9+Double(row)*0.3
+            if state.contains(where:{!$0.sunk && hypot($0.x-x,$0.y-y)<0.065}){continue}
+            state.append(BallState(id:id,x:x,y:y));added+=1
+        }}
+        engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls
+        refresh();updateControls();notifyStatus("Đã thêm \(added) / \(count) bi · bố trí mặc định")
     }
     func addBall(){
         guard matchAllowsEditing else{return}
