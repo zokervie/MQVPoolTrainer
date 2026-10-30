@@ -23,6 +23,23 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var qaAwaitingAimReturn=false,qaPeekReleased=false
     var qaExpectedCameraAngle=0.0
     var frames:[[BallState]]=[],frameTimes:[Double]=[],replayIndex:Int?,replayClock=0.0
+    var aimBuffer:[ReplayAimSample]=[],lastPreparation:[ReplayAimSample]=[]
+    var replayPreparation:ReplayAimSample?
+    var replayRenderedCueType:Int?
+    var replayEquipment:(Int,Double)?
+    var replayStrikePlayed=false
+    var preparationDuration:Double{lastPreparation.last?.time ?? 0}
+    func capturePreparation(time:Double){
+        guard localTurn,!presentationBusy,!menuOpen,!isPlacingBalls,cue?.sunk==false else{aimBuffer.removeAll();return}
+        if let last=aimBuffer.last {
+            if time-last.time>0.5{aimBuffer.removeAll()}
+            else if time-last.time<1.0/30.0{return}
+        }
+        let sample=ReplayAimSample(time:time,angle:angle,side:side,top:top,pull:pull,mode:table.cameraMode,zoom:table.zoom,orbit:table.orbit,pitch:table.orbitPitch,aimPitch:table.aimPitch,cameraYaw:aimCameraYaw,elevation:table.cueElevation,cueType:engine.settings["cueType"]?.intValue ?? 0)
+        guard sample.isValid else{return}
+        aimBuffer.append(sample);aimBuffer.removeAll{time-$0.time>8}
+        if aimBuffer.count>241{aimBuffer.removeFirst(aimBuffer.count-241)}
+    }
     var paths:[Int:[SIMD3<Float>]]=[:]
     var sampleClock=0.0,draggedBall:Int?
     var displayDurations:[Double]=[]
@@ -89,7 +106,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var renderUntil=0.0,lastStatusTime=0.0
     var replayPreparing=false,archiveGeneration=0,activeArchiveID:String?
     var replayPlan:ReplayDirector.Plan?
-    struct ReplayReturnState {var frames:[[BallState]];var times:[Double];var events:[[String:NSNumber]];var shot:SavedShot?;var paths:[Int:[SIMD3<Float>]];var coach:Bool}
+    struct ReplayReturnState {var frames:[[BallState]];var times:[Double];var events:[[String:NSNumber]];var shot:SavedShot?;var paths:[Int:[SIMD3<Float>]];var coach:Bool;var preparation:[ReplayAimSample]}
     var archiveReturn:ReplayReturnState?
     let predictionQueue=DispatchQueue(label:"ZTrainer.prediction",qos:.utility)
     var predictionPending=false,predictionGeneration=0,coachGeneration=0
@@ -141,6 +158,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             loadShowcase()
             let args=ProcessInfo.processInfo.arguments
             if args.contains("--ux017-qa"){loadDrill(0)}
+            if args.contains("--replay-preroll-qa") {
+                loadDrill(8);table.cameraMode=2
+                DispatchQueue.main.asyncAfter(deadline:.now()+9){[weak self] in
+                    guard let self=self else{return};self.locked=true;self.shoot(0.5)
+                }
+            }
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}
             if args.contains("--ux018-match-rotation-qa"){startMatch(rule:"rotation15",network:false)}
             if args.contains("--ux017-shot-qa") {
@@ -657,6 +680,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func clearShot(){
         coachGeneration+=1;predictionGeneration+=1
         if replayIndex != nil{stopReplay()};releasePeek();replayBar.isHidden=true
+        aimBuffer=[];lastPreparation=[];replayPreparation=nil
         frames=[];frameTimes=[];paths=[:];shotActive=false;replayIndex=nil;lastEventCount=0
         BLShotCameraReset(&shotCameraState);table.trails([:]);guideDirty=true
         table.resetPocketPresentation();shotCameraAnchor=nil
@@ -806,6 +830,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func shoot(_ speed:Double){
         if routeMatchShot(speed){return}
         guard locked,strokeAllowed,speed.isFinite,speed>0 else{return}
+        capturePreparation(time:ProcessInfo.processInfo.systemUptime)
+        let origin=aimBuffer.first?.time ?? 0
+        lastPreparation=aimBuffer.map{var sample=$0;sample.time-=origin;return sample}
+        aimBuffer.removeAll()
         coachGeneration+=1;predictionGeneration+=1
         lastShotSpeed=speed
         displayDurations=[]
@@ -831,6 +859,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if lastTime==0{wakeRendering()}
         let dt=lastTime==0 ? 0:min(0.1,max(0,link.timestamp-lastTime));lastTime=link.timestamp
         frameStateCache=nil;defer{frameStateCache=nil}
+        capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let guestTick=matchGuestTick(dt)
         let active=(shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
         let guestMoving=guestTick && matchPlay.session.isConnected && matchPlay.session.latestSnapshot?.isMoving==true
@@ -841,7 +870,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let wasSimulating=shotActive,wasReplaying=replayIndex != nil
         if let index=replayIndex {
             let direction=replayPlan?.frame(time:replayClock,balls:frames[index])
-            replayClock += replayPaused ? 0:dt*replaySpeed*(replayAuto && !cameraManual ? (direction?.slowMotion ?? 1):1)
+            let endingRate=ReplayDirector.endingRate(time:replayClock,duration:frameTimes.last ?? 0)
+            let rate=replayClock<0 ? 1:min(endingRate,replayAuto && !cameraManual ? (direction?.slowMotion ?? 1):1)
+            replayClock += replayPaused ? 0:dt*replaySpeed*rate
             var i=index
             while i+1<frames.count && replayClock>=frameTimes[i+1] {i+=1}
             if replayClock>=(frameTimes.last ?? 0)+0.25 {stopReplay()}
@@ -850,7 +881,22 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 let j=min(i+1,frames.count-1)
                 let span=frameTimes[j]-frameTimes[i]
                 table.replay(frames[i],to:frames[j],fraction:span>0 ? (replayClock-frameTimes[i])/span:0)
-                replaySlider.value=Float(replayClock);directCamera(time:replayClock,state:frames[i],replay:true)
+                replayPreparation=nil
+                if replayClock<0 {
+                    let clock=replayClock+preparationDuration
+                    replayPreparation=lastPreparation.last(where:{$0.time<=clock}) ?? lastPreparation.first
+                    if let sample=replayPreparation,replayAuto,!cameraManual {
+                        table.cameraMode=sample.mode;table.zoom=sample.zoom;table.orbit=sample.orbit
+                        table.orbitPitch=sample.pitch;table.aimPitch=sample.aimPitch;table.focusBounds=nil
+                    }
+                }else{
+                    directCamera(time:replayClock,state:frames[i],replay:true)
+                    if !replayStrikePlayed {
+                        replayStrikePlayed=true
+                        if !replayPaused,UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true{poolAudio.play(kind:3,impact:lastShot?.speed ?? 1,pan:0)}
+                    }
+                }
+                replaySlider.value=Float(replayClock)
                 if !replayPaused {playReplayAudio()}
             }
         }else if shotActive && !guestTick && !matchSimulationPaused {
@@ -903,12 +949,20 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if replayIndex==nil,let anchor=shotCameraAnchor {cameraCue=anchor}
         if displayCue?.sunk==true,let anchor=shotCameraAnchor {cameraCue=anchor}
         var cameraAngle=(shotActive ? liveCameraAngle:angle)+aimCameraYaw
-        if replayIndex != nil {cameraCue=frames.first?.first(where:{$0.id==0});cameraAngle=(lastShot?.aimAngle ?? angle)+replayYaw}
+        if replayIndex != nil {cameraCue=frames.first?.first(where:{$0.id==0});cameraAngle=(replayPreparation?.angle ?? lastShot?.aimAngle ?? angle)+replayYaw
+            if let sample=replayPreparation,replayAuto,!cameraManual{cameraAngle=sample.angle+sample.cameraYaw}
+        }
         let blend=BLCameraTweenBlend(cameraTransition,dt,cameraTransitionDuration)
         table.placeCamera(cue:cameraCue,angle:cameraAngle,aspect:scn.bounds.width/max(1,scn.bounds.height),blend:Float(blend))
         cameraTransition=max(0,cameraTransition-dt)
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)}
-        table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f",preparationDuration,replayClock)}
+        if let sample=replayPreparation,replayIndex != nil {
+            if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
+            table.cueElevation=sample.elevation
+            table.showCue(displayCue,angle:sample.angle,visible:true,pull:sample.pull,side:sample.side,top:sample.top)
+        }else{
+            table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
+        }
         let show=coachOn && guideOn && !presentationBusy && localTurn && !isPlacingBalls
         if !show && lastGuideVisible {
             table.prediction([],visible:false);lastGuideVisible=false
@@ -996,19 +1050,21 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard localTurn,!shotActive,!frames.isEmpty,!isPlacingBalls else{return}
         lockButton.releaseHold();setHold(false)
         if replayIndex != nil{stopReplay();return}
-        hideCoach();table.resetPocketPresentation();replayPlan=ReplayDirector.Plan(duration:frameTimes.last ?? 0,events:lastShotEvents,initialAngle:lastShot?.aimAngle ?? angle);replayOrigin=captureCamera();replayIndex=0;replayClock=0;replayYaw=0;replayAudioIndex=0
+        hideCoach();table.resetPocketPresentation();replayPlan=ReplayDirector.Plan(duration:frameTimes.last ?? 0,events:lastShotEvents,initialAngle:lastShot?.aimAngle ?? angle);replayOrigin=captureCamera();replayEquipment=(engine.settings["cueType"]?.intValue ?? 0,table.cueElevation);replayRenderedCueType=nil;replayPreparation=nil;replayStrikePlayed=false;replayIndex=0;replayClock = -preparationDuration;replayYaw=0;replayAudioIndex=0
         replayPaused=false;replayAuto=true;cameraManual=false;lastDirectorTime = -10
         if let pose=savedAimCamera{applyCamera(pose)}else{table.cameraMode=2}
-        replaySlider.maximumValue=Float(frameTimes.last ?? 1);replaySlider.value=0
+        replaySlider.minimumValue=Float(-preparationDuration);replaySlider.maximumValue=Float(frameTimes.last ?? 1);replaySlider.value=Float(replayClock)
         replayBar.isHidden=false;menuButton.isHidden=true;replayPause.setTitle("Dừng",for:.normal)
         statusLabel.text="Xem lại · kéo để đổi góc · tua để xem điểm chạm"
         applyReplayCoach();wakeRendering()
         updateControls()
     }
     func stopReplay(){
+        replayPreparation=nil;replayRenderedCueType=nil
+        if let equipment=replayEquipment{table.selectCue(equipment.0);table.cueElevation=equipment.1};replayEquipment=nil
         replayIndex=nil;replayPlan=nil;replayBar.isHidden=true;menuButton.isHidden=false;table.resetPocketPresentation()
         if let saved=archiveReturn {
-            frames=saved.frames;frameTimes=saved.times;lastShotEvents=saved.events;lastShot=saved.shot;paths=saved.paths;coaching=saved.coach;archiveReturn=nil
+            frames=saved.frames;frameTimes=saved.times;lastShotEvents=saved.events;lastShot=saved.shot;paths=saved.paths;coaching=saved.coach;lastPreparation=saved.preparation;archiveReturn=nil
         }
         activeArchiveID=nil;table.update(balls,dt:0)
         if let pose=replayOrigin{applyCamera(pose)};replayOrigin=nil;observationCamera=false
@@ -1029,7 +1085,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         replayAutoButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.replayAuto.toggle();self.cameraManual = !self.replayAuto;self.lastDirectorTime = -10;self.replayAutoButton.setTitle(self.replayAuto ? "Auto":"Tay",for:.normal)},for:.touchUpInside)
         close.addAction(UIAction{[weak self]_ in self?.stopReplay()},for:.touchUpInside)
         replaySlider.addAction(UIAction{[weak self]_ in
-            guard let self=self,self.replayIndex != nil else{return};self.replayClock=Double(self.replaySlider.value)
+            guard let self=self,self.replayIndex != nil else{return};self.replayClock=Double(self.replaySlider.value);self.replayStrikePlayed=self.replayClock>=0
             self.replayIndex=self.frameTimes.lastIndex(where:{$0<=self.replayClock}) ?? 0
             self.replayAudioIndex=self.lastShotEvents.prefix(while:{($0["time"]?.doubleValue ?? 0)<=self.replayClock}).count
             self.lastDirectorTime = -10;self.table.resetPocketPresentation();self.wakeRendering()
@@ -1087,6 +1143,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             cameraTransition=0;g.setTranslation(.zero,in:scn);return
         }
         if replayIndex != nil,!menuOpen {
+            if !cameraManual,let sample=replayPreparation{replayYaw=sample.cameraYaw}
             cameraManual=true;replayAuto=false;replayAutoButton.setTitle("Tay",for:.normal)
             let delta=g.translation(in:scn)
             if table.cameraMode==2{replayYaw+=Double(delta.x)*0.004}else{table.orbit+=Float(delta.x)*0.006;table.orbitPitch=max(0.2,min(1.4,table.orbitPitch+Float(delta.y)*0.004))}
@@ -1130,6 +1187,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     @objc func orbitTable(_ g:UIPanGestureRecognizer){
         guard !menuOpen,!spinExpanded,!locked else{return}
         let delta=g.translation(in:scn)
+        if replayIndex != nil,!cameraManual,let sample=replayPreparation{replayYaw=sample.cameraYaw}
         cameraManual=true;if replayIndex != nil{replayAuto=false;replayAutoButton.setTitle("Tay",for:.normal)};table.focusBounds=nil
         wakeRendering()
         if table.cameraMode==2 {
@@ -1140,6 +1198,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     @objc func pinchTable(_ g:UIPinchGestureRecognizer){
         guard !menuOpen,!spinExpanded,!locked else{return}
+        if replayIndex != nil,!cameraManual,let sample=replayPreparation{replayYaw=sample.cameraYaw}
         cameraManual=true;if replayIndex != nil{replayAuto=false;replayAutoButton.setTitle("Tay",for:.normal)};table.focusBounds=nil
         wakeRendering();cameraTransition=0;table.zoom=max(0.45,min(2.6,table.zoom/Float(g.scale)));g.scale=1
         if table.cameraMode==2 && !observationCamera && replayIndex==nil{
@@ -1354,7 +1413,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         alert.addAction(UIAlertAction(title:"Lưu",style:.default){[weak self,weak alert]_ in
             shot.name=alert?.textFields?.first?.text?.trimmingCharacters(in:.whitespaces).nilIfEmpty ?? "Cú đã lưu"
             guard let self=self else{return};shot.coachVisible=self.coaching
-            let recording=ShotRecording(frames:self.frames,frameTimes:self.frameTimes,events:self.lastShotEvents)
+            let recording=ShotRecording(frames:self.frames,frameTimes:self.frameTimes,events:self.lastShotEvents,preparation:self.lastPreparation)
             ShotArchive.shared.save(recording){[weak self] result in
                 switch result {
                 case .success(let id):shot.recordingID=id;var all=SavedShot.all();all.append(shot);SavedShot.store(all);self?.notifyStatus("Đã lưu: "+shot.name);self?.syncQuickRail()
@@ -1382,8 +1441,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             switch result {
             case .failure(let error):self.notifyStatus("Không mở được cú: "+error.localizedDescription);self.updateControls()
             case .success(let record):
-                self.archiveReturn=ReplayReturnState(frames:self.frames,times:self.frameTimes,events:self.lastShotEvents,shot:self.lastShot,paths:self.paths,coach:self.coaching)
-                self.frames=record.frames;self.frameTimes=record.frameTimes;self.lastShotEvents=record.events;self.lastShot=shot;self.paths=[:]
+                self.archiveReturn=ReplayReturnState(frames:self.frames,times:self.frameTimes,events:self.lastShotEvents,shot:self.lastShot,paths:self.paths,coach:self.coaching,preparation:self.lastPreparation)
+                self.frames=record.frames;self.frameTimes=record.frameTimes;self.lastShotEvents=record.events;self.lastPreparation=record.preparation ?? [];self.lastShot=shot;self.paths=[:]
                 for frame in record.frames{for ball in frame where !ball.sunk{self.paths[ball.id,default:[]].append(SIMD3(Float(ball.x),Float((ball.height ?? 0)+0.004),Float(ball.y)))}}
                 self.coaching=shot.coachVisible ?? false;self.activeArchiveID=shot.recordingID;self.replay()
             }

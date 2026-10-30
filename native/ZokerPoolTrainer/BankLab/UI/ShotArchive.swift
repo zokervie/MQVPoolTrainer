@@ -1,5 +1,30 @@
 import Foundation
 
+/// Recorded aim/stroke and camera before the native shot clock starts.
+struct ReplayAimSample: Codable {
+    var time: Double
+    var angle: Double
+    var side: Double
+    var top: Double
+    var pull: Double
+    var mode: Int
+    var zoom: Float
+    var orbit: Float
+    var pitch: Float
+    var aimPitch: Float
+    var cameraYaw: Double
+    var elevation: Double
+    var cueType: Int
+    var isValid: Bool {
+        let input: [Double] = [time,angle,side,top,pull,cameraYaw,elevation]
+        let camera: [Float] = [zoom,orbit,pitch,aimPitch]
+        return input.allSatisfy{$0.isFinite} && camera.allSatisfy{$0.isFinite} &&
+            (0...2).contains(mode) && (0...2).contains(cueType) &&
+            (0.45...2.6).contains(zoom) && (0...90).contains(elevation) &&
+            abs(side)<=0.71 && abs(top)<=0.71 && (0...1).contains(pull)
+    }
+}
+
 /// Immutable presentation snapshots. Playback reads this value and never changes
 /// the live BLWorld. Small shot inputs/labels stay in SavedShot for legacy replay.
 struct ShotRecording: Codable {
@@ -8,11 +33,13 @@ struct ShotRecording: Codable {
     let createdAt: Date
     let frames: [[BallState]]
     let frameTimes: [Double]
+    let preparation: [ReplayAimSample]?
     private let recordedEvents: [[String: Double]]
 
-    init(frames: [[BallState]], frameTimes: [Double], events: [[String: NSNumber]]) {
+    init(frames: [[BallState]], frameTimes: [Double], events: [[String: NSNumber]], preparation: [ReplayAimSample]? = nil) {
         schemaVersion = Self.currentVersion
         createdAt = Date()
+        self.preparation = preparation
         self.frames = frames
         self.frameTimes = frameTimes
         recordedEvents = events.map { event in event.mapValues { $0.doubleValue } }
@@ -33,6 +60,15 @@ struct ShotRecording: Codable {
               let firstTime = frameTimes.first, firstTime.isFinite, firstTime >= 0,
               firstTime <= 0.05, duration.isFinite, duration <= 120 else {
             throw ShotArchiveError.invalidRecording
+        }
+        if let preparation = preparation, !preparation.isEmpty {
+            guard preparation.count <= 241, abs(preparation[0].time) < 0.001,
+                  let end = preparation.last?.time, end >= 0, end <= 8.01 else { throw ShotArchiveError.invalidRecording }
+            var previous = -Double.infinity
+            for sample in preparation {
+                guard sample.isValid, sample.time >= previous else { throw ShotArchiveError.invalidRecording }
+                previous = sample.time
+            }
         }
         var previousTime = -Double.infinity
         var expectedIDs: Set<Int>?

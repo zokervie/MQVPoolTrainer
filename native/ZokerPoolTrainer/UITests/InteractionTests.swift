@@ -307,4 +307,18 @@ final class InteractionTests: XCTestCase {
         app.buttons["ReplayDone"].tap()
     }
 
+    func testReplayIncludesActualPreparationBeforeNativeShotClock() {
+        let (app,scene)=launch(["--replay-preroll-qa"])
+        wait(scene,timeout:30){self.field(scene,"preRoll")>5 && self.field(scene,"moving")==0}
+        XCTAssertGreaterThan(field(scene,"preRoll"),5)
+        XCTAssertLessThanOrEqual(field(scene,"preRoll"),8.01)
+        let button=quick(app,"QuickReplay")
+        expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:button)
+        waitForExpectations(timeout:15);button.tap()
+        wait(scene,timeout:5){self.field(scene,"replay")==1 && self.field(scene,"replayTime")<0}
+        app.buttons["ReplayPause"].tap()
+        app.buttons["ReplayDone"].tap()
+        wait(scene,timeout:5){self.field(scene,"replay")==0}
+    }
+
 }

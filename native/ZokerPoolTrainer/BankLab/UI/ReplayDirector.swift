@@ -17,6 +17,11 @@ struct ReplayCameraFrame {
 enum ReplayDirector {
     static let minimumCutInterval: Double = 2.2
 
+    static func endingRate(time: Double, duration: Double) -> Double {
+        guard time.isFinite, duration.isFinite, duration>0, time>=0, time<duration else{return 1}
+        return time>=max(0,duration-3) ? 0.48:1
+    }
+
     private enum ViewStyle {
         case intro, overhead, oblique, rail, pocket
     }
@@ -59,13 +64,14 @@ enum ReplayDirector {
             for index in segments.indices where segments[index].start <= clock + 1e-8 {
                 selected = index
             }
-            // Scratches and recovery/out-of-table events never cause slow motion.
-            let slow = pots.contains {
+            // Only object pots add approach slow motion; the final three seconds
+            // use a separate slowdown for every replay.
+            let pocketRate: Double = pots.contains {
                 clock >= $0.time - 0.70 && clock <= $0.time + 0.25
             } ? 0.48 : 1.0
             return ReplayDirector.camera(for: segments[selected], id: selected,
                                          balls: balls, angle: initialAngle,
-                                         slowMotion: slow)
+                                         slowMotion: min(pocketRate, ReplayDirector.endingRate(time:clock,duration:duration)))
         }
     }
 
