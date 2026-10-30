@@ -5,7 +5,7 @@
 name: Zoker native
 on:
   push:
-    branches: ['feature/zoker-native', 'ci/native-**']
+    branches: ['feature/zoker-native', 'ci/native-**', 'feature/native-0.18-integrated-play']
   workflow_dispatch:
     inputs:
       runner:
@@ -55,7 +55,7 @@ jobs:
   mac:
     name: Nghiệm thu Mac (Simulator, XCTest, IPA)
     needs: portable
-    runs-on: ${{ github.event.inputs.runner || 'macos-15' }}
+    runs-on: ${{ github.event.inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 75
     permissions:
       contents: write
@@ -74,6 +74,39 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_16.4.app && xcodebuild -version
       - name: Thư viện sinh tài nguyên
         run: python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+      - name: Xuất IPA ứng viên trước nghiệm thu
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          export BUILD_NUMBER=$((24 + BUILD_NUMBER))
+          python3 Tools/prepare_ci_assets.py
+          bash Build-Unsigned-IPA.command 2>&1 | tail -30
+          python3 - <<'PY'
+          import hashlib, json, pathlib, plistlib, subprocess, zipfile
+          root=pathlib.Path('dist')
+          ipa=next(root.glob('*.ipa'))
+          with zipfile.ZipFile(ipa) as z:
+              assert z.testzip() is None
+              p='Payload/ZokerPoolTrainer.app/'
+              info=plistlib.loads(z.read(p+'Info.plist'))
+              assert info['CFBundleIdentifier']=='com.maiquocviet.BankLabS'
+              assert z.read(p+info['CFBundleExecutable'])[:4] in (b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca')
+              assert not any('/_CodeSignature/' in n or n.endswith('embedded.mobileprovision') for n in z.namelist())
+          digest=hashlib.sha256(ipa.read_bytes()).hexdigest()
+          (root/'IPA_SHA256.txt').write_text(digest+'  '+ipa.name+'\n')
+          (root/'CANDIDATE.json').write_text(json.dumps(dict(source_sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),status='UNSIGNED_CANDIDATE_PENDING_NATIVE_QA',signing='UNSIGNED_ONLY',physical_device='NOT_RUN',version=info['CFBundleShortVersionString'],build=info['CFBundleVersion'],file=ipa.name,sha256=digest),indent=2)+'\n')
+          PY
+      - name: Tải IPA ứng viên ngay khi xuất xong
+        uses: actions/upload-artifact@v6
+        with:
+          name: zoker-ipa-candidate-${{ github.run_number }}
+          path: |
+            native/ZokerPoolTrainer/dist/*.ipa
+            native/ZokerPoolTrainer/dist/IPA_SHA256.txt
+            native/ZokerPoolTrainer/dist/CANDIDATE.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Nghiệm thu (run_acceptance.py)
         env:
           # Số build tăng dần, nối tiếp build 24 của nhánh council.
@@ -81,7 +114,7 @@ jobs:
         run: |
           set -o pipefail
           export BUILD_NUMBER=$((24 + BUILD_NUMBER))
-          python3 Tools/run_acceptance.py 2>&1 | tail -60
+          python3 Tools/run_acceptance.py 2>&1 | tee build/acceptance-progress.log
           REPORT=$(ls dist/ACCEPTANCE-*.json | tail -1)
           python3 -c "import json;r=json.load(open('$REPORT'));print('::notice title=acceptance::'+r['status']+' · '+', '.join(s['name']+'='+s['status'] for s in r['stages']))"
       - name: Chẩn đoán khi lỗi (bước hỏng + dòng lỗi thành annotation)

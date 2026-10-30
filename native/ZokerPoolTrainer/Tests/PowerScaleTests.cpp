@@ -1,9 +1,19 @@
+#include "../BankLab/UI/StrokeResponse.h"
 // Thang Lực cố định 1–30: cú đánh phải lặp lại được và HLV phải nói bằng đơn vị người dùng chỉnh được.
-#include "../BankLab/UI/PowerScale.h"
+ #include "../BankLab/UI/PowerScale.h"
 #include <cassert>
 #include <cmath>
 #include <iostream>
 int main() {
+    for(double edge:{299.0,388.0,744.0}) {
+        double previous=0;
+        for(int n=1;n<=1000;++n){double v=BLStrokeSpeed(edge*n/100,edge,1);assert(v>=previous && v<=8);previous=v;}
+        assert(std::abs(BLStrokeSpeed(edge*2,edge,1)-BLStrokeSpeed(388*2,388,1))<1e-10);
+    }
+    assert(BLStrokeSpeed(-1,388,1)==0);
+    assert(BLStrokeSpeed(NAN,388,1)==0);
+    assert(BLStrokeSpeed(100,388,1)>0 && BLStrokeSpeed(100,388,1)<BLStrokeSpeed(300,388,1));
+
     // Hai đầu thang khớp phạm vi tốc độ của thang 7 mức cũ.
     assert(std::fabs(BLPowerSpeed(1) - 0.5) < 1e-9);
     assert(std::fabs(BLPowerSpeed(BL_POWER_LEVELS) - 8.0) < 1e-9);

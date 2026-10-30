@@ -25,68 +25,82 @@ bool overlaps(Rect a, Rect b) {
            a.y < b.y+b.h-1e-8 && b.y < a.y+a.h-1e-8;
 }
 void checkLayout(double width, double height, bool expanded) {
-    const auto m = BLRightHUDLayout(height, expanded);
+    auto m = BLRightHUDLayout(height, expanded);
+    // B plus a gap are reserved on the left. Effect's maximum remains useful
+    // on a compact landscape phone without touching the bridge control.
+    m.spinSize=std::min(m.spinSize,std::max(52.0,width-100-8-BL_HUD_RAIL_WIDTH-6-BL_HUD_ELEVATION_WIDTH-8));
     const double railX = width-BL_HUD_EDGE-BL_HUD_RAIL_WIDTH;
-    const Rect row{railX,10+44+8,BL_HUD_RAIL_WIDTH,BLHUDRailHeight()};
-    const Rect elevation{railX-8-BL_HUD_ELEVATION_WIDTH,height-12-BL_HUD_ELEVATION_HEIGHT,BL_HUD_ELEVATION_WIDTH,BL_HUD_ELEVATION_HEIGHT};
-    const Rect spin{elevation.x-8-m.spinSize,height-12-m.spinSize,m.spinSize,m.spinSize};
-    const Rect menu{width-BL_HUD_EDGE-78,10,78,44}, bridge{12,height-12-68,68,68};
-    const std::array<Rect,5> controls{spin,elevation,row,menu,bridge};
+    const double railHeight=BLHUDVisibleRailHeight(height);
+    const Rect column{railX,height-BL_HUD_BOTTOM-railHeight,BL_HUD_RAIL_WIDTH,railHeight};
+    const Rect coach{railX,column.y-BL_HUD_COACH_GAP-BL_HUD_COACH_HEIGHT,BL_HUD_RAIL_WIDTH,BL_HUD_COACH_HEIGHT};
+    const Rect elevation{railX-6-BL_HUD_ELEVATION_WIDTH,height-BL_HUD_BOTTOM-BL_HUD_ELEVATION_HEIGHT,BL_HUD_ELEVATION_WIDTH,BL_HUD_ELEVATION_HEIGHT};
+    const Rect wheel{elevation.x,elevation.y-8-100,44,100};
+    const Rect spin{elevation.x-8-m.spinSize,height-BL_HUD_BOTTOM-m.spinSize,m.spinSize,m.spinSize};
+    const Rect menu{12,10,78,44}, bridge{12,height-12-68,68,68};
+    const std::array<Rect,7> controls{spin,elevation,column,coach,wheel,menu,bridge};
     for (const auto &r : controls) {
         assert(r.x >= 0 && r.y >= 0 && r.x+r.w <= width+1e-8 && r.y+r.h <= height+1e-8);
         assert(r.w >= 44 && r.h >= 44);
     }
     for (unsigned i = 0; i < controls.size(); ++i)
         for (unsigned j = i+1; j < controls.size(); ++j) assert(!overlaps(controls[i],controls[j]));
-    assert(elevation.x > spin.x+spin.w);              // độ dốc ở bên phải bi effect
-    assert(row.x > elevation.x+elevation.w);          // thanh phím tắt sát mép phải
-    assert(width-(row.x+row.w) <= BL_HUD_EDGE+1e-8);
-    assert(row.y >= menu.y+menu.h+8-1e-8);
-    if (!expanded) {
-        const Rect fine{spin.x-12-190,height-14-44,190,44};
-        assert(fine.x >= bridge.x+bridge.w);
-        for (const auto &r : controls) assert(!overlaps(fine,r));
+    assert(elevation.x > spin.x+spin.w);
+    assert(column.x > elevation.x+elevation.w);
+    assert(width-(column.x+column.w) <= BL_HUD_EDGE+1e-8);
+    assert(coach.y+coach.h+BL_HUD_COACH_GAP <= column.y+1e-8);
+    assert(coach.x==column.x && coach.w==column.w);
+    assert(column.h<=BLHUDRailHeight());
+    // Every button has a full-size content rect; scrolling reveals any portion
+    // outside the viewport. The visible viewport fits at least two buttons.
+    assert(BL_HUD_BUTTON_HEIGHT>=44 && column.h>=2*BL_HUD_BUTTON_HEIGHT);
+    for(int i=0;i<BL_HUD_RAIL_ITEMS;++i) {
+        const Rect content{0,i*(BL_HUD_BUTTON_HEIGHT+BL_HUD_BUTTON_GAP),BL_HUD_RAIL_WIDTH,BL_HUD_BUTTON_HEIGHT};
+        assert(content.w>=44 && content.h>=44);
+        assert(content.y+content.h<=BLHUDRailHeight()+1e-8);
     }
+    if(height<334)assert(column.h<BLHUDRailHeight());
+    else assert(column.h==BLHUDRailHeight());
 }
+
 }
 
 int main() {
     BLShotCameraState s{};
-    assert(!rest(s,100)); passed("idle has no unsolicited camera return");
+    assert(!rest(s,100)); passed("idle never emits a shot-ready signal");
     BLShotCameraStart(&s);
     for(int i=0;i<100;++i) assert(!step(s,0.1,true));
-    assert(s.stableSeconds==0); passed("all motion blocks return");
+    assert(s.stableSeconds==0); passed("all motion blocks readiness");
     assert(!step(s,0.1)); assert(!step(s,0.1)); assert(!step(s,0.1)); assert(!step(s,0.1));
-    assert(!step(s,0.09)); assert(step(s,0.01)); passed("return starts at 0.5 seconds, never earlier");
+    assert(!step(s,0.09)); assert(step(s,0.01)); passed("readiness starts at 0.5 seconds, never earlier");
     BLShotCameraStart(&s); rest(s,4); assert(!step(s,0.1,true)); assert(!rest(s,4)); assert(step(s));
     passed("renewed motion resets uninterrupted rest");
     BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,true));
-    passed("pocket fall blocks return");
+    passed("pocket animation blocks readiness");
     assert(!rest(s,4)); assert(step(s)); passed("pocket completion requires a fresh rest window");
     BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,true));
-    passed("replay never forces aim");
+    passed("replay never emits a live-shot-ready signal");
     assert(!rest(s,4)); assert(step(s)); passed("replay exit restarts the full settle window");
     BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,false,false));
     passed("spectator remains free to observe");
-    assert(!rest(s,4)); assert(step(s)); passed("local turn resumes aim after settling");
+    assert(!rest(s,4)); assert(step(s)); passed("local turn becomes ready after settling");
     BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,false,true,true));
-    passed("ball editing suppresses automatic return");
+    passed("ball editing suppresses readiness");
     assert(!rest(s,4)); assert(step(s)); passed("editing exit requires stable rest");
     BLShotCameraStart(&s); rest(s,4); assert(!step(s,0.1,false,false,false,true,false,true));
-    passed("an active orbit or pinch defers recentering");
-    assert(!rest(s,4)); assert(step(s)); passed("manual observation still returns after gesture ends");
+    passed("an active orbit or pinch defers readiness without changing pose");
+    assert(!rest(s,4)); assert(step(s)); passed("manual observation becomes ready after gesture ends");
     BLShotCameraStart(&s);
     for(double dt : {0.0,-1.0,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()}) assert(!step(s,dt));
     assert(s.stableSeconds==0); passed("invalid timing cannot complete a shot");
     assert(!step(s,3600)); assert(std::abs(s.stableSeconds-0.1)<1e-10);
     passed("resume gaps do not count as 0.5 seconds of observed rest");
     assert(rest(s,4)); for(int i=0;i<100;++i) assert(!step(s));
-    passed("return is emitted once per shot");
+    passed("readiness is emitted once per shot");
     BLShotCameraStart(&s); assert(rest(s)); assert(BLShotCameraBusy(s));
     rest(s,4); assert(BLShotCameraBusy(s)); step(s,0.05); assert(!BLShotCameraBusy(s));
-    passed("stroke remains blocked throughout the 0.45 second transition");
+    passed("stroke remains blocked throughout the final 0.45 second settle guard");
     BLShotCameraStart(&s); rest(s,3); BLShotCameraReset(&s);
-    assert(!BLShotCameraBusy(s)); assert(!rest(s,20)); passed("Undo cancels pending camera work");
+    assert(!BLShotCameraBusy(s)); assert(!rest(s,20)); passed("Undo cancels pending shot settlement");
     BLShotCameraStart(&s); rest(s,3); BLShotCameraStart(&s);
     assert(!rest(s,4)); assert(step(s)); passed("a new shot cannot inherit settle time");
     for(int fps : {30,60,120}) {
@@ -97,7 +111,7 @@ int main() {
     passed("30/60/120 Hz produce the same settle deadline");
     assert(BLStrokeAllowed(true,false,false,false,false,true));
     assert(!BLStrokeAllowed(false,false,false,false,false,true)); passed("spectator cannot shoot");
-    assert(!BLStrokeAllowed(true,true,false,false,false,true)); passed("simulation and return cannot shoot");
+    assert(!BLStrokeAllowed(true,true,false,false,false,true)); passed("simulation and settlement cannot shoot");
     assert(!BLStrokeAllowed(true,false,true,false,false,true)); passed("Menu cannot shoot");
     assert(!BLStrokeAllowed(true,false,false,true,false,true)); passed("expanded effect cannot arm B or shoot");
     assert(!BLStrokeAllowed(true,false,false,false,true,true)); passed("editing cannot shoot");
@@ -106,9 +120,9 @@ int main() {
     for(unsigned mask=0;mask<64;++mask) if(BLStrokeAllowed(mask&1,mask&2,mask&4,mask&8,mask&16,mask&32))++permitted;
     assert(permitted==1); passed("all 64 input flag combinations fail closed");
     for(auto size : {std::array<double,2>{568,299},{750,369},{830,388},{1024,744}})checkLayout(size[0],size[1],false);
-    passed("collapsed HUD fits small phone, 14 Pro Max, larger phone and iPad safe areas");
+    passed("compact vertical HUD and Coach fit phone and iPad safe areas");
     for(auto size : {std::array<double,2>{568,299},{750,369},{830,388},{1024,744}})checkLayout(size[0],size[1],true);
-    passed("expanded HUD keeps B, Menu, elevation, View, Undo and Replay hit regions separate");
+    passed("expanded effect leaves B, Coach, Menu, wheel and scroll column separate");
     for(int fps : {30,60,120}) {
         double remaining=0.45,value=0;
         while(remaining>0) {

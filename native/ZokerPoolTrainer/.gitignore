@@ -4,3 +4,6 @@ DerivedData/
 xcuserdata/
 *.xcuserstate
 .DS_Store
+
+# Source artwork is checked in as verified encoded bytes; CI derives app icons.
+Tools/Branding/ZTrainerIcon.master.png

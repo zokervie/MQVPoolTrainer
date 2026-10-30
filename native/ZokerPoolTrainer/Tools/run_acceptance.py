@@ -16,7 +16,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 
 # Giới hạn từng bước (giây): một bước treo không được ăn hết giờ của cả job.
-STAGE_TIMEOUT = {'assets':600,'portable-regressions':1200,'simulator-build':1800,'screenshots-and-runtime-probes':2400,'ui-gesture-tests':1800,'unsigned-iphone-build':1500}
+STAGE_TIMEOUT = {'lan-wire-protocol':120,'assets':600,'portable-regressions':1200,'simulator-build':1800,'screenshots-and-runtime-probes':2400,'ui-gesture-tests':1800,'unsigned-iphone-build':1500}
 
 def run(portable=False):
     out = ROOT/'dist'
@@ -40,7 +40,8 @@ def run(portable=False):
         stages = [('assets',[sys.executable,'Tools/prepare_ci_assets.py']),
                   ('portable-regressions',['bash','Run-All-Checks.command'])]
         if not portable:
-            stages += [('simulator-build',['bash','Verify-on-Mac.command']),
+            stages += [('lan-wire-protocol',['bash','Tools/run_lan_checks.sh']),
+                       ('simulator-build',['bash','Verify-on-Mac.command']),
                        ('screenshots-and-runtime-probes',['bash','Tools/ci_screenshots.sh']),
                        ('ui-gesture-tests',['bash','Tools/run_ui_tests.sh']),
                        ('unsigned-iphone-build',['bash','Build-Unsigned-IPA.command'])]

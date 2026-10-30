@@ -9,7 +9,7 @@
 		<string>vi</string>
 	</array>
 	<key>CFBundleDisplayName</key>
-	<string>Zoker Pool Trainer</string>
+	<string>Z-Trainer</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,5 +46,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Kết nối hai người chơi Z-Trainer trên cùng Wi-Fi bằng mã phòng; không cần tài khoản hoặc máy chủ.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_zt-pool18._tcp</string>
+	</array>
 </dict>
 </plist>

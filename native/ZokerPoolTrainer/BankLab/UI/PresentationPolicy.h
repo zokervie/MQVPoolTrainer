@@ -27,8 +27,9 @@ static inline bool BLShotCameraBusy(BLShotCameraState state) {
     return state.pending || state.returnSeconds > 0;
 }
 
-// Returns true exactly once after 0.5 s of uninterrupted rest. Replay,
-// spectator, editing, pocket fall and active camera gestures defer the return.
+// Returns true exactly once after 0.5 s of uninterrupted rest. This is an
+// input-ready gate, not a request to change camera pose. Replay, spectator,
+// editing, pocket animation and active camera gestures defer readiness.
 static inline bool BLShotCameraTick(BLShotCameraState *state, double dt,
                                     bool moving, bool pocketsActive,
                                     bool replaying, bool localTurn, bool editing,
@@ -78,19 +79,30 @@ typedef struct {
     double railBottomInset;
 } BLRightHUDMetrics;
 
-// 0.15 (yêu cầu người dùng 27/10): thanh phím tắt DỌC sát mép phải (Dụng cụ, Góc nhìn, Lùi, Xem lại),
-// thanh độ dốc cơ nằm BÊN PHẢI bi effect, giữa effect và thanh phím tắt. Menu ở góc trên phải.
+// 0.18: one compact vertical shortcut column; the viewport scrolls on small
+// phones so six buttons retain 44-point touch targets. Coach sits above it.
 #define BL_HUD_EDGE 6.0
+#define BL_HUD_BOTTOM 8.0
 #define BL_HUD_RAIL_WIDTH 56.0
-#define BL_HUD_RAIL_ITEMS 4
+#define BL_HUD_RAIL_ITEMS 6
+#define BL_HUD_BUTTON_HEIGHT 44.0
+#define BL_HUD_BUTTON_GAP 2.0
+#define BL_HUD_COACH_HEIGHT 44.0
+#define BL_HUD_COACH_GAP 4.0
 #define BL_HUD_ELEVATION_WIDTH 44.0
-#define BL_HUD_ELEVATION_HEIGHT 120.0
-static inline double BLHUDRailHeight(void) { return BL_HUD_RAIL_ITEMS * 48.0 + (BL_HUD_RAIL_ITEMS - 1) * 5.0; }
-// Effect pad lớn dần sang trái/lên trên; không bao giờ đè thanh độ dốc hay thanh phím tắt.
+#define BL_HUD_ELEVATION_HEIGHT 110.0
+static inline double BLHUDRailHeight(void) {
+    return BL_HUD_RAIL_ITEMS * BL_HUD_BUTTON_HEIGHT +
+           (BL_HUD_RAIL_ITEMS - 1) * BL_HUD_BUTTON_GAP;
+}
+static inline double BLHUDVisibleRailHeight(double safeHeight) {
+    return fmin(BLHUDRailHeight(), fmax(132, safeHeight - 60));
+}
+// Enlarging effect grows left/upward; it never covers the vertical controls.
 static inline BLRightHUDMetrics BLRightHUDLayout(double safeHeight, bool expanded) {
     BLRightHUDMetrics result;
-    result.spinSize = expanded ? fmax(78, fmin(190, safeHeight - 130)) : 78;
-    result.railBottomInset = 20 + fmax(120, result.spinSize);
+    result.spinSize = expanded ? fmax(52, fmin(170, safeHeight - 120)) : 52;
+    result.railBottomInset = BL_HUD_BOTTOM;
     return result;
 }
 

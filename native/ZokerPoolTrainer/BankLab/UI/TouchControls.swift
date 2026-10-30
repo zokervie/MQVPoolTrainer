@@ -171,7 +171,7 @@ final class HoldLockControl:UIControl {
         let ink=UIColor.white.withAlphaComponent(isEnabled ? (held ? 0.95:0.70):0.18)
         let symbol=UIImage(systemName:held ? "lock.fill":"lock.open",withConfiguration:UIImage.SymbolConfiguration(pointSize:20,weight:.semibold))?
             .withTintColor(ink,renderingMode:.alwaysOriginal)
-        let caption=(held ? "ĐÁNH" : "GIỮ") as NSString
+        let caption=(held ? "B · VUỐT" : "B · GIỮ") as NSString
         let attributes:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:10,weight:.bold),.foregroundColor:ink,.kern:0.6]
         let captionSize=caption.size(withAttributes:attributes)
         if let symbol=symbol {
@@ -229,8 +229,8 @@ final class StrokePad:UIControl {
             guard denominator>1e-10 else{continue}
             let speed=max(0,-numerator/denominator)
             guard speed>0.01 else{continue}
-            let normalized=min(1,speed/1700*sensitivity)
-            fired=true;shot?(6*pow(normalized,1.15));pullChanged?(0);return
+            let edge=Double(min(bounds.width,bounds.height))
+            fired=true;shot?(BLStrokeSpeed(Double(speed),edge,sensitivity));pullChanged?(0);return
         }
     }
     override func touchesEnded(_ touches:Set<UITouch>,with event:UIEvent?){if let t=finger,touches.contains(t){cancelStroke()}}
@@ -277,64 +277,31 @@ final class ElevationPad:UIControl {
     override func accessibilityDecrement(){degrees=max(0,degrees-5);changed?(degrees)}
 }
 
-/// Lực cố định 1–30 (BankLab/UI/PowerScale.h, Tests/PowerScaleTests.cpp).
-/// Ở chế độ cố định, vuốt cơ chỉ là động tác kích hoạt; tốc độ bi lấy từ mức đã đặt, nên cú đánh lặp lại được
-/// và lời khuyên HLV ("Lực 15 → 14") làm theo được. Chế độ Cảm giác giữ cách cũ: lực theo tốc độ vuốt.
-final class PowerPad:UIView {
-    var level=Int(BL_POWER_DEFAULT_LEVEL) {didSet{level=Int(BLPowerClampLevel(Int32(level)));refresh()}}
-    var fixed=true {didSet{refresh()}}
-    var changed:((Int)->Void)?
-    var modeChanged:((Bool)->Void)?
-    var speed:Double{BLPowerSpeed(Int32(level))}
-    private let minus=UIButton(type:.system),plus=UIButton(type:.system),value=UIButton(type:.system)
-    private let haptic=UISelectionFeedbackGenerator()
-    private var repeatTimer:Timer?
-    override init(frame:CGRect){
-        super.init(frame:frame)
-        backgroundColor=UIColor(white:0.03,alpha:0.50);layer.cornerRadius=22
-        layer.borderWidth=1;layer.borderColor=MenuSkin.gold.withAlphaComponent(0.40).cgColor
-        for (button,symbol,step) in [(minus,"minus",-1),(plus,"plus",1)] {
-            button.setImage(UIImage(systemName:symbol,withConfiguration:UIImage.SymbolConfiguration(pointSize:15,weight:.bold)),for:.normal)
-            button.tintColor=UIColor.white.withAlphaComponent(0.88)
-            button.accessibilityLabel=step<0 ? "Giảm lực một nấc":"Tăng lực một nấc"
-            button.addAction(UIAction{[weak self]_ in self?.step(step)},for:.touchDown)
-            // Giữ để tăng/giảm liên tục sau 0,4 giây.
-            button.addAction(UIAction{[weak self]_ in
-                self?.repeatTimer?.invalidate()
-                self?.repeatTimer=Timer.scheduledTimer(withTimeInterval:0.4,repeats:false){[weak self]_ in
-                    self?.repeatTimer=Timer.scheduledTimer(withTimeInterval:0.09,repeats:true){[weak self]_ in self?.step(step)}
-                }
-            },for:.touchDown)
-            button.addAction(UIAction{[weak self]_ in self?.repeatTimer?.invalidate();self?.repeatTimer=nil},for:[.touchUpInside,.touchUpOutside,.touchCancel])
-        }
-        value.titleLabel?.font = .monospacedDigitSystemFont(ofSize:15,weight:.semibold)
-        value.setTitleColor(.white,for:.normal)
-        value.showsMenuAsPrimaryAction=true
-        value.accessibilityLabel="Lực"
-        let row=UIStackView(arrangedSubviews:[minus,value,plus]);row.axis = .horizontal;row.alignment = .fill;row.distribution = .fill
-        row.translatesAutoresizingMaskIntoConstraints=false;addSubview(row)
-        NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo:leadingAnchor),row.trailingAnchor.constraint(equalTo:trailingAnchor),
-            row.topAnchor.constraint(equalTo:topAnchor),row.bottomAnchor.constraint(equalTo:bottomAnchor),
-            minus.widthAnchor.constraint(equalToConstant:44),plus.widthAnchor.constraint(equalToConstant:44)])
-        refresh()
-    }
+
+/// Relative angle adjustment; no fixed power or angle slider obscures the table.
+final class FineAimWheel:UIControl {
+    var changed:((Double)->Void)?
+    private var previousY:CGFloat=0,phase:CGFloat=0
+    override init(frame:CGRect){super.init(frame:frame);isAccessibilityElement=true;accessibilityLabel="Bánh xe vi chỉnh góc ngắm";accessibilityTraits = .adjustable;backgroundColor = .clear}
     required init?(coder:NSCoder){fatalError()}
-    private func step(_ delta:Int){
-        guard fixed,isUserInteractionEnabled else{return}
-        let next=Int(BLPowerClampLevel(Int32(level+delta)))
-        guard next != level else{repeatTimer?.invalidate();return}
-        level=next;haptic.selectionChanged();changed?(level)
+    override func draw(_ rect:CGRect){
+        guard let context=UIGraphicsGetCurrentContext() else{return}
+        let body=bounds.insetBy(dx:9,dy:4)
+        UIColor(white:0.08,alpha:0.22).setFill();UIBezierPath(roundedRect:body,cornerRadius:10).fill()
+        context.saveGState();context.addPath(UIBezierPath(roundedRect:body,cornerRadius:10).cgPath);context.clip()
+        for tick in -2...15 {
+            let y=CGFloat(tick)*8+phase.truncatingRemainder(dividingBy:8)
+            let distance=abs(y-bounds.midY)/max(1,bounds.height/2),alpha=max(0,1-distance)*0.32
+            context.setStrokeColor(UIColor.white.withAlphaComponent(alpha).cgColor);context.setLineWidth(1)
+            context.move(to:CGPoint(x:body.minX+3,y:y));context.addLine(to:CGPoint(x:body.maxX-3,y:y));context.strokePath()
+        }
+        context.restoreGState()
+        context.setStrokeColor(UIColor.systemMint.withAlphaComponent(isEnabled ? 0.65:0.15).cgColor);context.setLineWidth(2)
+        context.move(to:CGPoint(x:body.minX-3,y:bounds.midY));context.addLine(to:CGPoint(x:body.minX+3,y:bounds.midY));context.strokePath()
     }
-    private func refresh(){
-        let speedText=String(format:"%.1f",speed).replacingOccurrences(of:".",with:",")
-        value.setTitle(fixed ? "Lực \(level) · \(speedText) m/s":"Lực theo cảm giác",for:.normal)
-        value.accessibilityValue=fixed ? "Mức \(level) trên \(BL_POWER_LEVELS), \(speedText) mét mỗi giây":"Lực theo tốc độ vuốt"
-        minus.isHidden = !fixed;plus.isHidden = !fixed
-        minus.isEnabled=level>1;plus.isEnabled=level<Int(BL_POWER_LEVELS)
-        value.menu=UIMenu(title:"Cách tính lực",children:[
-            UIAction(title:"Lực cố định — cú nào cũng như nhau",subtitle:"Khuyên dùng khi luyện bài",state:fixed ? .on:.off){[weak self]_ in self?.setFixed(true)},
-            UIAction(title:"Theo cảm giác — vuốt nhanh = mạnh",subtitle:"Giống đánh thật, khó lặp lại",state:fixed ? .off:.on){[weak self]_ in self?.setFixed(false)}])
-    }
-    private func setFixed(_ on:Bool){guard on != fixed else{return};fixed=on;haptic.selectionChanged();modeChanged?(on)}
+    override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};previousY=touch.location(in:self).y;return true}
+    override func continueTracking(_ touch:UITouch,with event:UIEvent?)->Bool{let y=touch.location(in:self).y,delta=y-previousY;previousY=y;phase+=delta;changed?(Double(delta)*0.00065);setNeedsDisplay();return true}
+    override var isEnabled:Bool{didSet{alpha=isEnabled ? 1:0.25}}
+    override func accessibilityIncrement(){changed?(0.001)}
+    override func accessibilityDecrement(){changed?(-0.001)}
 }

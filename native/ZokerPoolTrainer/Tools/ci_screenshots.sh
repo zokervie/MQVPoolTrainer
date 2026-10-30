@@ -17,11 +17,19 @@ xcrun simctl bootstatus "$device_id" -b
 app_path="$PWD/build/Simulator/Build/Products/Debug-iphonesimulator/ZokerPoolTrainer.app"
 xcrun simctl install "$device_id" "$app_path"
 data_path=$(xcrun simctl get_app_container "$device_id" com.maiquocviet.BankLabS data)
+# Always retain runtime diagnostics even when a probe or visibility check fails.
+capture_runtime() {
+ qa_exit_code=$?
+ trap - EXIT
+ xcrun simctl spawn "$device_id" log show --last 8m --style compact --predicate 'process == "ZokerPoolTrainer"' > build/ios-runtime.log 2>&1 || true
+ exit "$qa_exit_code"
+}
+trap capture_runtime EXIT
 # Remove only generated probe records, so a previous run cannot satisfy a gate.
 for probe in default hud hud-expanded return spectator audio; do
  rm -f "$data_path/Documents/g1-qa/$probe.json"
 done
-for camera in overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio; do
+for camera in g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation; do
  xcrun simctl terminate "$device_id" com.maiquocviet.BankLabS 2>/dev/null || true
  if [ "$camera" = g1-hud-expanded ]; then
   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa --g1-hud-qa --spin-detail
@@ -64,6 +72,15 @@ for camera in overview top aim spin jump table-arc table-classic library cue-lib
   # đầu dò "return" còn phải đánh và chờ bi dừng). Cổng kiểm tra bản ghi phía dưới giữ nguyên.
   # Chưa có bản ghi → thử lại; có rồi thì vẫn phải qua kiểm tra "bàn đã hiện" như các ảnh khác.
   if [[ "$camera" = g1-* ]] && [ ! -f "$data_path/Documents/g1-qa/${camera#g1-}.json" ]; then continue; fi
+  if [[ "$camera" = g1-* ]]; then
+   python3 - "$data_path/Documents/g1-qa/${camera#g1-}.json" <<'PROBE'
+import json,sys
+record=json.load(open(sys.argv[1]))
+if record.get('result')!='PASS':
+ print('FAIL UIKit probe:',json.dumps(record,ensure_ascii=False,indent=2))
+ raise SystemExit(1)
+PROBE
+  fi
   if CAMERA="$camera" python3 - <<'READY'
 import os
 from PIL import Image

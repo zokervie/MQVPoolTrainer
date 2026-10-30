@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "brand_text": "Z-Trainer",
+  "description": "Opaque dark-teal app icon with a yellow-striped white 9-ball, subtle Z accent and large white Z-Trainer lettering.",
+  "generation": {
+    "tool": "image_gen.imagegen",
+    "type": "new artwork",
+    "reference_images": false,
+    "transparent_background": false,
+    "created_utc": "2026-10-30T01:59:12.024655+00:00",
+    "original_local_path": "/workspace/generated_images/exec-6abc9877-497d-48f7-92f0-3213651c5fad.png"
+  },
+  "master": {
+    "file": "ZTrainerIcon.master.png",
+    "encoded_file": "ZTrainerIcon.master.png.b64",
+    "sha256": "15d79f87f010656670172a1e94044c65bd4b8ed50005286155218cf2803f29a4",
+    "bytes": 1337806,
+    "width": 1254,
+    "height": 1254,
+    "mode": "RGB",
+    "opaque": true,
+    "format": "PNG"
+  },
+  "intended_ios_icon_size": [
+    1024,
+    1024
+  ],
+  "derivative_policy": "Preserve generated master bytes. Resize to 1024 and smaller icon renditions in the app asset preparation pipeline.",
+  "visual_review": {
+    "text": "Z-Trainer exact spelling and hyphen visible",
+    "ball": "Yellow-striped white ball with readable black 9",
+    "background": "Opaque dark teal, full bleed",
+    "status": "VISUALLY_INSPECTED"
+  }
+}
