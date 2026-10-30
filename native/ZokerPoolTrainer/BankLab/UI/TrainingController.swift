@@ -826,6 +826,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         feedback.impactOccurred();guideDirty=true;table.trails([:]);setMenu(false);updateControls()
     }
     @objc func tick(_ link:CADisplayLink){
+        // Cold shader compilation can outlast the wake requested in viewDidLoad.
+        // Always present the initial camera and accessibility state on first tick.
+        if lastTime==0{wakeRendering()}
         let dt=lastTime==0 ? 0:min(0.1,max(0,link.timestamp-lastTime));lastTime=link.timestamp
         frameStateCache=nil;defer{frameStateCache=nil}
         let guestTick=matchGuestTick(dt)
