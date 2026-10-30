@@ -775,7 +775,7 @@ extension TrainingController {
          "eight_on_legal_break":"Bi 8 vào khi phá · chọn xử lý", "eight_on_foul_break":"Bi 8 vào khi phá lỗi",
          "push_out_choice":"Push-out · người kế chọn nhận / trả", "uncalled_ball_choice":"Vào bi không gọi · chọn nhận / trả",
          "nine_ball_win":"Vào bi 9 hợp lệ", "ten_ball_win":"Vào bi 10 cuối cùng hợp lệ", "eight_ball_win":"Vào bi 8 hợp lệ",
-         "rotation_61_win":"Đã đạt 61 điểm", "early_eight":"Thua do vào bi 8 sớm", "eight_on_foul":"Thua do bi 8 trong cú lỗi",
+         "rotation_61_win":"Đã đạt 61 điểm", "rotation_tiebreak_win":"Thắng 61–60 · điểm phân thắng bại", "early_eight":"Thua do vào bi 8 sớm", "eight_on_foul":"Thua do bi 8 trong cú lỗi",
          "eight_wrong_pocket":"Thua do bi 8 sai lỗ", "three_consecutive_fouls":"Thua do ba lỗi liên tiếp sau cảnh báo",
          "conceded":"Đối thủ nhận thua", "invalid_evidence":"Cú đánh không đủ dữ liệu để xác minh",
          "spot_blocked":"Không có chỗ hợp lệ để đặt lại bi"][reason] ?? "Tiếp tục theo quyền hiện tại"

@@ -96,6 +96,11 @@ int main(){
      check(a.state.winner==0&&a.state.scores[0]==61,"named rotation practice variant scores ball values to61");}
     {auto r=playing(Discipline::Rotation15);auto a=r.complete(shot({0,1,15},{contact(1),pot(15),pot(0,1,.31)}));
      check(a.foul&&spotted(a,15)&&a.state.scores[0]==0,"rotation practice foul pots are spotted without score");}
+    for(int player=0;player<2;++player){auto r=playing(Discipline::Rotation15);r.state.currentPlayer=player;
+        r.state.scores[player]=45;r.state.scores[1-player]=60;auto a=r.complete(shot({0,15},{contact(15),pot(15)}));
+        check(a.accepted&&!a.foul&&a.state.winner==player&&a.state.scores[player]==61&&a.state.scores[1-player]==60&&a.state.reason=="rotation_tiebreak_win","legal last-ball tie awards the shooter one tiebreak point");}
+    {auto r=playing(Discipline::Rotation15);r.state.scores={{45,60}};auto a=r.complete(shot({0,15},{contact(15),pot(15),pot(0,1,.31)}));
+     check(a.foul&&a.state.winner<0&&a.state.scores[0]==45&&a.state.scores[1]==60&&spotted(a,15),"scratch on final ball cannot claim the tie point and must respot");}
     for(auto d:{Discipline::EightBall,Discipline::NineBall,Discipline::TenBall,Discipline::Rotation15}){
         Rules r(d);const auto a=r.rack(12345),b=r.rack(12345);check(a.size()==b.size(),"repeatable seeded rack");
         for(std::size_t i=0;i<a.size();++i){check(a[i].id==b[i].id&&a[i].p.x==b[i].p.x&&a[i].p.y==b[i].p.y,"same seed preserves full rack");

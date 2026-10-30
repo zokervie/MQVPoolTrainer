@@ -191,7 +191,11 @@ public:
             else{state.currentPlayer=(breaking?objectPots>0:calledMade)?shooter:opponent;state.reason=state.currentPlayer==shooter?"called_pot":"turn_passed";}
         }else if(state.rule==Discipline::Rotation15){
             for(int id:potted)if(id>0)state.scores[shooter]+=id;
-            if(state.scores[shooter]>=61){state.winner=shooter;state.reason="rotation_61_win";}
+            // Rotation's final-ball tie is resolved by one bonus point to the
+            // legal shooter: 60-60 becomes 61-60 (Celeris Rotation scoring).
+            const bool tiebreak=state.scores[0]==60&&state.scores[1]==60&&countObjects(e.after)==0&&objectPots>0;
+            if(tiebreak)++state.scores[shooter];
+            if(state.scores[shooter]>=61){state.winner=shooter;state.reason=tiebreak?"rotation_tiebreak_win":"rotation_61_win";}
             else{state.currentPlayer=objectPots>0?shooter:opponent;state.reason=objectPots>0?"points_scored":"turn_passed";}
         }else {state.currentPlayer=objectPots>0?shooter:opponent;state.reason=objectPots>0?"legal_pot":"turn_passed";}
         if(breaking&&(state.rule==Discipline::NineBall||state.rule==Discipline::TenBall))state.pushOutAvailable=true;

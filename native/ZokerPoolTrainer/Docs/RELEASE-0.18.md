@@ -37,7 +37,9 @@ existing three-cushion spin and elevated massé implementation. The uploaded
 ## Matches
 
 Menu offers virtual WPA 8/9/10 Ball, and the explicitly named **15 Ball
-Rotation, first to 61** variant selected by the user. Rules consume actual
+Rotation, first to 61** variant selected by the user. A legal final-ball
+60–60 tie awards the shooter one tiebreak point (61–60), following
+[Celeris Rotation scoring](https://vponline.celeris.com/support/rules/id/11). Rules consume actual
 ordered solver events: first contact, subsequent rail/pot, scratch, ball off
 table, break choices, called ball/pocket, push-out and warned three-foul loss.
 8/10 Ball require a call after the break; 10 Ball does not offer a safety call.
@@ -61,7 +63,7 @@ tests are separate from measured-table accuracy and tournament certification.
 ## Acceptance evidence
 
 Portable command: `bash Run-All-Checks.command`; all native C++ suites pass,
-including 453 rules assertions, plus resource, audio, ZUPE and gesture checks.
+including 456 rules assertions, plus resource, audio, ZUPE and gesture checks.
 Local log: `build/portable-0.18-integration.log`.
 
 The Mac command is `python3 Tools/run_acceptance.py`, including the Foundation
