@@ -139,7 +139,7 @@ final class SpinPad:UIControl {
     override func touchesCancelled(_ touches:Set<UITouch>,with event:UIEvent?){collapse()}
     override var isEnabled:Bool {didSet{if !isEnabled{collapse()}}}
     func collapse(){guard finger != nil else{return};finger=nil;expandedChanged?(false)}
-    func reset(){side=0;top=0;changed?(0,0);setNeedsDisplay()}
+    func reset(){side=0;top=0;accessibilityValue="Ngang 0%, dọc 0%";changed?(0,0);setNeedsDisplay()}
     func select(side:Double,top:Double){
         let length=hypot(side,top),scale=length>maximumOffset ? maximumOffset/length:1
         self.side=side*scale;self.top=top*scale

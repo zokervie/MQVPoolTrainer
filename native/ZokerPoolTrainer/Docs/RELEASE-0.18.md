@@ -27,7 +27,7 @@ existing three-cushion spin and elevated massé implementation. The uploaded
 - Balanced graphics, thermal quality changes, cached geometry/textures,
   idle rendering and background prediction reduce avoidable work. Native
   physics step size and calibrated friction are unchanged.
-- Audio uses the attributed CC0 field recordings in
+- Audio uses the attributed CC0 and CC BY field recordings in
   `Tools/AudioSources/manifest.json`. Warm voices, removal of sample pre-roll
   and impact dispatch immediately after simulation address scheduling delay.
   Speaker/route latency and perceived realism still require device listening.

@@ -48,10 +48,10 @@ struct ShotRecording: Codable {
             }
             expectedIDs = ids
             for ball in frame {
-                let values = [ball.x, ball.y, ball.wx, ball.wy, ball.spin,
-                              ball.height ?? 0, ball.vertical ?? 0,
-                              ball.vx ?? 0, ball.vy ?? 0,
-                              ball.qx ?? 0, ball.qy ?? 0, ball.qz ?? 0, ball.qw ?? 1]
+                let position: [Double] = [ball.x, ball.y, ball.height ?? 0, ball.vertical ?? 0]
+                let motion: [Double] = [ball.wx, ball.wy, ball.spin, ball.vx ?? 0, ball.vy ?? 0]
+                let orientation: [Double] = [ball.qx ?? 0, ball.qy ?? 0, ball.qz ?? 0, ball.qw ?? 1]
+                let values: [Double] = position + motion + orientation
                 guard values.allSatisfy({ $0.isFinite }), abs(ball.x) <= 8,
                       abs(ball.y) <= 8, (0...1_000_000).contains(ball.rails) else {
                     throw ShotArchiveError.invalidRecording

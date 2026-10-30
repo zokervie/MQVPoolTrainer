@@ -173,7 +173,7 @@ extension TrainingController {
         matchPlay.shotID = 0; matchPlay.elapsed = 0
         matchPlay.warningAcknowledged = nil
         matchPlay.showNumbers = false
-        matchPlay.state = matchPlay.rules?.state as? [String:Any] ?? [:]
+        matchPlay.state = matchPlay.rules?.state ?? [:]
         resetMatchCall()
         // Competitive dimensions match the virtual WPA table/rack model. All
         // players use one authoritative host solver and its default calibration.
@@ -500,7 +500,7 @@ extension TrainingController {
     }
     func updateMatchState() {
         guard let rules = matchPlay.rules else { return }
-        matchPlay.state = rules.state as? [String:Any] ?? [:]
+        matchPlay.state = rules.state
         if let winner = matchPlay.forfeitWinner {
             matchPlay.state["winner"] = winner
             matchPlay.state["canShoot"] = false
@@ -553,7 +553,9 @@ extension TrainingController {
         let spacing = 0.057151
         // Foot spot, then towards the foot cushion; if blocked, back towards
         // the head cushion, all along the longitudinal spotting line.
-        let candidates = (0...10).map { 0.635 + Double($0) * spacing } + (1...32).map { 0.635 - Double($0) * spacing }
+        let forward: [Double] = (0...10).map { index in 0.635 + Double(index) * spacing }
+        let backward: [Double] = (1...32).map { index in 0.635 - Double(index) * spacing }
+        let candidates: [Double] = forward + backward
         for y in candidates where abs(y) <= 1.27 - 0.028575 {
             if state.contains(where: { $0.id != id && !$0.sunk && hypot($0.x, $0.y - y) < spacing }) { continue }
             state[index].x = 0; state[index].y = y; state[index].sunk = false

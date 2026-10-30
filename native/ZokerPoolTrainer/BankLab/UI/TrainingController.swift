@@ -21,6 +21,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var shotCameraState=BLShotCameraState()
     var localTurn=true // Offline by default; future networking owns this value.
     var qaAwaitingAimReturn=false,qaPeekReleased=false
+    var qaExpectedCameraAngle=0.0
     var frames:[[BallState]]=[],frameTimes:[Double]=[],replayIndex:Int?,replayClock=0.0
     var paths:[Int:[SIMD3<Float>]]=[:]
     var sampleClock=0.0,draggedBall:Int?
@@ -177,12 +178,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     self.spin.select(side:0,top:0.4);self.locked=true;self.shoot(0.15)
                     precondition(self.shotActive,"G1 return probe must really strike")
                     self.qaAwaitingAimReturn=true;self.qaPeekReleased=true
-                    self.quickCamera.sendActions(for:.touchDown)
-                    DispatchQueue.main.asyncAfter(deadline:.now()+4){[weak self] in
-                        guard let self=self else{return}
-                        precondition(self.table.cameraMode==2 && abs(self.table.zoom-1.18)<0.001,"Live shot changed the selected view")
-                        self.quickCamera.sendActions(for:.touchUpInside);self.qaPeekReleased=true
-                    }
+                    self.qaExpectedCameraAngle=self.angle+self.aimCameraYaw
                 }
             }
             if args.contains("--g1-spectator-qa") {
@@ -894,9 +890,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if qaAwaitingAimReturn && !presentationBusy {
             precondition(qaPeekReleased,"Camera settled before observation completed")
             precondition(table.cameraMode==2,"Live shot changed camera mode")
-            precondition(abs(table.zoom-1.18)<0.001,"G1: saved aim zoom was lost")
+            precondition(abs(table.zoom-1.18)<0.001,"G1: selected aim zoom was lost")
+            precondition(abs(angle+aimCameraYaw-qaExpectedCameraAngle)<0.00001,"Next-ball aiming changed the live camera angle")
             precondition(!table.hasActivePocketAnimations && !engine.moving)
-            qaAwaitingAimReturn=false;recordG1QA("return",["cameraMode":table.cameraMode,"zoom":table.zoom,"settleSeconds":0.5,"transitionSeconds":0.45])
+            qaAwaitingAimReturn=false;recordG1QA("return",["cameraMode":table.cameraMode,"zoom":table.zoom,"settleSeconds":0.5,"cameraAngle":angle+aimCameraYaw,"expectedCameraAngle":qaExpectedCameraAngle,"automaticViewChanges":0])
         }
         let displayCue:BallState? = replayIndex.flatMap{frames[$0].first{$0.id==0}} ?? cue
         var cameraCue=displayCue
