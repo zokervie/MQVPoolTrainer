@@ -1,0 +1,34 @@
+{
+  "failures" : [
+
+  ],
+  "frames" : {
+    "CoachToggle" : "(72.0, 245.0, 76.0, 44.0)",
+    "Điểm chạm đầu cơ" : "(574.0, 199.0, 170.0, 170.0)",
+    "ElevationPad-1" : "(760.0, 277.0, 44.0, 96.0)",
+    "Giữ để khóa hướng" : "(74.0, 297.0, 72.0, 72.0)",
+    "HoldLockControl-4" : "(74.0, 297.0, 72.0, 72.0)",
+    "QuickCamera" : "(750.0, 89.0, 56.0, 44.0)",
+    "QuickReplay" : "(750.0, 181.0, 56.0, 44.0)",
+    "QuickRetry" : "(750.0, 227.0, 56.0, 44.0)",
+    "QuickTools" : "(750.0, 135.0, 56.0, 44.0)",
+    "SpinPad-0" : "(574.0, 199.0, 170.0, 170.0)",
+    "UIButton-3" : "(74.0, 10.0, 78.0, 44.0)",
+    "UIButton-5" : "(72.0, 245.0, 76.0, 44.0)",
+    "UIScrollView-2" : "(750.0, 89.0, 56.0, 182.0)"
+  },
+  "height" : 381,
+  "hitResults" : {
+    "CoachToggle" : "UIButton",
+    "Điểm chạm đầu cơ" : "SpinPad",
+    "Giữ để khóa hướng" : "HoldLockControl",
+    "QuickCamera" : "UIButton",
+    "QuickReplay" : "intentionally disabled",
+    "QuickRetry" : "UIButton",
+    "QuickTools" : "UIButton"
+  },
+  "probe" : "hud-expanded",
+  "result" : "PASS",
+  "safeArea" : "(62.0, 0.0, 750.0, 381.0)",
+  "width" : 750
+}

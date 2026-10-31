@@ -1,0 +1,10 @@
+{
+  "automaticViewChanges" : 0,
+  "cameraAngle" : 1.5707963267948966,
+  "cameraMode" : 2,
+  "expectedCameraAngle" : 1.5707963267948966,
+  "probe" : "return",
+  "result" : "PASS",
+  "settleSeconds" : 0.5,
+  "zoom" : 1.1799999475479126
+}
