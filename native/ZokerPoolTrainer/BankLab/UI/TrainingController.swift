@@ -612,6 +612,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func applyCoachVisibility(){
         guard table != nil else{return}
+        wakeRendering()
         if replayIndex != nil{applyReplayCoach();return}
         if matchIsCompetitive{hideCoach();hintLabel.isHidden=true;scoreLabel.isHidden=true;table.setCompetitivePresentation(numbers:matchPlay.showNumbers);coachButton.setTitle("123",for:.normal);return}
         coachButton.setTitle("Coach",for:.normal)
