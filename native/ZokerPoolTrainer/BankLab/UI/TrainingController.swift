@@ -883,7 +883,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         frameStateCache=nil;defer{frameStateCache=nil}
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let guestTick=matchGuestTick(dt)
-        let active=ProcessInfo.processInfo.systemUptime<startupRenderUntil || (shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
+        // Keep rendering until a Premium QA probe has recorded its result; slow
+        // Simulator GPUs can need longer than the startup window.
+        let premiumPending = !premiumProbeWritten && ProcessInfo.processInfo.arguments.contains("--premium-qa")
+        let active=premiumPending || ProcessInfo.processInfo.systemUptime<startupRenderUntil || (shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
         let guestMoving=guestTick && matchPlay.session.isConnected && matchPlay.session.latestSnapshot?.isMoving==true
         displayLink?.preferredFramesPerSecond=active ? 60:15
         scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
@@ -981,17 +984,18 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             // consecutive ticks after cold start. The presentation node is only
             // refreshed by a rendered frame, so it is reported, not required.
             let eye=table.camera.simdPosition
-            if let previous=premiumProbeEye,simd_distance(previous,eye)<0.001 {premiumProbeStable+=1} else {premiumProbeStable=0}
+            let step=premiumProbeEye.map{simd_distance($0,eye)} ?? 1
+            if step<0.001 {premiumProbeStable+=1} else {premiumProbeStable=0}
             premiumProbeEye=eye
             let uptime=ProcessInfo.processInfo.systemUptime
-            let settled=premiumProbeStable>=20 && uptime>startupRenderUntil-5
-            if settled || uptime>startupRenderUntil-0.25 {
+            let settled=premiumProbeStable>=10 && uptime>startupRenderUntil-5
+            if settled || uptime>startupRenderUntil+12 {
                 let high=ProcessInfo.processInfo.arguments.contains("--premium-high")
                 let args=ProcessInfo.processInfo.arguments
                 let name=args.contains("--camera-top") ? "top":(args.contains("--camera-aim") ? "aim":"overview")
                 let expected=name=="top" ? 1:(name=="aim" ? 2:0)
                 let valid=settled && table.cameraMode==expected && eye.y>0.02 && table.usesHighDetail==high
-                recordG1QA("premium-"+(high ? "high-":"")+name,["result":valid ? "PASS":"FAIL","settled":settled,"stableTicks":premiumProbeStable,"cameraMode":table.cameraMode,"expectedMode":expected,"eyeY":Double(eye.y),"presentationDelta":Double(simd_distance(table.camera.presentation.simdPosition,eye)),"highDetail":table.usesHighDetail,"aspect":Double(scn.bounds.width/scn.bounds.height)])
+                recordG1QA("premium-"+(high ? "high-":"")+name,["result":valid ? "PASS":"FAIL","settled":settled,"stableTicks":premiumProbeStable,"lastStep":Double(step),"secondsAfterStart":uptime-(startupRenderUntil-8),"cameraMode":table.cameraMode,"expectedMode":expected,"eyeY":Double(eye.y),"presentationDelta":Double(simd_distance(table.camera.presentation.simdPosition,eye)),"highDetail":table.usesHighDetail,"aspect":Double(scn.bounds.width/scn.bounds.height)])
                 premiumProbeWritten=true
             }
         }

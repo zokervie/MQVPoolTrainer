@@ -132,9 +132,9 @@ final class TableScene {
                 UIColor(white:shade>0.5 ? 1:0.84,alpha:0.16).setStroke()
                 ctx.setLineWidth(0.6+random()*1.4);ctx.move(to:CGPoint(x:x,y:y));ctx.addLine(to:CGPoint(x:x+(random()-0.5)*3,y:y+len));ctx.strokePath()
             }
-            for _ in 0..<70 {
-                let r=30+random()*90
-                UIColor(white:0.88+random()*0.08,alpha:0.20).setFill()
+            for _ in 0..<160 {
+                let r=12+random()*40
+                UIColor(white:0.93+random()*0.05,alpha:0.08).setFill()
                 ctx.fillEllipse(in:CGRect(x:random()*w-r,y:random()*h-r,width:r*2,height:r*2))
             }
             // Soft darkening toward the cushions (bed spans u .107-.893, v .061-.939).
@@ -206,7 +206,7 @@ final class TableScene {
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
-        light.intensity=240;light.temperature=4300;light.spotInnerAngle=42;light.spotOuterAngle=112
+        light.intensity=70;light.temperature=4300;light.spotInnerAngle=42;light.spotOuterAngle=112
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.4
         light.shadowColor=UIColor(white:0,alpha:0.32);light.shadowBias=0.001
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
