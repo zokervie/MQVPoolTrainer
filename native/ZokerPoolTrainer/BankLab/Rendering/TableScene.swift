@@ -77,6 +77,7 @@ final class TableScene {
     static let pocketFallDuration=0.90
     private var light:SCNLight!
     private var highDetail=false
+    var usesHighDetail:Bool{highDetail}
     private var thermalState=ProcessInfo.ThermalState.nominal
     private var qualityKey=""
     private var ballSegmentCount=48
@@ -166,17 +167,17 @@ final class TableScene {
     }
     private func buildLights(){
         let ambient=SCNNode();ambient.light=SCNLight();ambient.light?.type = .ambient
-        ambient.light?.color=UIColor(white:0.92,alpha:1);ambient.light?.intensity=150
+        ambient.light?.color=UIColor(white:0.92,alpha:1);ambient.light?.intensity=220
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
-        light.intensity=520;light.temperature=4700;light.spotInnerAngle=50;light.spotOuterAngle=100
+        light.intensity=35;light.temperature=4700;light.spotInnerAngle=50;light.spotOuterAngle=100
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.4
         light.shadowColor=UIColor(white:0,alpha:0.32);light.shadowBias=0.001
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
         for x:Float in [-2.2,2.2]{
             let fill=SCNNode();fill.position=SCNVector3(x,1.7,0.8);fill.light=SCNLight();fill.light?.type = .omni
-            fill.light?.intensity=10;fill.light?.temperature=x>0 ? 4200:7000
+            fill.light?.intensity=24;fill.light?.temperature=4500
             fill.light?.attenuationStartDistance=1;fill.light?.attenuationEndDistance=6
             scene.rootNode.addChildNode(fill)
         }
@@ -219,8 +220,10 @@ final class TableScene {
         addMesh("trim",material:edge)
         // Split rails leave visible pocket apertures; apron is below the playing bed.
         for side:Float in [-1,1]{
-            _=box(0.10,0.21,2.64,SCNVector3(side*0.755,-0.16,0),graphite,chamfer:0.016)
-            _=box(1.42,0.21,0.10,SCNVector3(0,-0.16,side*1.3645),graphite,chamfer:0.016)
+            // Split cabinet panels around all six wells; continuous panels
+            // previously appeared as wooden bars inside the pocket apertures.
+            for z:Float in [-0.655,0.655]{_=box(0.10,0.21,1.01,SCNVector3(side*0.755,-0.16,z),graphite,chamfer:0.016)}
+            _=box(1.03,0.21,0.10,SCNVector3(0,-0.16,side*1.3645),graphite,chamfer:0.016)
             _=box(0.009,0.009,2.65,SCNVector3(side*0.803,-0.06,0),edge,chamfer:0.002)
             _=box(1.43,0.009,0.009,SCNVector3(0,-0.06,side*1.443),edge,chamfer:0.002)
         }
@@ -493,6 +496,25 @@ final class TableScene {
             _=box(2.5,0.32,0.48,SCNVector3(0,-0.55,side*3.8),mat(UIColor(red:0.13,green:0.075,blue:0.052,alpha:1)),chamfer:0.06)
             _=box(2.5,0.48,0.12,SCNVector3(0,-0.22,side*4.0),mat(UIColor(red:0.10,green:0.055,blue:0.035,alpha:1)),chamfer:0.04)
         }
+        // Warm, visible club backdrop instead of an unlit empty horizon.
+        let panel=premiumMaterial("WalnutDark")
+        let brass=premiumMaterial("ChampagneGold")
+        let glow=mat(.rgb(0xDAB876),roughness:0.7);glow.emission.contents=UIColor.rgb(0x997344)
+        for side:Float in [-1,1]{
+            _=box(7.8,0.9,0.035,SCNVector3(0,-0.28,side*4.63),panel,chamfer:0.003)
+            _=box(7.8,0.012,0.045,SCNVector3(0,0.18,side*4.60),brass,chamfer:0.001)
+            for x:Float in [-2.6,-1.3,0,1.3,2.6]{
+                _=box(0.028,0.76,0.04,SCNVector3(x,-0.27,side*4.59),brass,chamfer:0.002)
+            }
+            for x:Float in [-2.4,2.4]{
+                _=box(0.20,0.50,0.045,SCNVector3(x,0.85,side*4.58),brass,chamfer:0.015)
+                _=box(0.13,0.40,0.06,SCNVector3(x,0.85,side*4.54),glow,chamfer:0.02)
+                let lamp=SCNNode();lamp.light=SCNLight();lamp.light?.type = .omni
+                lamp.light?.intensity=18;lamp.light?.temperature=3200;lamp.light?.castsShadow=false
+                lamp.light?.attenuationStartDistance=0.2;lamp.light?.attenuationEndDistance=4
+                lamp.position=SCNVector3(x,0.9,side*4.2);scene.rootNode.addChildNode(lamp)
+            }
+        }
         // Rectangular light fixture and matching reflection cards in environment map.
         let frame=mat(UIColor(white:0.09,alpha:1),roughness:0.3,metal:0.7)
         for x:Float in [-0.47,0.47]{_ = box(0.045,0.035,2.10,SCNVector3(x,2.45,0),frame)}
@@ -656,7 +678,7 @@ final class TableScene {
         let dx=shortRail ? long/2:wide/2,dz=shortRail ? wide/2:long/2
         let vertices=[SCNVector3(-dx,0,0),SCNVector3(0,0,-dz),SCNVector3(dx,0,0),SCNVector3(0,0,dz)]
         let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:Array(repeating:SCNVector3(0,1,0),count:4))],elements:[SCNGeometryElement(indices:[Int32(0),1,2,0,2,3],primitiveType:.triangles)])
-        let m=mat(UIColor(red:0.96,green:0.94,blue:0.82,alpha:1),roughness:0.28,metal:0.15);m.isDoubleSided=true;m.emission.contents=UIColor(white:0.13,alpha:1);g.materials=[m]
+        let m=mat(.rgb(0xF1E5C7),roughness:0.45,metal:0);m.isDoubleSided=true;m.emission.contents=UIColor(white:0.13,alpha:1);g.materials=[m]
         let n=SCNNode(geometry:g);n.position=p;n.name="rail-sight";n.castsShadow=false;scene.rootNode.addChildNode(n)
     }
     private func brandPlate(_ p:SCNVector3){

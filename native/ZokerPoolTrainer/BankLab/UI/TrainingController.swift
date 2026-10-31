@@ -103,7 +103,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var quickScrollHeight:NSLayoutConstraint!
     var aimCameraYaw=0.0,liveCameraAngle=Double.pi/2
     var frameStateCache:[BallState]?
-    var renderUntil=0.0,lastStatusTime=0.0
+    var renderUntil=0.0,lastStatusTime=0.0,startupRenderUntil=0.0
+    var premiumProbeWritten=false,cameraInitialCommit=false
     var replayPreparing=false,archiveGeneration=0,activeArchiveID:String?
     var replayPlan:ReplayDirector.Plan?
     struct ReplayReturnState {var frames:[[BallState]];var times:[Double];var events:[[String:NSNumber]];var shot:SavedShot?;var paths:[Int:[SIMD3<Float>]];var coach:Bool;var preparation:[ReplayAimSample]}
@@ -282,7 +283,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         displayLink?.isPaused=true;scn?.isPlaying=false;scn?.rendersContinuously=false
     }
     override func viewDidLayoutSubviews(){
-        super.viewDidLayoutSubviews();layoutRightHUD()
+        super.viewDidLayoutSubviews();layoutRightHUD();wakeRendering()
     }
     func layoutRightHUD(){
         guard spinWidth != nil,quickRailBottom != nil else{return}
@@ -876,15 +877,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     @objc func tick(_ link:CADisplayLink){
         // Cold shader compilation can outlast the wake requested in viewDidLoad.
         // Always present the initial camera and accessibility state on first tick.
-        if lastTime==0{wakeRendering()}
+        if lastTime==0{startupRenderUntil=ProcessInfo.processInfo.systemUptime+8;wakeRendering()}
         let dt=lastTime==0 ? 0:min(0.1,max(0,link.timestamp-lastTime));lastTime=link.timestamp
         frameStateCache=nil;defer{frameStateCache=nil}
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let guestTick=matchGuestTick(dt)
-        let active=(shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
+        let active=ProcessInfo.processInfo.systemUptime<startupRenderUntil || (shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
         let guestMoving=guestTick && matchPlay.session.isConnected && matchPlay.session.latestSnapshot?.isMoving==true
         displayLink?.preferredFramesPerSecond=active ? 60:15
-        scn.isPlaying=false;scn.rendersContinuously=false
+        scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
         if active || guestMoving{scn.setNeedsDisplay()}
         if !active && !guestMoving && !(coachOn && guideOn && guideDirty){return}
         let wasSimulating=shotActive,wasReplaying=replayIndex != nil
@@ -974,6 +975,18 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         let blend=BLCameraTweenBlend(cameraTransition,dt,cameraTransitionDuration)
         table.placeCamera(cue:cameraCue,angle:cameraAngle,aspect:scn.bounds.width/max(1,scn.bounds.height),blend:Float(blend))
+        if !premiumProbeWritten,ProcessInfo.processInfo.arguments.contains("--premium-qa"),
+           scn.bounds.width>scn.bounds.height,ProcessInfo.processInfo.systemUptime>startupRenderUntil-5,
+           simd_distance(table.camera.presentation.simdPosition,table.camera.simdPosition)<0.03 {
+            let high=ProcessInfo.processInfo.arguments.contains("--premium-high")
+            let args=ProcessInfo.processInfo.arguments
+            let name=args.contains("--camera-top") ? "top":(args.contains("--camera-aim") ? "aim":"overview")
+            let expected=name=="top" ? 1:(name=="aim" ? 2:0)
+            let valid=table.cameraMode==expected && table.camera.simdPosition.y>0.02 && table.usesHighDetail==high
+            recordG1QA("premium-"+(high ? "high-":"")+name,["result":valid ? "PASS":"FAIL","cameraMode":table.cameraMode,"expectedMode":expected,"eyeY":table.camera.simdPosition.y,"highDetail":table.usesHighDetail,"aspect":scn.bounds.width/scn.bounds.height])
+            premiumProbeWritten=true
+        }
+        if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
         if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f",preparationDuration,replayClock)}
         if let sample=replayPreparation,replayIndex != nil {

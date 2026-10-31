@@ -26,7 +26,7 @@ capture_runtime() {
 }
 trap capture_runtime EXIT
 # Remove only generated probe records, so a previous run cannot satisfy a gate.
-for probe in default hud hud-expanded return spectator audio; do
+for probe in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview default hud hud-expanded return spectator audio; do
  rm -f "$data_path/Documents/g1-qa/$probe.json"
 done
 for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation; do
@@ -78,6 +78,7 @@ for camera in premium-aim premium-top premium-overview premium-high-aim premium-
   # Đầu dò G1: chờ tới khi controller thật ghi bản ghi PASS (máy Mac Intel biên dịch shader lâu hơn 8 giây,
   # đầu dò "return" còn phải đánh và chờ bi dừng). Cổng kiểm tra bản ghi phía dưới giữ nguyên.
   # Chưa có bản ghi → thử lại; có rồi thì vẫn phải qua kiểm tra "bàn đã hiện" như các ảnh khác.
+  if [[ "$camera" = premium-* ]] && [ ! -f "$data_path/Documents/g1-qa/$camera.json" ]; then continue; fi
   if [[ "$camera" = g1-* ]] && [ ! -f "$data_path/Documents/g1-qa/${camera#g1-}.json" ]; then continue; fi
   if [[ "$camera" = g1-* ]]; then
    python3 - "$data_path/Documents/g1-qa/${camera#g1-}.json" <<'PROBE'
@@ -110,7 +111,7 @@ cp "$data_path"/Documents/g1-qa/*.json build/screenshots/g1-qa/
 python3 - <<'G1'
 from pathlib import Path
 import json
-for name in ['default','hud','hud-expanded','return','spectator','audio']:
+for name in ['premium-aim','premium-top','premium-overview','premium-high-aim','premium-high-top','premium-high-overview','default','hud','hud-expanded','return','spectator','audio']:
  record=json.loads((Path('build/screenshots/g1-qa')/(name+'.json')).read_text())
  assert record['result']=='PASS',record
  print('PASS UIKit G1:',name,record)
