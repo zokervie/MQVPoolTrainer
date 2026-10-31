@@ -197,9 +197,85 @@ enum LANWireCodec {
     }
     private static func validateHeader(_ packet: LANEnvelope) throws {
         guard packet.version == LANEnvelope.protocolVersion else { throw LANWireError.incompatibleVersion }
-        guard packet.roomCode.utf8.count == 6, packet.roomCode.utf8.allSatisfy({ (48...57).contains($0) }),
+        let nearbyCode = packet.roomCode.utf8.count == 6 && packet.roomCode.utf8.allSatisfy({ (48...57).contains($0) })
+        guard nearbyCode || OnlineRoomCode.isValid(packet.roomCode),
               UUID(uuidString: packet.matchID) != nil, packet.sequence > 0 else {
             throw LANWireError.malformedEnvelope
         }
+    }
+}
+
+/// Internet rooms: 8 symbols without 0/O/1/I (same alphabet as Server/relay).
+enum OnlineRoomCode {
+    static let alphabet = Array("23456789ABCDEFGHJKLMNPQRSTUVWXYZ")
+    static func make() -> String {
+        var generator = SystemRandomNumberGenerator()
+        return String((0..<8).map { _ in alphabet[Int(generator.next(upperBound: UInt64(alphabet.count)))] })
+    }
+    static func normalized(_ text: String) -> String {
+        text.uppercased().filter { !$0.isWhitespace && $0 != "-" }
+    }
+    static func isValid(_ code: String) -> Bool {
+        code.count == 8 && code.allSatisfy { alphabet.contains($0) }
+    }
+    /// 32 lowercase hex characters: the relay seat secret for one device and room.
+    static func makeToken() -> String {
+        var generator = SystemRandomNumberGenerator()
+        return (0..<16).map { _ in String(format: "%02x", Int(generator.next(upperBound: UInt64(256)))) }.joined()
+    }
+}
+
+/// Guest playout clock for snapshots that arrive with network jitter.
+/// It trails the newest host time by an adaptive delay and steers at 0.92-1.08x,
+/// so a late packet slows motion slightly instead of freezing it.
+struct PlayoutClock {
+    static let minimumDelay = 0.12, maximumDelay = 0.45
+    private(set) var delay = PlayoutClock.minimumDelay
+    private(set) var jitter = 0.0
+    private var baseline: Double?
+
+    /// New connection or match: forget everything.
+    mutating func reset() { jitter = 0; baseline = nil; delay = Self.minimumDelay }
+    /// Host shot time restarts at 0 each shot; keep the learned jitter so the
+    /// first frames of the next shot already have a fitting buffer.
+    mutating func beginShot() { baseline = nil }
+
+    /// arrival: local uptime when a moving snapshot arrived; elapsed: host shot time.
+    mutating func observe(arrival: Double, elapsed: Double) {
+        guard arrival.isFinite, elapsed.isFinite else { return }
+        let offset = arrival - elapsed
+        // Earliest-seen offset approximates the fastest path; it is slowly
+        // forgotten so a lasting route change is not treated as jitter forever.
+        let base = min(offset, (baseline ?? offset) + 0.002)
+        baseline = base
+        jitter += (offset - base - jitter) / 8
+        delay = min(Self.maximumDelay, max(Self.minimumDelay, 0.06 + 3.0 * jitter))
+    }
+
+    func advance(clock: Double, dt: Double, latest: Double, moving: Bool) -> Double {
+        guard dt > 0 else { return min(clock, latest) }
+        guard moving else { return min(latest, clock + dt) }
+        let error = (latest - delay) - clock
+        if error > 0.6 { return latest - delay }
+        let rate = min(1.08, max(0.92, 1 + 0.5 * error))
+        return min(latest, clock + dt * rate)
+    }
+}
+
+/// Cubic Hermite between two host samples using their velocities. Used only
+/// when the ball rolls straight on through the interval (no rail, pocket or
+/// sharp turn); otherwise callers keep linear interpolation.
+enum SnapshotCurve {
+    static func eligible(_ a: LANBall, _ b: LANBall) -> Bool {
+        guard a.id == b.id, !a.sunk, !b.sunk, a.rails == b.rails, a.height < 0.002, b.height < 0.002 else { return false }
+        let va = hypot(a.vx, a.vy), vb = hypot(b.vx, b.vy)
+        guard va > 0.02, vb > 0.02 else { return false }
+        return (a.vx * b.vx + a.vy * b.vy) / (va * vb) > 0.8
+    }
+    static func position(_ a: LANBall, _ b: LANBall, interval h: Double, fraction t: Double) -> (x: Double, y: Double) {
+        let t = max(0, min(1, t)), t2 = t * t, t3 = t2 * t
+        let h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2
+        return (h00 * a.x + h10 * h * a.vx + h01 * b.x + h11 * h * b.vx,
+                h00 * a.y + h10 * h * a.vy + h01 * b.y + h11 * h * b.vy)
     }
 }

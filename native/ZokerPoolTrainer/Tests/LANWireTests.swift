@@ -110,6 +110,49 @@ import Foundation
                                                    awaitingFullSync: false), "ordinary duplicate snapshots must be ignored")
         try check(!LANAuthorityGate.acceptsSnapshot(state, matchID: match, lastRevision: 8,
                                                    awaitingFullSync: true), "reconnect must not roll state backwards")
+        // Online room codes and relay seat tokens.
+        let online = OnlineRoomCode.make()
+        try check(OnlineRoomCode.isValid(online), "generated online code must validate")
+        try check(!OnlineRoomCode.isValid("AB0CDEFG") && !OnlineRoomCode.isValid("ABCDEFG"), "ambiguous or short codes must be refused")
+        try check(OnlineRoomCode.normalized(" ab2c-def9 ") == "AB2CDEF9", "codes are entered case-insensitively")
+        let token = OnlineRoomCode.makeToken()
+        try check(token.count == 32 && token.allSatisfy { "0123456789abcdef".contains($0) }, "relay token must be 32 lowercase hex")
+        let onlineEnvelope = LANEnvelope(roomCode: online, matchID: match, sequence: 1, kind: .ping)
+        try check((try LANWireCodec.decode(try LANWireCodec.encode(onlineEnvelope))).roomCode == online, "online code must pass the codec")
+
+        // Playout clock: steady 10 Hz with jitter never stalls and stays behind the newest sample.
+        var playout = PlayoutClock()
+        var clock = 0.0, latest = 0.0, stalls = 0, now = 0.0, nextArrival = 0.0, hostTime = 0.0
+        var jitterSeed: UInt64 = 7
+        for _ in 0..<1200 { // 20 s at 60 Hz
+            now += 1.0 / 60
+            while nextArrival <= now {
+                latest = hostTime
+                playout.observe(arrival: nextArrival, elapsed: hostTime)
+                hostTime += 0.1
+                jitterSeed = jitterSeed &* 6364136223846793005 &+ 1442695040888963407
+                nextArrival = hostTime + 0.05 + Double(jitterSeed >> 40) / Double(1 << 24) * 0.18
+            }
+            let next = playout.advance(clock: clock, dt: 1.0 / 60, latest: latest, moving: true)
+            if now > 2, next - clock < 0.25 / 60 { stalls += 1 }
+            try check(next <= latest + 1e-9, "playout must not pass the newest host sample")
+            clock = next
+        }
+        try check(stalls < 30, "jittered stream must play without long stalls (stalls=\(stalls))")
+        try check(playout.delay > PlayoutClock.minimumDelay && playout.delay <= PlayoutClock.maximumDelay, "delay adapts within bounds")
+        try check(playout.advance(clock: 1, dt: 0.1, latest: 1.05, moving: false) == 1.05, "settled shot runs to its end")
+
+        // Hermite curve: endpoints exact; straight constant-velocity roll stays linear.
+        let a = LANBall(id: 3, x: 0, y: 0, vx: 1, vy: 0), b = LANBall(id: 3, x: 0.1, y: 0, vx: 1, vy: 0)
+        try check(SnapshotCurve.eligible(a, b), "straight roll uses the curve")
+        let mid = SnapshotCurve.position(a, b, interval: 0.1, fraction: 0.5)
+        try check(abs(mid.x - 0.05) < 1e-12 && abs(mid.y) < 1e-12, "constant velocity matches linear")
+        let end = SnapshotCurve.position(a, b, interval: 0.1, fraction: 1)
+        try check(abs(end.x - 0.1) < 1e-12, "curve ends at the next sample")
+        var railed = b; railed.rails = 1; railed.vx = -0.8
+        try check(!SnapshotCurve.eligible(a, railed), "rail contact falls back to linear")
+        var sunk = b; sunk.sunk = true
+        try check(!SnapshotCurve.eligible(a, sunk), "pocketed ball falls back to linear")
         print("PASS LAN wire: \(checks) production codec/authority/roundtrip validation checks; two-device transport NOT_RUN")
     }
 }

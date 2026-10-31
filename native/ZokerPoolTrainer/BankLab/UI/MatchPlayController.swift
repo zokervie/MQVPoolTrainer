@@ -21,6 +21,7 @@ final class MatchPlayState {
     var guestBalls: [BallState] = []
     var snapshots: [LANSnapshot] = []
     var guestClock = 0.0
+    var playout = PlayoutClock()
     var audioEvents: [LANEvent] = []
     var playedEvents = Set<Int>()
     var audioShotID = -1
@@ -150,20 +151,44 @@ extension TrainingController {
     func openMatchMenu() {
         guard !shotActive, replayIndex == nil, !locked else { return }
         if matchPlay.active { openMatchActions(); return }
-        let sheet = UIAlertController(title: "Chơi theo luật", message: "8/9/10 Ball: luật WPA. 15 Ball: Rotation, chạm số nhỏ nhất trước, đạt 61 điểm. Chơi Wi-Fi dùng hai máy cùng mạng, không cần tài khoản hay máy chủ.", preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: "Chơi theo luật", message: "8/9/10 Ball: luật WPA. 15 Ball: Rotation, chạm số nhỏ nhất trước, đạt 61 điểm. Wi-Fi: hai máy cùng mạng. Online: hai máy ở bất kỳ đâu (Wi-Fi/4G) qua máy chủ chuyển tiếp miễn phí; máy tạo phòng tính vật lý cho cả hai.", preferredStyle: .actionSheet)
         for (rule, title) in matchDisciplines {
             sheet.addAction(UIAlertAction(title: title + " · chuyền máy", style: .default) { [weak self] _ in self?.startMatch(rule: rule, network: false) })
             sheet.addAction(UIAlertAction(title: title + " · tạo phòng Wi-Fi", style: .default) { [weak self] _ in self?.startMatch(rule: rule, network: true) })
+            sheet.addAction(UIAlertAction(title: title + " · tạo phòng Online", style: .default) { [weak self] _ in self?.startMatch(rule: rule, network: true, online: true) })
         }
-        sheet.addAction(UIAlertAction(title: "Vào phòng bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom() })
+        sheet.addAction(UIAlertAction(title: "Vào phòng Wi-Fi bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom() })
+        sheet.addAction(UIAlertAction(title: "Vào phòng Online bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom(online: true) })
+        sheet.addAction(UIAlertAction(title: "Máy chủ online…", style: .default) { [weak self] _ in self?.configureOnlineRelay() })
         sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel))
         presentSheet(sheet, source: menuButton)
+    }
+    /// Address of the free relay (Server/relay deployed on Cloudflare Workers).
+    func configureOnlineRelay(then next: (() -> Void)? = nil) {
+        let alert = UIAlertController(title: "Máy chủ online", message: "Dán địa chỉ máy chủ chuyển tiếp, ví dụ zoker-relay.ten-ban.workers.dev. Hai máy phải dùng cùng một địa chỉ.", preferredStyle: .alert)
+        alert.addTextField { field in
+            field.text = OnlineRelayConfig.text; field.placeholder = "zoker-relay.ten-ban.workers.dev"
+            field.keyboardType = .URL; field.autocapitalizationType = .none; field.autocorrectionType = .no
+        }
+        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self, weak alert] _ in
+            guard let self = self else { return }
+            if OnlineRelayConfig.set(alert?.textFields?.first?.text ?? "") {
+                self.notifyStatus(OnlineRelayConfig.url == nil ? "Đã xoá máy chủ online" : "Đã lưu máy chủ online")
+                if OnlineRelayConfig.url != nil { next?() }
+            } else { self.notifyStatus("Địa chỉ máy chủ chưa đúng") }
+        })
+        present(alert, animated: true)
     }
     var matchDisciplines: [(String,String)] {
         [("nineBall","9 Ball"),("eightBall","8 Ball"),("tenBall","10 Ball"),("rotation15","15 Ball Rotation · 61 điểm")]
     }
-    func startMatch(rule: String, network: Bool) {
+    func startMatch(rule: String, network: Bool, online: Bool = false) {
         guard !shotActive, replayIndex == nil else { return }
+        if online && OnlineRelayConfig.url == nil {
+            configureOnlineRelay { [weak self] in self?.startMatch(rule: rule, network: true, online: true) }
+            return
+        }
         matchPlay.session.leave()
         clearShot()
         matchPlay.active = true
@@ -171,6 +196,7 @@ extension TrainingController {
         matchPlay.rules?.reset(breaker: 0)
         matchPlay.forfeitWinner = nil
         matchPlay.shotID = 0; matchPlay.elapsed = 0
+        matchPlay.playout.reset()
         matchPlay.warningAcknowledged = nil
         matchPlay.showNumbers = false
         matchPlay.state = matchPlay.rules?.state ?? [:]
@@ -188,30 +214,53 @@ extension TrainingController {
         table.resetPocketPresentation()
         table.setCompetitivePresentation(numbers: false)
         if network {
-            _ = matchPlay.session.createRoom(game: rule)
+            _ = matchPlay.session.createRoom(game: rule, internet: online)
             publishMatchSnapshot(force: true)
         }
         setMenu(false); refresh(); syncMatchControls(); updateControls()
-        notifyStatus(network ? "Mã phòng \(matchPlay.session.roomCode) · máy bạn chọn Vào phòng bằng mã" : "Lượt người 1 · phá từ phía sau vạch đầu bàn")
+        let code = matchPlay.session.roomCode
+        if online && !code.isEmpty {
+            UIPasteboard.general.string = code
+            notifyStatus("Mã phòng online \(code) (đã sao chép) · gửi cho bạn, bạn chọn Vào phòng Online bằng mã")
+        } else {
+            notifyStatus(network ? "Mã phòng \(code) · máy bạn chọn Vào phòng bằng mã" : "Lượt người 1 · phá từ phía sau vạch đầu bàn")
+        }
     }
-    func joinMatchRoom() {
-        let alert = UIAlertController(title: "Vào phòng Wi-Fi", message: "Hai máy dùng cùng Wi-Fi, mở ứng dụng và cho phép Mạng cục bộ. Nhập mã 6 chữ số trên máy tạo phòng.", preferredStyle: .alert)
-        alert.addTextField { $0.placeholder = "Mã 6 chữ số"; $0.keyboardType = .numberPad }
+    func joinMatchRoom(online: Bool = false) {
+        if online && OnlineRelayConfig.url == nil {
+            configureOnlineRelay { [weak self] in self?.joinMatchRoom(online: true) }
+            return
+        }
+        let alert = online ?
+            UIAlertController(title: "Vào phòng Online", message: "Nhập mã 8 ký tự bạn gửi. Hai máy có thể ở mạng khác nhau (Wi-Fi hoặc 4G).", preferredStyle: .alert) :
+            UIAlertController(title: "Vào phòng Wi-Fi", message: "Hai máy dùng cùng Wi-Fi, mở ứng dụng và cho phép Mạng cục bộ. Nhập mã 6 chữ số trên máy tạo phòng.", preferredStyle: .alert)
+        alert.addTextField { field in
+            if online {
+                field.placeholder = "Mã 8 ký tự"; field.autocapitalizationType = .allCharacters; field.autocorrectionType = .no
+                if let pasted = UIPasteboard.general.hasStrings ? UIPasteboard.general.string : nil,
+                   OnlineRoomCode.isValid(OnlineRoomCode.normalized(pasted)) { field.text = OnlineRoomCode.normalized(pasted) }
+            } else { field.placeholder = "Mã 6 chữ số"; field.keyboardType = .numberPad }
+        }
         alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
         alert.addAction(UIAlertAction(title: "Kết nối", style: .default) { [weak self, weak alert] _ in
-            guard let self = self, let code = alert?.textFields?.first?.text else { return }
-            guard code.count == 6, code.allSatisfy({ $0.isNumber && $0.isASCII }) else { self.notifyStatus("Mã phòng cần 6 chữ số"); return }
+            guard let self = self, let typed = alert?.textFields?.first?.text else { return }
+            let code = online ? OnlineRoomCode.normalized(typed) : typed
+            if online {
+                guard OnlineRoomCode.isValid(code) else { self.notifyStatus("Mã phòng online gồm 8 ký tự"); return }
+            } else {
+                guard code.count == 6, code.allSatisfy({ $0.isNumber && $0.isASCII }) else { self.notifyStatus("Mã phòng cần 6 chữ số"); return }
+            }
             self.clearShot()
             self.matchPlay.rules = nil; self.matchPlay.state = [:]
             self.matchPlay.active = true; self.matchPlay.showNumbers = false
-            self.matchPlay.guestBalls = []; self.matchPlay.snapshots = []
+            self.matchPlay.guestBalls = []; self.matchPlay.snapshots = []; self.matchPlay.playout.reset()
             self.matchPlay.lastGuestShot = -1; self.matchPlay.lastGuestTurn = -1; self.matchPlay.pendingAimSync = true; self.matchPlay.needsFullSync = true
             self.matchPlay.audioShotID = -1; self.matchPlay.audioEvents = []; self.matchPlay.playedEvents = []
             self.matchPlay.placementDraft = nil
             self.coaching = false; self.guideOn = false; self.locked = false
             self.table.cameraMode = 0; self.table.zoom = 1; self.table.focusBounds = nil
             self.table.setCompetitivePresentation(numbers: false)
-            _ = self.matchPlay.session.joinRoom(code: code)
+            _ = self.matchPlay.session.joinRoom(code: code, internet: online)
             self.setMenu(false); self.syncMatchControls(); self.updateControls()
         })
         present(alert, animated: true)
@@ -669,6 +718,8 @@ extension TrainingController {
         let gap = snapshot.elapsed - (matchPlay.snapshots.last?.elapsed ?? snapshot.elapsed)
         let resync = isFirst || matchPlay.needsFullSync || (!newShot && gap > 0.5)
         matchPlay.needsFullSync = false
+        if newShot { matchPlay.playout.beginShot() }
+        if snapshot.isMoving { matchPlay.playout.observe(arrival: ProcessInfo.processInfo.systemUptime, elapsed: snapshot.elapsed) }
         if newShot || newTurn || isFirst { matchPlay.pendingAimSync = true }
         matchPlay.state = state
         matchPlay.calledBall = (state["calledBall"] as? NSNumber)?.intValue ?? 0
@@ -677,7 +728,7 @@ extension TrainingController {
         matchPlay.pushOut = (state["pushOut"] as? NSNumber)?.boolValue ?? false
         if newShot {
             matchPlay.snapshots = []
-            matchPlay.guestClock = max(0, snapshot.elapsed - 0.12)
+            matchPlay.guestClock = max(0, snapshot.elapsed - matchPlay.playout.delay)
             if matchPlay.audioShotID != snapshot.shotID {
                 matchPlay.audioShotID = snapshot.shotID
                 matchPlay.playedEvents = []; matchPlay.audioEvents = []
@@ -687,7 +738,7 @@ extension TrainingController {
         if resync {
             // Rejoining mid-shot must not burst already completed sounds.
             matchPlay.snapshots.removeAll()
-            matchPlay.guestClock = snapshot.isMoving ? max(0, snapshot.elapsed - 0.12) : snapshot.elapsed
+            matchPlay.guestClock = snapshot.isMoving ? max(0, snapshot.elapsed - matchPlay.playout.delay) : snapshot.elapsed
             matchPlay.playedEvents.formUnion(snapshot.events.map { $0.index })
             matchPlay.audioEvents.removeAll()
             matchPlay.pendingAimSync = true
@@ -697,7 +748,8 @@ extension TrainingController {
             matchPlay.snapshots.removeAll()
         }
         matchPlay.snapshots.append(snapshot)
-        if matchPlay.snapshots.count > 5 { matchPlay.snapshots.removeFirst(matchPlay.snapshots.count - 5) }
+        // 10 Hz samples: 8 cover the largest internet playout delay (0.45 s).
+        if matchPlay.snapshots.count > 8 { matchPlay.snapshots.removeFirst(matchPlay.snapshots.count - 8) }
         matchPlay.guestBalls = snapshot.balls.map { matchRenderBall($0) }
         if !snapshot.isMoving {
             matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
@@ -731,13 +783,25 @@ extension TrainingController {
         if matchPlay.session.role != .guest { return false }
         guard let latest = matchPlay.snapshots.last else { return true }
         if !latest.isPaused && matchPlay.session.isConnected {
-            matchPlay.guestClock = min(latest.elapsed, matchPlay.guestClock + dt)
+            matchPlay.guestClock = matchPlay.playout.advance(clock: matchPlay.guestClock, dt: dt,
+                                                             latest: latest.elapsed, moving: latest.isMoving)
         }
         let later = matchPlay.snapshots.first { $0.elapsed >= matchPlay.guestClock } ?? latest
         let earlier = matchPlay.snapshots.last { $0.elapsed <= matchPlay.guestClock } ?? matchPlay.snapshots.first ?? latest
         let interval = later.elapsed - earlier.elapsed
         let fraction = interval > 0 ? max(0, min(1, (matchPlay.guestClock - earlier.elapsed) / interval)) : 1
-        let from = earlier.balls.map { matchRenderBall($0) }, to = later.balls.map { matchRenderBall($0) }
+        var from = earlier.balls.map { matchRenderBall($0) }, to = later.balls.map { matchRenderBall($0) }
+        if interval > 0 {
+            // Follow the rolling curve from host velocities between 10 Hz samples.
+            let laterByID = Dictionary(uniqueKeysWithValues: later.balls.map { ($0.id, $0) })
+            for (index, a) in earlier.balls.enumerated() {
+                guard let b = laterByID[a.id], SnapshotCurve.eligible(a, b),
+                      let target = to.firstIndex(where: { $0.id == a.id }) else { continue }
+                let point = SnapshotCurve.position(a, b, interval: interval, fraction: fraction)
+                from[index].x = point.x; from[index].y = point.y
+                to[target].x = point.x; to[target].y = point.y
+            }
+        }
         if let draft = matchPlay.placementDraft { table.update(draft, dt: dt) }
         else {
             table.replay(from, to: to, fraction: fraction)

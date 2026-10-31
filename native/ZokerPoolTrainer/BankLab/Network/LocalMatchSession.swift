@@ -2,11 +2,14 @@ import Foundation
 import MultipeerConnectivity
 import UIKit
 
-/// Two nearby devices, no account/server. All public APIs and callbacks use the main thread.
-/// MCSession supplies ordered reliable delivery and required transport encryption.
+/// Two devices, no account. Nearby: MultipeerConnectivity. Internet: a WebSocket
+/// relay (Server/relay) that only forwards bytes between the two seats of a room.
+/// All public APIs and callbacks use the main thread. Both transports give ordered
+/// reliable delivery and transport encryption (MCSession .required / TLS).
 /// Host is seat 0 and the only solver/rules authority; guest is seat 1.
 final class LocalMatchSession: NSObject {
     enum Role { case none, host, guest }
+    enum Transport { case nearby, internet }
     static let serviceType = "zt-pool18"
 
     var onStateChanged: ((String) -> Void)?
@@ -19,6 +22,7 @@ final class LocalMatchSession: NSObject {
     var onError: ((String) -> Void)?
 
     private(set) var role: Role = .none
+    private(set) var transport: Transport = .nearby
     private(set) var roomCode = ""
     private(set) var game = ""
     private(set) var latestSnapshot: LANSnapshot?
@@ -27,9 +31,19 @@ final class LocalMatchSession: NSObject {
     var hasPendingCommand: Bool { awaitingCommandID != nil }
     var localPlayer: Int { role == .guest ? 1 : 0 }
     var isConnected: Bool {
-        remoteReady && (role == .host || snapshotReady) && !backgrounded && !protocolBlocked && session?.connectedPeers.count == 1
+        remoteReady && (role == .host || snapshotReady) && !backgrounded && !protocolBlocked && linkUp
     }
-
+    /// Transport-level link to exactly one peer.
+    private var linkUp: Bool {
+        transport == .internet ? (relay?.isOpen == true && relayPeerPresent) : session?.connectedPeers.count == 1
+    }
+    private var peerName: String {
+        transport == .internet ? "bạn chơi online" : (reservedPeer?.displayName ?? "bạn chơi")
+    }
+    private var relay: RelayLink?
+    private var relayPeerPresent = false
+    private var relayToken = ""
+    private var relayFailures = 0
     private let peerID: MCPeerID
     private var session: MCSession?
     private var advertiser: MCNearbyServiceAdvertiser?
@@ -83,37 +97,52 @@ final class LocalMatchSession: NSObject {
     deinit {
         NotificationCenter.default.removeObserver(self)
         heartbeat?.invalidate()
+        relay?.close()
         advertiser?.stopAdvertisingPeer()
         browser?.stopBrowsingForPeers()
         session?.disconnect()
     }
 
-    @discardableResult func createRoom(game: String) -> String {
+    @discardableResult func createRoom(game: String, internet: Bool = false) -> String {
         requireMain()
         leave()
         guard validGame(game) else { report("Thể loại trận không hợp lệ"); return "" }
+        if internet && OnlineRelayConfig.url == nil {
+            report("Chưa có địa chỉ máy chủ online. Vào Chơi theo luật → Máy chủ online."); return ""
+        }
         role = .host
+        transport = internet ? .internet : .nearby
         self.game = game
-        roomCode = String(Int.random(in: 100_000...999_999))
+        roomCode = internet ? OnlineRoomCode.make() : String(Int.random(in: 100_000...999_999))
+        relayToken = internet ? OnlineRelayConfig.token(for: roomCode, role: "host") : ""
         matchID = UUID().uuidString
         restartSession()
         startHeartbeat()
-        describe("Mã phòng \(roomCode) · đang chờ bạn")
+        describe(internet ? "Mã phòng online \(roomCode) · đang chờ bạn" : "Mã phòng \(roomCode) · đang chờ bạn")
         return roomCode
     }
 
-    @discardableResult func joinRoom(code: String) -> Bool {
+    @discardableResult func joinRoom(code: String, internet: Bool = false) -> Bool {
         requireMain()
-        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.utf8.count == 6, trimmed.utf8.allSatisfy({ (48...57).contains($0) }) else {
-            report("Nhập mã phòng gồm 6 chữ số"); return false
+        let trimmed = internet ? OnlineRoomCode.normalized(code) : code.trimmingCharacters(in: .whitespacesAndNewlines)
+        if internet {
+            guard OnlineRoomCode.isValid(trimmed) else { report("Mã phòng online gồm 8 ký tự (chữ và số)"); return false }
+            guard OnlineRelayConfig.url != nil else {
+                report("Chưa có địa chỉ máy chủ online. Vào Chơi theo luật → Máy chủ online."); return false
+            }
+        } else {
+            guard trimmed.utf8.count == 6, trimmed.utf8.allSatisfy({ (48...57).contains($0) }) else {
+                report("Nhập mã phòng gồm 6 chữ số"); return false
+            }
         }
         leave()
         role = .guest
+        transport = internet ? .internet : .nearby
         roomCode = trimmed
+        relayToken = internet ? OnlineRelayConfig.token(for: roomCode, role: "guest") : ""
         restartSession()
         startHeartbeat()
-        describe("Đang tìm phòng \(roomCode) trên mạng gần đây")
+        describe(internet ? "Đang vào phòng online \(roomCode)" : "Đang tìm phòng \(roomCode) trên mạng gần đây")
         return true
     }
 
@@ -126,6 +155,8 @@ final class LocalMatchSession: NSObject {
         stopDiscovery()
         heartbeat?.invalidate(); heartbeat = nil
         session?.delegate = nil; session?.disconnect(); session = nil
+        relay?.close(); relay = nil; relayPeerPresent = false; relayFailures = 0
+        transport = .nearby; relayToken = ""
         roomCode = ""; game = ""; matchID = ""
         reservedPeer = nil; pendingPeer = nil
         latestSnapshot = nil; revision = 0; sendSequence = 0; receivedSequence = 0
@@ -218,6 +249,22 @@ final class LocalMatchSession: NSObject {
         receivedSequence = 0
         stopDiscovery()
         session?.delegate = nil; session?.disconnect()
+        if transport == .internet {
+            session = nil
+            relay?.close(); relayPeerPresent = false
+            lastReceived = ProcessInfo.processInfo.systemUptime
+            retryAt = lastReceived
+            guard !backgrounded, !protocolBlocked, let base = OnlineRelayConfig.url else { return }
+            let link = RelayLink(base: base, code: roomCode, role: role == .host ? "host" : "guest", token: relayToken)
+            let token = generation
+            link.onEvent = { [weak self] event in
+                guard let self = self, self.generation == token, self.relay === link else { return }
+                self.handleRelay(event)
+            }
+            relay = link
+            link.connect()
+            return
+        }
         let value = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
         value.delegate = self
         session = value
@@ -226,7 +273,7 @@ final class LocalMatchSession: NSObject {
         startDiscovery()
     }
     private func startDiscovery() {
-        guard role != .none, !backgrounded, !protocolBlocked else { return }
+        guard role != .none, !backgrounded, !protocolBlocked, transport == .nearby else { return }
         if role == .host {
             if advertiser == nil {
                 advertiser = MCNearbyServiceAdvertiser(peer: peerID,
@@ -252,6 +299,21 @@ final class LocalMatchSession: NSObject {
     private func tick() {
         guard role != .none, !backgrounded, !protocolBlocked else { return }
         let now = ProcessInfo.processInfo.systemUptime
+        if transport == .internet {
+            if linkUp {
+                if remoteReady && now - lastReceived > 10 {
+                    describe("Mất tín hiệu · trận tạm dừng, đang nối lại")
+                    restartSession()
+                    return
+                }
+                if remoteReady && now - lastPing >= 2 { lastPing = now; send(kind: .ping) }
+            } else if relay == nil && now - retryAt > min(30, 2 * pow(2, Double(min(relayFailures, 4)))) {
+                restartSession() // backoff 2, 4, 8, 16, 30 s
+            } else if let link = relay, !link.isOpen, now - retryAt > 15 {
+                restartSession() // connection attempt stuck
+            }
+            return
+        }
         if session?.connectedPeers.count == 1 {
             if now - lastReceived > 10 {
                 describe("Mất tín hiệu · trận tạm dừng, đang nối lại")
@@ -273,6 +335,7 @@ final class LocalMatchSession: NSObject {
         backgrounded = true; remoteReady = false; snapshotReady = false
         stopDiscovery()
         session?.disconnect()
+        relay?.close(); relay = nil; relayPeerPresent = false
         describe("Ứng dụng tạm nghỉ · trận tạm dừng")
     }
     @objc private func resume() {
@@ -285,7 +348,7 @@ final class LocalMatchSession: NSObject {
     @discardableResult private func send(kind: LANEnvelope.Kind, snapshot: LANSnapshot? = nil,
                                          command: LANCommand? = nil, message: String? = nil,
                                          events: [LANEvent]? = nil, shotID: Int? = nil) -> Bool {
-        guard let session = session, session.connectedPeers.count == 1 else { return false }
+        guard linkUp else { return false }
         sendSequence += 1
         var packet = LANEnvelope(roomCode: roomCode, matchID: matchID, sequence: sendSequence, kind: kind)
         packet.snapshot = snapshot; packet.command = command; packet.message = message
@@ -293,7 +356,13 @@ final class LocalMatchSession: NSObject {
         if kind == .hello { packet.role = role == .host ? "host" : "guest"; packet.game = game }
         do {
             let data = try LANWireCodec.encode(packet)
-            try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+            if transport == .internet {
+                guard let relay = relay else { return false }
+                relay.send(data)
+            } else {
+                guard let session = session else { return false }
+                try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+            }
             return true
         } catch {
             report("Chưa gửi được trạng thái trận. Đang chờ kết nối ổn định.")
@@ -304,15 +373,16 @@ final class LocalMatchSession: NSObject {
     private func protocolFailure(_ message: String) {
         protocolBlocked = true; remoteReady = false
         stopDiscovery(); session?.disconnect()
+        relay?.close(); relay = nil; relayPeerPresent = false
         describe("Trận tạm dừng · cần kết nối lại")
         report(message)
     }
 
-    private func receive(_ data: Data, from peer: MCPeerID) {
+    private func receive(_ data: Data, from peer: MCPeerID?) {
         guard data.count <= LANEnvelope.maximumBytes,
               let packet = try? LANWireCodec.decode(data), packet.roomCode == roomCode,
               packet.sequence > receivedSequence else { return }
-        guard reservedPeer == nil || reservedPeer == peer else { return }
+        guard transport == .internet || reservedPeer == nil || reservedPeer == peer else { return }
         if packet.kind != .hello && packet.matchID != matchID { return }
         receivedSequence = packet.sequence
         lastReceived = ProcessInfo.processInfo.systemUptime
@@ -329,12 +399,15 @@ final class LocalMatchSession: NSObject {
                 }
                 matchID = packet.matchID; game = peerGame
             }
+            let wasReady = remoteReady
             remoteReady = true
             if role == .host {
-                describe("Đã nối \(peer.displayName) · Chủ phòng")
+                describe("Đã nối \(peer?.displayName ?? peerName) · Chủ phòng")
                 if let snapshot = latestSnapshot { send(kind: .snapshot, snapshot: snapshot) }
             } else {
-                describe("Đang đồng bộ với \(peer.displayName)")
+                // Online guests learn the match ID from the host's hello, then answer it.
+                if transport == .internet && !wasReady { send(kind: .hello) }
+                describe("Đang đồng bộ với \(peer?.displayName ?? peerName)")
             }
         case .snapshot:
             guard role == .guest, remoteReady, let value = packet.snapshot,
@@ -351,7 +424,7 @@ final class LocalMatchSession: NSObject {
                 deliveredEventIndex = value.events.map { $0.index }.max() ?? -1
             }
             onSnapshot?(value)
-            if firstSync { describe("Đã nối \(peer.displayName) · Khách") }
+            if firstSync { describe("Đã nối \(peer?.displayName ?? peerName) · Khách") }
         case .command:
             guard role == .host, remoteReady, let command = packet.command else { return }
             _ = receiveHostCommand(command, player: 1)
@@ -379,7 +452,7 @@ final class LocalMatchSession: NSObject {
         case .leave:
             remoteReady = false
             describe("Bạn đã rời phòng · trận tạm dừng")
-            session?.disconnect()
+            if transport == .nearby { session?.disconnect() }
         }
     }
 
@@ -404,6 +477,186 @@ final class LocalMatchSession: NSObject {
         send(kind: .accepted, command: command)
         onAcceptedCommand?(command)
         return true
+    }
+}
+
+// MARK: - Internet relay
+extension LocalMatchSession {
+    fileprivate func handleRelay(_ event: RelayLink.Event) {
+        switch event {
+        case .peer(let present):
+            relayFailures = 0
+            relayPeerPresent = present
+            if present {
+                // Sent whenever the other seat (re)connects: restart the handshake,
+                // because a relaunched peer numbers its packets from 1 again.
+                receivedSequence = 0; remoteReady = false; snapshotReady = false
+                lastReceived = ProcessInfo.processInfo.systemUptime
+                describe("Đang đồng bộ với \(peerName)")
+                // Host speaks first; a reconnecting guest that already knows the match also may.
+                if role == .host || !matchID.isEmpty { send(kind: .hello) }
+            } else {
+                remoteReady = false; snapshotReady = false
+                awaitingCommandID = nil; awaitingRevision = nil
+                describe(role == .host ? "Mã phòng online \(roomCode) · đang chờ bạn" : "Bạn chơi mất kết nối · trận tạm dừng")
+            }
+        case .data(let data):
+            receive(data, from: nil)
+        case .closed(let code):
+            relayPeerPresent = false; remoteReady = false; snapshotReady = false
+            awaitingCommandID = nil; awaitingRevision = nil
+            relay = nil
+            relayFailures += 1
+            retryAt = ProcessInfo.processInfo.systemUptime
+            switch code {
+            case 4404: protocolBlocked = true; describe("Không tìm thấy phòng \(roomCode)"); report("Mã phòng online không đúng hoặc chủ phòng chưa mở phòng.")
+            case 4409: protocolBlocked = true; describe("Phòng \(roomCode) đã đủ 2 người"); report("Phòng online đã có người khác vào.")
+            case 4426: protocolBlocked = true; describe("Cần cập nhật ứng dụng"); report("Máy chủ online dùng phiên bản giao thức khác.")
+            case 4410: protocolBlocked = true; describe("Phòng đang mở trên máy khác")
+            default: describe("Mất mạng · trận tạm dừng, đang nối lại")
+            }
+        }
+    }
+}
+
+/// Where the free relay lives. Set once in the app (Máy chủ online) or bake in
+/// `defaultURL` after deploying Server/relay to Cloudflare Workers.
+enum OnlineRelayConfig {
+    static let defaultURL = ""
+    private static let key = "onlineRelayURL019"
+    static var url: URL? {
+        let text = (UserDefaults.standard.string(forKey: key) ?? defaultURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        return normalize(text)
+    }
+    static var text: String { UserDefaults.standard.string(forKey: key) ?? defaultURL }
+    @discardableResult static func set(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { UserDefaults.standard.removeObject(forKey: key); return true }
+        guard normalize(trimmed) != nil else { return false }
+        UserDefaults.standard.set(trimmed, forKey: key); return true
+    }
+    /// Accepts "zoker-relay.name.workers.dev", https:// or wss:// forms; returns wss/ws.
+    static func normalize(_ text: String) -> URL? {
+        var value = text
+        if !value.contains("://") { value = "wss://" + value }
+        guard var parts = URLComponents(string: value), let host = parts.host, !host.isEmpty else { return nil }
+        switch parts.scheme?.lowercased() {
+        case "https", "wss": parts.scheme = "wss"
+        case "http", "ws": parts.scheme = "ws" // local relay testing only
+        default: return nil
+        }
+        parts.path = ""; parts.query = nil; parts.fragment = nil
+        return parts.url
+    }
+    /// One seat secret per room and role, kept so a relaunch can retake the seat.
+    static func token(for code: String, role: String) -> String {
+        let key = "onlineSeat019." + role + "." + code
+        if let stored = UserDefaults.standard.string(forKey: key), stored.count == 32 { return stored }
+        let value = OnlineRoomCode.makeToken()
+        UserDefaults.standard.set(value, forKey: key)
+        return value
+    }
+}
+
+/// One WebSocket to the relay. Binary frames carry LANWireCodec envelopes;
+/// text frames are relay notices ({"relay":"peer","present":true}).
+final class RelayLink: NSObject, URLSessionWebSocketDelegate {
+    enum Event { case peer(Bool), data(Data), closed(Int) }
+    var onEvent: ((Event) -> Void)?
+    private(set) var isOpen = false
+    private var task: URLSessionWebSocketTask?
+    private var urlSession: URLSession?
+    private let request: URLRequest
+    private var finished = false
+
+    init(base: URL, code: String, role: String, token: String) {
+        var parts = URLComponents(url: base, resolvingAgainstBaseURL: false) ?? URLComponents()
+        parts.path = "/v1/rooms/" + code
+        parts.queryItems = [URLQueryItem(name: "role", value: role), URLQueryItem(name: "token", value: token),
+                            URLQueryItem(name: "v", value: String(LANEnvelope.protocolVersion))]
+        var request = URLRequest(url: parts.url ?? base)
+        request.timeoutInterval = 15
+        self.request = request
+        super.init()
+    }
+
+    func connect() {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = false
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
+        urlSession = session
+        let task = session.webSocketTask(with: request)
+        task.maximumMessageSize = LANEnvelope.maximumBytes + 1024
+        self.task = task
+        task.resume()
+        receiveNext()
+    }
+
+    func send(_ data: Data) {
+        guard isOpen, let task = task else { return }
+        task.send(.data(data)) { [weak self] error in
+            guard error != nil else { return }
+            DispatchQueue.main.async { self?.finish(1006) }
+        }
+    }
+
+    func close() {
+        guard !finished else { return }
+        finished = true; isOpen = false
+        task?.cancel(with: .normalClosure, reason: nil)
+        urlSession?.invalidateAndCancel()
+        onEvent = nil
+    }
+
+    private func receiveNext() {
+        task?.receive { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self, !self.finished else { return }
+                switch result {
+                case .failure:
+                    self.finish(self.task?.closeCode.rawValue ?? 1006)
+                case .success(.data(let data)):
+                    self.isOpen = true
+                    if data.count <= LANEnvelope.maximumBytes { self.onEvent?(.data(data)) }
+                    self.receiveNext()
+                case .success(.string(let text)):
+                    let json = text.utf8.count <= 256 ? (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] : nil
+                    if json?["relay"] as? String == "error", let code = json?["code"] as? Int {
+                        // Custom WebSocket close codes (44xx) are not exposed by URLSession.
+                        self.finish(code); return
+                    }
+                    self.isOpen = true
+                    if json?["relay"] as? String == "peer", let present = json?["present"] as? Bool {
+                        self.onEvent?(.peer(present))
+                    }
+                    self.receiveNext()
+                @unknown default:
+                    self.receiveNext()
+                }
+            }
+        }
+    }
+
+    private func finish(_ code: Int) {
+        guard !finished else { return }
+        finished = true; isOpen = false
+        let handler = onEvent; onEvent = nil
+        task?.cancel(with: .goingAway, reason: nil)
+        urlSession?.invalidateAndCancel()
+        handler?(.closed(code))
+    }
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
+        guard !finished else { return }
+        isOpen = true
+    }
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+                    didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        finish(closeCode.rawValue)
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        finish((task as? URLSessionWebSocketTask)?.closeCode.rawValue ?? 1006)
     }
 }
 

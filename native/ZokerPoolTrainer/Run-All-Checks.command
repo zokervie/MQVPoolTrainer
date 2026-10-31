@@ -9,6 +9,7 @@ python3 Tools/build_zupe_lab.py
 python3 Tools/check_zupe_integration.py
 python3 Tools/check_gestures.py
 node Research/ZUPE/tests/test.mjs
+node --test Server/relay/test/core.test.js
 for suite in elevated-cue golden-calibration integration; do
   node "Research/ZUPE/tests/$suite.test.mjs"
 done

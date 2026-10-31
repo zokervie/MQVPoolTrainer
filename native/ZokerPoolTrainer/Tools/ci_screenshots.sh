@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 items=[x for group in json.loads(Path('build/screenshots/devices.json').read_text())['devices'].values() for x in group if x.get('isAvailable') and 'iPhone' in x['name']]
 if not items:raise SystemExit('No available iPhone Simulator')
-items.sort(key=lambda x:x['state']!='Booted')
+# Prefer the acceptance target size class: iPhone 14 Pro Max, then any Pro Max.
+items.sort(key=lambda x:(x['name']!='iPhone 14 Pro Max','Pro Max' not in x['name'],x['state']!='Booted'))
 print(items[0]['udid'])
 PY
 )

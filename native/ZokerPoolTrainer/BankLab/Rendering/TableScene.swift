@@ -37,16 +37,21 @@ final class TableScene {
         let geometry=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:elements)
         geometry.materials=mesh.names.map{name in
             switch name {
-            case "Carbon":return premiumMaterial("CueCarbon")
-            case "Maple":return premiumMaterial("CueMaple")
-            case "Ebony":return premiumMaterial("CueEbony")
+            case "Carbon":return lacquer(premiumMaterial("CueCarbon"),0.30)
+            case "Maple":return lacquer(premiumMaterial("CueMaple"),0.26)
+            case "Ebony":return lacquer(premiumMaterial("CueEbony"),0.22)
             case "Wrap":return premiumMaterial("CueWrapBlack")
-            case "Gold":return premiumMaterial("ChampagneGold")
+            case "Gold":let m=premiumMaterial("ChampagneGold");m.roughness.contents=0.22;m.metalness.contents=1.0;return m
             case "Ferrule":return mat(.rgb(0xE8DFCB),roughness:0.28)
             default:return mat(.rgb(0x163D57),roughness:0.88)
             }
         }
         premiumCueCache[id]=geometry;return geometry
+    }
+    /// Clear lacquer over a PBR base: the kit maps stay as the base layer.
+    private func lacquer(_ m:SCNMaterial,_ roughness:CGFloat)->SCNMaterial{
+        m.roughness.contents=roughness;m.clearCoat.contents=0.85;m.clearCoatRoughness.contents=0.07
+        return m
     }
     private var meshes:[String:MeshData]=[:]
     let scene=SCNScene(),camera=SCNNode()
@@ -111,6 +116,36 @@ final class TableScene {
     private lazy var clothImage=materialMap("PC_FeltEmerald_albedo",fallback:clothTexture)
     private lazy var normalImage=materialMap("PC_FeltEmerald_normal",fallback:clothNormal)
     private lazy var environment=studioEnvironment()
+    private lazy var feltNapImage=feltNap()
+    /// Large-scale worsted nap streaks, soft mottling and cushion-side falloff.
+    /// UV covers the 1.615 x 2.895 m footprint once (generate_table_mesh.py), so
+    /// this layer never tiles; the fine weave remains in the kit felt maps.
+    private func feltNap()->UIImage {
+        texture(CGSize(width:512,height:1024)){c in
+            let ctx=c.cgContext,w:CGFloat=512,h:CGFloat=1024
+            UIColor.white.setFill();c.fill(CGRect(x:0,y:0,width:w,height:h))
+            var seed:UInt64=0x5EED_F17
+            func random()->CGFloat{seed=seed &* 6364136223846793005 &+ 1442695040888963407;return CGFloat((seed>>33)%10_000)/10_000}
+            // Brushed nap runs head-to-foot (along v).
+            for _ in 0..<900 {
+                let x=random()*w,y=random()*h,len=40+random()*220,shade=random()
+                UIColor(white:shade>0.5 ? 1:0.84,alpha:0.16).setStroke()
+                ctx.setLineWidth(0.6+random()*1.4);ctx.move(to:CGPoint(x:x,y:y));ctx.addLine(to:CGPoint(x:x+(random()-0.5)*3,y:y+len));ctx.strokePath()
+            }
+            for _ in 0..<70 {
+                let r=30+random()*90
+                UIColor(white:0.88+random()*0.08,alpha:0.20).setFill()
+                ctx.fillEllipse(in:CGRect(x:random()*w-r,y:random()*h-r,width:r*2,height:r*2))
+            }
+            // Soft darkening toward the cushions (bed spans u .107-.893, v .061-.939).
+            let colors=[UIColor(white:0,alpha:0).cgColor,UIColor(white:0,alpha:0.20).cgColor] as CFArray
+            if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0.55,1]){
+                ctx.saveGState();ctx.translateBy(x:w/2,y:h/2);ctx.scaleBy(x:1,y:h/w*0.98)
+                ctx.drawRadialGradient(g,startCenter:.zero,startRadius:0,endCenter:.zero,endRadius:w*0.52,options:[.drawsAfterEndLocation])
+                ctx.restoreGState()
+            }
+        }
+    }
     static let colors:[UIColor] = [UIColor(white:0.96,alpha:1),UIColor(red:0.98,green:0.65,blue:0.025,alpha:1),UIColor(red:0.025,green:0.14,blue:0.62,alpha:1),UIColor(red:0.74,green:0.025,blue:0.045,alpha:1),UIColor(red:0.26,green:0.045,blue:0.42,alpha:1),UIColor(red:0.96,green:0.24,blue:0.025,alpha:1),UIColor(red:0.015,green:0.30,blue:0.14,alpha:1),UIColor(red:0.36,green:0.025,blue:0.055,alpha:1),UIColor(white:0.012,alpha:1)]
     static let clothColors:[(String,UIColor)]=[("Xanh tournament",.rgb(0x17685F)),("Xanh navy",.rgb(0x143F78)),("Xanh sáng",.rgb(0x2387A5)),("Đỏ burgundy",.rgb(0x783B42)),("Tím mận",.rgb(0x49354F))]
     init(rails:[[String:NSNumber]]) {
@@ -126,7 +161,7 @@ final class TableScene {
         camera.camera?.wantsExposureAdaptation=false;camera.camera?.exposureOffset = -0.8
         camera.camera?.bloomIntensity=0;camera.camera?.bloomThreshold=1.8
         camera.camera?.vignettingIntensity=0.18;camera.camera?.vignettingPower=0.8
-        scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=1.1
+        scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=1.0
         numberRoot.isHidden=true
         tableRails=rails;buildLights();frontFill(scene.rootNode);selectTable(look);buildRoom();buildCue();quality(false)
     }
@@ -167,11 +202,11 @@ final class TableScene {
     }
     private func buildLights(){
         let ambient=SCNNode();ambient.light=SCNLight();ambient.light?.type = .ambient
-        ambient.light?.color=UIColor(white:0.92,alpha:1);ambient.light?.intensity=220
+        ambient.light?.color=UIColor(red:0.95,green:0.90,blue:0.82,alpha:1);ambient.light?.intensity=105
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
-        light.intensity=35;light.temperature=4700;light.spotInnerAngle=50;light.spotOuterAngle=100
+        light.intensity=240;light.temperature=4300;light.spotInnerAngle=42;light.spotOuterAngle=112
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.4
         light.shadowColor=UIColor(white:0,alpha:0.32);light.shadowBias=0.001
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
@@ -201,6 +236,7 @@ final class TableScene {
             graphite.normal.contents=materialMap("PC_WalnutDark_normal"){self.clothNormal()};graphite.normal.intensity=0.08
             graphite.roughness.contents=materialMap("PC_WalnutDark_roughness"){self.clothNormal()}
             for channel in [graphite.diffuse,graphite.normal,graphite.roughness]{channel.minificationFilter = .linear;channel.mipFilter = .linear;channel.maxAnisotropy=16}
+            graphite.clearCoat.contents=0.6;graphite.clearCoatRoughness.contents=0.12
         }
         let edge=premiumMaterial("ChampagneGold")
         edge.multiply.contents=UIColor.rgb(look.trim)
@@ -215,7 +251,10 @@ final class TableScene {
             channel.minificationFilter = .linear;channel.magnificationFilter = .linear
             channel.mipFilter = .linear;channel.maxAnisotropy=16
         }
-        addMesh("bed",material:cloth)
+        let bedCloth=cloth.copy() as! SCNMaterial
+        bedCloth.multiply.contents=feltNapImage;bedCloth.multiply.wrapS = .clamp;bedCloth.multiply.wrapT = .clamp
+        bedCloth.multiply.contentsTransform=SCNMatrix4Identity;bedCloth.multiply.mipFilter = .linear
+        addMesh("bed",material:bedCloth)
         addMesh("deck",material:graphite)
         addMesh("trim",material:edge)
         // Split rails leave visible pocket apertures; apron is below the playing bed.
@@ -606,14 +645,16 @@ final class TableScene {
     private func environmentFace(_ face:Int)->UIImage {
         texture(CGSize(width:512,height:512)){ c in
             let ctx=c.cgContext
-            let top:CGFloat=face==2 ? 0.50:0.34,bottom:CGFloat=face==3 ? 0.20:0.25
-            let colors=[UIColor(white:top,alpha:1).cgColor,UIColor(white:bottom,alpha:1).cgColor] as CFArray
+            // Dark warm club room; the bright fixture cards on the ceiling face
+            // remain, so balls/lacquer keep crisp highlights without flat fill.
+            let top:CGFloat=face==2 ? 0.16:0.12,bottom:CGFloat=face==3 ? 0.05:0.07
+            let colors=[UIColor(red:top*1.10,green:top,blue:top*0.82,alpha:1).cgColor,UIColor(red:bottom*1.12,green:bottom,blue:bottom*0.80,alpha:1).cgColor] as CFArray
             if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0,1]){
                 ctx.drawLinearGradient(g,start:CGPoint(x:0,y:0),end:CGPoint(x:0,y:512),options:[])
             }
             if face==2 {
-                ctx.setShadow(offset:.zero,blur:24,color:UIColor(white:0.75,alpha:1).cgColor)
-                UIColor(white:0.82,alpha:1).setFill()
+                ctx.setShadow(offset:.zero,blur:24,color:UIColor(white:0.85,alpha:1).cgColor)
+                UIColor(white:0.96,alpha:1).setFill()
                 for x in [144,324]{UIBezierPath(roundedRect:CGRect(x:x,y:98,width:44,height:316),cornerRadius:20).fill()}
             }
         }
@@ -678,8 +719,12 @@ final class TableScene {
         let dx=shortRail ? long/2:wide/2,dz=shortRail ? wide/2:long/2
         let vertices=[SCNVector3(-dx,0,0),SCNVector3(0,0,-dz),SCNVector3(dx,0,0),SCNVector3(0,0,dz)]
         let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:Array(repeating:SCNVector3(0,1,0),count:4))],elements:[SCNGeometryElement(indices:[Int32(0),1,2,0,2,3],primitiveType:.triangles)])
-        let m=mat(.rgb(0xF1E5C7),roughness:0.45,metal:0);m.isDoubleSided=true;m.emission.contents=UIColor(white:0.13,alpha:1);g.materials=[m]
+        let m=mat(.rgb(0xF6F0E2),roughness:0.22,metal:0);m.isDoubleSided=true;m.emission.contents=UIColor(red:0.30,green:0.29,blue:0.27,alpha:1)
+        m.clearCoat.contents=1;m.clearCoatRoughness.contents=0.05;g.materials=[m]
         let n=SCNNode(geometry:g);n.position=p;n.name="rail-sight";n.castsShadow=false;scene.rootNode.addChildNode(n)
+        let inlay=SCNNode(geometry:g.copy() as? SCNGeometry);inlay.geometry?.materials=[mat(.rgb(0x1A0E07),roughness:0.5)]
+        inlay.scale=SCNVector3(1.45,1,1.45);inlay.position.y = -0.0004;inlay.castsShadow=false;n.addChildNode(inlay)
+        n.position.y += 0.0008
     }
     private func brandPlate(_ p:SCNVector3){
         let g=SCNPlane(width:0.22,height:0.038),m=SCNMaterial();m.lightingModel = .constant

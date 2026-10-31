@@ -105,6 +105,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var frameStateCache:[BallState]?
     var renderUntil=0.0,lastStatusTime=0.0,startupRenderUntil=0.0
     var premiumProbeWritten=false,cameraInitialCommit=false
+    var premiumProbeEye:SIMD3<Float>?,premiumProbeStable=0
     var replayPreparing=false,archiveGeneration=0,activeArchiveID:String?
     var replayPlan:ReplayDirector.Plan?
     struct ReplayReturnState {var frames:[[BallState]];var times:[Double];var events:[[String:NSNumber]];var shot:SavedShot?;var paths:[Int:[SIMD3<Float>]];var coach:Bool;var preparation:[ReplayAimSample]}
@@ -975,16 +976,24 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         let blend=BLCameraTweenBlend(cameraTransition,dt,cameraTransitionDuration)
         table.placeCamera(cue:cameraCue,angle:cameraAngle,aspect:scn.bounds.width/max(1,scn.bounds.height),blend:Float(blend))
-        if !premiumProbeWritten,ProcessInfo.processInfo.arguments.contains("--premium-qa"),
-           scn.bounds.width>scn.bounds.height,ProcessInfo.processInfo.systemUptime>startupRenderUntil-5,
-           simd_distance(table.camera.presentation.simdPosition,table.camera.simdPosition)<0.03 {
-            let high=ProcessInfo.processInfo.arguments.contains("--premium-high")
-            let args=ProcessInfo.processInfo.arguments
-            let name=args.contains("--camera-top") ? "top":(args.contains("--camera-aim") ? "aim":"overview")
-            let expected=name=="top" ? 1:(name=="aim" ? 2:0)
-            let valid=table.cameraMode==expected && table.camera.simdPosition.y>0.02 && table.usesHighDetail==high
-            recordG1QA("premium-"+(high ? "high-":"")+name,["result":valid ? "PASS":"FAIL","cameraMode":table.cameraMode,"expectedMode":expected,"eyeY":table.camera.simdPosition.y,"highDetail":table.usesHighDetail,"aspect":scn.bounds.width/scn.bounds.height])
-            premiumProbeWritten=true
+        if !premiumProbeWritten,ProcessInfo.processInfo.arguments.contains("--premium-qa"),scn.bounds.width>scn.bounds.height {
+            // Settled = the authoritative (model) camera pose is unchanged for 20
+            // consecutive ticks after cold start. The presentation node is only
+            // refreshed by a rendered frame, so it is reported, not required.
+            let eye=table.camera.simdPosition
+            if let previous=premiumProbeEye,simd_distance(previous,eye)<0.001 {premiumProbeStable+=1} else {premiumProbeStable=0}
+            premiumProbeEye=eye
+            let uptime=ProcessInfo.processInfo.systemUptime
+            let settled=premiumProbeStable>=20 && uptime>startupRenderUntil-5
+            if settled || uptime>startupRenderUntil-0.25 {
+                let high=ProcessInfo.processInfo.arguments.contains("--premium-high")
+                let args=ProcessInfo.processInfo.arguments
+                let name=args.contains("--camera-top") ? "top":(args.contains("--camera-aim") ? "aim":"overview")
+                let expected=name=="top" ? 1:(name=="aim" ? 2:0)
+                let valid=settled && table.cameraMode==expected && eye.y>0.02 && table.usesHighDetail==high
+                recordG1QA("premium-"+(high ? "high-":"")+name,["result":valid ? "PASS":"FAIL","settled":settled,"stableTicks":premiumProbeStable,"cameraMode":table.cameraMode,"expectedMode":expected,"eyeY":Double(eye.y),"presentationDelta":Double(simd_distance(table.camera.presentation.simdPosition,eye)),"highDetail":table.usesHighDetail,"aspect":Double(scn.bounds.width/scn.bounds.height)])
+                premiumProbeWritten=true
+            }
         }
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
