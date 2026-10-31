@@ -29,9 +29,16 @@ trap capture_runtime EXIT
 for probe in default hud hud-expanded return spectator audio; do
  rm -f "$data_path/Documents/g1-qa/$probe.json"
 done
-for camera in g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation; do
+for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation; do
  xcrun simctl terminate "$device_id" com.maiquocviet.BankLabS 2>/dev/null || true
- if [ "$camera" = g1-hud-expanded ]; then
+ if [[ "$camera" = premium-* ]]; then
+  mode="${camera##*-}"
+  if [[ "$camera" = premium-high-* ]]; then
+   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa --premium-qa --premium-high "--camera-$mode"
+  else
+   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa --premium-qa "--camera-$mode"
+  fi
+ elif [ "$camera" = g1-hud-expanded ]; then
   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa --g1-hud-qa --spin-detail
  elif [[ "$camera" = g1-* ]]; then
   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa "--$camera-qa"

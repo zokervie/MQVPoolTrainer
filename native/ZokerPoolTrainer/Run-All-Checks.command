@@ -4,6 +4,7 @@ cd -- "$(dirname -- "$0")"
 python3 Tools/check_suite_lists.py
 python3 Tools/check_resources.py
 python3 Tools/check_audio.py
+python3 Tools/check_premium_assets.py
 python3 Tools/build_zupe_lab.py
 python3 Tools/check_zupe_integration.py
 python3 Tools/check_gestures.py

@@ -40,3 +40,5 @@ for item in json.loads((audio_root/'manifest.json').read_text()):
  target=assets/(item['asset']+'.dataset')/'audio.wav'
  target.write_bytes(data)
 print('Prepared seven attributed field-recording pool samples.')
+
+subprocess.run([sys.executable,str(root/'Tools/prepare_premium.py')],check=True)

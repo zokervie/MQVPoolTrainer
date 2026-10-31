@@ -164,6 +164,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     guard let self=self else{return};self.locked=true;self.shoot(0.5)
                 }
             }
+            if args.contains("--premium-qa") {
+                table.setClothColor(nil);table.selectTable(TableLook.all[6]);table.camera.camera?.exposureOffset = -0.8
+                if args.contains("--premium-high"){table.quality(true);scn.antialiasingMode = .multisampling4X}
+            }
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}
             if args.contains("--ux018-match-rotation-qa"){startMatch(rule:"rotation15",network:false)}
             if args.contains("--ux017-shot-qa") {
@@ -283,7 +287,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func layoutRightHUD(){
         guard spinWidth != nil,quickRailBottom != nil else{return}
         let metrics=BLRightHUDLayout(Double(view.safeAreaLayoutGuide.layoutFrame.height),spinExpanded)
-        quickScrollHeight.constant=min(274,max(132,view.safeAreaLayoutGuide.layoutFrame.height-60))
+        quickScrollHeight.constant=182
         let reserved:CGFloat = 120 + 56 + 44
         let available:CGFloat = view.safeAreaLayoutGuide.layoutFrame.width - reserved
         let size=min(CGFloat(metrics.spinSize),max(52,available));spinWidth.constant=size;spinHeight.constant=size
@@ -310,8 +314,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             for other in controls.dropFirst(index+1){if control.frame.intersects(other.frame){failures.append("Overlapping HUD containers: \(name)")}}
         }
         if elevationPad.frame.minX<=spin.frame.maxX{failures.append("Elevation is not right of effect")}
-        if quickScroll.frame.minX<=elevationPad.frame.maxX{failures.append("Shortcuts are not right of elevation")}
-        let interactive:[UIControl]=[spin,lockButton,coachButton,quickCamera!,retryButton,quickReplay!,quickRole!,quickPlace!,quickAdd!]
+        if quickScroll.frame.maxY>elevationPad.frame.minY{failures.append("Shortcuts overlap elevation vertically")}
+        let interactive:[UIControl]=[spin,lockButton,coachButton,quickCamera!,retryButton,quickReplay!,quickTools!]
         for control in interactive {
             let name=control.accessibilityIdentifier ?? control.accessibilityLabel ?? String(describing:type(of:control))
             frames[name]=String(describing:control.convert(control.bounds,to:view))
@@ -370,7 +374,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             lockButton.widthAnchor.constraint(equalToConstant:UIDevice.current.userInterfaceIdiom == .pad ? 92:72),lockButton.heightAnchor.constraint(equalToConstant:UIDevice.current.userInterfaceIdiom == .pad ? 92:72)])
         coachButton.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(coachButton)
         coachButton.setTitle("Coach",for:.normal);coachButton.titleLabel?.font = .systemFont(ofSize:11,weight:.bold)
-        coachButton.layer.cornerRadius=9;coachButton.backgroundColor=UIColor(white:0.08,alpha:0.7)
+        coachButton.layer.cornerRadius=10;coachButton.backgroundColor=UIColor.rgb(0x131218).withAlphaComponent(0.88);coachButton.layer.borderWidth=0.7;coachButton.layer.borderColor=UIColor.rgb(0xEAC583).cgColor
         coachButton.accessibilityIdentifier="CoachToggle";coachButton.accessibilityLabel="Coach · Huấn luyện viên"
         coachButton.addAction(UIAction{[weak self]_ in self?.toggleCoach()},for:.touchUpInside)
         fineWheel.translatesAutoresizingMaskIntoConstraints=false
@@ -378,7 +382,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         fineWheel.changed={[weak self] delta in guard let self=self,!self.locked,!self.presentationBusy,self.localTurn else{return};self.angle+=delta;self.aimCameraYaw=0;self.shotCameraAnchor=nil;self.beginCameraTransition(0.25);self.refresh();self.wakeRendering()}
         menuButton.setTitle("Menu",for:.normal)
         menuButton.titleLabel?.font = .systemFont(ofSize:13,weight:.semibold)
-        menuButton.setTitleColor(UIColor.white.withAlphaComponent(0.8),for:.normal)
+        menuButton.setTitleColor(UIColor.rgb(0xEAC583),for:.normal)
         menuButton.backgroundColor=UIColor(white:0.03,alpha:0.45);menuButton.layer.cornerRadius=18
         menuButton.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(menuButton)
         menuButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.setMenu(!self.menuOpen)},for:.touchUpInside)
@@ -387,7 +391,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             menuButton.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:10),
             menuButton.widthAnchor.constraint(equalToConstant:78),menuButton.heightAnchor.constraint(equalToConstant:44)])
 
-        panel.backgroundColor=UIColor(red:0.10,green:0.055,blue:0.025,alpha:0.98)
+        panel.backgroundColor=UIColor.rgb(0x131218).withAlphaComponent(0.98)
         panel.layer.cornerRadius=20;panel.layer.borderWidth=1.5;panel.layer.borderColor=MenuSkin.gold.withAlphaComponent(0.6).cgColor
         let wood=UIImageView(image:MenuSkin.wood);wood.contentMode = .scaleAspectFill;wood.alpha=0.25
         wood.translatesAutoresizingMaskIntoConstraints=false;wood.isUserInteractionEnabled=false;panel.addSubview(wood)
@@ -499,46 +503,61 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         func button(_ symbol:String,_ name:String,_ id:String)->UIButton {
             let b=UIButton(type:.system);var c=UIButton.Configuration.plain()
             c.image=UIImage(systemName:symbol);c.title=name;c.imagePlacement = .top;c.imagePadding=1
-            c.baseForegroundColor = .white;c.background.backgroundColor=UIColor(white:0.035,alpha:0.65);c.background.cornerRadius=8;c.background.backgroundInsets=NSDirectionalEdgeInsets(top:5,leading:7,bottom:5,trailing:7)
+            c.baseForegroundColor = .rgb(0xEAC583);c.background.backgroundColor=UIColor.rgb(0x131218).withAlphaComponent(0.88);c.background.cornerRadius=10
+            c.background.strokeColor=UIColor.rgb(0xEAC583).withAlphaComponent(0.4);c.background.strokeWidth=0.7
+            let names=["QuickCamera":"Camera","QuickTools":"Tools","QuickReplay":"Replay","unused":"Undo"]
+            if let name=names[id],let data=NSDataAsset(name:"PC_Icon_"+name),let image=UIImage(data:data.data){c.image=(image.preparingThumbnail(of:CGSize(width:18,height:18)) ?? image).withRenderingMode(.alwaysOriginal)}
             c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:12,weight:.medium)
             c.contentInsets=NSDirectionalEdgeInsets(top:4,leading:2,bottom:4,trailing:2)
             c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:9,weight:.medium);return a}
             b.configuration=c;b.accessibilityIdentifier=id;return b
         }
-        quickCamera=button("eye","Mắt","QuickCamera")
+        quickCamera=button("camera","Camera","QuickCamera")
         quickCamera.addAction(UIAction{[weak self]_ in self?.eyeDown()},for:.touchDown)
         quickCamera.addAction(UIAction{[weak self]_ in self?.eyeUp()},for:.touchUpInside)
         quickCamera.addAction(UIAction{[weak self]_ in self?.releasePeek()},for:[.touchUpOutside,.touchCancel])
         quickReplay=button("play.circle","Xem lại","QuickReplay")
         quickReplay.addAction(UIAction{[weak self]_ in self?.replay()},for:.touchUpInside)
         quickReplay.menu=UIMenu(title:"Lưu cú / Thư viện",children:[UIDeferredMenuElement.uncached{[weak self] completion in completion(self?.replayMenu().children ?? [])}])
-        retryButton.configuration=button("arrow.uturn.backward","Tập lại","unused").configuration
+        retryButton.configuration=button("arrow.uturn.backward","Lùi cú","unused").configuration
         retryButton.accessibilityIdentifier="QuickRetry"
         quickRole=button("line.diagonal","Đánh","QuickCue");quickRole.showsMenuAsPrimaryAction=true
         quickPlace=button("hand.draw","Đặt bi","QuickPlace")
         quickPlace.addAction(UIAction{[weak self]_ in self?.toggleEdit()},for:.touchUpInside)
         quickAdd=button("plus.circle","+ Bi","QuickAdd")
         quickAdd.addAction(UIAction{[weak self]_ in guard let self=self else{return};if self.isPlacingBalls{self.cancelPlacement()}else{self.addBall()}},for:.touchUpInside)
-        quickTools=UIButton(type:.system);quickCue=UIButton(type:.system);quickBag=UIButton(type:.system)
-        for item in [quickCamera!,quickReplay!,retryButton,quickRole!,quickPlace!,quickAdd!] {
+        quickTools=button("slider.horizontal.3","Dụng cụ","QuickTools");quickTools.showsMenuAsPrimaryAction=true
+        quickTools.menu=UIMenu(title:"Dụng cụ",children:[UIDeferredMenuElement.uncached{[weak self] completion in
+            guard let self=self else{completion([]);return}
+            var items:[UIMenuElement]=[]
+            if let cue=self.quickRole.menu{items.append(cue)}
+            items.append(UIAction(title:self.isPlacingBalls ? "Xong đặt bi":"Đặt bi"){[weak self]_ in self?.toggleEdit()})
+            items.append(UIAction(title:"Thêm bi · số lượng / bố trí"){[weak self]_ in self?.randomOptions()})
+            items.append(UIAction(title:"Thêm từng bi"){[weak self]_ in self?.addBall()})
+            items.append(UIAction(title:"Thư viện 20 bàn · 12 cơ"){[weak self]_ in self?.openLibrary()})
+            if self.isPlacingBalls{items.append(UIAction(title:"Hủy đặt bi",attributes:.destructive){[weak self]_ in self?.cancelPlacement()})}
+            completion(items)
+        }])
+        quickCue=UIButton(type:.system);quickBag=UIButton(type:.system)
+        for item in [quickCamera!,quickTools!,quickReplay!,retryButton] {
             item.heightAnchor.constraint(equalToConstant:44).isActive=true;quickRail.addArrangedSubview(item)
         }
         quickScroll.translatesAutoresizingMaskIntoConstraints=false;quickScroll.accessibilityIdentifier="QuickRailScroll";quickScroll.showsVerticalScrollIndicator=false
         quickScroll.addSubview(quickRail);view.addSubview(quickScroll)
         elevationPad.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(elevationPad)
-        quickRailBottom=quickScroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-8)
-        quickScrollHeight=quickScroll.heightAnchor.constraint(equalToConstant:274)
+        quickRailBottom=quickScroll.bottomAnchor.constraint(equalTo:elevationPad.topAnchor,constant:-6)
+        quickScrollHeight=quickScroll.heightAnchor.constraint(equalToConstant:182)
         NSLayoutConstraint.activate([
             quickScroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-6),
             quickScroll.widthAnchor.constraint(equalToConstant:56),quickScrollHeight,quickRailBottom,
             quickRail.leadingAnchor.constraint(equalTo:quickScroll.contentLayoutGuide.leadingAnchor),quickRail.trailingAnchor.constraint(equalTo:quickScroll.contentLayoutGuide.trailingAnchor),
             quickRail.topAnchor.constraint(equalTo:quickScroll.contentLayoutGuide.topAnchor),quickRail.bottomAnchor.constraint(equalTo:quickScroll.contentLayoutGuide.bottomAnchor),quickRail.widthAnchor.constraint(equalTo:quickScroll.frameLayoutGuide.widthAnchor),
-            coachButton.bottomAnchor.constraint(equalTo:quickScroll.topAnchor,constant:-4),coachButton.widthAnchor.constraint(equalToConstant:56),coachButton.heightAnchor.constraint(equalToConstant:44),coachButton.centerXAnchor.constraint(equalTo:quickScroll.centerXAnchor),
-            elevationPad.trailingAnchor.constraint(equalTo:quickScroll.leadingAnchor,constant:-6),
+            coachButton.bottomAnchor.constraint(equalTo:lockButton.topAnchor,constant:-8),coachButton.widthAnchor.constraint(equalToConstant:76),coachButton.heightAnchor.constraint(equalToConstant:44),coachButton.centerXAnchor.constraint(equalTo:lockButton.centerXAnchor),
+            elevationPad.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-8),
             elevationPad.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-8),
-            elevationPad.widthAnchor.constraint(equalToConstant:44),elevationPad.heightAnchor.constraint(equalToConstant:110),
-            fineWheel.centerXAnchor.constraint(equalTo:elevationPad.centerXAnchor),fineWheel.bottomAnchor.constraint(equalTo:elevationPad.topAnchor,constant:-8),fineWheel.widthAnchor.constraint(equalToConstant:44),fineWheel.heightAnchor.constraint(equalToConstant:100),
-            spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-8)])
+            elevationPad.widthAnchor.constraint(equalToConstant:44),elevationPad.heightAnchor.constraint(equalToConstant:96),
+            fineWheel.centerXAnchor.constraint(equalTo:spin.centerXAnchor),fineWheel.bottomAnchor.constraint(equalTo:spin.topAnchor,constant:-8),fineWheel.widthAnchor.constraint(equalToConstant:44),fineWheel.heightAnchor.constraint(equalToConstant:100),
+            spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
         elevationPad.changed={[weak self] value in self?.setElevation(value)}
         buildReplayBar();syncQuickRail();applyCoachVisibility()
     }
@@ -596,7 +615,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if replayIndex != nil{applyReplayCoach();return}
         if matchIsCompetitive{hideCoach();hintLabel.isHidden=true;scoreLabel.isHidden=true;table.setCompetitivePresentation(numbers:matchPlay.showNumbers);coachButton.setTitle("123",for:.normal);return}
         coachButton.setTitle("Coach",for:.normal)
-        coachButton.setTitleColor(coaching ? .systemMint:.white,for:.normal)
+        coachButton.setTitleColor(coaching ? .white:.rgb(0xEAC583),for:.normal)
         coachButton.accessibilityValue=coaching ? "Bật":"Tắt"
         table.showsDiamondNumbers=coaching
         table.target(coaching ? Drill.all[drillIndex].goal:nil)
@@ -1379,7 +1398,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             coachCard.topAnchor.constraint(equalTo:menuButton.bottomAnchor,constant:8),
             coachCard.widthAnchor.constraint(lessThanOrEqualToConstant:360),
             coachCard.trailingAnchor.constraint(lessThanOrEqualTo:quickScroll.leadingAnchor,constant:-12),
-            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:lockButton.topAnchor,constant:-10),
+            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:coachButton.topAnchor,constant:-8),
             coachLabel.leadingAnchor.constraint(equalTo:coachCard.leadingAnchor,constant:12),coachLabel.trailingAnchor.constraint(equalTo:coachCard.trailingAnchor,constant:-12),
             coachLabel.topAnchor.constraint(equalTo:coachCard.topAnchor,constant:10),coachLabel.bottomAnchor.constraint(equalTo:coachCard.bottomAnchor,constant:-10)])
         coachCard.addGestureRecognizer(UITapGestureRecognizer(target:self,action:#selector(coachTapped)))
@@ -1484,7 +1503,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if let index=all.firstIndex(where:{$0.recordingID==id}){all[index].coachVisible=coaching;SavedShot.store(all)}
     }
     func applyReplayCoach(){
-        coachButton.setTitle("Coach",for:.normal);coachButton.setTitleColor(coaching ? .systemMint:.white,for:.normal);coachButton.accessibilityValue=coaching ? "Bật":"Tắt"
+        coachButton.setTitle("Coach",for:.normal);coachButton.setTitleColor(coaching ? .white:.rgb(0xEAC583),for:.normal);coachButton.accessibilityValue=coaching ? "Bật":"Tắt"
         hideCoach();table.target(nil);table.setTrainingOverlaysHidden(!coaching);table.showsDiamondNumbers=coaching
         table.prediction([],visible:false);table.trails(coaching ? paths:[:]);table.showRailContacts(coaching ? lastShotEvents.filter{$0["kind"]?.intValue==0}.compactMap{event in guard let x=event["x"]?.doubleValue,let y=event["y"]?.doubleValue else{return nil};return(x,y)}:[])
     }
@@ -1584,8 +1603,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guideOn=false;guideButton.configuration?.title="Dự báo: tắt";clearShot();refresh();updateControls()
     }
     func graphics(){
-        let a=UIAlertController(title:"Hình ảnh · Studio",message:"Mặc định Cân bằng: giảm tải GPU; tự giảm chất lượng khi máy nóng. Chất lượng cao tăng độ nét và bóng. Thử trên máy thật để chọn phù hợp.",preferredStyle:.actionSheet)
-        a.addAction(UIAlertAction(title:highGraphics ? "✓ Chất lượng cao":"Chất lượng cao",style:.default){[weak self]_ in self?.highGraphics=true;self?.applyGraphics()})
+        let a=UIAlertController(title:"Hình ảnh · Premium Classic",message:"Mặc định Cân bằng: giảm tải GPU; tự giảm chất lượng khi máy nóng. Chất lượng cao tăng độ nét và bóng. Thử trên máy thật để chọn phù hợp.",preferredStyle:.actionSheet)
+        a.addAction(UIAlertAction(title:highGraphics ? "✓ Cao cấp":"Cao cấp",style:.default){[weak self]_ in self?.highGraphics=true;self?.applyGraphics()})
         a.addAction(UIAlertAction(title:highGraphics ? "Cân bằng":"✓ Cân bằng",style:.default){[weak self]_ in self?.highGraphics=false;self?.applyGraphics()})
         for item in [("Tối",-1.25),("Dịu · mặc định",-0.95),("Sáng",-0.65)] {
             a.addAction(UIAlertAction(title:item.0,style:.default){[weak self]_ in

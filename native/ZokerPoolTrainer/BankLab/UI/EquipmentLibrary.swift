@@ -14,7 +14,7 @@ struct TableLook {
         .init(id:"gc6",brand:"Brunswick",name:"Gold Crown VI",base:1,cabinet:0x71462c,cloth:0x287d67,trim:0xb4b8ba,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
         .init(id:"blackwolf",brand:"Brunswick",name:"Black Wolf",base:0,cabinet:0x28282a,cloth:0x2e728d,trim:0x55595c,wood:false,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
         .init(id:"blackwolfpro",brand:"Brunswick",name:"Black Wolf Pro",base:0,cabinet:0x181e24,cloth:0x277f91,trim:0x9dabb0,wood:false,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"allenton",brand:"Brunswick",name:"Allenton",base:2,cabinet:0x523522,cloth:0x276b52,trim:0x967e59,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"allenton",brand:"Brunswick",name:"Allenton",base:2,cabinet:0x482615,cloth:0x12695D,trim:0xEAC583,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
         .init(id:"glenwood",brand:"Brunswick",name:"Glenwood",base:5,cabinet:0x7b5032,cloth:0x80504b,trim:0xa88d60,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
         .init(id:"oakland",brand:"Brunswick",name:"Oakland II",base:2,cabinet:0x503728,cloth:0x366c5a,trim:0x998b70,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
         .init(id:"sanibel",brand:"Brunswick",name:"Sanibel",base:3,cabinet:0x9b8a71,cloth:0x67858b,trim:0x494744,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
@@ -29,7 +29,7 @@ struct TableLook {
         .init(id:"tournament",brand:"Olhausen",name:"Tournament Pro",base:4,cabinet:0x38332f,cloth:0x2d7d96,trim:0x94918a,wood:false,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament"),
         .init(id:"champion",brand:"Olhausen",name:"Grand Champion III",base:1,cabinet:0x775136,cloth:0x31795b,trim:0xaaa49c,wood:true,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament")
     ]
-    static var selected:TableLook { all.first{$0.id==UserDefaults.standard.string(forKey:"tableLook015")} ?? all[0] }
+    static var selected:TableLook { all.first{$0.id==UserDefaults.standard.string(forKey:"tableLook015")} ?? all[6] }
 }
 struct CueLook {
     let id:String,brand:String,name:String,role:Int

@@ -31,13 +31,14 @@ void checkLayout(double width, double height, bool expanded) {
     m.spinSize=std::min(m.spinSize,std::max(52.0,width-100-8-BL_HUD_RAIL_WIDTH-6-BL_HUD_ELEVATION_WIDTH-8));
     const double railX = width-BL_HUD_EDGE-BL_HUD_RAIL_WIDTH;
     const double railHeight=BLHUDVisibleRailHeight(height);
-    const Rect column{railX,height-BL_HUD_BOTTOM-railHeight,BL_HUD_RAIL_WIDTH,railHeight};
-    const Rect coach{railX,column.y-BL_HUD_COACH_GAP-BL_HUD_COACH_HEIGHT,BL_HUD_RAIL_WIDTH,BL_HUD_COACH_HEIGHT};
-    const Rect elevation{railX-6-BL_HUD_ELEVATION_WIDTH,height-BL_HUD_BOTTOM-BL_HUD_ELEVATION_HEIGHT,BL_HUD_ELEVATION_WIDTH,BL_HUD_ELEVATION_HEIGHT};
-    const Rect wheel{elevation.x,elevation.y-8-100,44,100};
-    const Rect spin{elevation.x-8-m.spinSize,height-BL_HUD_BOTTOM-m.spinSize,m.spinSize,m.spinSize};
-    const Rect menu{12,10,78,44}, bridge{12,height-12-68,68,68};
-    const std::array<Rect,7> controls{spin,elevation,column,coach,wheel,menu,bridge};
+    const Rect elevation{width-8-BL_HUD_ELEVATION_WIDTH,height-BL_HUD_BOTTOM-BL_HUD_ELEVATION_HEIGHT,BL_HUD_ELEVATION_WIDTH,BL_HUD_ELEVATION_HEIGHT};
+    const Rect column{railX,elevation.y-6-railHeight,BL_HUD_RAIL_WIDTH,railHeight};
+    const Rect spin{elevation.x-16-m.spinSize,height-12-m.spinSize,m.spinSize,m.spinSize};
+    const Rect wheel{spin.x+(spin.w-44)/2,spin.y-8-100,44,100};
+    const Rect menu{12,10,78,44}, bridge{12,height-12-72,72,72};
+    const Rect coach{10,bridge.y-8-44,76,44};
+    const std::array<Rect,6> controls{spin,elevation,column,coach,menu,bridge};
+    if(!expanded){assert(wheel.x>=0 && wheel.y>=0);assert(!overlaps(wheel,column));assert(!overlaps(wheel,spin));}
     for (const auto &r : controls) {
         assert(r.x >= 0 && r.y >= 0 && r.x+r.w <= width+1e-8 && r.y+r.h <= height+1e-8);
         assert(r.w >= 44 && r.h >= 44);
@@ -45,10 +46,10 @@ void checkLayout(double width, double height, bool expanded) {
     for (unsigned i = 0; i < controls.size(); ++i)
         for (unsigned j = i+1; j < controls.size(); ++j) assert(!overlaps(controls[i],controls[j]));
     assert(elevation.x > spin.x+spin.w);
-    assert(column.x > elevation.x+elevation.w);
+    assert(column.y+column.h < elevation.y);
     assert(width-(column.x+column.w) <= BL_HUD_EDGE+1e-8);
-    assert(coach.y+coach.h+BL_HUD_COACH_GAP <= column.y+1e-8);
-    assert(coach.x==column.x && coach.w==column.w);
+    assert(coach.y+coach.h < bridge.y);
+    assert(std::abs(coach.x+coach.w/2-(bridge.x+bridge.w/2))<1e-8);
     assert(column.h<=BLHUDRailHeight());
     // Every button has a full-size content rect; scrolling reveals any portion
     // outside the viewport. The visible viewport fits at least two buttons.
@@ -58,8 +59,7 @@ void checkLayout(double width, double height, bool expanded) {
         assert(content.w>=44 && content.h>=44);
         assert(content.y+content.h<=BLHUDRailHeight()+1e-8);
     }
-    if(height<334)assert(column.h<BLHUDRailHeight());
-    else assert(column.h==BLHUDRailHeight());
+    assert(column.h==BLHUDRailHeight());
 }
 
 }

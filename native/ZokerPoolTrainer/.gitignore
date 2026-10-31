@@ -7,3 +7,6 @@ xcuserdata/
 
 # Source artwork is checked in as verified encoded bytes; CI derives app icons.
 Tools/Branding/ZTrainerIcon.master.png
+
+# Rebuilt from DesignKits/ZokerPremiumClassic by prepare_premium.py
+BankLab/Assets.xcassets/PC_*.dataset/

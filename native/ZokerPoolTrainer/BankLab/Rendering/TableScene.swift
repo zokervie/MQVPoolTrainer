@@ -10,6 +10,44 @@ final class TableScene {
         let uv:[Float]
         let indices:[Int32]
     }
+    private struct KitCueMesh:Decodable {
+        let vertices:[Float],normals:[Float],uv:[Float]
+        let elements:[[Int32]]
+        let names:[String]
+    }
+    private struct KitSights:Decodable {struct Site:Decodable{let x_mm:Float,z_mm:Float};let sites:[Site]}
+    private var premiumCueCache:[String:SCNGeometry]=[:]
+    private func premiumMaterial(_ name:String)->SCNMaterial {
+        let m=mat(.white)
+        m.diffuse.contents=materialMap("PC_"+name+"_albedo",fallback:clothTexture)
+        m.normal.contents=materialMap("PC_"+name+"_normal",fallback:clothNormal)
+        m.roughness.contents=materialMap("PC_"+name+"_roughness",fallback:clothNormal)
+        m.metalness.contents=materialMap("PC_"+name+"_metallic",fallback:clothNormal)
+        m.normal.intensity=name=="FeltEmerald" ? 0.35:0.18
+        for channel in [m.diffuse,m.normal,m.roughness,m.metalness]{channel.wrapS = .repeat;channel.wrapT = .repeat;channel.mipFilter = .linear;channel.maxAnisotropy=8}
+        return m
+    }
+    private func premiumCue(_ id:String)->SCNGeometry? {
+        if let cached=premiumCueCache[id]{return cached}
+        guard let asset=NSDataAsset(name:"PC_Cue_"+id),let mesh=try? JSONDecoder().decode(KitCueMesh.self,from:asset.data) else{return nil}
+        var vertices:[SCNVector3]=[],normals:[SCNVector3]=[],uv:[CGPoint]=[]
+        for i in stride(from:0,to:mesh.vertices.count,by:3){vertices.append(SCNVector3(mesh.vertices[i],mesh.vertices[i+1],mesh.vertices[i+2]));normals.append(SCNVector3(mesh.normals[i],mesh.normals[i+1],mesh.normals[i+2]))}
+        for i in stride(from:0,to:mesh.uv.count,by:2){uv.append(CGPoint(x:CGFloat(mesh.uv[i]),y:CGFloat(mesh.uv[i+1])))}
+        let elements=mesh.elements.map{SCNGeometryElement(indices:$0,primitiveType:.triangles)}
+        let geometry=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:elements)
+        geometry.materials=mesh.names.map{name in
+            switch name {
+            case "Carbon":return premiumMaterial("CueCarbon")
+            case "Maple":return premiumMaterial("CueMaple")
+            case "Ebony":return premiumMaterial("CueEbony")
+            case "Wrap":return premiumMaterial("CueWrapBlack")
+            case "Gold":return premiumMaterial("ChampagneGold")
+            case "Ferrule":return mat(.rgb(0xE8DFCB),roughness:0.28)
+            default:return mat(.rgb(0x163D57),roughness:0.88)
+            }
+        }
+        premiumCueCache[id]=geometry;return geometry
+    }
     private var meshes:[String:MeshData]=[:]
     let scene=SCNScene(),camera=SCNNode()
     private let targetRoot=SCNNode(),tableRoot=SCNNode(),cueShadow=SCNNode()
@@ -69,8 +107,8 @@ final class TableScene {
     var showNumbers=false // Text-free table in every camera mode.
     private let radius:CGFloat=0.028575
     private lazy var shadowTexture=contactShadowTexture()
-    private lazy var clothImage=materialMap("ClothAlbedo",fallback:clothTexture)
-    private lazy var normalImage=materialMap("ClothNormal",fallback:clothNormal)
+    private lazy var clothImage=materialMap("PC_FeltEmerald_albedo",fallback:clothTexture)
+    private lazy var normalImage=materialMap("PC_FeltEmerald_normal",fallback:clothNormal)
     private lazy var environment=studioEnvironment()
     static let colors:[UIColor] = [UIColor(white:0.96,alpha:1),UIColor(red:0.98,green:0.65,blue:0.025,alpha:1),UIColor(red:0.025,green:0.14,blue:0.62,alpha:1),UIColor(red:0.74,green:0.025,blue:0.045,alpha:1),UIColor(red:0.26,green:0.045,blue:0.42,alpha:1),UIColor(red:0.96,green:0.24,blue:0.025,alpha:1),UIColor(red:0.015,green:0.30,blue:0.14,alpha:1),UIColor(red:0.36,green:0.025,blue:0.055,alpha:1),UIColor(white:0.012,alpha:1)]
     static let clothColors:[(String,UIColor)]=[("Xanh tournament",.rgb(0x17685F)),("Xanh navy",.rgb(0x143F78)),("Xanh sáng",.rgb(0x2387A5)),("Đỏ burgundy",.rgb(0x783B42)),("Tím mận",.rgb(0x49354F))]
@@ -132,10 +170,10 @@ final class TableScene {
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
-        light.intensity=18;light.temperature=5200;light.spotInnerAngle=50;light.spotOuterAngle=100
+        light.intensity=520;light.temperature=4700;light.spotInnerAngle=50;light.spotOuterAngle=100
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.4
         light.shadowColor=UIColor(white:0,alpha:0.32);light.shadowBias=0.001
-        key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
+        key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
         for x:Float in [-2.2,2.2]{
             let fill=SCNNode();fill.position=SCNVector3(x,1.7,0.8);fill.light=SCNLight();fill.light?.type = .omni
             fill.light?.intensity=10;fill.light?.temperature=x>0 ? 4200:7000
@@ -152,23 +190,24 @@ final class TableScene {
     private func clothAlbedo(_ color:UIColor)->UIImage {
         texture(CGSize(width:2048,height:2048)){c in
             let rect=CGRect(x:0,y:0,width:2048,height:2048)
-            clothImage.draw(in:rect);color.setFill();c.cgContext.setBlendMode(.multiply);c.fill(rect)
+            clothImage.draw(in:rect);color.setFill();c.cgContext.setBlendMode(.color);c.fill(rect)
         }
     }
     private func buildTable(_ rails:[[String:NSNumber]]){
-        let graphite=mat(.rgb(look.cabinet),roughness:look.wood ? 0.42:0.5,metal:look.wood ? 0:0.12)
+        let graphite=look.wood ? premiumMaterial("WalnutDark"):mat(.rgb(look.cabinet),roughness:0.5,metal:0.12)
         if look.wood {
-            graphite.diffuse.contents=woodTexture(light:true);graphite.multiply.contents=UIColor.rgb(look.cabinet)
-            graphite.normal.contents=materialMap("WalnutNormal"){self.clothNormal()};graphite.normal.intensity=0.08
-            graphite.roughness.contents=materialMap("WalnutRoughness"){self.clothNormal()}
+            graphite.multiply.contents=UIColor(white:0.95,alpha:1)
+            graphite.normal.contents=materialMap("PC_WalnutDark_normal"){self.clothNormal()};graphite.normal.intensity=0.08
+            graphite.roughness.contents=materialMap("PC_WalnutDark_roughness"){self.clothNormal()}
             for channel in [graphite.diffuse,graphite.normal,graphite.roughness]{channel.minificationFilter = .linear;channel.mipFilter = .linear;channel.maxAnisotropy=16}
         }
-        let edge=mat(.rgb(look.trim),roughness:0.32,metal:0.65)
+        let edge=premiumMaterial("ChampagneGold")
+        edge.multiply.contents=UIColor.rgb(look.trim)
         let clothColor=clothTintIndex.map{Self.clothColors[$0].1} ?? .rgb(look.cloth)
         let cloth=mat(clothColor,roughness:0.97)
         cloth.diffuse.contents=clothAlbedo(clothColor)
         cloth.normal.contents=normalImage;cloth.normal.intensity=0.34
-        cloth.roughness.contents=materialMap("ClothRoughness",fallback:{self.texture(CGSize(width:8,height:8)){c in UIColor(white:0.94,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:8,height:8))}});cloth.metalness.contents=0
+        cloth.roughness.contents=materialMap("PC_FeltEmerald_roughness",fallback:{self.texture(CGSize(width:8,height:8)){c in UIColor(white:0.94,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:8,height:8))}});cloth.metalness.contents=0
         for channel in [cloth.diffuse,cloth.normal,cloth.roughness]{
             channel.wrapS = .repeat;channel.wrapT = .repeat
             channel.contentsTransform=SCNMatrix4MakeScale(1.615,2.895,1)
@@ -190,16 +229,10 @@ final class TableScene {
             let sideOffset:Float = z==0 ? (x>0 ? 0.036:-0.036):0
             pocket(x+sideOffset,z)
         }}
-        for i in 1...7 where i != 4 {
-            let z=Float(i)*2.54/8-1.27
-            for side:Float in [-1,1]{
-                diamond(SCNVector3(side*0.7286625,0.05615,z))
-            }
-        }
-        for i in 1...3 {for side:Float in [-1,1]{
-            let x=Float(i)*1.27/4-0.635
-            if i==2 && side>0{brandPlate(SCNVector3(x,0.05615,side*1.3636625))}else{diamond(SCNVector3(x,0.05615,side*1.3636625),shortRail:true)}
-        }}
+        if let asset=NSDataAsset(name:"PC_Diamonds"),let layout=try? JSONDecoder().decode(KitSights.self,from:asset.data){
+            for site in layout.sites{diamond(SCNVector3(site.x_mm/1000,0.05615,site.z_mm/1000),shortRail:abs(site.z_mm)>1300)}
+        }else{preconditionFailure("Missing Premium Classic diamond layout")}
+        brandPlate(SCNVector3(0,-0.15,1.421))
         // Cabinet panel joints and inset foot hardware: visual only, outside the bed.
         let joint=mat(UIColor(white:0.025,alpha:1),roughness:0.7)
         for side:Float in [-1,1]{
@@ -213,7 +246,7 @@ final class TableScene {
         if ProcessInfo.processInfo.arguments.contains("--visual-qa") {
             let sights=scene.rootNode.childNodes.filter{$0.name=="rail-sight"}
             let plates=scene.rootNode.childNodes.filter{$0.name=="table-nameplate"}
-            precondition(sights.count==17 && plates.count==1,"WPA reference count")
+            precondition(sights.count==18 && plates.count==1,"WPA reference count")
             for n in sights {
                 let p=n.position
                 let offset=min(abs(abs(p.x)-0.635),abs(abs(p.z)-1.27))
@@ -400,8 +433,8 @@ final class TableScene {
                 indices += [a,a+1,b,a+1,b+1,b]
             }}
         }
-        let leather=mat(UIColor(white:0.018,alpha:1),roughness:0.94);leather.isDoubleSided=true
-        leather.normal.contents=materialMap("LeatherNormal"){self.clothNormal()};leather.normal.intensity=0.20
+        let leather=premiumMaterial("PocketLeather");leather.isDoubleSided=true
+        leather.normal.contents=materialMap("PC_PocketLeather_normal"){self.clothNormal()};leather.normal.intensity=0.20
         leather.normal.wrapS = .repeat;leather.normal.wrapT = .repeat
         let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
         g.materials=[leather];scene.rootNode.addChildNode(SCNNode(geometry:g))
@@ -439,9 +472,9 @@ final class TableScene {
     private func buildRoom(){
         let charcoal=mat(UIColor(red:0.045,green:0.052,blue:0.064,alpha:1),roughness:0.9)
         let floor=mat(.white,roughness:0.65)
-        floor.diffuse.contents=materialMap("WalnutAlbedo"){self.woodTexture(light:false)}
-        floor.normal.contents=materialMap("WalnutNormal"){self.clothNormal()};floor.normal.intensity=0.12
-        floor.roughness.contents=materialMap("WalnutRoughness"){self.clothNormal()}
+        floor.diffuse.contents=materialMap("PC_WalnutDark_albedo"){self.woodTexture(light:false)}
+        floor.normal.contents=materialMap("PC_WalnutDark_normal"){self.clothNormal()};floor.normal.intensity=0.12
+        floor.roughness.contents=materialMap("PC_WalnutDark_roughness"){self.clothNormal()}
         floor.multiply.contents=UIColor(white:0.22,alpha:1)
         for channel in [floor.diffuse,floor.normal,floor.roughness]{
             channel.wrapS = .repeat;channel.wrapT = .repeat
@@ -485,6 +518,12 @@ final class TableScene {
     }
     private func buildCue(){
         let appearance=CueBag.cue(cueType);cueLookID=appearance.id
+        if let geometry=premiumCue(appearance.id){
+            let node=SCNNode(geometry:geometry);node.name="premium-cue-"+appearance.id;node.castsShadow=true;cueRoot.addChildNode(node)
+            let cap=SCNCylinder(radius:0.006,height:0.0008);cap.materials=[mat(.rgb(0x163D57),roughness:0.9)]
+            let tip=SCNNode(geometry:cap);tip.position.y=0;cueRoot.addChildNode(tip)
+            return
+        }
         let scale:CGFloat=cueType==1 ? 0.72:(cueType==2 ? 1.015:1.0)
         // Local +Y points to the tip; full 1.45 m cue, separate leather/ferrule/shaft/joint/wrap/butt.
         func section(_ start:CGFloat,_ length:CGFloat,_ tipRadius:CGFloat,_ buttRadius:CGFloat,_ material:SCNMaterial){
@@ -627,7 +666,7 @@ final class TableScene {
             let style=NSMutableParagraphStyle();style.alignment = .center
             (look.brand.uppercased() as NSString).draw(in:CGRect(x:14,y:12,width:996,height:80),withAttributes:[.font:UIFont.systemFont(ofSize:56,weight:.bold),.foregroundColor:UIColor(red:0.92,green:0.83,blue:0.61,alpha:1),.paragraphStyle:style])
             (look.name as NSString).draw(in:CGRect(x:14,y:100,width:996,height:64),withAttributes:[.font:UIFont.systemFont(ofSize:40,weight:.medium),.foregroundColor:UIColor.white,.paragraphStyle:style])
-        };g.materials=[m];let n=SCNNode(geometry:g);n.name="table-nameplate";n.eulerAngles.x = -.pi/2;n.position=p;n.castsShadow=false;scene.rootNode.addChildNode(n)
+        };g.materials=[m];let n=SCNNode(geometry:g);n.name="table-nameplate";n.eulerAngles.x = 0;n.position=p;n.castsShadow=false;scene.rootNode.addChildNode(n)
     }
     private func ballTexture(_ id:Int)->UIImage{
         if let cached=cachedBallTextures[id]{return cached}

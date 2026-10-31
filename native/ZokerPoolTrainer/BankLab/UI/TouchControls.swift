@@ -165,9 +165,9 @@ final class HoldLockControl:UIControl {
         let circle=bounds.insetBy(dx:5,dy:5)
         ctx.setFillColor(UIColor(white:held ? 0.8:0.10,alpha:held ? 0.28:0.20).cgColor)
         ctx.fillEllipse(in:circle)
-        ctx.setStrokeColor(UIColor.white.withAlphaComponent(isEnabled ? (held ? 0.65:0.24):0.1).cgColor)
+        ctx.setStrokeColor(UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? (held ? 0.65:0.24):0.1).cgColor)
         ctx.setLineWidth(1);ctx.strokeEllipse(in:circle)
-        let ink=UIColor.white.withAlphaComponent(isEnabled ? (held ? 1:0.80):0.18)
+        let ink=UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? (held ? 1:0.80):0.18)
         let caption="B" as NSString
         let attributes:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:bounds.height*0.46,weight:.bold),.foregroundColor:ink]
         let size=caption.size(withAttributes:attributes)
@@ -289,7 +289,7 @@ final class FineAimWheel:UIControl {
             context.move(to:CGPoint(x:body.minX+3,y:y));context.addLine(to:CGPoint(x:body.maxX-3,y:y));context.strokePath()
         }
         context.restoreGState()
-        context.setStrokeColor(UIColor.systemMint.withAlphaComponent(isEnabled ? 0.65:0.15).cgColor);context.setLineWidth(2)
+        context.setStrokeColor(UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? 0.65:0.15).cgColor);context.setLineWidth(2)
         context.move(to:CGPoint(x:body.minX-3,y:bounds.midY));context.addLine(to:CGPoint(x:body.minX+3,y:bounds.midY));context.strokePath()
     }
     override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};previousY=touch.location(in:self).y;return true}

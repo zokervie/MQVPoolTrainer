@@ -98,9 +98,12 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThan(coach.frame.width,coach.frame.height,"Coach is a readable rectangle")
         let rail=app.scrollViews["QuickRailScroll"]
         XCTAssertTrue(rail.exists)
-        XCTAssertEqual(coach.frame.midX,rail.frame.midX,accuracy:1)
-        XCTAssertLessThan(coach.frame.maxY,rail.frame.minY)
-        XCTAssertGreaterThan(coach.frame.midX,scene.frame.midX)
+        let bridge=app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch
+        XCTAssertEqual(coach.frame.midX,bridge.frame.midX,accuracy:1)
+        XCTAssertLessThan(coach.frame.maxY,bridge.frame.minY)
+        XCTAssertLessThan(coach.frame.midX,scene.frame.midX)
+        XCTAssertLessThan(quick(app,"QuickCamera").frame.maxY,quick(app,"QuickTools").frame.minY)
+        XCTAssertLessThan(quick(app,"QuickTools").frame.maxY,quick(app,"QuickReplay").frame.minY)
         coach.tap()
         let enabled=NSPredicate { _,_ in self.field(scene,"coach")==1 }
         expectation(for:enabled,evaluatedWith:scene);waitForExpectations(timeout:5)
@@ -124,11 +127,11 @@ final class InteractionTests: XCTestCase {
     func testPlaceCueBallAtCentreAndCancelRestoresLayout() {
         let (app,scene)=launch(["--ux017-qa"])
         let x=field(scene,"cueX"),y=field(scene,"cueY")
-        quick(app,"QuickPlace").tap()
+        quick(app,"QuickTools").tap();app.buttons["Đặt bi"].firstMatch.tap()
         let editing=NSPredicate { _,_ in self.field(scene,"editing")==1 }
         expectation(for:editing,evaluatedWith:scene);waitForExpectations(timeout:5)
         XCTAssertEqual(field(scene,"cueX"),0,accuracy:0.001);XCTAssertEqual(field(scene,"cueY"),0,accuracy:0.001)
-        quick(app,"QuickAdd").tap()
+        quick(app,"QuickTools").tap();app.buttons["Hủy đặt bi"].firstMatch.tap()
         let cancelled=NSPredicate { _,_ in self.field(scene,"editing")==0 }
         expectation(for:cancelled,evaluatedWith:scene);waitForExpectations(timeout:5)
         XCTAssertEqual(field(scene,"cueX"),x,accuracy:0.001);XCTAssertEqual(field(scene,"cueY"),y,accuracy:0.001)
@@ -145,7 +148,7 @@ final class InteractionTests: XCTestCase {
     func testFourCueChoicesKeepMasséAndBreakDistinct() {
         let (app,scene)=launch(["--ux017-qa"])
         for (name,kind) in [("Massé",3.0),("Jump",1.0),("Break",2.0),("Đánh",0.0)] {
-            quick(app,"QuickCue").tap()
+            quick(app,"QuickTools").tap();app.buttons["Kiểu cú / loại cơ"].firstMatch.tap()
             let option=app.buttons[name].firstMatch;XCTAssertTrue(option.waitForExistence(timeout:5));option.tap()
             let selected=NSPredicate { _,_ in self.field(scene,"kind")==kind }
             expectation(for:selected,evaluatedWith:scene);waitForExpectations(timeout:5)
@@ -161,7 +164,7 @@ final class InteractionTests: XCTestCase {
         let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.35,dy:0.30))
         let end=scene.coordinate(withNormalizedOffset:CGVector(dx:0.35,dy:0.50))
         start.press(forDuration:0.05,thenDragTo:end)
-        app.buttons["Xong"].firstMatch.tap()
+        app.buttons["ReplayDone"].tap()
         let stopped=NSPredicate { _,_ in self.field(scene,"replay")==0 }
         expectation(for:stopped,evaluatedWith:scene);waitForExpectations(timeout:5)
         XCTAssertEqual(field(scene,"pitch"),pitch,accuracy:0.002)
@@ -215,15 +218,13 @@ final class InteractionTests: XCTestCase {
 
     func testRandomLayoutMenuSupportsOneThroughFifteenObjectBalls() {
         let (app,scene)=launch(["--ux017-qa"])
-        for count in [1,15] {
-            quick(app,"QuickAdd").press(forDuration:1)
-            let submenu=app.buttons["Tạo thế mới"].firstMatch
-            XCTAssertTrue(submenu.waitForExistence(timeout:5));submenu.tap()
-            let option=app.buttons["Tạo thế \(count) bi"].firstMatch
-            XCTAssertTrue(option.waitForExistence(timeout:5))
-            for _ in 0..<5 where !option.isHittable { app.swipeUp() }
-            XCTAssertTrue(option.isHittable);option.tap()
-            wait(scene,timeout:5){self.field(scene,"ballCount")==Double(count)}
+        for count in [1,14] {
+            quick(app,"QuickTools").tap()
+            app.buttons["Thêm bi · số lượng / bố trí"].firstMatch.tap()
+            let alert=app.alerts["Thêm bi"]
+            XCTAssertTrue(alert.waitForExistence(timeout:5));alert.textFields.firstMatch.tap();alert.textFields.firstMatch.typeText(String(count))
+            alert.buttons["Mặc định"].tap()
+            wait(scene,timeout:5){self.field(scene,"ballCount")==Double(count==1 ? 2:15)}
         }
     }
 
@@ -240,7 +241,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(numbers.label.contains("nút số"))
         numbers.tap()
         XCTAssertEqual(field(scene,"coach"),0,"Competitive mode cannot enable coaching")
-        XCTAssertFalse(app.buttons["QuickAdd"].isEnabled)
+        XCTAssertFalse(app.buttons["QuickRetry"].isEnabled)
         XCTAssertFalse(app.buttons["QuickReplay"].isEnabled)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }

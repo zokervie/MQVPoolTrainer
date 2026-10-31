@@ -79,24 +79,24 @@ typedef struct {
     double railBottomInset;
 } BLRightHUDMetrics;
 
-// 0.18: one compact vertical shortcut column; the viewport scrolls on small
-// phones so six buttons retain 44-point touch targets. Coach sits above it.
+// Premium Classic: four 44-point right shortcuts above elevation/effect.
+// Coach sits above B on the left; native runtime probes verify the actual frames.
 #define BL_HUD_EDGE 6.0
 #define BL_HUD_BOTTOM 8.0
 #define BL_HUD_RAIL_WIDTH 56.0
-#define BL_HUD_RAIL_ITEMS 6
+#define BL_HUD_RAIL_ITEMS 4
 #define BL_HUD_BUTTON_HEIGHT 44.0
 #define BL_HUD_BUTTON_GAP 2.0
 #define BL_HUD_COACH_HEIGHT 44.0
 #define BL_HUD_COACH_GAP 4.0
 #define BL_HUD_ELEVATION_WIDTH 44.0
-#define BL_HUD_ELEVATION_HEIGHT 110.0
+#define BL_HUD_ELEVATION_HEIGHT 96.0
 static inline double BLHUDRailHeight(void) {
     return BL_HUD_RAIL_ITEMS * BL_HUD_BUTTON_HEIGHT +
            (BL_HUD_RAIL_ITEMS - 1) * BL_HUD_BUTTON_GAP;
 }
 static inline double BLHUDVisibleRailHeight(double safeHeight) {
-    return fmin(BLHUDRailHeight(), fmax(132, safeHeight - 60));
+    (void)safeHeight; return BLHUDRailHeight();
 }
 // Enlarging effect grows left/upward; it never covers the vertical controls.
 static inline BLRightHUDMetrics BLRightHUDLayout(double safeHeight, bool expanded) {
