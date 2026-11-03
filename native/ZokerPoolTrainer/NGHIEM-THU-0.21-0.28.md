@@ -1,6 +1,6 @@
 # Nghiệm thu Z-Trainer 0.21 → 0.29
 
-Nhánh `ci/native-0.21-vat-ly`. Cột **CI** = đã được kiểm tra tự động (test C++ trên Linux / Simulator trên Mac). Cột **Máy thật** = bạn tick khi thử trên iPhone/iPad. Ghi chú ngắn vào cuối mỗi dòng nếu chưa đạt rồi gửi lại file này.
+Nhánh `ci/native-0.21-vat-ly` · build 74 · CI xanh (run 41723311821: Linux g++/clang++, Mac Simulator, 16/16 UI test, IPA). Cột **CI** = đã được kiểm tra tự động (test C++ trên Linux / Simulator trên Mac). Cột **Máy thật** = bạn tick khi thử trên iPhone/iPad. Ghi chú ngắn vào cuối mỗi dòng nếu chưa đạt rồi gửi lại file này.
 
 ## Vật lý (0.21)
 
@@ -44,12 +44,12 @@ Nhánh `ci/native-0.21-vat-ly`. Cột **CI** = đã được kiểm tra tự đ�
 | 17 | Cột phím phải, trên → dưới: Xem lại · Lùi cú · Đặt bi · Thêm bi · Bao cơ · Camera | ✅ 5 cỡ màn | [ ] iPhone [ ] iPad |
 | 18 | Bi effect to (76 pt / iPad 100), thanh nâng cơ bên trái, bánh xe ngang bên dưới | ✅ | [ ] |
 | 19 | Thanh nâng cơ và bánh xe phóng to khi chạm | — | [ ] |
-| 20 | Menu + Coach góc trên trái, B góc dưới trái | ✅ | [ ] |
+| 20 | Menu + Coach góc trên trái, B góc dưới trái; Coach chạm 1 lần bật/tắt | ✅ + UI test | [ ] |
 | 21 | Tay trái: Thư viện → Tay trái / tay phải, mọi thứ lật gương | ✅ | [ ] |
-| 22 | Camera: giữ = toàn cảnh, buông = về ngắm ngay; chạm nhanh = đổi | — | [ ] |
-| 23 | Đặt bi: bi cái vào ô trống gần giữa bàn, không chồng bi | ✅ | [ ] |
-| 24 | Thêm bi: Thêm từng bi / số lượng – bố trí | UI test | [ ] |
-| 25 | Bao cơ: Gậy Đánh / Jump / Break (thương hiệu) | UI test | [ ] |
+| 22 | Camera: giữ = toàn cảnh, buông = về ngắm ngay; chạm nhanh = đổi | ✅ UI test (giữ nguyên độ cao + zoom) | [ ] |
+| 23 | Đặt bi: bi cái vào ô trống gần giữa bàn, không chồng bi | ✅ + UI test | [ ] |
+| 24 | Thêm bi: Thêm từng bi / số lượng – bố trí | ✅ UI test (1 và 14 bi) | [ ] |
+| 25 | Bao cơ: Gậy Đánh / Jump / Break (thương hiệu) | ✅ UI test | [ ] |
 
 ## Menu, xem lại, lùi cú (0.25)
 
