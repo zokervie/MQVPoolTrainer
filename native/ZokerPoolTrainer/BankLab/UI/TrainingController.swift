@@ -470,6 +470,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let close=UIButton.lab("Đóng Menu"){[weak self]in self?.setMenu(false)}
         func row(_ buttons:[UIView])->UIStackView{let r=stack(.horizontal,8,buttons);r.distribution = .fillEqually;return r}
         let fine=UIButton.lab("Ngắm tinh · bánh xe dọc"){[weak self]in self?.setMenu(false);self?.notifyStatus("Kéo bánh xe mờ cạnh phải để vi chỉnh góc ngắm")}
+        // 0.21: chỉnh tay vật lý + xuất Markdown nghiệm thu, đưa ra Menu chính (trước đây nằm trong Nâng cao).
+        let physicsTuning=UIButton.lab("Hiệu chỉnh vật lý · xuất Markdown"){[weak self]in self?.settings()}
+        physicsTuning.accessibilityIdentifier="MenuPhysicsTuning"
         let advanced=UIButton.lab("Nâng cao"){[weak self]in guard let self=self else{return};let a=UIAlertController(title:"Nâng cao",message:nil,preferredStyle:.actionSheet)
             a.addAction(UIAlertAction(title:"Hiệu chỉnh vật lý",style:.default){[weak self]_ in self?.settings()})
             a.addAction(UIAlertAction(title:"ZUPE Lab · nghiên cứu",style:.default){[weak self]_ in self?.setMenu(false);self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})
@@ -478,7 +481,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let controls=stack(.vertical,10,[brand,titleLabel,statusLabel,scoreLabel,hintLabel,
             matches,row([drillButton,layoutButton]),guideButton,resetButton,
             row([center,trails]),
-            row([graphicsButton,fine]),row([felt,sound]),coachToggle,cameraOptions,recordings,equipment,kick,advanced,lessons,help,close])
+            row([graphicsButton,fine]),row([felt,sound]),coachToggle,cameraOptions,recordings,equipment,kick,physicsTuning,advanced,lessons,help,close])
         controls.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(controls)
         NSLayoutConstraint.activate([
             controls.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),

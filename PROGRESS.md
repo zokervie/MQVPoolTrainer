@@ -36,6 +36,11 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (khuya) · `ci/native-0.21-vat-ly` thêm — TESTED_PORTABLE (23 bộ C++):
+  - **Hệ kim cương làm mốc hiệu chuẩn** (`Core/KickSystems.hpp`, `Tests/KickSystemsTests.cpp`): corner‑5 / Diamond System (A = D − T, đánh số PoolDawg; Alciatore TP 7.2) chạy bằng vật lý app: 3 m/s + effect thuận 0,35R → lệch bàn 0,0, phân tán 2,6 đơn vị (¼ nút), 17 cú chuẩn. Hiệu chuẩn chung clip zigzag + corner‑5 (lưới β, μ băng, e, giảm xoáy): hồ sơ 0.21 gần tối ưu (clip 0,08 nút, corner‑5 0,26 nút; tốt nhất lưới 0,25) — giữ nguyên, không fit thêm theo 1 nguồn.
+  - **Bảng hiệu chỉnh cho công thức chung**: lực mạnh hơn → về ngắn hơn; effect thuận nhiều hơn → về dài hơn (bảng số trong test).
+  - **Còn mở (ghi nhận của chủ dự án):** effect ngược ở lực vừa gần như không thu góc bật trong mô hình (gương 1 băng 2 m/s: không effect +0,14, ngược +0,14, thuận +0,74 nút); ở lực mạnh có thu (−0,32). Có cả khi β = 0. Cần số đo bàn thật trước khi đổi mô hình băng.
+  - Menu chính: thêm "Hiệu chỉnh vật lý · xuất Markdown" (trước nằm trong Nâng cao).
 - 03/11/2026 (tối) · Nhánh `ci/native-0.21-vat-ly` — TESTED_PORTABLE (g++/clang++, 22 bộ C++), chờ CI Mac biên dịch Swift; chưa xác minh trên thiết bị:
   - **Băng grip-slip (β):** clip *Reverse bank zigzag* (c-ZBSi9KBfc) được nắn phối cảnh về toạ độ nút (sai số ≤ 0,1 nút) và dò bi 8 qua 4 băng: 3,44 → 2,40 → 2,86 → 3,45 → lỗ giữa. Sau băng 2 bi **đổi chiều dọc bàn**; mô hình băng cứng 0.20 không làm được ở bất kỳ tốc độ/xoáy/ma sát nào. Thêm hệ số hồi phục tiếp tuyến β (Cross, Am. J. Phys. 70, 1093, 2002) vào `CushionContact3D.hpp` (mặc định lõi 0 = kết quả cũ y hệt). Hồ sơ app: β 0,30, giảm xoáy ngang 11 rad/s² (fit 1 clip) → 3,44 / 2,54 / 2,82 / 3,51, lệch ≤ 0,22 nút. `Tests/ReverseZigzagTests.cpp`. Còn mở: cuối cú bi trong clip chậm hơn mô hình 0,48 s.
   - **Squirt theo độ nâng cơ (quyết định chủ dự án):** mọi gậy ra bi đúng hướng ngắm khi cơ ngang; squirt tăng dần theo độ nâng, đủ ở 15° (thiết kế). Thay chính sách theo kiểu cú của 0.20.
