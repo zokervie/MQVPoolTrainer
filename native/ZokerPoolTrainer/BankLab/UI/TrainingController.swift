@@ -105,7 +105,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var frameStateCache:[BallState]?
     var renderUntil=0.0,lastStatusTime=0.0,startupRenderUntil=0.0
     var premiumProbeWritten=false,cameraInitialCommit=false
-    var premiumProbeEye:SIMD3<Float>?,premiumProbeStable=0
+    var premiumProbeEye:SIMD3<Float>?,premiumProbeStable=0,premiumProbeLastMove:TimeInterval=0
     var replayPreparing=false,archiveGeneration=0,activeArchiveID:String?
     var replayPlan:ReplayDirector.Plan?
     struct ReplayReturnState {var frames:[[BallState]];var times:[Double];var events:[[String:NSNumber]];var shot:SavedShot?;var paths:[Int:[SIMD3<Float>]];var coach:Bool;var preparation:[ReplayAimSample]}
@@ -990,10 +990,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             // refreshed by a rendered frame, so it is reported, not required.
             let eye=table.camera.simdPosition
             let step=premiumProbeEye.map{simd_distance($0,eye)} ?? 1
-            if step<0.001 {premiumProbeStable+=1} else {premiumProbeStable=0}
+            let uptimeNow=ProcessInfo.processInfo.systemUptime
+            if step<0.001 {premiumProbeStable+=1} else {premiumProbeStable=0;premiumProbeLastMove=uptimeNow}
             premiumProbeEye=eye
             let uptime=ProcessInfo.processInfo.systemUptime
-            let settled=premiumProbeStable>=10 && uptime>startupRenderUntil-5
+            // Slow simulators (Intel CI) render few frames once idle: also accept a pose unchanged for 1 s of
+            // wall time across at least two samples. Same criterion (model pose unchanged), tick-rate independent.
+            let settled=(premiumProbeStable>=10 || (premiumProbeStable>=1 && uptime-premiumProbeLastMove>=1.0)) && uptime>startupRenderUntil-5
             if settled || uptime>startupRenderUntil+12 {
                 let high=ProcessInfo.processInfo.arguments.contains("--premium-high")
                 let args=ProcessInfo.processInfo.arguments
