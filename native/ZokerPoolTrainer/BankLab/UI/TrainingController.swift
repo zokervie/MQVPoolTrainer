@@ -83,6 +83,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var eyeHoldWork:DispatchWorkItem?
     var frameLayoutAdopted=false
     var matchCallPicking=0,matchCallBall=0,matchCallPose:CameraPose?
+    // 0.25: practice history (step back / forward per shot or whole session) and session highlights.
+    var shotBack:[[BallState]]=[],shotForward:[[BallState]]=[]
+    var sessionShots:[(shot:SavedShot,score:Int,label:String)]=[]
+    var autoSaveEveryShot:Bool{UserDefaults.standard.bool(forKey:"autoSaveEveryShot025")}
     let quickCall=UIButton(type:.system)
     var leftHanded:Bool{UserDefaults.standard.bool(forKey:"leftHanded022")}
     var lastObservedMode=0
@@ -563,7 +567,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         var retry=UIButton.Configuration.plain();retry.title="Lùi cú";retry.image=UIImage(systemName:"arrow.uturn.backward");retry.imagePadding=5;retry.baseForegroundColor=UIColor.white.withAlphaComponent(0.8);retry.background.backgroundColor=UIColor(white:0.03,alpha:0.3);retry.background.cornerRadius=18
         retry.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:9,weight:.medium);return a}
         retry.title="Tập lại";retryButton.configuration=retry;retryButton.translatesAutoresizingMaskIntoConstraints=false;retryButton.accessibilityLabel="Dừng và đánh lại cú vừa rồi";view.addSubview(retryButton)
-        retryButton.addAction(UIAction{[weak self]_ in self?.undo()},for:.touchUpInside)
+        retryButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};if self.shotBack.isEmpty{self.undo()}else{self.stepShot(-1)}},for:.touchUpInside)
+        retryButton.menu=UIMenu(title:"Lùi / tiến cú",children:[UIDeferredMenuElement.uncached{[weak self] completion in
+            guard let self=self else{completion([]);return}
+            let back=self.shotBack.count,forward=self.shotForward.count
+            completion([UIAction(title:"Lùi 1 cú (còn \(back))",attributes:back==0 ? [.disabled]:[]){[weak self]_ in self?.stepShot(-1)},
+                        UIAction(title:"Tiến 1 cú (còn \(forward))",attributes:forward==0 ? [.disabled]:[]){[weak self]_ in self?.stepShot(1)},
+                        UIAction(title:"Về đầu phiên",attributes:back==0 ? [.disabled]:[]){[weak self]_ in self?.stepShot(-99)},
+                        UIAction(title:"Tới cú mới nhất",attributes:forward==0 ? [.disabled]:[]){[weak self]_ in self?.stepShot(99)}])}])
         panel.isHidden=true;table.cameraMode=2;table.showNumbers=false
     }
     func setMenu(_ open:Bool){
@@ -992,6 +1003,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if table.cameraMode==2 {savedAimCamera=captureCamera()}
         BLShotCameraStart(&shotCameraState)
         cameraManual=false;lastDirectorTime = -10;peekPose=nil;lastShotEvents=[]
+        if !matchIsCompetitive{shotBack.append(balls);shotForward.removeAll()}
         before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0
         let strikeAngle=table.shotAngle(cue,angle:angle,side:side,top:top)
         lastShot=SavedShot(name:"",date:Date(),balls:balls,aimAngle:angle,speed:speed,side:side,top:top,
@@ -1164,6 +1176,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func finishShot(timedOut:Bool){
         let d=Drill.all[drillIndex],events=engine.events
         lastShotEvents=events
+        recordSessionShot(events)
         frames.append(balls);frameTimes.append(engine.elapsed)
         if timedOut {let stopped=balls;engine.loadLayout(stopped.map{$0.dictionary})}
         shotActive=false;locked=false
@@ -1213,6 +1226,42 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             table.showRailContacts(railContacts(events,ball:tracked,untilFirstHit:d.kick).map{($0.x,$0.y)})
             requestCoachReport(drill:d,events:events,passed:passed,scratch:scratch)
         }
+    }
+    /// 0.25 highlight score: object balls potted, kick cushions before contact, banked pots.
+    func recordSessionShot(_ events:[[String:NSNumber]]){
+        guard var shot=lastShot,!matchIsCompetitive else{return}
+        var firstContact = -1.0,cueRails=0,pots:[Int]=[],railsBy:[Int:Int]=[:],banks=0
+        for e in events {
+            let kind=e["kind"]?.intValue ?? -1,a=e["a"]?.intValue ?? -1,b=e["b"]?.intValue ?? -1,t=e["time"]?.doubleValue ?? 0
+            if kind==1,firstContact<0,a==0||b==0{firstContact=t}
+            if kind==0{railsBy[a,default:0]+=1;if a==0,firstContact<0{cueRails+=1}}
+            if kind==2,a>0,b>=0{pots.append(a);if (railsBy[a] ?? 0)>0{banks+=1}}
+        }
+        let score=pots.count*3+banks*3+(firstContact>=0 ? cueRails*2:0)
+        guard score>0 else{return}
+        var parts:[String]=[]
+        if cueRails>0{parts.append("kick \(cueRails) băng")}
+        if banks>0{parts.append("\(banks) bi băng")}
+        if !pots.isEmpty{parts.append("vào \(pots.count) bi")}
+        let label=parts.joined(separator:" · ")
+        shot.name="Highlight · "+label;shot.coachVisible=coaching
+        sessionShots.append((shot,score,label));if sessionShots.count>60{sessionShots.removeFirst()}
+        if autoSaveEveryShot{var all=SavedShot.all();var copy=shot;copy.name="Tự lưu · "+label;all.append(copy);SavedShot.store(all)}
+    }
+    var sessionHighlights:[(shot:SavedShot,score:Int,label:String)]{Array(sessionShots.enumerated().sorted{$0.element.score==$1.element.score ? $0.offset>$1.offset:$0.element.score>$1.element.score}.prefix(5).map{$0.element})}
+    /// 0.25: practice only. -1/+1 one shot; -99 start of session; +99 latest position.
+    func stepShot(_ direction:Int){
+        guard matchAllowsEditing,!matchIsCompetitive,localTurn,!shotActive,replayIndex==nil,!isPlacingBalls else{return}
+        var target:[BallState]?
+        switch direction {
+        case -1: guard let state=shotBack.popLast() else{notifyStatus("Đã ở cú đầu");return};shotForward.append(balls);target=state
+        case 1: guard let state=shotForward.popLast() else{notifyStatus("Đã ở cú mới nhất");return};shotBack.append(balls);target=state
+        case -99: guard !shotBack.isEmpty else{return};shotForward.append(balls);shotForward+=shotBack.dropFirst().reversed();target=shotBack.first;shotBack.removeAll()
+        default: guard !shotForward.isEmpty else{return};shotBack.append(balls);shotBack+=shotForward.dropFirst().reversed();target=shotForward.first;shotForward.removeAll()
+        }
+        guard let state=target else{return}
+        lockButton.releaseHold();setHold(false);engine.loadLayout(state.map{$0.dictionary});clearShot();restoreAimCamera();locked=false
+        notifyStatus("Cú \(shotBack.count+1)/\(shotBack.count+shotForward.count+1)");refresh();updateControls();syncQuickRail()
     }
     func undo(){guard matchAllowsEditing,localTurn,!before.isEmpty,!isPlacingBalls else{return};lockButton.releaseHold();setHold(false);engine.loadLayout(before.map{$0.dictionary});clearShot();restoreAimCamera();locked=false;statusLabel.text="Đã trở về trước cú đánh";refresh();updateControls()}
     func reset(){
@@ -1581,6 +1630,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                             var all=SavedShot.all();if index<all.count{if let id=all[index].recordingID{ShotArchive.shared.remove(id:id)};all.remove(at:index)};SavedShot.store(all);self?.syncQuickRail()}])
                 }))
         }
+        let highlights=sessionHighlights
+        if !highlights.isEmpty {
+            items.append(UIMenu(title:"Highlight phiên (\(highlights.count))",image:UIImage(systemName:"sparkles"),children:
+                highlights.map{h in UIAction(title:h.label){[weak self]_ in self?.playSaved(h.shot)}}+[
+                UIAction(title:"Lưu highlight vào Lưu trữ",image:UIImage(systemName:"square.and.arrow.down")){[weak self]_ in
+                    guard let self=self else{return};var all=SavedShot.all();all+=self.sessionHighlights.map{$0.shot};SavedShot.store(all)
+                    self.notifyStatus("Đã lưu \(self.sessionHighlights.count) cú highlight");self.syncQuickRail()}]))
+        }
+        items.append(UIAction(title:"Tự lưu mọi cú",image:UIImage(systemName:"tray.and.arrow.down"),state:autoSaveEveryShot ? .on:.off){_ in
+            UserDefaults.standard.set(!UserDefaults.standard.bool(forKey:"autoSaveEveryShot025"),forKey:"autoSaveEveryShot025")})
         return UIMenu(title:"Xem lại",children:items)
     }
     func saveLastShot(){

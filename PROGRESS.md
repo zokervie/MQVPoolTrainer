@@ -36,6 +36,9 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (khuya) · 0.25 xem lại / lùi–tiến cú / highlight (chờ CI Mac):
+  - **Lùi cú** (chỉ luyện tập): chạm = lùi 1 cú; giữ = menu Lùi 1 / Tiến 1 / Về đầu phiên / Tới cú mới nhất (lịch sử thế bàn trước mỗi cú).
+  - **Highlight phiên**: mỗi cú được chấm (vào bi ×3, bi băng ×3, kick mỗi băng ×2), top 5 trong Xem lại; "Lưu highlight vào Lưu trữ"; công tắc "Tự lưu mọi cú". Cú lưu dựng lại từ đầu vào (vật lý tất định), không tốn dung lượng.
 - 03/11/2026 (23h30) · 0.26 luật gọi lỗ tự động — TESTED_PORTABLE (MatchRules 464 kiểm tra):
   - 8-ball / 10-ball không còn bắt gọi trước mỗi cú. Không gọi → lỗ được đọc từ chính cú đánh: bi mục tiêu đầu tiên đi **thẳng** vào lỗ (không chạm băng/bi nào) là bi + lỗ đã gọi. Băng, kick, combo, kiss, bi khác rơi theo = ăn may → không tính (luật bi không gọi WPA). `Rules::autoCall` (lõi mặc định tắt, app bật).
   - Phím **Call** trên cột phím (thay chỗ Lùi cú trong trận 8/10-ball): camera trên cao toàn màn hình → chạm bi → chạm lỗ; chạm Call lần nữa để hủy.
