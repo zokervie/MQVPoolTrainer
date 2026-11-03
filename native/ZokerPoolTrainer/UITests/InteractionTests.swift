@@ -243,7 +243,7 @@ final class InteractionTests: XCTestCase {
         let status=app.buttons["MatchStatus"]
         XCTAssertTrue(status.waitForExistence(timeout:5 * slow))
         XCTAssertTrue(status.label.contains("9 Ball"))
-        XCTAssertTrue(status.label.contains("Lượt người 1"))
+        XCTAssertTrue(status.label.lowercased().contains("lượt người 1"))   // 0.29: "Lượt <tên người chơi>"
         XCTAssertEqual(field(scene,"ballCount"),9)
         XCTAssertEqual(field(scene,"coach"),0)
         let numbers=app.buttons["CoachToggle"]

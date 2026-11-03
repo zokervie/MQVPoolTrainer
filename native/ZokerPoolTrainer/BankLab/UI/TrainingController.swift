@@ -313,7 +313,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// Menu + Coach at the top on the other side, B bottom on the other side. Left-handed mirrors everything.
     func adoptFrameLayoutOnce(){
         guard !frameLayoutAdopted else{return};frameLayoutAdopted=true
-        for v:UIView in [quickScroll,spin,fineWheel,elevationPad,menuButton,coachButton,lockButton,panel]{
+        for v:UIView in [quickScroll,spin,fineWheel,elevationPad,menuButton,coachButton,lockButton,panel,replayBar]{
             var owned:[NSLayoutConstraint]=v.constraints.filter{($0.firstItem as? UIView)===v && $0.secondItem==nil}
             var ancestor=v.superview
             while let a=ancestor{owned+=a.constraints.filter{($0.firstItem as? UIView)===v};ancestor=a.superview}
@@ -331,6 +331,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         func place(_ v:UIView,_ b:BLRect){v.bounds=CGRect(x:0,y:0,width:b.w,height:b.h);v.center=CGPoint(x:b.x+b.w/2,y:b.y+b.h/2)}
         place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
         place(menuButton,f.menu);place(coachButton,f.coach);place(lockButton,f.bridge);place(panel,f.panel);spin.setNeedsDisplay()
+        // Replay bar: top row between the Menu/Coach pair and the shortcut column (never over Menu or Coach).
+        let start=leftHanded ? f.rail.x+f.rail.w+8:f.coach.x+f.coach.w+8
+        let end=leftHanded ? min(f.menu.x,f.coach.x)-8:f.rail.x-8
+        place(replayBar,BLRectMake(start,f.menu.y+f.menu.h/2-24,max(220,end-start),48))
         retryButton.isHidden=matchIsCompetitive
         if spinExpanded{elevationPad.isHidden=true;fineWheel.isHidden=true}   // expanded ball covers their slots
         quickCall.isHidden = !(matchIsCompetitive && matchBool("requiresCall"))
@@ -1630,7 +1634,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             coachCard.topAnchor.constraint(equalTo:menuButton.bottomAnchor,constant:8),
             coachCard.widthAnchor.constraint(lessThanOrEqualToConstant:360),
             coachCard.trailingAnchor.constraint(lessThanOrEqualTo:quickScroll.leadingAnchor,constant:-12),
-            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:coachButton.topAnchor,constant:-8),
+            // 0.29: Coach now sits top-left beside Menu; keep the card clear of the bottom controls instead.
+            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:lockButton.topAnchor,constant:-8),
+            coachCard.bottomAnchor.constraint(lessThanOrEqualTo:spin.topAnchor,constant:-8),
             coachLabel.leadingAnchor.constraint(equalTo:coachCard.leadingAnchor,constant:12),coachLabel.trailingAnchor.constraint(equalTo:coachCard.trailingAnchor,constant:-12),
             coachLabel.topAnchor.constraint(equalTo:coachCard.topAnchor,constant:10),coachLabel.bottomAnchor.constraint(equalTo:coachCard.bottomAnchor,constant:-10)])
         coachCard.addGestureRecognizer(UITapGestureRecognizer(target:self,action:#selector(coachTapped)))
