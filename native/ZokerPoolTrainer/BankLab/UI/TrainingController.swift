@@ -415,7 +415,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             panel.widthAnchor.constraint(equalToConstant:318),
             scroll.leadingAnchor.constraint(equalTo:panel.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:panel.trailingAnchor),
             scroll.topAnchor.constraint(equalTo:panel.topAnchor),scroll.bottomAnchor.constraint(equalTo:panel.bottomAnchor)])
-        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Z-Trainer · 0.19 · Luyện tập";brand.textColor=MenuSkin.gold
+        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Z-Trainer · 0.21 · Luyện tập";brand.textColor=MenuSkin.gold
         text(titleLabel,14,.white,.bold);text(statusLabel,12,.mint);text(scoreLabel,12,.white);text(hintLabel,12,.mint)
         for label in [titleLabel,statusLabel,scoreLabel,hintLabel]{label.numberOfLines=0}
         hintLabel.text=strokeHint
@@ -458,7 +458,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let kick=UIButton.lab("Tìm góc kick · 1–3 băng"){[weak self]in self?.chooseKick()}
         let coachToggle=UIButton.lab("Coach · Bật / tắt toàn bộ trợ giúp"){[weak self] in self?.toggleCoach()}
         let cameraOptions=UIButton.lab("Góc nhìn / Camera replay"){[weak self] in self?.cycleCamera()}
-        let recordings=UIButton.lab("Lưu cú / Cú đã lưu"){[weak self] in
+        let recordings=UIButton.lab("Lưu trữ · Cú đánh / Highlight"){[weak self] in
             guard let self=self else{return}
             let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
             sheet.addAction(UIAlertAction(title:"Lưu cú vừa đánh",style:.default){[weak self]_ in self?.saveLastShot()})
@@ -478,10 +478,43 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             a.addAction(UIAlertAction(title:"ZUPE Lab · nghiên cứu",style:.default){[weak self]_ in self?.setMenu(false);self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})
             a.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(a,source:self.menuButton)
         }
+        // 0.21: Menu chỉ còn 7 mục theo nghiệm thu 03/11 (Chế độ chơi, Hướng dẫn, Bài tập, Lưu trữ, Thư viện, Nhật ký,
+        // Hiệu chỉnh vật lý). Coach, Camera, Đặt bi, Lùi cú, Xem lại đã nằm trên màn hình chính; các mục khác gộp vào trong.
+        func group(_ title:String,_ items:[(String,()->Void)])->UIButton{
+            UIButton.lab(title){[weak self] in
+                guard let self=self else{return}
+                let sheet=UIAlertController(title:title,message:nil,preferredStyle:.actionSheet)
+                for (name,action) in items{sheet.addAction(UIAlertAction(title:name,style:.default){_ in action()})}
+                sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)
+            }
+        }
+        let modes=group("Chế độ chơi · Offline / Wi‑Fi / Online",[
+            ("Offline · luyện tự do",{[weak self] in self?.setMenu(false)}),
+            ("Wi‑Fi (mã phòng) / Online",{[weak self] in self?.openMatchMenu()})])
+        modes.accessibilityIdentifier="MenuModes"
+        let guide=group("Hướng dẫn",[
+            ("Cách chơi & điều khiển",{[weak self] in self?.help()}),
+            ("Bài học / Nguồn tham khảo",{[weak self] in self?.lessons()})])
+        let drills=group("Bài tập · có / không Coach",[
+            ("Chọn bài tập",{[weak self] in self?.chooseDrill()}),
+            ("Tìm góc kick 1–3 băng",{[weak self] in self?.chooseKick()})])
+        let library=group("Thư viện · Bàn – Nỉ – Bi – Gậy – Không gian",[
+            ("Nỉ: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setClothWear(old:!self.table.oldCloth);self.wakeRendering();self.notifyStatus(self.table.oldCloth ? "Nỉ cũ: vệt lăn, vết chấm, bụi phấn":"Nỉ mới")}),
+            ("Bi: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setBallWear(old:!self.table.oldBalls);self.wakeRendering();self.notifyStatus(self.table.oldBalls ? "Bi cũ: mờ bóng":"Bi mới: bóng gương")}),
+            ("Màu nỉ",{[weak self] in self?.chooseClothColor()}),
+            ("Bao cơ / Gậy",{[weak self] in self?.equipment()}),
+            ("Bàn & không gian · hình ảnh",{[weak self] in self?.graphics()}),
+            ("Âm thanh: bật / tắt",{[weak self] in
+                let enabled = !(UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true)
+                UserDefaults.standard.set(enabled,forKey:"poolAudioEnabled");self?.statusLabel.text=enabled ? "Âm thanh bi: bật":"Âm thanh bi: tắt"})])
+        let journal=UIButton.lab("Nhật ký tập luyện · Thế bi"){[weak self]in self?.layouts()}
+        let tuning=group("Hiệu chỉnh vật lý · xuất Markdown",[
+            ("Mở bảng hiệu chỉnh",{[weak self] in self?.settings()}),
+            ("ZUPE Lab · nghiên cứu",{[weak self] in self?.setMenu(false);self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})])
+        tuning.accessibilityIdentifier="MenuPhysicsTuning"
+        _=(center,trails,fine,felt,sound,coachToggle,cameraOptions,kick,advanced,physicsTuning,equipment,lessons,help,matches,guideButton,resetButton,graphicsButton,layoutButton,drillButton)
         let controls=stack(.vertical,10,[brand,titleLabel,statusLabel,scoreLabel,hintLabel,
-            matches,row([drillButton,layoutButton]),guideButton,resetButton,
-            row([center,trails]),
-            row([graphicsButton,fine]),row([felt,sound]),coachToggle,cameraOptions,recordings,equipment,kick,physicsTuning,advanced,lessons,help,close])
+            modes,guide,drills,recordings,library,journal,tuning,close])
         controls.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(controls)
         NSLayoutConstraint.activate([
             controls.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),

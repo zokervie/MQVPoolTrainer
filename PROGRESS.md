@@ -36,6 +36,12 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (22h) · `ci/native-0.21-vat-ly` — đồ hoạ + menu (chờ CI Mac; chưa xác minh trên thiết bị, chưa có ảnh so sánh):
+  - **Nỉ hết lem:** bỏ 900 vệt dài 10–75 cm của lớp `feltNap`; vân twill của bộ nỉ lặp 24 lần/m (trước 1 lần/m → sọc chéo 2–4 cm), normal 0,34 → 0,5, lọc anisotropic 16×.
+  - **Nỉ cũ / mới** (Thư viện): nỉ cũ xỉn 7%, vệt lăn từ vùng phá/khung bi tới 6 lỗ và dọc băng, vết cháy ở 2 chấm đặt bi, bụi phấn quanh lỗ.
+  - **Bi hết chói nửa trên:** thân nhám 0,45 + lớp bóng phủ 1,0 / nhám 0,035 (đốm sáng nhỏ, gắt), bỏ phát sáng 8%. **Bi cũ:** lớp bóng 0,45 / 0,22, ngả vàng nhẹ.
+  - **Menu 7 mục:** Chế độ chơi · Hướng dẫn · Bài tập · Lưu trữ · Thư viện · Nhật ký · Hiệu chỉnh vật lý. Mục khác đã nằm trên màn hình chính hoặc gộp vào trong.
+  - Chưa làm: bàn cũ/mới (gỗ, đồng), chi tiết bàn như hình mẫu, giao diện thuận ngón + đổi tay trái (0.22).
 - 03/11/2026 (khuya) · `ci/native-0.21-vat-ly` thêm — TESTED_PORTABLE (23 bộ C++):
   - **Hệ kim cương làm mốc hiệu chuẩn** (`Core/KickSystems.hpp`, `Tests/KickSystemsTests.cpp`): corner‑5 / Diamond System (A = D − T, đánh số PoolDawg; Alciatore TP 7.2) chạy bằng vật lý app: 3 m/s + effect thuận 0,35R → lệch bàn 0,0, phân tán 2,6 đơn vị (¼ nút), 17 cú chuẩn. Hiệu chuẩn chung clip zigzag + corner‑5 (lưới β, μ băng, e, giảm xoáy): hồ sơ 0.21 gần tối ưu (clip 0,08 nút, corner‑5 0,26 nút; tốt nhất lưới 0,25) — giữ nguyên, không fit thêm theo 1 nguồn.
   - **Bảng hiệu chỉnh cho công thức chung**: lực mạnh hơn → về ngắn hơn; effect thuận nhiều hơn → về dài hơn (bảng số trong test).

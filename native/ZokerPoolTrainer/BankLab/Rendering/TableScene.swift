@@ -116,29 +116,66 @@ final class TableScene {
     private lazy var clothImage=materialMap("PC_FeltEmerald_albedo",fallback:clothTexture)
     private lazy var normalImage=materialMap("PC_FeltEmerald_normal",fallback:clothNormal)
     private lazy var environment=studioEnvironment()
-    private lazy var feltNapImage=feltNap()
+    /// 0.21: cloth / ball wear (Thư viện). Old cloth adds ball tracks, spot burns and chalk; old balls lose gloss.
+    private(set) var oldCloth=UserDefaults.standard.bool(forKey:"clothWear021")
+    private(set) var oldBalls=UserDefaults.standard.bool(forKey:"ballWear021")
+    private var feltNapCache:[Bool:UIImage]=[:]
+    private var feltNapImage:UIImage{if let i=feltNapCache[oldCloth]{return i};let i=feltNap(old:oldCloth);feltNapCache[oldCloth]=i;return i}
+    private weak var bedMaterial:SCNMaterial?
+    func setClothWear(old:Bool){oldCloth=old;UserDefaults.standard.set(old,forKey:"clothWear021");bedMaterial?.multiply.contents=feltNapImage}
+    func setBallWear(old:Bool){oldBalls=old;UserDefaults.standard.set(old,forKey:"ballWear021");for g in cachedBallGeometry.values{if let m=g.firstMaterial{applyBallFinish(m)}}}
+    /// Phenolic ball: semi-matte body under a thin, very smooth lacquer -> one small, sharp highlight instead of a broad
+    /// glare over the top half (0.20 used roughness .27 + 8% emission). Old balls: worn lacquer, slight yellowing.
+    private func applyBallFinish(_ m:SCNMaterial){
+        m.emission.contents=UIColor.black;m.emission.intensity=0
+        if oldBalls{m.roughness.contents=0.55;m.clearCoat.contents=0.45;m.clearCoatRoughness.contents=0.22;m.multiply.contents=UIColor(red:0.97,green:0.95,blue:0.88,alpha:1)}
+        else{m.roughness.contents=0.45;m.clearCoat.contents=1.0;m.clearCoatRoughness.contents=0.035;m.multiply.contents=UIColor.white}
+    }
     /// Large-scale worsted nap streaks, soft mottling and cushion-side falloff.
     /// UV covers the 1.615 x 2.895 m footprint once (generate_table_mesh.py), so
     /// this layer never tiles; the fine weave remains in the kit felt maps.
-    private func feltNap()->UIImage {
-        texture(CGSize(width:512,height:1024)){c in
-            let ctx=c.cgContext,w:CGFloat=512,h:CGFloat=1024
-            UIColor.white.setFill();c.fill(CGRect(x:0,y:0,width:w,height:h))
-            var seed:UInt64=0x5EED_F17
+    /// Large-scale layer over the whole bed (UV covers the 1.615 x 2.895 m footprint once; bed spans u .107-.893,
+    /// v .061-.939). 0.21: no more long painted streaks (they read as smears). New cloth: faint low-frequency mottling
+    /// and cushion-side falloff only. Old cloth: whole cloth a little duller, burnished ball tracks from the break area
+    /// to the six pockets and along the rails, burns on the head/foot spots, chalk dust at the pockets.
+    private func feltNap(old:Bool)->UIImage {
+        texture(CGSize(width:1024,height:2048)){c in
+            let ctx=c.cgContext,w:CGFloat=1024,h:CGFloat=2048
+            UIColor(white:old ? 0.93:1,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:w,height:h))
+            var seed:UInt64=old ? 0x01D_C10F:0x5EED_F17
             func random()->CGFloat{seed=seed &* 6364136223846793005 &+ 1442695040888963407;return CGFloat((seed>>33)%10_000)/10_000}
-            // Brushed nap runs head-to-foot (along v).
-            for _ in 0..<900 {
-                let x=random()*w,y=random()*h,len=40+random()*220,shade=random()
-                UIColor(white:shade>0.5 ? 1:0.84,alpha:0.16).setStroke()
-                ctx.setLineWidth(0.6+random()*1.4);ctx.move(to:CGPoint(x:x,y:y));ctx.addLine(to:CGPoint(x:x+(random()-0.5)*3,y:y+len));ctx.strokePath()
-            }
-            for _ in 0..<160 {
-                let r=12+random()*40
-                UIColor(white:0.93+random()*0.05,alpha:0.08).setFill()
+            for _ in 0..<70 {
+                let r=90+random()*220
+                UIColor(white:0.955+random()*0.04,alpha:0.06).setFill()
                 ctx.fillEllipse(in:CGRect(x:random()*w-r,y:random()*h-r,width:r*2,height:r*2))
             }
-            // Soft darkening toward the cushions (bed spans u .107-.893, v .061-.939).
-            let colors=[UIColor(white:0,alpha:0).cgColor,UIColor(white:0,alpha:0.20).cgColor] as CFArray
+            func P(_ u:CGFloat,_ v:CGFloat)->CGPoint{CGPoint(x:u*w,y:v*h)}
+            if old {
+                let pockets=[P(0.107,0.061),P(0.893,0.061),P(0.107,0.5),P(0.893,0.5),P(0.107,0.939),P(0.893,0.939)]
+                let breakArea=P(0.5,0.30),rack=P(0.5,0.719)
+                ctx.setLineCap(.round)
+                for from in [breakArea,rack,P(0.5,0.5)] { for pocket in pockets {
+                    for k in 0..<3 {
+                        let jitter=(random()-0.5)*26
+                        UIColor(white:1,alpha:0.10+0.05*CGFloat(k%2)).setStroke();ctx.setLineWidth(14+random()*12)
+                        ctx.move(to:CGPoint(x:from.x+jitter,y:from.y+jitter));ctx.addLine(to:CGPoint(x:pocket.x-jitter*0.3,y:pocket.y+jitter*0.3));ctx.strokePath()
+                    }
+                }}
+                for u in [CGFloat(0.135),0.865] {   // rail tracks: balls rolling along the long cushions
+                    UIColor(white:1,alpha:0.12).setStroke();ctx.setLineWidth(22)
+                    ctx.move(to:P(u,0.09));ctx.addLine(to:P(u,0.91));ctx.strokePath()
+                }
+                for spot in [P(0.5,0.281),P(0.5,0.719)] {   // spot burns: darker, slightly glossy ring
+                    UIColor(white:0.80,alpha:0.55).setFill();ctx.fillEllipse(in:CGRect(x:spot.x-15,y:spot.y-15,width:30,height:30))
+                    UIColor(white:0.88,alpha:0.4).setFill();ctx.fillEllipse(in:CGRect(x:spot.x-34,y:spot.y-34,width:68,height:68))
+                }
+                for pocket in pockets { for _ in 0..<26 {   // chalk dust: blue-grey specks around the jaws
+                    let a=random()*CGFloat.pi*2,d=20+random()*90,r=2+random()*6
+                    UIColor(red:0.80,green:0.86,blue:0.95,alpha:0.35).setFill()
+                    ctx.fillEllipse(in:CGRect(x:pocket.x+cos(a)*d-r,y:pocket.y+sin(a)*d-r,width:r*2,height:r*2))
+                }}
+            }
+            let colors=[UIColor(white:0,alpha:0).cgColor,UIColor(white:0,alpha:0.18).cgColor] as CFArray
             if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0.55,1]){
                 ctx.saveGState();ctx.translateBy(x:w/2,y:h/2);ctx.scaleBy(x:1,y:h/w*0.98)
                 ctx.drawRadialGradient(g,startCenter:.zero,startRadius:0,endCenter:.zero,endRadius:w*0.52,options:[.drawsAfterEndLocation])
@@ -243,17 +280,21 @@ final class TableScene {
         let clothColor=clothTintIndex.map{Self.clothColors[$0].1} ?? .rgb(look.cloth)
         let cloth=mat(clothColor,roughness:0.97)
         cloth.diffuse.contents=clothAlbedo(clothColor)
-        cloth.normal.contents=normalImage;cloth.normal.intensity=0.34
+        cloth.normal.contents=normalImage;cloth.normal.intensity=0.5
         cloth.roughness.contents=materialMap("PC_FeltEmerald_roughness",fallback:{self.texture(CGSize(width:8,height:8)){c in UIColor(white:0.94,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:8,height:8))}});cloth.metalness.contents=0
         for channel in [cloth.diffuse,cloth.normal,cloth.roughness]{
             channel.wrapS = .repeat;channel.wrapT = .repeat
-            channel.contentsTransform=SCNMatrix4MakeScale(1.615,2.895,1)
+            // 0.21: the kit felt is a twill tile; at 1 tile per metre each twill rib was 2-4 cm wide and read as long
+            // diagonal smears. Real worsted cloth has ~1 mm ribs: 24 tiles per metre (tile ~4 cm). Mip + 16x anisotropic
+            // filtering average it out at distance, so the weave shows only close to the camera, as on a real table.
+            channel.contentsTransform=SCNMatrix4MakeScale(1.615*24,2.895*24,1)
             channel.minificationFilter = .linear;channel.magnificationFilter = .linear
             channel.mipFilter = .linear;channel.maxAnisotropy=16
         }
         let bedCloth=cloth.copy() as! SCNMaterial
         bedCloth.multiply.contents=feltNapImage;bedCloth.multiply.wrapS = .clamp;bedCloth.multiply.wrapT = .clamp
         bedCloth.multiply.contentsTransform=SCNMatrix4Identity;bedCloth.multiply.mipFilter = .linear
+        bedMaterial=bedCloth
         addMesh("bed",material:bedCloth)
         addMesh("deck",material:graphite)
         addMesh("trim",material:edge)
@@ -772,7 +813,7 @@ final class TableScene {
         let material=mat(.white,roughness:0.27)
         material.diffuse.contents=ballTexture(id);material.diffuse.maxAnisotropy=8
         material.diffuse.mipFilter = .linear;material.diffuse.minificationFilter = .linear
-        material.emission.contents=material.diffuse.contents;material.emission.intensity=0.08
+        applyBallFinish(material)
         sphere.materials=[material];cachedBallGeometry[id]=sphere;return sphere
     }
     private lazy var ballShadowGeometry:SCNPlane = {
