@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 items=[x for group in json.loads(Path('build/screenshots/devices.json').read_text())['devices'].values() for x in group if x.get('isAvailable') and 'iPhone' in x['name']]
 if not items:raise SystemExit('No available iPhone Simulator')
-items.sort(key=lambda x:x['state']!='Booted')
+# Prefer the acceptance target size class: iPhone 14 Pro Max, then any Pro Max.
+items.sort(key=lambda x:(x['name']!='iPhone 14 Pro Max','Pro Max' not in x['name'],x['state']!='Booted'))
 print(items[0]['udid'])
 PY
 )
@@ -17,13 +18,28 @@ xcrun simctl bootstatus "$device_id" -b
 app_path="$PWD/build/Simulator/Build/Products/Debug-iphonesimulator/ZokerPoolTrainer.app"
 xcrun simctl install "$device_id" "$app_path"
 data_path=$(xcrun simctl get_app_container "$device_id" com.maiquocviet.BankLabS data)
+# Always retain runtime diagnostics even when a probe or visibility check fails.
+capture_runtime() {
+ qa_exit_code=$?
+ trap - EXIT
+ xcrun simctl spawn "$device_id" log show --last 8m --style compact --predicate 'process == "ZokerPoolTrainer"' > build/ios-runtime.log 2>&1 || true
+ exit "$qa_exit_code"
+}
+trap capture_runtime EXIT
 # Remove only generated probe records, so a previous run cannot satisfy a gate.
-for probe in default hud hud-expanded return spectator audio; do
+for probe in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview default hud hud-expanded return spectator audio; do
  rm -f "$data_path/Documents/g1-qa/$probe.json"
 done
-for camera in overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio; do
+for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation; do
  xcrun simctl terminate "$device_id" com.maiquocviet.BankLabS 2>/dev/null || true
- if [ "$camera" = g1-hud-expanded ]; then
+ if [[ "$camera" = premium-* ]]; then
+  mode="${camera##*-}"
+  if [[ "$camera" = premium-high-* ]]; then
+   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa --premium-qa --premium-high "--camera-$mode"
+  else
+   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa --premium-qa "--camera-$mode"
+  fi
+ elif [ "$camera" = g1-hud-expanded ]; then
   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa --g1-hud-qa --spin-detail
  elif [[ "$camera" = g1-* ]]; then
   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa "--$camera-qa"
@@ -59,7 +75,21 @@ for camera in overview top aim spin jump table-arc table-classic library cue-lib
  for attempt in 1 2 3 4 5 6 7 8; do
   if [ "$camera" = observation ]; then sleep 2; else sleep 8; fi
   xcrun simctl io "$device_id" screenshot "build/screenshots/$camera.png"
-  case "$camera" in cue-library|calibration|drill-list|g1-*) break;; esac
+  case "$camera" in cue-library|calibration|drill-list) break;; esac
+  # Đầu dò G1: chờ tới khi controller thật ghi bản ghi PASS (máy Mac Intel biên dịch shader lâu hơn 8 giây,
+  # đầu dò "return" còn phải đánh và chờ bi dừng). Cổng kiểm tra bản ghi phía dưới giữ nguyên.
+  # Chưa có bản ghi → thử lại; có rồi thì vẫn phải qua kiểm tra "bàn đã hiện" như các ảnh khác.
+  if [[ "$camera" = premium-* ]] && [ ! -f "$data_path/Documents/g1-qa/$camera.json" ]; then continue; fi
+  if [[ "$camera" = g1-* ]] && [ ! -f "$data_path/Documents/g1-qa/${camera#g1-}.json" ]; then continue; fi
+  if [[ "$camera" = g1-* ]]; then
+   python3 - "$data_path/Documents/g1-qa/${camera#g1-}.json" <<'PROBE'
+import json,sys
+record=json.load(open(sys.argv[1]))
+if record.get('result')!='PASS':
+ print('FAIL UIKit probe:',json.dumps(record,ensure_ascii=False,indent=2))
+ raise SystemExit(1)
+PROBE
+  fi
   if CAMERA="$camera" python3 - <<'READY'
 import os
 from PIL import Image
@@ -82,7 +112,7 @@ cp "$data_path"/Documents/g1-qa/*.json build/screenshots/g1-qa/
 python3 - <<'G1'
 from pathlib import Path
 import json
-for name in ['default','hud','hud-expanded','return','spectator','audio']:
+for name in ['premium-aim','premium-top','premium-overview','premium-high-aim','premium-high-top','premium-high-overview','default','hud','hud-expanded','return','spectator','audio']:
  record=json.loads((Path('build/screenshots/g1-qa')/(name+'.json')).read_text())
  assert record['result']=='PASS',record
  print('PASS UIKit G1:',name,record)

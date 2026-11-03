@@ -1,0 +1,41 @@
+name: Zoker Premium Classic - Export UI Asset ZIP
+on:
+  push:
+    branches:
+      - ci/native-0.19-workflow
+    paths:
+      - 'DesignKits/ZokerPremiumClassic/**'
+      - '.github/workflows/zoker-premium-assets.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export-asset-kit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create reproducible UI kit
+        run: python3 DesignKits/ZokerPremiumClassic/generate_github_kit.py
+      - name: Verify materials, cue models and 18 sight positions
+        run: |
+          python3 - <<'PY'
+          import zipfile, json
+          p='DesignKits/ZokerPremiumClassic/Zoker_Premium_Classic_GitHub_Kit.zip'
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert sum(s.endswith('.png') and '/Materials/' in s for s in names)==32
+              assert sum(s.endswith('.obj') for s in names)==12
+              assert sum(s.endswith('.svg') for s in names)==13
+              path=next(s for s in names if s.endswith('WPA_9ft_DiamondLayout.json'))
+              assert len(json.loads(z.read(path))['sites'])==18
+              print('PASS ZIP: 32 material textures, 12 cues, 13 SVG icons, 18 diamonds')
+          PY
+      - name: Upload ZIP for Codex
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zoker_Premium_Classic_GitHub_Kit
+          path: DesignKits/ZokerPremiumClassic/Zoker_Premium_Classic_GitHub_Kit.zip
+          if-no-files-found: error
+          retention-days: 30

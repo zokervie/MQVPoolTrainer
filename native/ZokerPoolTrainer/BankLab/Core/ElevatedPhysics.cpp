@@ -1,4 +1,5 @@
 #include "Physics.hpp"
+#include "CueSlateContact.hpp"
 #include "CushionContact3D.hpp"
 // Research solver, SI; tabletop axes x,y, vertical axis z. Flat slate and
 // spherical cushion-nose contact. Not a coupled/compliant cue-ball-slate model.
@@ -62,8 +63,16 @@ void World::strikeElevated(double angle,double speed,double side,double top){
     const double launch=relative*speed*(k/(k+2.5*(side*side+top*top)));
     it->height=0;setVelocity(*it,direction*launch);
     setOmega(*it,arm.cross(direction*launch)*(2.5/(config.radius*config.radius)));
+    // Coupled massé (cueType 0 with the cue raised): cue, ball and slate in one impact. Cue speed is mapped so
+    // a centre hit with a level cue gives the same ball speed as the sequential model: u = v(1+m/M)/(1+e).
+    if(config.masseCoupledContact&&config.cueType==0&&elevation>1e-6){
+        const double e=std::clamp(config.masseCueRestitution,0.0,1.0),M=config.cueMass();
+        const double cueSpeed=relative*speed*(1+config.mass/M)/(1+e);
+        const auto coupled=cuecontact::solve({direction.x,direction.y,direction.z},{arm.x,arm.y,arm.z},cueSpeed,config.radius,config.mass,M,e,config.slateFriction);
+        if(coupled.valid){setVelocity(*it,{coupled.velocity.x,coupled.velocity.y,coupled.velocity.z});setOmega(*it,{coupled.omega.x,coupled.omega.y,coupled.omega.z});}
+    }
     // TP A.31: squirt cho thành phần ngang, cùng chiều quay ω_z (bi lệch ngược phía effect).
-    {const double a=std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin);
+    if(config.squirtEnabled){const double a=std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin);
      const double vx=it->v.x,vy=it->v.y;it->v={vx*std::cos(a)-vy*std::sin(a),vx*std::sin(a)+vy*std::cos(a)};}
     // Sequential cue impulse then slate response: explicit approximation, not a fake arc.
     // 0.15 (yêu cầu 27/10): chỉ cơ Phá/Jump (cueType 1, 2) làm bi bật khỏi mặt bàn. Cơ Đánh/Massé (0)

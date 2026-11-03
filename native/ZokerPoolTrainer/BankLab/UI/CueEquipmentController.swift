@@ -14,7 +14,7 @@ final class CueEquipmentController:UIViewController {
     override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
     override func viewDidLoad(){
         super.viewDidLoad();title="Cơ 3D · Jump / Massé";view.backgroundColor = .ink
-        navigationItem.rightBarButtonItem=UIBarButtonItem(barButtonSystemItem:.done,target:self,action:#selector(close))
+        navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Xong",style:.done,target:self,action:#selector(close))
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
         let body=UIStackView();body.axis = .vertical;body.spacing=14;body.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(body)
         NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor),scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor),scroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor),body.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor,constant:20),body.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor,constant:-20),body.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:12),body.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor,constant:-20),body.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor,constant:-40)])

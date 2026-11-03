@@ -56,7 +56,7 @@ void World::strike(double angle,double speed,double side,double top){
     // Impulse at an offset cue contact, solid-sphere I=2/5 mR².
     it->spin=-2.5*side*speed/config.radius;
     // TP A.31: squirt — bi lệch ngược phía effect, tức cùng chiều quay với ω_z (hệ phải, z lên).
-    const double a=angle+std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin);
+    const double a=angle+(config.squirtEnabled?std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin):0.0);
     V2 d{std::cos(angle),std::sin(angle)},dv{std::cos(a),std::sin(a)};
     it->v=dv*speed;it->w=d.perp()*(2.5*top*speed/config.radius);
     for(auto&b:balls)b.rails=0;

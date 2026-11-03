@@ -1,0 +1,12 @@
+name = "zoker-relay"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+# Free plan: SQLite-backed Durable Objects.
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

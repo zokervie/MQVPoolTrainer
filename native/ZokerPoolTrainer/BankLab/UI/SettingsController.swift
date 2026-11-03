@@ -4,9 +4,11 @@ import UniformTypeIdentifiers
 final class SettingsController:UIViewController,UIDocumentPickerDelegate {
     var apply:(([String:NSNumber],Double)->Void)?
     private var values:[String:NSNumber]
+    private var originalValues:[String:NSNumber]
+    private var originalSensitivity:Double
     private var sensitivity:Double
     private let body=UIStackView()
-    init(settings:[String:NSNumber],sensitivity:Double){values=settings;self.sensitivity=sensitivity;super.init(nibName:nil,bundle:nil)}
+    init(settings:[String:NSNumber],sensitivity:Double){values=settings;originalValues=settings;originalSensitivity=sensitivity;self.sensitivity=sensitivity;super.init(nibName:nil,bundle:nil)}
     required init?(coder:NSCoder){fatalError()}
     override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
     override func viewDidLoad(){
@@ -22,6 +24,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         body.addArrangedSubview(UIButton.lab("Nhập cú đo băng · JSON"){[weak self]in
             let picker=UIDocumentPickerViewController(forOpeningContentTypes:[.json],asCopy:true);picker.delegate=self;self?.present(picker,animated:true)
         })
+        body.addArrangedSubview(UIButton.lab("Xuất MD · cấu hình và thay đổi"){[weak self]in self?.exportMarkdown()})
         body.addArrangedSubview(UIButton.lab("Xuất mẫu dữ liệu hiệu chuẩn"){[weak self]in self?.exportTemplate()})
         let contactSwitch=UISwitch();contactSwitch.isOn=values["coupledCushions"]?.boolValue ?? true
         contactSwitch.addAction(UIAction{[weak self,weak contactSwitch]_ in self?.values["coupledCushions"]=NSNumber(value:contactSwitch?.isOn ?? false)},for:.valueChanged)
@@ -64,6 +67,22 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             label?.text=String(format:"%@  ·  %.3f",title,v)
         },for:.valueChanged)
         let group=UIStackView(arrangedSubviews:[label,s]);group.axis = .vertical;group.spacing=5;body.addArrangedSubview(group)
+    }
+    private func exportMarkdown(){
+        var lines=["# Z-Trainer — hiệu chỉnh bàn", "", "Ngày: "+ISO8601DateFormatter().string(from:Date()), "", "Thông số do người dùng chỉnh tay; chưa xác nhận bằng đo đạc độc lập.", "", "| Thông số | Khi mở | Hiện tại |", "| --- | ---: | ---: |"]
+        for key in Set(originalValues.keys).union(values.keys).sorted(){
+            lines.append("| \(key) | \(originalValues[key]?.stringValue ?? "—") | \(values[key]?.stringValue ?? "—") |")
+        }
+        lines.append("| swipeSensitivity | \(originalSensitivity) | \(sensitivity) |")
+        lines += ["", "## Ghi chú đo bàn thật", "", "- Loại bàn / nỉ / bi:", "- Cự ly và tốc độ đầu đo được:", "- Quãng đường dừng / góc bật đo được:", "- Sai lệch so với ứng dụng:", "", "Xuất file không tự áp dụng cấu hình; bấm Lưu để áp dụng."]
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent("ZTrainer-calibration-"+UUID().uuidString+".md")
+        do{
+            try lines.joined(separator:"\n").write(to:url,atomically:true,encoding:.utf8)
+            let sheet=UIActivityViewController(activityItems:[url],applicationActivities:nil)
+            sheet.popoverPresentationController?.sourceView=view
+            sheet.popoverPresentationController?.sourceRect=CGRect(x:view.bounds.midX,y:view.bounds.midY,width:1,height:1)
+            present(sheet,animated:true)
+        }catch{message("Không xuất được file MD: "+error.localizedDescription)}
     }
     private func exportTemplate(){
         let template:[String:Any]=["schemaVersion":1,"rail":0,"source":"measured","units":"metres, seconds, radians; XY table plane; Z up","instructions":"8–500 independent flat straight-rail impacts. State immediately before/after impact. No pocket jaws. vx,vy,wx,wy,spin,outVx,outVy,outWx,outWy,outSpin required. Every fourth row is validation; do not order rows by speed or spin.","samples":[]]

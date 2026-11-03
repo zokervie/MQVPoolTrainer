@@ -10,6 +10,49 @@ final class TableScene {
         let uv:[Float]
         let indices:[Int32]
     }
+    private struct KitCueMesh:Decodable {
+        let vertices:[Float],normals:[Float],uv:[Float]
+        let elements:[[Int32]]
+        let names:[String]
+    }
+    private struct KitSights:Decodable {struct Site:Decodable{let x_mm:Float,z_mm:Float};let sites:[Site]}
+    private var premiumCueCache:[String:SCNGeometry]=[:]
+    private func premiumMaterial(_ name:String)->SCNMaterial {
+        let m=mat(.white)
+        m.diffuse.contents=materialMap("PC_"+name+"_albedo",fallback:clothTexture)
+        m.normal.contents=materialMap("PC_"+name+"_normal",fallback:clothNormal)
+        m.roughness.contents=materialMap("PC_"+name+"_roughness",fallback:clothNormal)
+        m.metalness.contents=materialMap("PC_"+name+"_metallic",fallback:clothNormal)
+        m.normal.intensity=name=="FeltEmerald" ? 0.35:0.18
+        for channel in [m.diffuse,m.normal,m.roughness,m.metalness]{channel.wrapS = .repeat;channel.wrapT = .repeat;channel.mipFilter = .linear;channel.maxAnisotropy=8}
+        return m
+    }
+    private func premiumCue(_ id:String)->SCNGeometry? {
+        if let cached=premiumCueCache[id]{return cached}
+        guard let asset=NSDataAsset(name:"PC_Cue_"+id),let mesh=try? JSONDecoder().decode(KitCueMesh.self,from:asset.data) else{return nil}
+        var vertices:[SCNVector3]=[],normals:[SCNVector3]=[],uv:[CGPoint]=[]
+        for i in stride(from:0,to:mesh.vertices.count,by:3){vertices.append(SCNVector3(mesh.vertices[i],mesh.vertices[i+1],mesh.vertices[i+2]));normals.append(SCNVector3(mesh.normals[i],mesh.normals[i+1],mesh.normals[i+2]))}
+        for i in stride(from:0,to:mesh.uv.count,by:2){uv.append(CGPoint(x:CGFloat(mesh.uv[i]),y:CGFloat(mesh.uv[i+1])))}
+        let elements=mesh.elements.map{SCNGeometryElement(indices:$0,primitiveType:.triangles)}
+        let geometry=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:elements)
+        geometry.materials=mesh.names.map{name in
+            switch name {
+            case "Carbon":return lacquer(premiumMaterial("CueCarbon"),0.30)
+            case "Maple":return lacquer(premiumMaterial("CueMaple"),0.26)
+            case "Ebony":return lacquer(premiumMaterial("CueEbony"),0.22)
+            case "Wrap":return premiumMaterial("CueWrapBlack")
+            case "Gold":let m=premiumMaterial("ChampagneGold");m.roughness.contents=0.22;m.metalness.contents=1.0;return m
+            case "Ferrule":return mat(.rgb(0xE8DFCB),roughness:0.28)
+            default:return mat(.rgb(0x163D57),roughness:0.88)
+            }
+        }
+        premiumCueCache[id]=geometry;return geometry
+    }
+    /// Clear lacquer over a PBR base: the kit maps stay as the base layer.
+    private func lacquer(_ m:SCNMaterial,_ roughness:CGFloat)->SCNMaterial{
+        m.roughness.contents=roughness;m.clearCoat.contents=0.85;m.clearCoatRoughness.contents=0.07
+        return m
+    }
     private var meshes:[String:MeshData]=[:]
     let scene=SCNScene(),camera=SCNNode()
     private let targetRoot=SCNNode(),tableRoot=SCNNode(),cueShadow=SCNNode()
@@ -21,12 +64,36 @@ final class TableScene {
     private let ballRoot=SCNNode(),guideRoot=SCNNode(),trailRoot=SCNNode(),cueRoot=SCNNode(),numberRoot=SCNNode()
     private var nodes:[Int:SCNNode]=[:],contactShadows:[Int:SCNNode]=[:]
     private var restOrientations:[Int:simd_quatf]=[:]
-    private var falling:[Int:(time:Double,start:SCNVector3,velocity:SIMD2<Float>)]=[:]
+    private struct PocketState {
+        var time:Double
+        let start:SCNVector3
+        let velocity:SIMD2<Float>
+        let pocket:Int
+        let slot:Int
+        let orientation:simd_quatf
+    }
+    private var falling:[Int:PocketState]=[:]
+    private var settledPocketNodes=Set<Int>()
+    private static let pocketCenters:[SIMD2<Float>]=[
+        SIMD2(-0.67,-1.305),SIMD2(0.67,-1.305),SIMD2(-0.706,0),
+        SIMD2(0.706,0),SIMD2(-0.67,1.305),SIMD2(0.67,1.305)]
     /// Vận tốc ngang ước lượng từ khung trước (m/s) để bi giữ đà khi rơi vào lỗ.
     private var lastPlanar:[Int:SIMD2<Float>]=[:],planarVelocity:[Int:SIMD2<Float>]=[:]
-    static let pocketFallDuration=0.42
+    static let pocketFallDuration=0.90
     private var light:SCNLight!
-    private var highDetail=true
+    private var highDetail=false
+    var usesHighDetail:Bool{highDetail}
+    private var thermalState=ProcessInfo.ThermalState.nominal
+    private var qualityKey=""
+    private var ballSegmentCount=48
+    private var cachedBallTextures:[Int:UIImage]=[:]
+    private var cachedBallGeometry:[Int:SCNSphere]=[:]
+    private var cachedMaterialMaps:[String:UIImage]=[:]
+    private var cachedWood:[Bool:UIImage]=[:]
+    private var cachedLabels:[String:UIImage]=[:]
+    private var trainingOverlaysHidden=true
+    var focusBounds:SIMD4<Float>?
+    var placementBlocked=false
     var cameraMode=2 // Aim3D; numeric IDs remain 0=overview, 1=top, 2=aim.
     var zoom:Float=1
     var orbit:Float=0
@@ -46,9 +113,39 @@ final class TableScene {
     var showNumbers=false // Text-free table in every camera mode.
     private let radius:CGFloat=0.028575
     private lazy var shadowTexture=contactShadowTexture()
-    private lazy var clothImage=materialMap("ClothAlbedo",fallback:clothTexture)
-    private lazy var normalImage=materialMap("ClothNormal",fallback:clothNormal)
+    private lazy var clothImage=materialMap("PC_FeltEmerald_albedo",fallback:clothTexture)
+    private lazy var normalImage=materialMap("PC_FeltEmerald_normal",fallback:clothNormal)
     private lazy var environment=studioEnvironment()
+    private lazy var feltNapImage=feltNap()
+    /// Large-scale worsted nap streaks, soft mottling and cushion-side falloff.
+    /// UV covers the 1.615 x 2.895 m footprint once (generate_table_mesh.py), so
+    /// this layer never tiles; the fine weave remains in the kit felt maps.
+    private func feltNap()->UIImage {
+        texture(CGSize(width:512,height:1024)){c in
+            let ctx=c.cgContext,w:CGFloat=512,h:CGFloat=1024
+            UIColor.white.setFill();c.fill(CGRect(x:0,y:0,width:w,height:h))
+            var seed:UInt64=0x5EED_F17
+            func random()->CGFloat{seed=seed &* 6364136223846793005 &+ 1442695040888963407;return CGFloat((seed>>33)%10_000)/10_000}
+            // Brushed nap runs head-to-foot (along v).
+            for _ in 0..<900 {
+                let x=random()*w,y=random()*h,len=40+random()*220,shade=random()
+                UIColor(white:shade>0.5 ? 1:0.84,alpha:0.16).setStroke()
+                ctx.setLineWidth(0.6+random()*1.4);ctx.move(to:CGPoint(x:x,y:y));ctx.addLine(to:CGPoint(x:x+(random()-0.5)*3,y:y+len));ctx.strokePath()
+            }
+            for _ in 0..<160 {
+                let r=12+random()*40
+                UIColor(white:0.93+random()*0.05,alpha:0.08).setFill()
+                ctx.fillEllipse(in:CGRect(x:random()*w-r,y:random()*h-r,width:r*2,height:r*2))
+            }
+            // Soft darkening toward the cushions (bed spans u .107-.893, v .061-.939).
+            let colors=[UIColor(white:0,alpha:0).cgColor,UIColor(white:0,alpha:0.20).cgColor] as CFArray
+            if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0.55,1]){
+                ctx.saveGState();ctx.translateBy(x:w/2,y:h/2);ctx.scaleBy(x:1,y:h/w*0.98)
+                ctx.drawRadialGradient(g,startCenter:.zero,startRadius:0,endCenter:.zero,endRadius:w*0.52,options:[.drawsAfterEndLocation])
+                ctx.restoreGState()
+            }
+        }
+    }
     static let colors:[UIColor] = [UIColor(white:0.96,alpha:1),UIColor(red:0.98,green:0.65,blue:0.025,alpha:1),UIColor(red:0.025,green:0.14,blue:0.62,alpha:1),UIColor(red:0.74,green:0.025,blue:0.045,alpha:1),UIColor(red:0.26,green:0.045,blue:0.42,alpha:1),UIColor(red:0.96,green:0.24,blue:0.025,alpha:1),UIColor(red:0.015,green:0.30,blue:0.14,alpha:1),UIColor(red:0.36,green:0.025,blue:0.055,alpha:1),UIColor(white:0.012,alpha:1)]
     static let clothColors:[(String,UIColor)]=[("Xanh tournament",.rgb(0x17685F)),("Xanh navy",.rgb(0x143F78)),("Xanh sáng",.rgb(0x2387A5)),("Đỏ burgundy",.rgb(0x783B42)),("Tím mận",.rgb(0x49354F))]
     init(rails:[[String:NSNumber]]) {
@@ -64,17 +161,34 @@ final class TableScene {
         camera.camera?.wantsExposureAdaptation=false;camera.camera?.exposureOffset = -0.8
         camera.camera?.bloomIntensity=0;camera.camera?.bloomThreshold=1.8
         camera.camera?.vignettingIntensity=0.18;camera.camera?.vignettingPower=0.8
-        scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=1.1
-        tableRails=rails;buildLights();frontFill(scene.rootNode);selectTable(look);buildRoom();buildCue();quality(true)
+        scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=1.0
+        numberRoot.isHidden=true
+        tableRails=rails;buildLights();frontFill(scene.rootNode);selectTable(look);buildRoom();buildCue();quality(false)
     }
     func quality(_ high:Bool) {
         highDetail=high
-        for node in nodes.values{(node.geometry as? SCNSphere)?.segmentCount=high ? 96:48}
-        camera.camera?.screenSpaceAmbientOcclusionIntensity=high ? 0.22:0
+        applyQuality()
+    }
+    /// Render cost only. The controller keeps the authoritative physics step and
+    /// interpolation independent of thermal quality changes.
+    func setThermalState(_ state:ProcessInfo.ThermalState){
+        guard state != thermalState else{return};thermalState=state;applyQuality()
+    }
+    private func applyQuality(){
+        let constrained=thermalState == .serious || thermalState == .critical
+        let warm=thermalState == .fair
+        let key="\(highDetail)-\(thermalState.rawValue)"
+        guard qualityKey != key else{return};qualityKey=key
+        ballSegmentCount=constrained ? 24:(highDetail && !warm ? 64:48)
+        for geometry in cachedBallGeometry.values{geometry.segmentCount=ballSegmentCount}
+        for node in nodes.values{node.castsShadow=highDetail && !constrained && !warm}
+        camera.camera?.screenSpaceAmbientOcclusionIntensity=highDetail && !constrained && !warm ? 0.12:0
         camera.camera?.screenSpaceAmbientOcclusionRadius=0.035
         camera.camera?.screenSpaceAmbientOcclusionBias=0.003
-        light.shadowMapSize=CGSize(width:2048,height:2048)
-        light.shadowSampleCount=high ? 16:8
+        let size:CGFloat=constrained ? 512:(highDetail && !warm ? 1536:1024)
+        light.shadowMapSize=CGSize(width:size,height:size)
+        light.shadowSampleCount=constrained ? 1:(highDetail && !warm ? 8:4)
+        light.castsShadow = !constrained
     }
     private func mat(_ color:UIColor,roughness:CGFloat=0.6,metal:CGFloat=0)->SCNMaterial {
         let m=SCNMaterial();m.lightingModel = .physicallyBased;m.diffuse.contents=color
@@ -88,17 +202,17 @@ final class TableScene {
     }
     private func buildLights(){
         let ambient=SCNNode();ambient.light=SCNLight();ambient.light?.type = .ambient
-        ambient.light?.color=UIColor(white:0.92,alpha:1);ambient.light?.intensity=150
+        ambient.light?.color=UIColor(red:0.95,green:0.90,blue:0.82,alpha:1);ambient.light?.intensity=105
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
-        light.intensity=18;light.temperature=5200;light.spotInnerAngle=50;light.spotOuterAngle=100
+        light.intensity=70;light.temperature=4300;light.spotInnerAngle=42;light.spotOuterAngle=112
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.4
         light.shadowColor=UIColor(white:0,alpha:0.32);light.shadowBias=0.001
-        key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
+        key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
         for x:Float in [-2.2,2.2]{
             let fill=SCNNode();fill.position=SCNVector3(x,1.7,0.8);fill.light=SCNLight();fill.light?.type = .omni
-            fill.light?.intensity=10;fill.light?.temperature=x>0 ? 4200:7000
+            fill.light?.intensity=24;fill.light?.temperature=4500
             fill.light?.attenuationStartDistance=1;fill.light?.attenuationEndDistance=6
             scene.rootNode.addChildNode(fill)
         }
@@ -110,38 +224,45 @@ final class TableScene {
         fill.position=SCNVector3(0,0.65,-2);parent.addChildNode(fill)
     }
     private func clothAlbedo(_ color:UIColor)->UIImage {
-        texture(CGSize(width:4096,height:4096)){c in
-            let rect=CGRect(x:0,y:0,width:4096,height:4096)
-            clothImage.draw(in:rect);color.setFill();c.cgContext.setBlendMode(.multiply);c.fill(rect)
+        texture(CGSize(width:2048,height:2048)){c in
+            let rect=CGRect(x:0,y:0,width:2048,height:2048)
+            clothImage.draw(in:rect);color.setFill();c.cgContext.setBlendMode(.color);c.fill(rect)
         }
     }
     private func buildTable(_ rails:[[String:NSNumber]]){
-        let graphite=mat(.rgb(look.cabinet),roughness:look.wood ? 0.42:0.5,metal:look.wood ? 0:0.12)
+        let graphite=look.wood ? premiumMaterial("WalnutDark"):mat(.rgb(look.cabinet),roughness:0.5,metal:0.12)
         if look.wood {
-            graphite.diffuse.contents=woodTexture(light:true);graphite.multiply.contents=UIColor.rgb(look.cabinet)
-            graphite.normal.contents=materialMap("WalnutNormal"){self.clothNormal()};graphite.normal.intensity=0.08
-            graphite.roughness.contents=materialMap("WalnutRoughness"){self.clothNormal()}
+            graphite.multiply.contents=UIColor(white:0.95,alpha:1)
+            graphite.normal.contents=materialMap("PC_WalnutDark_normal"){self.clothNormal()};graphite.normal.intensity=0.08
+            graphite.roughness.contents=materialMap("PC_WalnutDark_roughness"){self.clothNormal()}
             for channel in [graphite.diffuse,graphite.normal,graphite.roughness]{channel.minificationFilter = .linear;channel.mipFilter = .linear;channel.maxAnisotropy=16}
+            graphite.clearCoat.contents=0.6;graphite.clearCoatRoughness.contents=0.12
         }
-        let edge=mat(.rgb(look.trim),roughness:0.32,metal:0.65)
+        let edge=premiumMaterial("ChampagneGold")
+        edge.multiply.contents=UIColor.rgb(look.trim)
         let clothColor=clothTintIndex.map{Self.clothColors[$0].1} ?? .rgb(look.cloth)
         let cloth=mat(clothColor,roughness:0.97)
         cloth.diffuse.contents=clothAlbedo(clothColor)
         cloth.normal.contents=normalImage;cloth.normal.intensity=0.34
-        cloth.roughness.contents=materialMap("ClothRoughness",fallback:{self.texture(CGSize(width:8,height:8)){c in UIColor(white:0.94,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:8,height:8))}});cloth.metalness.contents=0
+        cloth.roughness.contents=materialMap("PC_FeltEmerald_roughness",fallback:{self.texture(CGSize(width:8,height:8)){c in UIColor(white:0.94,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:8,height:8))}});cloth.metalness.contents=0
         for channel in [cloth.diffuse,cloth.normal,cloth.roughness]{
             channel.wrapS = .repeat;channel.wrapT = .repeat
             channel.contentsTransform=SCNMatrix4MakeScale(1.615,2.895,1)
             channel.minificationFilter = .linear;channel.magnificationFilter = .linear
             channel.mipFilter = .linear;channel.maxAnisotropy=16
         }
-        addMesh("bed",material:cloth)
+        let bedCloth=cloth.copy() as! SCNMaterial
+        bedCloth.multiply.contents=feltNapImage;bedCloth.multiply.wrapS = .clamp;bedCloth.multiply.wrapT = .clamp
+        bedCloth.multiply.contentsTransform=SCNMatrix4Identity;bedCloth.multiply.mipFilter = .linear
+        addMesh("bed",material:bedCloth)
         addMesh("deck",material:graphite)
         addMesh("trim",material:edge)
         // Split rails leave visible pocket apertures; apron is below the playing bed.
         for side:Float in [-1,1]{
-            _=box(0.10,0.21,2.64,SCNVector3(side*0.755,-0.16,0),graphite,chamfer:0.016)
-            _=box(1.42,0.21,0.10,SCNVector3(0,-0.16,side*1.3645),graphite,chamfer:0.016)
+            // Split cabinet panels around all six wells; continuous panels
+            // previously appeared as wooden bars inside the pocket apertures.
+            for z:Float in [-0.655,0.655]{_=box(0.10,0.21,1.01,SCNVector3(side*0.755,-0.16,z),graphite,chamfer:0.016)}
+            _=box(1.03,0.21,0.10,SCNVector3(0,-0.16,side*1.3645),graphite,chamfer:0.016)
             _=box(0.009,0.009,2.65,SCNVector3(side*0.803,-0.06,0),edge,chamfer:0.002)
             _=box(1.43,0.009,0.009,SCNVector3(0,-0.06,side*1.443),edge,chamfer:0.002)
         }
@@ -150,16 +271,10 @@ final class TableScene {
             let sideOffset:Float = z==0 ? (x>0 ? 0.036:-0.036):0
             pocket(x+sideOffset,z)
         }}
-        for i in 1...7 where i != 4 {
-            let z=Float(i)*2.54/8-1.27
-            for side:Float in [-1,1]{
-                diamond(SCNVector3(side*0.7286625,0.05615,z))
-            }
-        }
-        for i in 1...3 {for side:Float in [-1,1]{
-            let x=Float(i)*1.27/4-0.635
-            if i==2 && side>0{brandPlate(SCNVector3(x,0.05615,side*1.3636625))}else{diamond(SCNVector3(x,0.05615,side*1.3636625),shortRail:true)}
-        }}
+        if let asset=NSDataAsset(name:"PC_Diamonds"),let layout=try? JSONDecoder().decode(KitSights.self,from:asset.data){
+            for site in layout.sites{diamond(SCNVector3(site.x_mm/1000,0.05615,site.z_mm/1000),shortRail:abs(site.z_mm)>1300)}
+        }else{preconditionFailure("Missing Premium Classic diamond layout")}
+        brandPlate(SCNVector3(0,-0.15,1.421))
         // Cabinet panel joints and inset foot hardware: visual only, outside the bed.
         let joint=mat(UIColor(white:0.025,alpha:1),roughness:0.7)
         for side:Float in [-1,1]{
@@ -173,7 +288,7 @@ final class TableScene {
         if ProcessInfo.processInfo.arguments.contains("--visual-qa") {
             let sights=scene.rootNode.childNodes.filter{$0.name=="rail-sight"}
             let plates=scene.rootNode.childNodes.filter{$0.name=="table-nameplate"}
-            precondition(sights.count==17 && plates.count==1,"WPA reference count")
+            precondition(sights.count==18 && plates.count==1,"WPA reference count")
             for n in sights {
                 let p=n.position
                 let offset=min(abs(abs(p.x)-0.635),abs(abs(p.z)-1.27))
@@ -334,7 +449,7 @@ final class TableScene {
         g.materials=[m];scene.rootNode.addChildNode(SCNNode(geometry:g))
     }
     private func pocket(_ x:Float,_ z:Float){
-        let segments=192
+        let segments=96
         let aperture:Float = z==0 ? 0.066:0.074
         var vertices:[SCNVector3]=[],normals:[SCNVector3]=[],uv:[CGPoint]=[],indices:[Int32]=[]
         let outward=simd_normalize(SIMD2(x,z))
@@ -344,15 +459,24 @@ final class TableScene {
             let t=max(0,min(1,(dot-0.10)/0.65))
             return 0.0004+0.0546*t*t*(3-2*t)
         }
+        // A drop pocket is a closed leather basket, wider below the throat.
+        // Its floor/volume also contain the parked presentation balls below.
+        let profile:[(radius:Float,y:Float)]=[(aperture-0.0002,0),(0.056,-0.025),(0.105,-0.075),(0.115,-0.17),(0.108,-0.25)]
         for i in 0...segments {
             let a=Float(i)/Float(segments)*2*Float.pi,c=cos(a),s=sin(a)
-            vertices += [SCNVector3(x+c*(aperture-0.0002),lipHeight(c,s),z+s*(aperture-0.0002)),SCNVector3(x+c*0.054,-0.20,z+s*0.054)]
-            normals += [SCNVector3(-c,0.10,-s),SCNVector3(-c,0.10,-s)]
-            uv += [CGPoint(x:CGFloat(i)/24,y:0),CGPoint(x:CGFloat(i)/24,y:2)]
-            if i<segments{let j=Int32(i*2);indices += [j,j+1,j+2,j+1,j+3,j+2]}
+            for (level,ring) in profile.enumerated(){
+                let height=level==0 ? lipHeight(c,s):ring.y
+                vertices.append(SCNVector3(x+c*ring.radius,height,z+s*ring.radius))
+                normals.append(SCNVector3(-c,0.10,-s))
+                uv.append(CGPoint(x:CGFloat(i)/24,y:CGFloat(level)*0.6))
+            }
+            if i<segments{for level in 0..<(profile.count-1){
+                let a=Int32(i*profile.count+level),b=a+Int32(profile.count)
+                indices += [a,a+1,b,a+1,b+1,b]
+            }}
         }
-        let leather=mat(UIColor(white:0.018,alpha:1),roughness:0.94);leather.isDoubleSided=true
-        leather.normal.contents=materialMap("LeatherNormal"){self.clothNormal()};leather.normal.intensity=0.20
+        let leather=premiumMaterial("PocketLeather");leather.isDoubleSided=true
+        leather.normal.contents=materialMap("PC_PocketLeather_normal"){self.clothNormal()};leather.normal.intensity=0.20
         leather.normal.wrapS = .repeat;leather.normal.wrapT = .repeat
         let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
         g.materials=[leather];scene.rootNode.addChildNode(SCNNode(geometry:g))
@@ -367,8 +491,8 @@ final class TableScene {
         let rimGeometry=SCNGeometry(sources:[SCNGeometrySource(vertices:rim),SCNGeometrySource(normals:rimNormals)],elements:[SCNGeometryElement(indices:rimIndices,primitiveType:.triangles)])
         let casting=mat(UIColor(white:0.26,alpha:1),roughness:0.48,metal:0.65);casting.isDoubleSided=true
         rimGeometry.materials=[casting];scene.rootNode.addChildNode(SCNNode(geometry:rimGeometry))
-        let bottom=SCNCylinder(radius:0.055,height:0.008);bottom.materials=[mat(.black)]
-        let node=SCNNode(geometry:bottom);node.position=SCNVector3(x,-0.205,z);scene.rootNode.addChildNode(node)
+        let bottom=SCNCylinder(radius:0.108,height:0.008);bottom.radialSegmentCount=48;bottom.materials=[mat(.black)]
+        let node=SCNNode(geometry:bottom);node.position=SCNVector3(x,-0.255,z);scene.rootNode.addChildNode(node)
     }
     private func addMesh(_ name:String,material:SCNMaterial){
         guard let data=meshes[name] else{assertionFailure("Missing TableMesh asset: "+name);return}
@@ -390,9 +514,9 @@ final class TableScene {
     private func buildRoom(){
         let charcoal=mat(UIColor(red:0.045,green:0.052,blue:0.064,alpha:1),roughness:0.9)
         let floor=mat(.white,roughness:0.65)
-        floor.diffuse.contents=materialMap("WalnutAlbedo"){self.woodTexture(light:false)}
-        floor.normal.contents=materialMap("WalnutNormal"){self.clothNormal()};floor.normal.intensity=0.12
-        floor.roughness.contents=materialMap("WalnutRoughness"){self.clothNormal()}
+        floor.diffuse.contents=materialMap("PC_WalnutDark_albedo"){self.woodTexture(light:false)}
+        floor.normal.contents=materialMap("PC_WalnutDark_normal"){self.clothNormal()};floor.normal.intensity=0.12
+        floor.roughness.contents=materialMap("PC_WalnutDark_roughness"){self.clothNormal()}
         floor.multiply.contents=UIColor(white:0.22,alpha:1)
         for channel in [floor.diffuse,floor.normal,floor.roughness]{
             channel.wrapS = .repeat;channel.wrapT = .repeat
@@ -410,6 +534,25 @@ final class TableScene {
             _=box(0.025,0.018,8,SCNVector3(side*3.93,1.7,0),glow,chamfer:0)
             _=box(2.5,0.32,0.48,SCNVector3(0,-0.55,side*3.8),mat(UIColor(red:0.13,green:0.075,blue:0.052,alpha:1)),chamfer:0.06)
             _=box(2.5,0.48,0.12,SCNVector3(0,-0.22,side*4.0),mat(UIColor(red:0.10,green:0.055,blue:0.035,alpha:1)),chamfer:0.04)
+        }
+        // Warm, visible club backdrop instead of an unlit empty horizon.
+        let panel=premiumMaterial("WalnutDark")
+        let brass=premiumMaterial("ChampagneGold")
+        let glow=mat(.rgb(0xDAB876),roughness:0.7);glow.emission.contents=UIColor.rgb(0x997344)
+        for side:Float in [-1,1]{
+            _=box(7.8,0.9,0.035,SCNVector3(0,-0.28,side*4.63),panel,chamfer:0.003)
+            _=box(7.8,0.012,0.045,SCNVector3(0,0.18,side*4.60),brass,chamfer:0.001)
+            for x:Float in [-2.6,-1.3,0,1.3,2.6]{
+                _=box(0.028,0.76,0.04,SCNVector3(x,-0.27,side*4.59),brass,chamfer:0.002)
+            }
+            for x:Float in [-2.4,2.4]{
+                _=box(0.20,0.50,0.045,SCNVector3(x,0.85,side*4.58),brass,chamfer:0.015)
+                _=box(0.13,0.40,0.06,SCNVector3(x,0.85,side*4.54),glow,chamfer:0.02)
+                let lamp=SCNNode();lamp.light=SCNLight();lamp.light?.type = .omni
+                lamp.light?.intensity=18;lamp.light?.temperature=3200;lamp.light?.castsShadow=false
+                lamp.light?.attenuationStartDistance=0.2;lamp.light?.attenuationEndDistance=4
+                lamp.position=SCNVector3(x,0.9,side*4.2);scene.rootNode.addChildNode(lamp)
+            }
         }
         // Rectangular light fixture and matching reflection cards in environment map.
         let frame=mat(UIColor(white:0.09,alpha:1),roughness:0.3,metal:0.7)
@@ -436,10 +579,16 @@ final class TableScene {
     }
     private func buildCue(){
         let appearance=CueBag.cue(cueType);cueLookID=appearance.id
+        if let geometry=premiumCue(appearance.id){
+            let node=SCNNode(geometry:geometry);node.name="premium-cue-"+appearance.id;node.castsShadow=true;cueRoot.addChildNode(node)
+            let cap=SCNCylinder(radius:0.006,height:0.0008);cap.materials=[mat(.rgb(0x163D57),roughness:0.9)]
+            let tip=SCNNode(geometry:cap);tip.position.y=0;cueRoot.addChildNode(tip)
+            return
+        }
         let scale:CGFloat=cueType==1 ? 0.72:(cueType==2 ? 1.015:1.0)
         // Local +Y points to the tip; full 1.45 m cue, separate leather/ferrule/shaft/joint/wrap/butt.
         func section(_ start:CGFloat,_ length:CGFloat,_ tipRadius:CGFloat,_ buttRadius:CGFloat,_ material:SCNMaterial){
-            let g=SCNCone(topRadius:tipRadius,bottomRadius:buttRadius,height:length*scale);g.radialSegmentCount=96;g.materials=[material]
+            let g=SCNCone(topRadius:tipRadius,bottomRadius:buttRadius,height:length*scale);g.radialSegmentCount=48;g.materials=[material]
             let node=SCNNode(geometry:g);node.position.y = -Float((start+length/2)*scale);node.castsShadow=true;cueRoot.addChildNode(node)
         }
         let maple=mat(appearance.carbon ? UIColor(white:0.12,alpha:1):UIColor.white,roughness:0.42)
@@ -458,21 +607,26 @@ final class TableScene {
         section(1.44,0.010,0.0147,0.0147,mat(.black))
     }
     private func materialMap(_ name:String,fallback:()->UIImage)->UIImage {
+        if let cached=cachedMaterialMaps[name]{return cached}
         guard let asset=NSDataAsset(name:name),let image=UIImage(data:asset.data) else {
             assertionFailure("Missing material map: "+name)
             return fallback()
         }
-        return rgbTexture(image)
+        let normalized=rgbTexture(image);cachedMaterialMaps[name]=normalized;return normalized
     }
     private func rgbTexture(_ image:UIImage)->UIImage {
         // Normalize imported and UIKit-generated images: UIKit can optimize
         // grayscale procedural textures into unsupported R8Unorm_sRGB too.
         guard let source=image.cgImage else{return image}
-        guard let context=CGContext(data:nil,width:source.width,height:source.height,
-                                    bitsPerComponent:8,bytesPerRow:source.width*4,
+        let shrink=min(1.0,2048.0/Double(max(source.width,source.height)))
+        let width=max(1,Int((Double(source.width)*shrink).rounded()))
+        let height=max(1,Int((Double(source.height)*shrink).rounded()))
+        guard let context=CGContext(data:nil,width:width,height:height,
+                                    bitsPerComponent:8,bytesPerRow:width*4,
                                     space:CGColorSpaceCreateDeviceRGB(),
                                     bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue) else{return image}
-        context.draw(source,in:CGRect(x:0,y:0,width:source.width,height:source.height))
+        context.interpolationQuality = .high
+        context.draw(source,in:CGRect(x:0,y:0,width:width,height:height))
         guard let normalized=context.makeImage() else{return image}
         return UIImage(cgImage:normalized,scale:image.scale,orientation:image.imageOrientation)
     }
@@ -491,14 +645,16 @@ final class TableScene {
     private func environmentFace(_ face:Int)->UIImage {
         texture(CGSize(width:512,height:512)){ c in
             let ctx=c.cgContext
-            let top:CGFloat=face==2 ? 0.50:0.34,bottom:CGFloat=face==3 ? 0.20:0.25
-            let colors=[UIColor(white:top,alpha:1).cgColor,UIColor(white:bottom,alpha:1).cgColor] as CFArray
+            // Dark warm club room; the bright fixture cards on the ceiling face
+            // remain, so balls/lacquer keep crisp highlights without flat fill.
+            let top:CGFloat=face==2 ? 0.16:0.12,bottom:CGFloat=face==3 ? 0.05:0.07
+            let colors=[UIColor(red:top*1.10,green:top,blue:top*0.82,alpha:1).cgColor,UIColor(red:bottom*1.12,green:bottom,blue:bottom*0.80,alpha:1).cgColor] as CFArray
             if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0,1]){
                 ctx.drawLinearGradient(g,start:CGPoint(x:0,y:0),end:CGPoint(x:0,y:512),options:[])
             }
             if face==2 {
-                ctx.setShadow(offset:.zero,blur:24,color:UIColor(white:0.75,alpha:1).cgColor)
-                UIColor(white:0.82,alpha:1).setFill()
+                ctx.setShadow(offset:.zero,blur:24,color:UIColor(white:0.85,alpha:1).cgColor)
+                UIColor(white:0.96,alpha:1).setFill()
                 for x in [144,324]{UIBezierPath(roundedRect:CGRect(x:x,y:98,width:44,height:316),cornerRadius:20).fill()}
             }
         }
@@ -531,7 +687,8 @@ final class TableScene {
         }
     }
     private func woodTexture(light:Bool)->UIImage{
-        texture(CGSize(width:256,height:1024)){c in
+        if let cached=cachedWood[light]{return cached}
+        let image=texture(CGSize(width:256,height:1024)){c in
             for y in stride(from:0,to:1024,by:2){for x in 0..<256{
                 let drift:Double = sin(Double(y)*0.013)*0.8
                 let phase:Double = Double(x)*0.18+drift
@@ -547,7 +704,7 @@ final class TableScene {
                 UIColor(red:red,green:green,blue:blue,alpha:1).setFill()
                 c.fill(CGRect(x:x,y:y,width:1,height:2))
             }}
-        }
+        };cachedWood[light]=image;return image
     }
     private func contactShadowTexture()->UIImage{
         texture(CGSize(width:512,height:512),opaque:false){c in
@@ -562,8 +719,12 @@ final class TableScene {
         let dx=shortRail ? long/2:wide/2,dz=shortRail ? wide/2:long/2
         let vertices=[SCNVector3(-dx,0,0),SCNVector3(0,0,-dz),SCNVector3(dx,0,0),SCNVector3(0,0,dz)]
         let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:Array(repeating:SCNVector3(0,1,0),count:4))],elements:[SCNGeometryElement(indices:[Int32(0),1,2,0,2,3],primitiveType:.triangles)])
-        let m=mat(UIColor(red:0.96,green:0.94,blue:0.82,alpha:1),roughness:0.28,metal:0.15);m.isDoubleSided=true;m.emission.contents=UIColor(white:0.13,alpha:1);g.materials=[m]
+        let m=mat(.rgb(0xF6F0E2),roughness:0.22,metal:0);m.isDoubleSided=true;m.emission.contents=UIColor(red:0.30,green:0.29,blue:0.27,alpha:1)
+        m.clearCoat.contents=1;m.clearCoatRoughness.contents=0.05;g.materials=[m]
         let n=SCNNode(geometry:g);n.position=p;n.name="rail-sight";n.castsShadow=false;scene.rootNode.addChildNode(n)
+        let inlay=SCNNode(geometry:g.copy() as? SCNGeometry);inlay.geometry?.materials=[mat(.rgb(0x1A0E07),roughness:0.5)]
+        inlay.scale=SCNVector3(1.45,1,1.45);inlay.position.y = -0.0004;inlay.castsShadow=false;n.addChildNode(inlay)
+        n.position.y += 0.0008
     }
     private func brandPlate(_ p:SCNVector3){
         let g=SCNPlane(width:0.22,height:0.038),m=SCNMaterial();m.lightingModel = .constant
@@ -572,10 +733,11 @@ final class TableScene {
             let style=NSMutableParagraphStyle();style.alignment = .center
             (look.brand.uppercased() as NSString).draw(in:CGRect(x:14,y:12,width:996,height:80),withAttributes:[.font:UIFont.systemFont(ofSize:56,weight:.bold),.foregroundColor:UIColor(red:0.92,green:0.83,blue:0.61,alpha:1),.paragraphStyle:style])
             (look.name as NSString).draw(in:CGRect(x:14,y:100,width:996,height:64),withAttributes:[.font:UIFont.systemFont(ofSize:40,weight:.medium),.foregroundColor:UIColor.white,.paragraphStyle:style])
-        };g.materials=[m];let n=SCNNode(geometry:g);n.name="table-nameplate";n.eulerAngles.x = -.pi/2;n.position=p;n.castsShadow=false;scene.rootNode.addChildNode(n)
+        };g.materials=[m];let n=SCNNode(geometry:g);n.name="table-nameplate";n.eulerAngles.x = 0;n.position=p;n.castsShadow=false;scene.rootNode.addChildNode(n)
     }
     private func ballTexture(_ id:Int)->UIImage{
-        texture(CGSize(width:1024,height:512)){c in
+        if let cached=cachedBallTextures[id]{return cached}
+        let image=texture(CGSize(width:1024,height:512)){c in
             UIColor(white:0.95,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:1024,height:512))
             if id==0{
                 UIColor(red:0.72,green:0.025,blue:0.035,alpha:1).setFill()
@@ -602,101 +764,182 @@ final class TableScene {
                     let sz=s.size(withAttributes:attrs);s.draw(at:CGPoint(x:CGFloat(x)-sz.width/2,y:256-sz.height/2),withAttributes:attrs)
                 }
             }
-        }
+        };cachedBallTextures[id]=image;return image
+    }
+    private func ballGeometry(_ id:Int)->SCNSphere{
+        if let old=cachedBallGeometry[id]{return old}
+        let sphere=SCNSphere(radius:radius);sphere.segmentCount=ballSegmentCount
+        let material=mat(.white,roughness:0.27)
+        material.diffuse.contents=ballTexture(id);material.diffuse.maxAnisotropy=8
+        material.diffuse.mipFilter = .linear;material.diffuse.minificationFilter = .linear
+        material.emission.contents=material.diffuse.contents;material.emission.intensity=0.08
+        sphere.materials=[material];cachedBallGeometry[id]=sphere;return sphere
+    }
+    private lazy var ballShadowGeometry:SCNPlane = {
+        let plane=SCNPlane(width:0.085,height:0.085),material=SCNMaterial()
+        material.lightingModel = .constant;material.diffuse.contents=shadowTexture
+        material.writesToDepthBuffer=false;material.readsFromDepthBuffer=true;material.blendMode = .alpha
+        plane.materials=[material];return plane
+    }()
+    private func setPosition(_ position:SCNVector3,on node:SCNNode){
+        let old=node.position
+        if old.x != position.x || old.y != position.y || old.z != position.z{node.position=position}
     }
     func update(_ balls:[BallState],dt:Double){
-        SCNTransaction.begin();SCNTransaction.animationDuration=0
+        SCNTransaction.begin();SCNTransaction.animationDuration=0;SCNTransaction.disableActions=true
         defer{SCNTransaction.commit()}
         let ids=Set(balls.map{$0.id})
-        for id in Array(nodes.keys) where !ids.contains(id){nodes.removeValue(forKey:id)?.removeFromParentNode();contactShadows.removeValue(forKey:id)?.removeFromParentNode();restOrientations.removeValue(forKey:id);falling.removeValue(forKey:id)}
+        for id in Array(nodes.keys) where !ids.contains(id){
+            nodes.removeValue(forKey:id)?.removeFromParentNode()
+            contactShadows.removeValue(forKey:id)?.removeFromParentNode()
+            restOrientations.removeValue(forKey:id);falling.removeValue(forKey:id);settledPocketNodes.remove(id)
+            lastPlanar.removeValue(forKey:id);planarVelocity.removeValue(forKey:id)
+        }
         for b in balls{
             let node:SCNNode
             if let old=nodes[b.id]{node=old}else{
-                let sphere=SCNSphere(radius:radius);sphere.segmentCount=highDetail ? 96:48
-                let m=mat(.white,roughness:0.27);m.diffuse.contents=ballTexture(b.id);m.diffuse.maxAnisotropy=16;m.diffuse.mipFilter = .linear;m.diffuse.minificationFilter = .linear
-                m.emission.contents=m.diffuse.contents;m.emission.intensity=0.08
-                sphere.materials=[m];node=SCNNode(geometry:sphere);node.name="ball_\(b.id)";node.castsShadow=true
-                // Face number towards the main camera at rest; integrate spin during motion.
+                node=SCNNode(geometry:ballGeometry(b.id));node.name="ball_\(b.id)"
+                node.castsShadow=highDetail && thermalState == .nominal
                 node.eulerAngles=SCNVector3(0.18,0.6,0.2)
                 restOrientations[b.id]=node.simdOrientation
                 ballRoot.addChildNode(node);nodes[b.id]=node
-                let plane=SCNPlane(width:0.085,height:0.085),shadow=SCNMaterial()
-                shadow.lightingModel = .constant;shadow.diffuse.contents=shadowTexture
-                shadow.writesToDepthBuffer=false;shadow.readsFromDepthBuffer=true;shadow.blendMode = .alpha
-                plane.materials=[shadow];let sn=SCNNode(geometry:plane);sn.eulerAngles.x = -.pi/2;sn.castsShadow=false;sn.renderingOrder=2
-                scene.rootNode.addChildNode(sn);contactShadows[b.id]=sn
+                let shadow=SCNNode(geometry:ballShadowGeometry)
+                shadow.eulerAngles.x = -.pi/2;shadow.castsShadow=false;shadow.renderingOrder=2
+                scene.rootNode.addChildNode(shadow);contactShadows[b.id]=shadow
             }
+            let opacity:CGFloat=(b.id==0 && placementBlocked) ? 0.45:1
+            if node.opacity != opacity{node.opacity=opacity}
             let planar=SIMD2<Float>(Float(b.x),Float(b.y))
-            if !b.sunk {
-                if dt>0,let previous=lastPlanar[b.id] {planarVelocity[b.id]=(planar-previous)/Float(dt)}
-                lastPlanar[b.id]=planar
-            }
-            if b.sunk,let fall=falling[b.id] {
-                // Đang rơi: animatePockets điều khiển vị trí; không kéo bi về toạ độ sunk của solver.
-                node.isHidden=fall.time>=Self.pocketFallDuration
-            }else{
-                node.position=SCNVector3(Float(b.x),Float(radius)+Float(b.height ?? 0),Float(b.y))
-            }
             if b.sunk {
                 if falling[b.id]==nil{
-                    // Vị trí bắt đầu = khung trước khi lọt lỗ (solver đã xoá vận tốc khi sunk).
-                    let from=lastPlanar[b.id] ?? planar
+                    let previous=lastPlanar[b.id]
+                    let from=previous ?? planar
                     let velocity=planarVelocity[b.id] ?? .zero
+                    // Classify from the solver's captured position, not the
+                    // previous rendered frame: a fast break can travel many
+                    // centimetres between frames. Off-table recovery positions
+                    // must never acquire a made-pocket presentation.
+                    let nearest=Self.pocketCenters.indices.min{
+                        simd_distance_squared(Self.pocketCenters[$0],planar)<simd_distance_squared(Self.pocketCenters[$1],planar)
+                    } ?? 0
+                    // A ball leaving the table is not a potted ball. Hide that
+                    // foul presentation rather than moving it into a pocket.
+                    let captureRadius:Float = (nearest==2 || nearest==3 ? 0.058:0.066)+0.00001
+                    let pocket=simd_distance_squared(Self.pocketCenters[nearest],planar)<captureRadius*captureRadius ? nearest:-1
+                    let usedSlots=Set(falling.values.filter{$0.pocket==pocket}.map{$0.slot})
+                    // Ball-in-hand can remove the cue ball from the middle of
+                    // a basket; counting entries would reuse an occupied slot.
+                    let slot=(0..<16).first{!usedSlots.contains($0)} ?? 15
                     let speed=simd_length(velocity)
-                    falling[b.id]=(0,SCNVector3(from.x,Float(radius),from.y),speed>4 ? velocity*(4/speed):velocity)
+                    let bounded=speed>4 ? velocity*(4/speed):velocity
+                    let time=previous==nil ? Self.pocketFallDuration:0
+                    falling[b.id]=PocketState(time:time,start:SCNVector3(from.x,Float(radius),from.y),velocity:bounded,pocket:pocket,slot:slot,orientation:node.simdOrientation)
                 }
-            }else{falling.removeValue(forKey:b.id);node.isHidden=false;node.scale=SCNVector3(1,1,1)}
-            if b.sunk {lastPlanar.removeValue(forKey:b.id);planarVelocity.removeValue(forKey:b.id)}
-            contactShadows[b.id]?.isHidden=b.sunk;contactShadows[b.id]?.position=SCNVector3(Float(b.x),0.001,Float(b.y))
-            let height=Float(b.height ?? 0)
-            contactShadows[b.id]?.opacity=CGFloat(max(0.05,1.0/(1+height*13)))
-            let spread=0.92+height*1.6
-            contactShadows[b.id]?.scale=SCNVector3(spread,spread,spread)
-            // Orientation comes from fixed physics steps, including during replay.
+                if !settledPocketNodes.contains(b.id),let state=falling[b.id]{
+                    applyPocketPose(state,to:node)
+                    if state.pocket<0 || state.time>=Self.pocketFallDuration{settledPocketNodes.insert(b.id)}
+                }
+                lastPlanar.removeValue(forKey:b.id);planarVelocity.removeValue(forKey:b.id)
+                if let shadow=contactShadows[b.id],!shadow.isHidden{shadow.isHidden=true}
+                continue
+            }
+            // Reset/seek backwards/ball-in-hand returns the solver's live ball
+            // immediately; a parked pocket node must never override that state.
+            falling.removeValue(forKey:b.id);settledPocketNodes.remove(b.id)
+            if node.isHidden{node.isHidden=false}
+            if dt.isFinite,dt>0,let previous=lastPlanar[b.id]{planarVelocity[b.id]=(planar-previous)/Float(dt)}
+            lastPlanar[b.id]=planar
+            setPosition(SCNVector3(planar.x,Float(radius)+Float(b.height ?? 0),planar.y),on:node)
+            if let shadow=contactShadows[b.id]{
+                if shadow.isHidden{shadow.isHidden=false}
+                setPosition(SCNVector3(planar.x,0.001,planar.y),on:shadow)
+                let height=Float(b.height ?? 0)
+                let shade=CGFloat(max(0.05,1.0/(1+height*13)))
+                if shadow.opacity != shade{shadow.opacity=shade}
+                let spread:Float=0.92+height*1.6
+                if shadow.scale.x != spread{shadow.scale=SCNVector3(spread,spread,spread)}
+            }
             // Reflection XY -> XZ maps quaternion axis (x,y,z) to (-x,-z,-y).
             if let x=b.qx,let y=b.qy,let z=b.qz,let w=b.qw {
                 let physical=simd_quatf(ix:Float(-x),iy:Float(-z),iz:Float(-y),r:Float(w))
                 let rest=restOrientations[b.id] ?? simd_quatf(angle:0,axis:SIMD3<Float>(0,1,0))
-                node.simdOrientation=physical*rest
+                let orientation=physical*rest
+                if node.simdOrientation.vector != orientation.vector{node.simdOrientation=orientation}
             }
         }
     }
-    var hasActivePocketAnimations:Bool{falling.values.contains{$0.time<Self.pocketFallDuration}}
+    /// Call before loading a layout, starting another replay or seeking. Already
+    /// sunk initial-state balls park immediately on the next update.
+    func resetPocketPresentation(){
+        falling.removeAll(keepingCapacity:true)
+        settledPocketNodes.removeAll(keepingCapacity:true)
+        lastPlanar.removeAll(keepingCapacity:true);planarVelocity.removeAll(keepingCapacity:true)
+    }
+    var hasActivePocketAnimations:Bool{
+        falling.values.contains{$0.pocket>=0 && $0.time<Self.pocketFallDuration}
+    }
+    private func applyPocketPose(_ state:PocketState,to node:SCNNode){
+        guard state.pocket>=0 else{node.isHidden=true;return}
+        let center=Self.pocketCenters[state.pocket]
+        let start=SIMD2<Float>(state.start.x,state.start.z)
+        let offset=start-center
+        let cross=offset.x*state.velocity.y-offset.y*state.velocity.x
+        let direction:Float=cross<0 ? -1:1
+        let progress=Float(min(1,max(0,state.time/Self.pocketFallDuration)))
+        let baseAngle=atan2(offset.y,offset.x)
+        let turn=direction*Float.pi*3.5*progress
+        let phase=baseAngle+turn
+        let radial=SIMD2<Float>(cos(phase),sin(phase))
+        func smooth(_ x:Float)->Float{let t=min(1,max(0,x));return t*t*(3-2*t)}
+        // Seven balls per layer fit the lower basket with a small clearance.
+        // Sixteen pool balls need at most three layers, all below the throat.
+        let slot=max(0,min(15,state.slot)),layer=slot/7,ring=slot%7
+        let spacing=2*Float(radius)+0.001
+        let parkingAngle=Float(max(0,ring-1))*Float.pi/3
+        let parking=ring==0 ? SIMD2<Float>.zero:SIMD2<Float>(cos(parkingAngle),sin(parkingAngle))*spacing
+        let floorHeight:Float = -0.251+Float(radius)+Float(layer)*spacing
+        var planar:SIMD2<Float>,height:Float
+        if progress<0.30{
+            let fraction=smooth(progress/0.30)
+            let entry=center+radial*0.022
+            planar=start+(entry-start)*fraction
+            height=state.start.y+(-0.032-state.start.y)*fraction
+        }else{
+            let fraction=smooth((progress-0.30)/0.70)
+            let spread=smooth((fraction-0.45)/0.55)
+            planar=center+radial*(0.022*(1-fraction))+parking*spread
+            height = -0.032+(floorHeight+0.032)*fraction
+        }
+        setPosition(SCNVector3(planar.x,max(floorHeight,height),planar.y),on:node)
+        let speed=simd_length(state.velocity)
+        let axis=speed>0.0001 ? simd_normalize(SIMD3<Float>(state.velocity.y,0,-state.velocity.x)):SIMD3<Float>(1,0,0)
+        let tumble=simd_quatf(angle:speed*Float(state.time)*0.30/Float(radius),axis:axis)
+        let swirl=simd_quatf(angle:turn,axis:SIMD3<Float>(0,1,0))
+        let orientation=swirl*tumble*state.orientation
+        if node.simdOrientation.vector != orientation.vector{node.simdOrientation=orientation}
+        node.isHidden=false
+    }
     func animatePockets(_ dt:Double){
-        SCNTransaction.begin();SCNTransaction.animationDuration=0
+        guard dt.isFinite,dt>0,hasActivePocketAnimations else{return}
+        SCNTransaction.begin();SCNTransaction.animationDuration=0;SCNTransaction.disableActions=true
         defer{SCNTransaction.commit()}
         for id in Array(falling.keys){
-            guard var state=falling[id],let node=nodes[id] else{continue}
-            state.time=min(Self.pocketFallDuration,state.time+max(0,dt));falling[id]=state
-            // Rơi tự nhiên: giữ đà ngang lúc lọt lỗ, chạm thành sau của túi lỗ thì dừng ngang;
-            // rơi theo trọng lực thật 9,81 m/s², bi lăn tiếp quanh trục ngang theo hướng chạy.
-            let centers:[SIMD2<Float>]=[SIMD2(-0.67,-1.305),SIMD2(0.67,-1.305),SIMD2(-0.706,0),SIMD2(0.706,0),SIMD2(-0.67,1.305),SIMD2(0.67,1.305)]
-            let start=SIMD2(state.start.x,state.start.z)
-            let center=centers.min{simd_distance_squared($0,start)<simd_distance_squared($1,start)} ?? start
-            let t=Float(state.time)
-            var planar=start+state.velocity*t
-            // Túi lỗ: bán kính khoảng 0,05 m quanh tâm lỗ; bi không đi xuyên thành túi.
-            let offset=planar-center,limit:Float=0.045
-            if simd_length(offset)>limit {planar=center+simd_normalize(offset)*limit}
-            // Rơi hút về tâm lỗ dần khi đã thấp hơn mặt bàn (thành túi dẫn hướng).
-            let guide=min(1,max(0,(t-0.08)/0.25))
-            planar=planar+(center-planar)*guide*0.6
-            let drop=0.5*9.81*t*t
-            node.position=SCNVector3(planar.x,state.start.y-drop,planar.y)
-            let speed=simd_length(state.velocity)
-            if speed>1e-4 {
-                let axis=simd_normalize(SIMD3<Float>(state.velocity.y,0,-state.velocity.x))
-                node.simdOrientation=simd_quatf(angle:Float(speed*Float(dt))/Float(radius),axis:axis)*node.simdOrientation
-            }
-            node.scale=SCNVector3(1,1,1)
-            node.isHidden=state.time>=Self.pocketFallDuration
+            guard var state=falling[id],state.pocket>=0,state.time<Self.pocketFallDuration,let node=nodes[id] else{continue}
+            state.time=min(Self.pocketFallDuration,state.time+dt);falling[id]=state
+            applyPocketPose(state,to:node)
+            if state.time>=Self.pocketFallDuration{settledPocketNodes.insert(id)}
         }
     }
     func replay(_ from:[BallState],to:[BallState],fraction:Double){
         let t=max(0,min(1,fraction))
         let next=Dictionary(uniqueKeysWithValues:to.map{($0.id,$0)})
         let states=from.map{ a -> BallState in
-            guard let b=next[a.id],!a.sunk,!b.sunk else{return a}
+            guard let b=next[a.id],!a.sunk else{return a}
+            // Follow the final approach up to the captured position, then start
+            // the basket presentation at that snapshot's timestamp. Holding a
+            // whole snapshot interval before a pot produces a visible hitch on
+            // the 10 Hz LAN stream even when the interpolation clock is smooth.
+            if b.sunk && t>=1{return b}
             var state=a
             state.height=(a.height ?? 0)+((b.height ?? 0)-(a.height ?? 0))*t
             state.x=a.x+(b.x-a.x)*t;state.y=a.y+(b.y-a.y)*t
@@ -750,7 +993,8 @@ final class TableScene {
             let targetOrigin=SIMD3<Float>(Float(c.x),0.032,Float(c.y))
             target=targetOrigin+forward
         }else{
-            target=SIMD3(0,-0.18,0)
+            let bounds=focusBounds ?? SIMD4<Float>(-0.78,0.78,-1.43,1.43)
+            target=SIMD3((bounds.x+bounds.y)/2,0.025,(bounds.z+bounds.w)/2)
             let yaw:Float=orbit+0.20
             let elevation:Float=orbitPitch
             let cosElevation:Float=cos(elevation)
@@ -766,18 +1010,19 @@ final class TableScene {
             let tanX:Float=tanY*safeAspect
             var distance:Float=1
             // Fit all table corners including feet; avoid cropping with different viewport ratios.
-            for x:Float in [-0.86,0.86]{for y:Float in [-0.75,0.09]{for z:Float in [-1.50,1.50]{
+            for x:Float in [bounds.x,bounds.y]{for y:Float in [0,0.18]{for z:Float in [bounds.z,bounds.w]{
                 let corner=SIMD3<Float>(x,y,z)
                 let delta:SIMD3<Float> = corner-target
                 let towards:Float = simd_dot(delta,backward)
                 let horizontalSpan:Float = abs(simd_dot(delta,right))
                 let verticalSpan:Float = abs(simd_dot(delta,vertical))
-                let fitX:Float = towards+horizontalSpan/(tanX*0.90)
-                let fitY:Float = towards+verticalSpan/(tanY*0.90)
+                let fitX:Float = towards+horizontalSpan/(tanX*0.66)
+                let fitY:Float = towards+verticalSpan/(tanY*0.78)
                 distance=max(distance,fitX)
                 distance=max(distance,fitY)
             }}}
             let offset:SIMD3<Float> = backward*(distance*zoom)
+            target += right*0.15
             eye=target+offset
         }
         // Instant during aim, so the camera never lags behind the chosen direction.
@@ -895,14 +1140,19 @@ final class TableScene {
     private var diamondLabels:SCNNode?
     private var railMarks=SCNNode()
     private func labelImage(_ text:String,size:CGFloat,color:UIColor,background:UIColor?)->UIImage{
+        let key="\(text)|\(size)|\(color.description)|\(background?.description ?? "-")"
+        if let old=cachedLabels[key]{return old}
         let font=UIFont.systemFont(ofSize:size,weight:.bold)
         let attrs:[NSAttributedString.Key:Any]=[.font:font,.foregroundColor:color]
         let textSize=(text as NSString).size(withAttributes:attrs)
         let side=max(textSize.width,textSize.height)+size*0.5
-        return UIGraphicsImageRenderer(size:CGSize(width:side,height:side)).image{_ in
+        // A label texture has fixed pixels independent of the phone's 2x/3x
+        // display scale; the billboard already has a physical scene size.
+        let format=UIGraphicsImageRendererFormat();format.scale=1;format.opaque=false
+        let image=rgbTexture(UIGraphicsImageRenderer(size:CGSize(width:side,height:side),format:format).image{_ in
             if let background=background {background.setFill();UIBezierPath(ovalIn:CGRect(x:0,y:0,width:side,height:side)).fill()}
             (text as NSString).draw(at:CGPoint(x:(side-textSize.width)/2,y:(side-textSize.height)/2),withAttributes:attrs)
-        }
+        });cachedLabels[key]=image;return image
     }
     private func billboard(_ image:UIImage,size:CGFloat,at p:SCNVector3)->SCNNode{
         let plane=SCNPlane(width:size,height:size),m=SCNMaterial()
@@ -924,17 +1174,28 @@ final class TableScene {
             }}
             scene.rootNode.addChildNode(root);diamondLabels=root
         }
-        diamondLabels?.isHidden = !showsDiamondNumbers
+        diamondLabels?.isHidden = trainingOverlaysHidden || !showsDiamondNumbers
     }}
     /// Điểm va băng của cú vừa đánh: vòng tròn đánh số thứ tự trên mũi băng (x, y toạ độ bàn).
     func showRailContacts(_ points:[(x:Double,y:Double)]){
         railMarks.removeFromParentNode();railMarks=SCNNode();railMarks.name="rail-contacts"
+        railMarks.isHidden=trainingOverlaysHidden
         for (index,p) in points.prefix(9).enumerated(){
             railMarks.addChildNode(billboard(labelImage("\(index+1)",size:40,color:.black,background:UIColor(red:1,green:0.78,blue:0.2,alpha:0.95)),size:0.04,at:SCNVector3(Float(p.x),0.07,Float(p.y))))
         }
         scene.rootNode.addChildNode(railMarks)
     }
-    func setTrainingOverlaysHidden(_ hidden:Bool){diamondLabels?.isHidden = hidden || !showsDiamondNumbers;railMarks.isHidden=hidden}
+    func setTrainingOverlaysHidden(_ hidden:Bool){
+        trainingOverlaysHidden=hidden
+        targetRoot.isHidden=hidden;guideRoot.isHidden=hidden;trailRoot.isHidden=hidden
+        diamondLabels?.isHidden=hidden || !showsDiamondNumbers;railMarks.isHidden=hidden
+    }
+    /// Match spectators can choose physical diamond numbers, but never receive
+    /// target rings, predictions, trails or coaching contact markers.
+    func setCompetitivePresentation(numbers:Bool){
+        setTrainingOverlaysHidden(true)
+        showsDiamondNumbers=numbers;diamondLabels?.isHidden = !numbers
+    }
     func target(_ goal:PracticeGoal?){
         targetRoot.childNodes.forEach{$0.removeFromParentNode()}
         guard let goal=goal,!goal.potOnly else{return}

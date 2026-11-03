@@ -139,7 +139,7 @@ final class SpinPad:UIControl {
     override func touchesCancelled(_ touches:Set<UITouch>,with event:UIEvent?){collapse()}
     override var isEnabled:Bool {didSet{if !isEnabled{collapse()}}}
     func collapse(){guard finger != nil else{return};finger=nil;expandedChanged?(false)}
-    func reset(){side=0;top=0;changed?(0,0);setNeedsDisplay()}
+    func reset(){side=0;top=0;accessibilityValue="Ngang 0%, dọc 0%";changed?(0,0);setNeedsDisplay()}
     func select(side:Double,top:Double){
         let length=hypot(side,top),scale=length>maximumOffset ? maximumOffset/length:1
         self.side=side*scale;self.top=top*scale
@@ -165,13 +165,13 @@ final class HoldLockControl:UIControl {
         let circle=bounds.insetBy(dx:5,dy:5)
         ctx.setFillColor(UIColor(white:held ? 0.8:0.10,alpha:held ? 0.28:0.20).cgColor)
         ctx.fillEllipse(in:circle)
-        ctx.setStrokeColor(UIColor.white.withAlphaComponent(isEnabled ? (held ? 0.65:0.24):0.1).cgColor)
+        ctx.setStrokeColor(UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? (held ? 0.65:0.24):0.1).cgColor)
         ctx.setLineWidth(1);ctx.strokeEllipse(in:circle)
-        let title="B" as NSString
-        let attributes:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:21,weight:.medium),
-            .foregroundColor:UIColor.white.withAlphaComponent(isEnabled ? 0.58:0.15)]
-        let size=title.size(withAttributes:attributes)
-        title.draw(at:CGPoint(x:bounds.midX-size.width/2,y:bounds.midY-size.height/2),withAttributes:attributes)
+        let ink=UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? (held ? 1:0.80):0.18)
+        let caption="B" as NSString
+        let attributes:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:bounds.height*0.46,weight:.bold),.foregroundColor:ink]
+        let size=caption.size(withAttributes:attributes)
+        caption.draw(at:CGPoint(x:bounds.midX-size.width/2,y:bounds.midY-size.height/2),withAttributes:attributes)
     }
     override func touchesBegan(_ touches:Set<UITouch>,with event:UIEvent?){
         guard isEnabled,finger==nil,let touch=touches.first else{return}
@@ -222,8 +222,8 @@ final class StrokePad:UIControl {
             guard denominator>1e-10 else{continue}
             let speed=max(0,-numerator/denominator)
             guard speed>0.01 else{continue}
-            let normalized=min(1,speed/1700*sensitivity)
-            fired=true;shot?(6*pow(normalized,1.15));pullChanged?(0);return
+            let edge=Double(min(bounds.width,bounds.height))
+            fired=true;shot?(BLStrokeSpeed(Double(speed),edge,sensitivity));pullChanged?(0);return
         }
     }
     override func touchesEnded(_ touches:Set<UITouch>,with event:UIEvent?){if let t=finger,touches.contains(t){cancelStroke()}}
@@ -268,4 +268,33 @@ final class ElevationPad:UIControl {
     override func endTracking(_ touch:UITouch?,with event:UIEvent?){setNeedsDisplay()}
     override func accessibilityIncrement(){degrees=min(Self.maximum,degrees+5);changed?(degrees)}
     override func accessibilityDecrement(){degrees=max(0,degrees-5);changed?(degrees)}
+}
+
+
+/// Relative angle adjustment; no fixed power or angle slider obscures the table.
+final class FineAimWheel:UIControl {
+    var changed:((Double)->Void)?
+    private var previousY:CGFloat=0,phase:CGFloat=0
+    override init(frame:CGRect){super.init(frame:frame);isAccessibilityElement=true;accessibilityLabel="Bánh xe vi chỉnh góc ngắm";accessibilityTraits = .adjustable;backgroundColor = .clear}
+    required init?(coder:NSCoder){fatalError()}
+    override func draw(_ rect:CGRect){
+        guard let context=UIGraphicsGetCurrentContext() else{return}
+        let body=bounds.insetBy(dx:9,dy:4)
+        UIColor(white:0.08,alpha:0.22).setFill();UIBezierPath(roundedRect:body,cornerRadius:10).fill()
+        context.saveGState();context.addPath(UIBezierPath(roundedRect:body,cornerRadius:10).cgPath);context.clip()
+        for tick in -2...15 {
+            let y=CGFloat(tick)*8+phase.truncatingRemainder(dividingBy:8)
+            let distance=abs(y-bounds.midY)/max(1,bounds.height/2),alpha=max(0,1-distance)*0.32
+            context.setStrokeColor(UIColor.white.withAlphaComponent(alpha).cgColor);context.setLineWidth(1)
+            context.move(to:CGPoint(x:body.minX+3,y:y));context.addLine(to:CGPoint(x:body.maxX-3,y:y));context.strokePath()
+        }
+        context.restoreGState()
+        context.setStrokeColor(UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? 0.65:0.15).cgColor);context.setLineWidth(2)
+        context.move(to:CGPoint(x:body.minX-3,y:bounds.midY));context.addLine(to:CGPoint(x:body.minX+3,y:bounds.midY));context.strokePath()
+    }
+    override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};previousY=touch.location(in:self).y;return true}
+    override func continueTracking(_ touch:UITouch,with event:UIEvent?)->Bool{let y=touch.location(in:self).y,delta=y-previousY;previousY=y;phase+=delta;changed?(Double(delta)*0.00065);setNeedsDisplay();return true}
+    override var isEnabled:Bool{didSet{alpha=isEnabled ? 1:0.25}}
+    override func accessibilityIncrement(){changed?(0.001)}
+    override func accessibilityDecrement(){changed?(-0.001)}
 }

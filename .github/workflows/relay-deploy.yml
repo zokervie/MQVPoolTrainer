@@ -1,0 +1,50 @@
+name: Online relay (test + deploy to Cloudflare)
+
+# Deploys native/ZokerPoolTrainer/Server/relay without a computer:
+# add repository secret CLOUDFLARE_API_TOKEN (template "Edit Cloudflare Workers"),
+# then run this workflow. Without the secret it only runs the tests.
+on:
+  push:
+    branches: ['ci/native-**', 'feature/zoker-native']
+    paths:
+      - 'native/ZokerPoolTrainer/Server/relay/**'
+      - '.github/workflows/relay-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  relay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: native/ZokerPoolTrainer/Server/relay
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Relay rules
+        run: node --test test/core.test.js
+      - name: Two-client test on local Workers runtime
+        run: |
+          npm i --no-save --no-package-lock wrangler@4 ws@8 > /dev/null
+          npx wrangler dev --local --port 8787 --ip 127.0.0.1 > dev.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf 127.0.0.1:8787/health && break; sleep 1; done
+          RELAY=ws://127.0.0.1:8787 node test/e2e.mjs
+      - name: Deploy
+        id: deploy
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -o pipefail
+          npx wrangler deploy 2>&1 | tee deploy.log
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          test -n "$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "::notice title=relay::$URL"
+      - name: Test deployed relay
+        if: ${{ steps.deploy.outputs.url != '' }}
+        run: RELAY=$(echo "${{ steps.deploy.outputs.url }}" | sed 's#^https#wss#') node test/e2e.mjs
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

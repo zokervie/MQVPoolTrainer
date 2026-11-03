@@ -1,0 +1,114 @@
+[
+  {
+    "asset": "PoolBall0",
+    "author": "Za-Games",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/Za-Games/sounds/539854/",
+    "download": "https://cdn.freesound.org/previews/539/539854_12029332-hq.mp3",
+    "source_sha256": "8fba3f6faccc03d06ac6fa7f1a3e496b7dba18468364082526a9b8b52af0950d",
+    "trim_seconds": [
+      0,
+      0.239
+    ],
+    "changes": "HQ MP3 preview decoded to 44.1 kHz mono PCM16; trim, DC removal, short fades, peak gain. No pitch shift.",
+    "sha256": "e2d551a263d054d349905aa61140951f72291a7ad38a46d1539cfd5a7dcba73d",
+    "frames": 10540
+  },
+  {
+    "asset": "PoolBall1",
+    "author": "bsumusictech",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/bsumusictech/sounds/62331/",
+    "download": "https://cdn.freesound.org/previews/62/62331_791247-hq.mp3",
+    "source_sha256": "5d624bd6d82f2585875750d9eeabcb3e1b147b5b6b8d8fb47df485872312cbdc",
+    "trim_seconds": [
+      2.27,
+      2.65
+    ],
+    "changes": "HQ MP3 preview decoded to 44.1 kHz mono PCM16; trim, DC removal, short fades, peak gain. No pitch shift.",
+    "sha256": "9f3fb2246f7f8ee2e73d8be8824722273b3cefeeb44367aa5483f21f37005abb",
+    "frames": 16758
+  },
+  {
+    "asset": "PoolBall2",
+    "author": "bsumusictech",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/bsumusictech/sounds/62331/",
+    "download": "https://cdn.freesound.org/previews/62/62331_791247-hq.mp3",
+    "source_sha256": "5d624bd6d82f2585875750d9eeabcb3e1b147b5b6b8d8fb47df485872312cbdc",
+    "trim_seconds": [
+      7.23,
+      7.63
+    ],
+    "changes": "HQ MP3 preview decoded to 44.1 kHz mono PCM16; trim, DC removal, short fades, peak gain. No pitch shift.",
+    "sha256": "36ac8be35e8fbc6e85acafff1ecef6e45f689e9e3e4662649167a7feabbcd9b2",
+    "frames": 17640
+  },
+  {
+    "asset": "PoolBall3",
+    "author": "bsumusictech",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/bsumusictech/sounds/62331/",
+    "download": "https://cdn.freesound.org/previews/62/62331_791247-hq.mp3",
+    "source_sha256": "5d624bd6d82f2585875750d9eeabcb3e1b147b5b6b8d8fb47df485872312cbdc",
+    "trim_seconds": [
+      13.48,
+      13.87
+    ],
+    "changes": "HQ MP3 preview decoded to 44.1 kHz mono PCM16; trim, DC removal, short fades, peak gain. No pitch shift.",
+    "sha256": "f076a7a334ad9059886ff36f9f9f3ae5f05094c496cf2e26f85f9733a628b485",
+    "frames": 17199
+  },
+  {
+    "asset": "PoolRail0",
+    "author": "mccarthy@bedmas.com",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/mccarthy%40bedmas.com/sounds/42364/",
+    "download": "https://cdn.freesound.org/previews/42/42364_450724-hq.mp3",
+    "source_sha256": "fa28e2881ac275f33df3f682da97475c2e3b7823a10e3ee16b9c22d963c097ec",
+    "trim_seconds": [
+      0.35,
+      0.732
+    ],
+    "changes": "HQ MP3 preview decoded to 44.1 kHz mono PCM16; trim, DC removal, short fades, peak gain. No pitch shift.",
+    "sha256": "e8f5756e57723e51c5819a530406d2d2f6520bf2b71dd330e18bbab73d8f5eb0",
+    "frames": 16827
+  },
+  {
+    "asset": "PoolPocket0",
+    "author": "jtroan",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "https://freesound.org/people/jtroan/sounds/241373/",
+    "download": "https://cdn.freesound.org/previews/241/241373_4396563-hq.mp3",
+    "source_sha256": "fae10aec24f160c22226a8aa413267496043aa0d10838d2dc0eb5c3c91e141ab",
+    "trim_seconds": [
+      0.09,
+      0.49
+    ],
+    "changes": "HQ MP3 preview decoded to 44.1 kHz mono PCM16; trim, DC removal, short fades, peak gain. No pitch shift.",
+    "sha256": "a1d32dbc58013431e49f1351690049a74624245a4fb1573ad37f5c18dda4202d",
+    "frames": 17640
+  },
+  {
+    "asset": "PoolCue0",
+    "author": "AmberdeMeillon",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/AmberdeMeillon/sounds/443066/",
+    "download": "https://cdn.freesound.org/previews/443/443066_8282799-hq.mp3",
+    "source_sha256": "9b326ed2655986ba7fdf931c2a826ece51955c6f911c04ca6f9080df886a9fc6",
+    "trim_seconds": [
+      3.73,
+      4.03
+    ],
+    "changes": "HQ MP3 preview decoded to 44.1 kHz mono PCM16; trim, DC removal, short fades, peak gain. No pitch shift.",
+    "sha256": "77616bd46f25294ddfd734a21f6d4ffe0edb5bbfb01dbfb7a8ca18d0ce456b9f",
+    "frames": 13230
+  }
+]

@@ -28,7 +28,7 @@ using namespace banklab;
 }
 - (NSDictionary*)settings{
     auto&c=_world->config;
-    NSMutableDictionary *result=[@{@"experimental3D":@(c.experimental3D),@"cueType":@(c.cueType),@"cueElevationDegrees":@(c.cueElevationDegrees),@"rolling":@(c.rolling),@"sliding":@(c.sliding),@"railRestitution":@(c.railRestitution),@"railFriction":@(c.railFriction),@"railSpeedSensitivity":@(c.railSpeedSensitivity),@"ballRestitution":@(c.ballRestitution),@"ballFriction":@(c.ballFriction),@"spinDecay":@(c.spinDecay),@"individualRails":@(c.individualRails),@"coupledCushions":@(c.coupledCushions),@"railNoseHeightMeters":@(c.railNoseHeightMeters())} mutableCopy];
+    NSMutableDictionary *result=[@{@"experimental3D":@(c.experimental3D),@"cueType":@(c.cueType),@"squirtEnabled":@(c.squirtEnabled),@"cueElevationDegrees":@(c.cueElevationDegrees),@"rolling":@(c.rolling),@"sliding":@(c.sliding),@"railRestitution":@(c.railRestitution),@"railFriction":@(c.railFriction),@"railSpeedSensitivity":@(c.railSpeedSensitivity),@"ballRestitution":@(c.ballRestitution),@"ballFriction":@(c.ballFriction),@"spinDecay":@(c.spinDecay),@"individualRails":@(c.individualRails),@"coupledCushions":@(c.coupledCushions),@"railNoseHeightMeters":@(c.railNoseHeightMeters())} mutableCopy];
     // Chỉ đọc (hình học bàn) cho UIKit: cơ tránh băng, đánh số nút kim cương.
     result[@"tableWidth"]=@(c.width);result[@"tableLength"]=@(c.length);result[@"ballRadius"]=@(c.radius);result[@"railHeight"]=@(c.railHeight);
     for(int i=0;i<4;i++){result[[NSString stringWithFormat:@"railBounce%d",i]]=@(c.railBounce[i]);result[[NSString stringWithFormat:@"railGrip%d",i]]=@(c.railGrip[i]);}
@@ -42,6 +42,8 @@ using namespace banklab;
     c.coupledCushions=get(@"coupledCushions",c.coupledCushions,0,1)>.5;
     c.experimental3D=get(@"experimental3D",c.experimental3D,0,1)>.5;
     c.cueType=(int)get(@"cueType",c.cueType,0,2);
+    c.squirtEnabled=get(@"squirtEnabled",c.squirtEnabled,0,1)>.5;
+    c.masseCoupledContact=get(@"masseCoupledContact",c.masseCoupledContact,0,1)>.5;
     c.cueElevationDegrees=get(@"cueElevationDegrees",c.cueElevationDegrees,0,90);
     c.rolling=get(@"rolling",c.rolling,.003,.04);c.sliding=get(@"sliding",c.sliding,.08,.35);
     c.railRestitution=get(@"railRestitution",c.railRestitution,.4,.98);c.railFriction=get(@"railFriction",c.railFriction,0,.35);

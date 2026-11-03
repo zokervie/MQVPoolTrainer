@@ -20,3 +20,17 @@ for item in manifest:
   if kind==b'IEND':ended=True;break
  if not ended:raise SystemExit('Missing PNG end: '+str(p))
 print('PASS: '+str(len(manifest))+' material maps, SHA-256, PNG chunk CRCs and dimensions')
+
+# Validate the source artwork and every generated icon, including the 1024px store icon.
+import base64
+brand=json.loads((root/'Tools/Branding/manifest.json').read_text())['master']
+source=base64.b64decode((root/'Tools/Branding'/brand['encoded_file']).read_text())
+assert len(source)==brand['bytes'] and hashlib.sha256(source).hexdigest()==brand['sha256'], 'Logo master checksum mismatch'
+icons=root/'BankLab/Assets.xcassets/AppIcon.appiconset'
+entries=json.loads((icons/'Contents.json').read_text())['images']
+for entry in entries:
+ data=(icons/entry['filename']).read_bytes()
+ size=round(float(entry['size'].split('x')[0])*float(entry['scale'][:-1]))
+ assert data[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',data[16:24])==(size,size), entry['filename']
+ assert data[25]==2, 'App icons must be opaque RGB PNG: '+entry['filename']
+print('PASS: verified Z-Trainer master and '+str(len(entries))+' opaque app icon renditions')
