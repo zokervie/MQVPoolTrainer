@@ -826,6 +826,64 @@ final class TableScene {
         let old=node.position
         if old.x != position.x || old.y != position.y || old.z != position.z{node.position=position}
     }
+    // ---- 0.28: racking intro (owner request: 3-5 s at the start of each game; hands/rack only, no 3D person) ----
+    private let introRoot=SCNNode()
+    private var introDone:(()->Void)?
+    var rackIntroPlaying:Bool{introDone != nil}
+    /// Wooden triangle drops over loosely placed balls, the balls are pushed tight into the final rack positions
+    /// (exactly the solver's layout), the triangle lifts off. ~3.4 s; skipRackIntro() ends it at once.
+    func playRackIntro(_ balls:[BallState],completion:@escaping ()->Void){
+        skipRackIntro();introDone=completion
+        if introRoot.parent==nil{scene.rootNode.addChildNode(introRoot)}
+        let objects=balls.filter{$0.id>0 && !$0.sunk}
+        guard !objects.isEmpty else{finishRackIntro();return}
+        ballRoot.isHidden=true
+        let r=Float(radius),cx=objects.map{Float($0.x)}.reduce(0,+)/Float(objects.count),cy=objects.map{Float($0.y)}.reduce(0,+)/Float(objects.count)
+        var seed:UInt64=0x5AC4
+        func jitter()->Float{seed=seed &* 6364136223846793005 &+ 1442695040888963407;return Float(Int((seed>>33)%2001)-1000)/1000}
+        for b in balls where !b.sunk {
+            let node=SCNNode(geometry:ballGeometry(b.id));node.eulerAngles=SCNVector3(0.18,0.6,0.2)
+            let target=SCNVector3(Float(b.x),r,Float(b.y))
+            if b.id==0{node.position=target;introRoot.addChildNode(node);continue}
+            // loose start: spread 0-2 cm outward from the rack centre plus a little noise (hand-placed)
+            let dx=Float(b.x)-cx,dy=Float(b.y)-cy,len=max(0.001,sqrt(dx*dx+dy*dy))
+            let spread:Float=0.012+0.008*abs(jitter())
+            node.position=SCNVector3(Float(b.x)+dx/len*spread+0.004*jitter(),r,Float(b.y)+dy/len*spread+0.004*jitter())
+            introRoot.addChildNode(node)
+            let tighten=SCNAction.move(to:target,duration:0.9);tighten.timingMode = .easeInEaseOut
+            node.runAction(.sequence([.wait(duration:0.9),tighten]))
+        }
+        // triangle: three wooden bars around the rack, built from the actual rack extent
+        let xs=objects.map{Float($0.x)},ys=objects.map{Float($0.y)}
+        let minX=xs.min()!-r-0.006,maxX=xs.max()!+r+0.006,minY=ys.min()!-r-0.006,maxY=ys.max()!+r+0.006
+        let apexAtLow=abs(ys.min()!-cy)>abs(ys.max()!-cy)   // apex = the single-ball row
+        let apexRowY:Float=apexAtLow ? ys.min()!:ys.max()!
+        var apexX:Float=cx
+        for b in objects where abs(Float(b.y)-apexRowY)<0.01 {apexX=Float(b.x)}
+        let apex=SIMD2<Float>(apexX,apexAtLow ? minY-r*0.8:maxY+r*0.8)
+        let baseY=apexAtLow ? maxY:minY
+        let corners=[apex,SIMD2<Float>(minX-r*0.5,baseY),SIMD2<Float>(maxX+r*0.5,baseY)]
+        let wood=premiumMaterial("WalnutDark")
+        let triangle=SCNNode()
+        for i in 0..<3 {
+            let a=corners[i],b=corners[(i+1)%3],mid=(a+b)/2,d=b-a,length=simd_length(d)
+            let bar=SCNNode(geometry:SCNBox(width:CGFloat(length)+0.02,height:0.026,length:0.016,chamferRadius:0.004))
+            bar.geometry?.materials=[wood];bar.position=SCNVector3(mid.x,0.013,mid.y);bar.eulerAngles.y = -atan2(d.y,d.x)
+            triangle.addChildNode(bar)
+        }
+        triangle.position=SCNVector3(0,0.30,0);triangle.opacity=0;introRoot.addChildNode(triangle)
+        let drop=SCNAction.group([.move(to:SCNVector3(0,0,0),duration:0.7),.fadeIn(duration:0.4)]);drop.timingMode = .easeOut
+        let push=SCNAction.sequence([.moveBy(x:0,y:0,z:CGFloat(apexAtLow ? 0.008:-0.008),duration:0.45),.moveBy(x:0,y:0,z:CGFloat(apexAtLow ? -0.008:0.008),duration:0.45)])
+        let lift=SCNAction.group([.move(by:SCNVector3(0,0.35,0),duration:0.8),.fadeOut(duration:0.8)]);lift.timingMode = .easeIn
+        triangle.runAction(.sequence([drop,.wait(duration:0.2),push,.wait(duration:0.35),lift])){[weak self] in DispatchQueue.main.async{self?.finishRackIntro()}}
+    }
+    func skipRackIntro(){if introDone != nil{finishRackIntro()}}
+    private func finishRackIntro(){
+        introRoot.childNodes.forEach{$0.removeAllActions();$0.removeFromParentNode()}
+        ballRoot.isHidden=false
+        let done=introDone;introDone=nil;done?()
+    }
+
     func update(_ balls:[BallState],dt:Double){
         SCNTransaction.begin();SCNTransaction.animationDuration=0;SCNTransaction.disableActions=true
         defer{SCNTransaction.commit()}

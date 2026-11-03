@@ -209,6 +209,7 @@ extension TrainingController {
         let rack = matchPlay.rules?.rack(seed: UInt64.random(in: 1...UInt64.max)) ?? []
         engine.loadLayout(rack)
         initial = balls; before = initial
+        startRackIntro()
         angle = Double.pi / 2
         guideOn = false; coaching = false; locked = false; isPlacingBalls = false
         table.resetPocketPresentation()
@@ -390,6 +391,19 @@ extension TrainingController {
         submitMatchAction(.callShot, call: LANCall(ball: ball, pocket: pocket))
         notifyStatus("Đã gọi bi \(ball) · lỗ \(pocket + 1)")
         return true
+    }
+    /// 0.28: ~3.4 s racking intro at the start of every rack; tap the table to skip. Input waits for it.
+    func startRackIntro() {
+        // Automated QA launches (UI tests, probes) skip the intro so timing-based checks stay deterministic.
+        guard !ProcessInfo.processInfo.arguments.contains(where: { $0 == "--visual-qa" || $0.hasPrefix("--ux") || $0.hasSuffix("-qa") }) else { return }
+        renderUntil = ProcessInfo.processInfo.systemUptime + 4
+        table.playRackIntro(balls) { [weak self] in self?.wakeRendering(); self?.updateControls() }
+        for (delay, impact) in [(1.0, 0.35), (1.35, 0.5), (1.7, 0.3)] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self, self.table.rackIntroPlaying, UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true else { return }
+                self.poolAudio.play(kind: 1, impact: impact, pan: 0)
+            }
+        }
     }
     func chooseMatchCall() {
         guard matchAllowsInput, !shotActive else { return }
@@ -589,6 +603,7 @@ extension TrainingController {
         updateMatchState()
         if (result["rerack"] as? NSNumber)?.boolValue == true, let rules = matchPlay.rules {
             engine.loadLayout(rules.rack(seed: UInt64.random(in: 1...UInt64.max)))
+            startRackIntro()
             table.resetPocketPresentation()
         } else {
             var state = engine.states.map { BallState($0) }

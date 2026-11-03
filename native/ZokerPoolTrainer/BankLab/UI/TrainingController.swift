@@ -988,6 +988,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
 
     func shoot(_ speed:Double){
+        if table.rackIntroPlaying{table.skipRackIntro();return}
         if routeMatchShot(speed){return}
         guard locked,strokeAllowed,speed.isFinite,speed>0 else{return}
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
@@ -1357,6 +1358,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     @objc func tapTable(_ g:UITapGestureRecognizer){
         guard localTurn,!presentationBusy,!menuOpen,!spinExpanded,!locked,let p=tablePoint(g.location(in:scn)) else{return}
         wakeRendering()
+        if table.rackIntroPlaying{table.skipRackIntro();return}
         if handleMatchCallTap(p){return}
         shotCameraAnchor=nil;aimCameraYaw=0
         if isPlacingBalls {moveBall(0,to:p)}else if let c=cue {angle=atan2(p.y-c.y,p.x-c.x);refresh()}

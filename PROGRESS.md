@@ -36,6 +36,8 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (khuya) · 0.28 cảnh xếp bi (chờ CI Mac; chưa xem trên thiết bị):
+  - Đầu mỗi ván và mỗi lần xếp lại: khung tam giác gỗ hạ xuống trên bi đặt lỏng, đẩy chặt (bi trượt vào đúng vị trí của bộ giải luật), nhấc lên và mờ đi, ~3,4 s, 3 tiếng bi chạm. Chạm bàn để bỏ qua; không nhận cú đánh trong lúc chạy. Không dựng người 3D (theo đề xuất đã nêu). Các lần chạy kiểm thử tự động bỏ qua cảnh này.
 - 03/11/2026 (khuya) · 0.25 xem lại / lùi–tiến cú / highlight (chờ CI Mac):
   - **Lùi cú** (chỉ luyện tập): chạm = lùi 1 cú; giữ = menu Lùi 1 / Tiến 1 / Về đầu phiên / Tới cú mới nhất (lịch sử thế bàn trước mỗi cú).
   - **Highlight phiên**: mỗi cú được chấm (vào bi ×3, bi băng ×3, kick mỗi băng ×2), top 5 trong Xem lại; "Lưu highlight vào Lưu trữ"; công tắc "Tự lưu mọi cú". Cú lưu dựng lại từ đầu vào (vật lý tất định), không tốn dung lượng.
