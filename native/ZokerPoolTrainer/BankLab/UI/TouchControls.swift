@@ -263,37 +263,61 @@ final class ElevationPad:UIControl {
         let text="\(Int(degrees))°" as NSString,sz=text.size(withAttributes:attrs);text.draw(at:CGPoint(x:bounds.midX-sz.width/2,y:2),withAttributes:attrs)
     }
     private func set(_ p:CGPoint){degrees=(max(0,min(Self.maximum,Double((bounds.height-20-p.y)/(bounds.height-42))*Self.maximum))).rounded();changed?(degrees)}
-    override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};set(touch.location(in:self));return true}
+    override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};zoomForTouch(true);set(touch.location(in:self));return true}
     override func continueTracking(_ touch:UITouch,with event:UIEvent?)->Bool{set(touch.location(in:self));return true}
-    override func endTracking(_ touch:UITouch?,with event:UIEvent?){setNeedsDisplay()}
+    override func endTracking(_ touch:UITouch?,with event:UIEvent?){zoomForTouch(false);setNeedsDisplay()}
+    override func cancelTracking(with event:UIEvent?){zoomForTouch(false);setNeedsDisplay()}
     override func accessibilityIncrement(){degrees=min(Self.maximum,degrees+5);changed?(degrees)}
     override func accessibilityDecrement(){degrees=max(0,degrees-5);changed?(degrees)}
 }
 
 
+extension UIControl {
+    /// 0.22: grow 1.6x while touched (finer finger control, owner request); the bottom edge stays put so the
+    /// zoomed control never slides under the screen edge. Touch locations are in local coordinates, so the
+    /// same finger travel moves the value 1.6x less = finer.
+    func zoomForTouch(_ on:Bool){
+        let lift=bounds.height*0.3
+        UIView.animate(withDuration:0.12,delay:0,options:[.beginFromCurrentState,.allowUserInteraction]){
+            self.transform=on ? CGAffineTransform(translationX:0,y:-lift).scaledBy(x:1.6,y:1.6):.identity
+        }
+        superview?.bringSubviewToFront(self)
+    }
+}
+
 /// Relative angle adjustment; no fixed power or angle slider obscures the table.
+/// 0.22: horizontal when wider than tall (under the effect ball), vertical otherwise.
 final class FineAimWheel:UIControl {
     var changed:((Double)->Void)?
     private var previousY:CGFloat=0,phase:CGFloat=0
+    private var horizontal:Bool{bounds.width>bounds.height}
     override init(frame:CGRect){super.init(frame:frame);isAccessibilityElement=true;accessibilityLabel="Bánh xe vi chỉnh góc ngắm";accessibilityTraits = .adjustable;backgroundColor = .clear}
     required init?(coder:NSCoder){fatalError()}
     override func draw(_ rect:CGRect){
         guard let context=UIGraphicsGetCurrentContext() else{return}
-        let body=bounds.insetBy(dx:9,dy:4)
+        let body=horizontal ? bounds.insetBy(dx:4,dy:6):bounds.insetBy(dx:9,dy:4)
         UIColor(white:0.08,alpha:0.22).setFill();UIBezierPath(roundedRect:body,cornerRadius:10).fill()
         context.saveGState();context.addPath(UIBezierPath(roundedRect:body,cornerRadius:10).cgPath);context.clip()
-        for tick in -2...15 {
-            let y=CGFloat(tick)*8+phase.truncatingRemainder(dividingBy:8)
-            let distance=abs(y-bounds.midY)/max(1,bounds.height/2),alpha=max(0,1-distance)*0.32
+        let span=horizontal ? bounds.width:bounds.height
+        for tick in -2...Int(span/8)+2 {
+            let p=CGFloat(tick)*8+phase.truncatingRemainder(dividingBy:8)
+            let distance=abs(p-span/2)/max(1,span/2),alpha=max(0,1-distance)*0.32
             context.setStrokeColor(UIColor.white.withAlphaComponent(alpha).cgColor);context.setLineWidth(1)
-            context.move(to:CGPoint(x:body.minX+3,y:y));context.addLine(to:CGPoint(x:body.maxX-3,y:y));context.strokePath()
+            if horizontal{context.move(to:CGPoint(x:p,y:body.minY+3));context.addLine(to:CGPoint(x:p,y:body.maxY-3))}
+            else{context.move(to:CGPoint(x:body.minX+3,y:p));context.addLine(to:CGPoint(x:body.maxX-3,y:p))}
+            context.strokePath()
         }
         context.restoreGState()
         context.setStrokeColor(UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? 0.65:0.15).cgColor);context.setLineWidth(2)
-        context.move(to:CGPoint(x:body.minX-3,y:bounds.midY));context.addLine(to:CGPoint(x:body.minX+3,y:bounds.midY));context.strokePath()
+        if horizontal{context.move(to:CGPoint(x:bounds.midX,y:body.minY-3));context.addLine(to:CGPoint(x:bounds.midX,y:body.minY+3))}
+        else{context.move(to:CGPoint(x:body.minX-3,y:bounds.midY));context.addLine(to:CGPoint(x:body.minX+3,y:bounds.midY))}
+        context.strokePath()
     }
-    override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};previousY=touch.location(in:self).y;return true}
-    override func continueTracking(_ touch:UITouch,with event:UIEvent?)->Bool{let y=touch.location(in:self).y,delta=y-previousY;previousY=y;phase+=delta;changed?(Double(delta)*0.00065);setNeedsDisplay();return true}
+    private func coordinate(_ touch:UITouch)->CGFloat{let p=touch.location(in:self);return horizontal ? p.x:p.y}
+    override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};zoomForTouch(true);previousY=coordinate(touch);return true}
+    override func continueTracking(_ touch:UITouch,with event:UIEvent?)->Bool{let y=coordinate(touch),delta=y-previousY;previousY=y;phase+=delta;changed?(Double(horizontal ? -delta:delta)*0.00065);setNeedsDisplay();return true}
+    override func endTracking(_ touch:UITouch?,with event:UIEvent?){zoomForTouch(false)}
+    override func cancelTracking(with event:UIEvent?){zoomForTouch(false)}
     override var isEnabled:Bool{didSet{alpha=isEnabled ? 1:0.25}}
     override func accessibilityIncrement(){changed?(0.001)}
     override func accessibilityDecrement(){changed?(-0.001)}

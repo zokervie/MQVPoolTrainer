@@ -80,6 +80,9 @@ int main() {
         std::printf("REPORT: jump cue 45 deg, 5 m/s: peak height %.1f mm\n", maxH * 1000);
         check(maxH > .005, "jump cue raised 45 deg leaves the cloth");
     }
+    // ---- 0.22: three cues in the bag; Massé follows the playing cue's elevation ----
+    check(BLShotKindForElevation(0, 59.9) == 0 && BLShotKindForElevation(0, 60) == 3 && BLShotKindForElevation(3, 45) == 0 &&
+          BLShotKindForElevation(1, 80) == 1 && BLShotKindForElevation(2, 70) == 2, "Đánh raised to 60 deg becomes Massé (soft tip); Jump/Break unchanged");
     std::printf("%s\n", failures ? "CueTip: FAILED" : "CueTip: all checks passed");
     return failures ? 1 : 0;
 }

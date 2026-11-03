@@ -101,12 +101,16 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThan(coach.frame.width,coach.frame.height,"Coach is a readable rectangle")
         let rail=app.scrollViews["QuickRailScroll"]
         XCTAssertTrue(rail.exists)
-        let bridge=app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch
-        XCTAssertEqual(coach.frame.midX,bridge.frame.midX,accuracy:1)
-        XCTAssertLessThan(coach.frame.maxY,bridge.frame.minY)
+        // 0.22 layout: Menu + Coach top-left, B bottom-left, thumb column on the right in owner order.
+        let menu=app.buttons["Menu"].firstMatch
+        XCTAssertEqual(coach.frame.minY,menu.frame.minY,accuracy:2)
+        XCTAssertGreaterThan(coach.frame.minX,menu.frame.maxX)
         XCTAssertLessThan(coach.frame.midX,scene.frame.midX)
-        XCTAssertLessThan(quick(app,"QuickCamera").frame.maxY,quick(app,"QuickTools").frame.minY)
-        XCTAssertLessThan(quick(app,"QuickTools").frame.maxY,quick(app,"QuickReplay").frame.minY)
+        XCTAssertGreaterThan(rail.frame.midX,scene.frame.midX)
+        let order=["QuickReplay","QuickRetry","QuickPlace","QuickAdd","QuickCue","QuickCamera"]
+        for (upper,lower) in zip(order,order.dropFirst()) {
+            XCTAssertLessThan(app.buttons[upper].frame.midY,app.buttons[lower].frame.midY,"\(upper) above \(lower)")
+        }
         coach.tap()
         let enabled=NSPredicate { _,_ in self.field(scene,"coach")==1 }
         expectation(for:enabled,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
@@ -130,11 +134,12 @@ final class InteractionTests: XCTestCase {
     func testPlaceCueBallAtCentreAndCancelRestoresLayout() {
         let (app,scene)=launch(["--ux017-qa"])
         let x=field(scene,"cueX"),y=field(scene,"cueY")
-        quick(app,"QuickTools").tap();app.buttons["Đặt bi"].firstMatch.tap()
+        quick(app,"QuickPlace").tap()
         let editing=NSPredicate { _,_ in self.field(scene,"editing")==1 }
         expectation(for:editing,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
-        XCTAssertEqual(field(scene,"cueX"),0,accuracy:0.001);XCTAssertEqual(field(scene,"cueY"),0,accuracy:0.001)
-        quick(app,"QuickTools").tap();app.buttons["Hủy đặt bi"].firstMatch.tap()
+        // 0.22: free spot nearest the centre (exactly the centre when it is empty)
+        XCTAssertLessThan(hypot(field(scene,"cueX"),field(scene,"cueY")),0.15)
+        quick(app,"QuickAdd").tap()   // "Hủy" while placing
         let cancelled=NSPredicate { _,_ in self.field(scene,"editing")==0 }
         expectation(for:cancelled,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
         XCTAssertEqual(field(scene,"cueX"),x,accuracy:0.001);XCTAssertEqual(field(scene,"cueY"),y,accuracy:0.001)
@@ -148,11 +153,12 @@ final class InteractionTests: XCTestCase {
 
     }
 
-    func testFourCueChoicesKeepMasséAndBreakDistinct() {
+    func testCueBagOffersThreeBrandedCues() {
         let (app,scene)=launch(["--ux017-qa"])
-        for (name,kind) in [("Massé",3.0),("Jump",1.0),("Break",2.0),("Đánh",0.0)] {
-            quick(app,"QuickTools").tap();app.buttons["Kiểu cú / loại cơ"].firstMatch.tap()
-            let option=app.buttons[name].firstMatch;XCTAssertTrue(option.waitForExistence(timeout:5 * slow));option.tap()
+        for (name,kind) in [("Gậy Jump",1.0),("Gậy Break",2.0),("Gậy Đánh",0.0)] {
+            quick(app,"QuickCue").tap()
+            let option=app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@",name+" (")).firstMatch
+            XCTAssertTrue(option.waitForExistence(timeout:5 * slow),"\(name) (brand) in the bag");option.tap()
             let selected=NSPredicate { _,_ in self.field(scene,"kind")==kind }
             expectation(for:selected,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
         }
@@ -222,7 +228,7 @@ final class InteractionTests: XCTestCase {
     func testRandomLayoutMenuSupportsOneThroughFifteenObjectBalls() {
         let (app,scene)=launch(["--ux017-qa"])
         for count in [1,14] {
-            quick(app,"QuickTools").tap()
+            quick(app,"QuickAdd").tap()
             app.buttons["Thêm bi · số lượng / bố trí"].firstMatch.tap()
             let alert=app.alerts["Thêm bi"]
             XCTAssertTrue(alert.waitForExistence(timeout:5 * slow));alert.textFields.firstMatch.tap();alert.textFields.firstMatch.typeText(String(count))

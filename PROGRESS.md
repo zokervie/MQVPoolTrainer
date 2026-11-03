@@ -36,6 +36,12 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (23h) · `ci/native-0.21-vat-ly` gộp 0.22 + âm thanh — TESTED_PORTABLE (23 bộ C++), chờ CI Mac:
+  - **0.22 HUD theo tầm ngón cái** (`BLHUDLayout`, test 5 cỡ màn × tay phải/trái × luyện tập/thi đấu × effect phóng to): cột phím cạnh phải, trên → dưới: Xem lại · Lùi cú (chỉ luyện tập) · Đặt bi · Thêm bi · Bao cơ · Camera; bi effect 76 pt (iPad 100); thanh nâng cơ bên trái bi effect, bánh xe ngắm nằm ngang bên dưới, cả hai phóng 1,6× khi chạm; Menu + Coach góc trên trái; B góc dưới trái. **Tay trái**: lật gương toàn bộ (Thư viện → Tay trái / tay phải).
+  - **Camera**: giữ 0,25 s = xem góc kia (ngắm ↔ toàn cảnh), buông = về ngay; chạm nhanh = đổi qua lại. Bỏ menu giữ-lâu (cướp thao tác giữ). Sửa lỗi cũ: `peekPose` chưa bao giờ được gán.
+  - **Bao cơ**: chỉ Gậy Đánh / Jump / Break kèm thương hiệu; Massé tự bật khi gậy Đánh nâng ≥ 60°.
+  - **Đặt bi**: ô trống gần tâm nhất (`BLFreeSpotNearCentre`), không chồng bi.
+  - **Âm thanh**: bỏ ngưỡng loại tiếng trễ 120 ms (nguyên nhân "cả ván không nghe gì" khi khung hình chậm); tiếng rơi lỗ không bao giờ bị bỏ trong 1 s. Mẫu tiếng mới: chờ file.
 - 03/11/2026 (22h) · `ci/native-0.21-vat-ly` — đồ hoạ + menu (chờ CI Mac; chưa xác minh trên thiết bị, chưa có ảnh so sánh):
   - **Nỉ hết lem:** bỏ 900 vệt dài 10–75 cm của lớp `feltNap`; vân twill của bộ nỉ lặp 24 lần/m (trước 1 lần/m → sọc chéo 2–4 cm), normal 0,34 → 0,5, lọc anisotropic 16×.
   - **Nỉ cũ / mới** (Thư viện): nỉ cũ xỉn 7%, vệt lăn từ vùng phá/khung bi tới 6 lỗ và dọc băng, vết cháy ở 2 chấm đặt bi, bụi phấn quanh lỗ.

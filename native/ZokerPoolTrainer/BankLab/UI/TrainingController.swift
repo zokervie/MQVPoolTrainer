@@ -80,6 +80,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var editingSnapshot:[BallState]?
     var cameraManual=false,lastDirectorTime = -10.0
     var eyePressDuringShot=false
+    var eyeHoldWork:DispatchWorkItem?
+    var frameLayoutAdopted=false
+    var leftHanded:Bool{UserDefaults.standard.bool(forKey:"leftHanded022")}
     var lastObservedMode=0
     var referenceSpeed:Double{lastShotSpeed>0 ? lastShotSpeed:testSpeed}
     var cameraButton:UIButton!,guideButton:UIButton!,editButton:UIButton!
@@ -293,13 +296,34 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     override func viewDidLayoutSubviews(){
         super.viewDidLayoutSubviews();layoutRightHUD();wakeRendering()
     }
+    /// 0.22: HUD controls are placed by the portable policy BLHUDLayout (PresentationPolicy.h, C++-tested):
+    /// thumb column on the dominant-hand edge, effect ball 76/100 pt, elevation beside it, wheel under it,
+    /// Menu + Coach at the top on the other side, B bottom on the other side. Left-handed mirrors everything.
+    func adoptFrameLayoutOnce(){
+        guard !frameLayoutAdopted else{return};frameLayoutAdopted=true
+        for v:UIView in [quickScroll,spin,fineWheel,elevationPad,menuButton,coachButton,lockButton,panel]{
+            var owned:[NSLayoutConstraint]=v.constraints.filter{($0.firstItem as? UIView)===v && $0.secondItem==nil}
+            var ancestor=v.superview
+            while let a=ancestor{owned+=a.constraints.filter{($0.firstItem as? UIView)===v};ancestor=a.superview}
+            NSLayoutConstraint.deactivate(owned);v.translatesAutoresizingMaskIntoConstraints=true
+        }
+    }
     func layoutRightHUD(){
         guard spinWidth != nil,quickRailBottom != nil else{return}
-        let metrics=BLRightHUDLayout(Double(view.safeAreaLayoutGuide.layoutFrame.height),spinExpanded)
-        quickScrollHeight.constant=182
-        let reserved:CGFloat = 120 + 56 + 44
-        let available:CGFloat = view.safeAreaLayoutGuide.layoutFrame.width - reserved
-        let size=min(CGFloat(metrics.spinSize),max(52,available));spinWidth.constant=size;spinHeight.constant=size
+        adoptFrameLayoutOnce()
+        let safe=view.safeAreaLayoutGuide.layoutFrame,pad=UIDevice.current.userInterfaceIdiom == .pad
+        let f=BLHUDLayout(Double(safe.minX),Double(safe.minY),Double(safe.width),Double(safe.height),pad ? 1:0,leftHanded ? 1:0,matchIsCompetitive ? 0:1,spinExpanded ? 1:0)
+        // bounds + center (not frame): elevation/wheel may carry a zoom transform while touched.
+        func place(_ v:UIView,_ b:BLRect){v.bounds=CGRect(x:0,y:0,width:b.w,height:b.h);v.center=CGPoint(x:b.x+b.w/2,y:b.y+b.h/2)}
+        place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
+        place(menuButton,f.menu);place(coachButton,f.coach);place(lockButton,f.bridge);place(panel,f.panel);spin.setNeedsDisplay()
+        retryButton.isHidden=matchIsCompetitive
+        for item in quickRail.arrangedSubviews{item.constraints.first{$0.firstAttribute == .height && $0.secondItem==nil}?.constant=CGFloat(f.button)}
+        spinWidth.constant=CGFloat(f.spin.w);spinHeight.constant=CGFloat(f.spin.h)
+    }
+    func setLeftHanded(_ on:Bool){
+        UserDefaults.standard.set(on,forKey:"leftHanded022");view.setNeedsLayout();view.layoutIfNeeded()
+        notifyStatus(on ? "Tay trái: phím và bi effect bên trái":"Tay phải: phím và bi effect bên phải")
     }
     func recordG1QA(_ name:String,_ values:[String:Any]){
         let directory=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("g1-qa")
@@ -322,9 +346,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if control.bounds.width<44 || control.bounds.height<44{failures.append("Touch area below 44 pt: \(name)")}
             for other in controls.dropFirst(index+1){if control.frame.intersects(other.frame){failures.append("Overlapping HUD containers: \(name)")}}
         }
-        if elevationPad.frame.minX<=spin.frame.maxX{failures.append("Elevation is not right of effect")}
-        if quickScroll.frame.maxY>elevationPad.frame.minY{failures.append("Shortcuts overlap elevation vertically")}
-        let interactive:[UIControl]=[spin,lockButton,coachButton,quickCamera!,retryButton,quickReplay!,quickTools!]
+        if !spinExpanded{
+            if leftHanded ? elevationPad.frame.minX<spin.frame.maxX : elevationPad.frame.maxX>spin.frame.minX{failures.append("Elevation is not beside the effect ball on the inner side")}
+            if fineWheel.frame.minY<spin.frame.maxY{failures.append("Fine wheel is not under the effect ball")}
+        }
+        let interactive:[UIControl]=[spin,lockButton,coachButton,quickReplay!,retryButton,quickPlace!,quickAdd!,quickRole!,quickCamera!].filter{!$0.isHidden}
         for control in interactive {
             let name=control.accessibilityIdentifier ?? control.accessibilityLabel ?? String(describing:type(of:control))
             frames[name]=String(describing:control.convert(control.bounds,to:view))
@@ -370,6 +396,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self.spin.alpha=expanded ? 0.97:0.60
             self.layoutRightHUD();self.updateControls()
             self.fineWheel.isHidden=expanded || self.menuOpen
+            self.elevationPad.isHidden=expanded || self.menuOpen || self.locked
             self.coachButton.isEnabled = !expanded
             self.spinCenter.isHidden = !expanded
             self.view.layoutIfNeeded()
@@ -502,6 +529,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             ("Nỉ: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setClothWear(old:!self.table.oldCloth);self.wakeRendering();self.notifyStatus(self.table.oldCloth ? "Nỉ cũ: vệt lăn, vết chấm, bụi phấn":"Nỉ mới")}),
             ("Bi: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setBallWear(old:!self.table.oldBalls);self.wakeRendering();self.notifyStatus(self.table.oldBalls ? "Bi cũ: mờ bóng":"Bi mới: bóng gương")}),
             ("Màu nỉ",{[weak self] in self?.chooseClothColor()}),
+            ("Thư viện 20 bàn · 12 cơ",{[weak self] in self?.openLibrary()}),
+            ("Tay trái / tay phải (đổi bên phím)",{[weak self] in guard let self=self else{return};self.setLeftHanded(!self.leftHanded)}),
             ("Bao cơ / Gậy",{[weak self] in self?.equipment()}),
             ("Bàn & không gian · hình ảnh",{[weak self] in self?.graphics()}),
             ("Âm thanh: bật / tắt",{[weak self] in
@@ -566,10 +595,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickReplay.menu=UIMenu(title:"Lưu cú / Thư viện",children:[UIDeferredMenuElement.uncached{[weak self] completion in completion(self?.replayMenu().children ?? [])}])
         retryButton.configuration=button("arrow.uturn.backward","Lùi cú","unused").configuration
         retryButton.accessibilityIdentifier="QuickRetry"
-        quickRole=button("line.diagonal","Đánh","QuickCue");quickRole.showsMenuAsPrimaryAction=true
+        quickRole=button("bag","Bao cơ","QuickCue");quickRole.showsMenuAsPrimaryAction=true
         quickPlace=button("hand.draw","Đặt bi","QuickPlace")
         quickPlace.addAction(UIAction{[weak self]_ in self?.toggleEdit()},for:.touchUpInside)
-        quickAdd=button("plus.circle","+ Bi","QuickAdd")
+        quickAdd=button("plus.circle","Thêm bi","QuickAdd")
         quickAdd.addAction(UIAction{[weak self]_ in guard let self=self else{return};if self.isPlacingBalls{self.cancelPlacement()}else{self.addBall()}},for:.touchUpInside)
         quickTools=button("slider.horizontal.3","Dụng cụ","QuickTools");quickTools.showsMenuAsPrimaryAction=true
         quickTools.menu=UIMenu(title:"Dụng cụ",children:[UIDeferredMenuElement.uncached{[weak self] completion in
@@ -584,7 +613,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             completion(items)
         }])
         quickCue=UIButton(type:.system);quickBag=UIButton(type:.system)
-        for item in [quickCamera!,quickTools!,quickReplay!,retryButton] {
+        // 0.22 order, top to bottom: Xem lại · Lùi cú (practice) · Đặt bi · Thêm bi · Bao cơ · Camera (under the thumb).
+        quickPlace.menu=UIMenu(title:"Đặt bi",children:[UIDeferredMenuElement.uncached{[weak self] completion in
+            guard let self=self,self.isPlacingBalls else{completion([]);return}
+            completion([UIAction(title:"Xong đặt bi"){[weak self]_ in self?.toggleEdit()},UIAction(title:"Hủy đặt bi",attributes:.destructive){[weak self]_ in self?.cancelPlacement()}])}])
+        for item in [quickReplay!,retryButton,quickPlace!,quickAdd!,quickRole!,quickCamera!] {
             item.heightAnchor.constraint(equalToConstant:44).isActive=true;quickRail.addArrangedSubview(item)
         }
         quickScroll.translatesAutoresizingMaskIntoConstraints=false;quickScroll.accessibilityIdentifier="QuickRailScroll";quickScroll.showsVerticalScrollIndicator=false
@@ -610,20 +643,26 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard quickRole != nil else{return}
         let role=engine.settings["cueType"]?.intValue ?? 0
         elevationPad.degrees=table.cueElevation
-        let names=[0:"Đánh",1:"Jump",2:"Break",3:"Massé"]
-        quickRole.configuration?.title=names[shotKind] ?? "Đánh"
-        quickRole.menu=UIMenu(title:"Kiểu cú / loại cơ",children:[0,3,1,2].map{kind in
-            UIAction(title:names[kind]!,state:shotKind==kind ? .on:.off){[weak self]_ in self?.chooseShotKind(kind)}
+        let kindNames=[0:"Đánh",1:"Jump",2:"Break",3:"Massé"]
+        quickRole.configuration?.title="Bao cơ · "+(kindNames[shotKind] ?? "Đánh")
+        // Bao cơ: only the three cues of the selected bag, brand in brackets. Massé = Đánh raised to 60°+.
+        quickRole.menu=UIMenu(title:"Bao cơ",children:[(0,"Gậy Đánh"),(1,"Gậy Jump"),(2,"Gậy Break")].map{role,label in
+            let look=CueBag.cue(role),brand=look.title.components(separatedBy:" · ").first ?? look.title
+            let on=(role==0 ? (shotKind==0 || shotKind==3):shotKind==role)
+            return UIAction(title:"\(label) (\(brand))",state:on ? .on:.off){[weak self]_ in self?.chooseShotKind(role)}
         })
         quickPlace.configuration?.title=isPlacingBalls ? "Xong":"Đặt bi"
-        quickAdd.configuration?.title=isPlacingBalls ? "Hủy":"+ Bi"
-        quickAdd.menu=isPlacingBalls ? nil:UIMenu(title:"Xếp bi ngẫu nhiên",children:[
-            UIMenu(title:"Thêm vào bàn",children:Array(1...15).map{n in UIAction(title:"Thêm \(n) bi"){[weak self]_ in self?.addRandomBalls(n)}}),
-            UIMenu(title:"Tạo thế mới",children:Array(1...15).map{n in UIAction(title:"Tạo thế \(n) bi"){[weak self]_ in self?.addRandomBalls(n,replacing:true)}}),
-            UIAction(title:"Chọn số bi / nhập seed"){[weak self]_ in self?.randomOptions()}])
-        quickCamera.menu=UIMenu(title:"Góc nhìn",children:[0,1,2].map{mode in
-            UIAction(title:["Toàn bàn","Trên cao","Ngắm cơ"][mode],state:table.cameraMode==mode ? .on:.off){[weak self]_ in self?.selectCamera(mode)}
-        })
+        quickPlace.showsMenuAsPrimaryAction=false
+        quickAdd.configuration?.title=isPlacingBalls ? "Hủy":"Thêm bi"
+        quickAdd.showsMenuAsPrimaryAction = !isPlacingBalls
+        quickAdd.menu=isPlacingBalls ? nil:UIMenu(title:"Thêm bi",children:[
+            UIAction(title:"Thêm từng bi"){[weak self]_ in self?.addBall()},
+            UIAction(title:"Thêm bi · số lượng / bố trí"){[weak self]_ in self?.randomOptions()},
+            UIMenu(title:"Thêm nhanh",children:Array(1...15).map{n in UIAction(title:"Thêm \(n) bi"){[weak self]_ in self?.addRandomBalls(n)}}),
+            UIMenu(title:"Tạo thế mới",children:Array(1...15).map{n in UIAction(title:"Tạo thế \(n) bi"){[weak self]_ in self?.addRandomBalls(n,replacing:true)}})])
+        // Camera: hold = overview, release = back to the aim view; quick tap = toggle. No long-press menu (it would steal the hold).
+        quickCamera.menu=nil
+        quickCamera.configuration?.title=table.cameraMode==2 ? "Camera · ngắm":"Camera · toàn cảnh"
         quickCue.menu=UIMenu(title:"Cơ",children:(0...2).map{i in UIAction(title:CueBag.cue(i).title){[weak self]_ in self?.chooseRole(i)}})
         quickBag.menu=UIMenu(title:"Bao cơ",children:[quickCue.menu!,UIMenu(title:"Đổi bao",children:CueBag.names.enumerated().map{i,title in UIAction(title:title){[weak self]_ in CueBag.active=i;self?.chooseRole(role)}}),UIAction(title:"Thư viện bàn & cơ"){[weak self]_ in self?.openLibrary()}])
     }
@@ -689,6 +728,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard !presentationBusy,localTurn,!locked else{return}
         var values=engine.settings;values["cueElevationDegrees"]=NSNumber(value:degrees);values["experimental3D"]=NSNumber(value:degrees>0)
         engine.settings=values;table.cueElevation=degrees
+        let followed=Int(BLShotKindForElevation(Int32(shotKind),degrees))
+        if followed != shotKind{shotKind=followed;UserDefaults.standard.set(followed,forKey:"shotKind017");applySquirtPolicy()}
         spin.maximumOffset=tipLimit(elevated:degrees>0)
         UserDefaults.standard.set(engine.settings,forKey:"physics");guideDirty=true;syncQuickRail()
     }
@@ -727,7 +768,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         menuButton.isHidden=locked
         fineWheel.isHidden=locked || menuOpen
         spin.isHidden=locked || menuOpen
-        quickScroll.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen
+        quickScroll.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen || spinExpanded
         coachButton.isHidden=locked || menuOpen
         table.setTrainingOverlaysHidden(!coachOn || locked)
         if !locked{stroke.cancelStroke();pull=0;if matchIsCompetitive{table.setCompetitivePresentation(numbers:matchPlay.showNumbers)}}
@@ -837,16 +878,30 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         aimCameraYaw=0;shotCameraAnchor=nil;applyCamera(saved);table.cameraMode=2;observationCamera=false;table.focusBounds=nil
         beginCameraTransition(0.45);cameraButton.configuration?.title="Ngắm cơ";syncQuickRail()
     }
-    func eyeDown(){eyePressDuringShot=shotActive || BLShotCameraBusy(shotCameraState);wakeRendering()}
+    func eyeDown(){
+        eyePressDuringShot=shotActive || BLShotCameraBusy(shotCameraState);wakeRendering()
+        eyeHoldWork?.cancel()
+        guard !eyePressDuringShot,replayIndex==nil,!isPlacingBalls else{return}
+        // Held 0.25 s = peek at the other view (aim <-> overview); releasing returns at once.
+        let work=DispatchWorkItem{[weak self] in
+            guard let self=self,self.quickCamera.isTracking,self.peekPose==nil else{return}
+            self.peekPose=self.captureCamera();self.aimCameraYaw=0;self.shotCameraAnchor=nil
+            self.selectCamera(self.table.cameraMode==2 ? 0:2)
+        }
+        eyeHoldWork=work;DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work)
+    }
     func releasePeek(){
-        guard let pose=peekPose else{return};peekPose=nil;applyCamera(pose)
+        eyeHoldWork?.cancel();eyeHoldWork=nil
+        guard let pose=peekPose else{return};peekPose=nil;applyCamera(pose);syncQuickRail()
     }
     func eyeUp(){
+        eyeHoldWork?.cancel();eyeHoldWork=nil
         let observingShot=eyePressDuringShot;eyePressDuringShot=false
-        if observingShot{return}
         if peekPose != nil{releasePeek();return}
+        if observingShot{return}
         guard !shotActive,replayIndex==nil,!isPlacingBalls,!locked else{return}
-        aimCameraYaw=0;shotCameraAnchor=nil;selectCamera(table.cameraMode==2 ? lastObservedMode:2)
+        // Quick tap toggles between the two views the owner kept: aim (2) and overview (0).
+        aimCameraYaw=0;shotCameraAnchor=nil;selectCamera(table.cameraMode==2 ? 0:2);syncQuickRail()
     }
     func directCamera(time:Double,state:[BallState],replay:Bool){
         guard replay,replayAuto,!cameraManual else{return}
@@ -894,9 +949,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }else{
             hideCoach();editingSnapshot=balls;editingPose=captureCamera();isPlacingBalls=true
             var state=balls
-            if let i=state.firstIndex(where:{$0.id==0}){state[i].x=0;state[i].y=0;state[i].sunk=false}else{state.append(BallState(id:0,x:0,y:0))}
+            // 0.22: free spot nearest the centre (BLFreeSpotNearCentre), never on top of another ball.
+            let others=state.filter{$0.id != 0 && !$0.sunk},geo=engine.settings
+            var xs=others.map{$0.x},ys=others.map{$0.y},fx=0.0,fy=0.0
+            _=BLFreeSpotNearCentre(&xs,&ys,Int32(others.count),geo["ballRadius"]?.doubleValue ?? 0.028575,(geo["tableWidth"]?.doubleValue ?? 1.27)/2,(geo["tableLength"]?.doubleValue ?? 2.54)/2,&fx,&fy)
+            if let i=state.firstIndex(where:{$0.id==0}){state[i].x=fx;state[i].y=fy;state[i].sunk=false}else{state.append(BallState(id:0,x:fx,y:fy))}
             engine.loadLayout(state.map{$0.dictionary});selectCamera(1)
-            table.placementBlocked = !placementValid();notifyStatus("Kéo bi cái từ giữa bàn · Xong để nhận · Hủy để phục hồi")
+            table.placementBlocked = !placementValid();notifyStatus("Bi cái ở ô trống gần giữa bàn · kéo để chỉnh · Xong để nhận · Hủy để phục hồi")
         }
         refresh();updateControls();syncQuickRail()
     }

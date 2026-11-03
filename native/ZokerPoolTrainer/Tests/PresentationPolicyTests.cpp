@@ -1,3 +1,4 @@
+#include <vector>
 #include "../BankLab/UI/PresentationPolicy.h"
 #include <algorithm>
 #include <array>
@@ -64,6 +65,36 @@ void checkLayout(double width, double height, bool expanded) {
 
 }
 
+
+static bool hit(const BLRect& a, const BLRect& b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; }
+static bool inside(const BLRect& r, double x0, double y0, double w, double h) { return r.x >= x0 - 1e-9 && r.y >= y0 - 1e-9 && r.x + r.w <= x0 + w + 1e-9 && r.y + r.h <= y0 + h + 1e-9; }
+// 0.22 thumb-first HUD: every combination of device, hand, mode and effect expansion.
+static void checkHUD022(double x0, double y0, double w, double h, int pad) {
+    for (int left = 0; left < 2; ++left) for (int practice = 0; practice < 2; ++practice) for (int expanded = 0; expanded < 2; ++expanded) {
+        const BLHUDFrames f = BLHUDLayout(x0, y0, w, h, pad, left, practice, expanded);
+        assert(f.items == (practice ? 6 : 5));
+        std::vector<BLRect> shown{f.rail, f.spin, f.menu, f.bridge};
+        if (!expanded) { shown.push_back(f.wheel); shown.push_back(f.elevation); }
+        if (practice) shown.push_back(f.coach);
+        for (const auto& r : shown) { assert(inside(r, x0, y0, w, h)); assert(r.w >= 44 && r.h >= 40); }
+        for (size_t a = 0; a < shown.size(); ++a) for (size_t b = a + 1; b < shown.size(); ++b) assert(!hit(shown[a], shown[b]));
+        assert(f.button >= 44);
+        const double cx = x0 + w / 2;
+        // thumb side: column, effect, elevation on the dominant-hand side; B on the other side
+        if (!left) { assert(f.rail.x > cx && f.spin.x > cx && f.bridge.x < cx && f.menu.x < cx); }
+        else       { assert(f.rail.x + f.rail.w < cx && f.spin.x + f.spin.w < cx && f.bridge.x > cx && f.menu.x > cx); }
+        if (!expanded) {
+            // owner layout: elevation beside the effect ball on the inner side, wheel under it, column at the edge
+            if (!left) assert(f.elevation.x + f.elevation.w <= f.spin.x && f.spin.x + f.spin.w <= f.rail.x);
+            else       assert(f.elevation.x >= f.spin.x + f.spin.w && f.spin.x >= f.rail.x + f.rail.w);
+            assert(f.wheel.y >= f.spin.y + f.spin.h && f.wheel.w > f.wheel.h);
+            assert(f.spin.w >= (pad ? 100 : 76));   // finger-sized effect ball
+        }
+        // left-handed is the exact mirror of right-handed
+        if (left) { const BLHUDFrames r = BLHUDLayout(x0, y0, w, h, pad, 0, practice, expanded);
+            assert(std::abs((f.spin.x - x0) - (w - (r.spin.x - x0) - r.spin.w)) < 1e-9 && std::abs(f.spin.y - r.spin.y) < 1e-9); }
+    }
+}
 int main() {
     BLShotCameraState s{};
     assert(!rest(s,100)); passed("idle never emits a shot-ready signal");
@@ -123,6 +154,18 @@ int main() {
     passed("compact vertical HUD and Coach fit phone and iPad safe areas");
     for(auto size : {std::array<double,2>{568,299},{750,369},{830,388},{1024,744}})checkLayout(size[0],size[1],true);
     passed("expanded effect leaves B, Coach, Menu, wheel and scroll column separate");
+    // safe-area rects (landscape): iPhone SE, iPhone 15 Pro, 15 Pro Max, iPad 10.9", iPad Pro 13"
+    checkHUD022(0, 0, 568, 299, 0); checkHUD022(59, 0, 734, 372, 0); checkHUD022(59, 0, 814, 409, 0);
+    checkHUD022(0, 24, 1180, 776, 1); checkHUD022(0, 24, 1376, 1000, 1);
+    passed("0.22 HUD: thumb column, effect 76/100 pt, elevation left, wheel below, left-hand mirror, no overlaps");
+    {   double x = 9, y = 9; const double R = .028575;
+        assert(BLFreeSpotNearCentre(nullptr, nullptr, 0, R, .635, 1.27, &x, &y) && x == 0 && y == 0);
+        const double xs[3] = {0, .03, -.02}, ys[3] = {0, .01, -.04};
+        assert(BLFreeSpotNearCentre(xs, ys, 3, R, .635, 1.27, &x, &y));
+        for (int k = 0; k < 3; ++k) assert(std::hypot(xs[k] - x, ys[k] - y) >= 2 * R);
+        assert(std::hypot(x, y) < .12);
+    }
+    passed("0.22 Đặt bi: free spot nearest the centre, never on another ball");
     for(int fps : {30,60,120}) {
         double remaining=0.45,value=0;
         while(remaining>0) {

@@ -22,4 +22,13 @@ static inline int BLTipForShotKind(int shotKind) {
 // Gậy phá: hệ số lực người chơi tạo được [thiết kế]; mức 30 ≈ 11,9 m/s với đầu cứng.  [Tests/CueTipTests.cpp]
 #define BL_BREAK_SPEED_GAIN 1.4
 
+// 0.22: Bao cơ chỉ có 3 gậy (Đánh / Jump / Phá). Massé không còn là gậy riêng: gậy Đánh nâng cơ từ 60° là Massé
+// (đầu tẩy mềm, tiếp xúc đồng thời), hạ dưới 60° về Đánh.                                  [Tests/CueTipTests.cpp]
+#define BL_MASSE_ELEVATION 60.0
+static inline int BLShotKindForElevation(int shotKind, double elevationDegrees) {
+    if (shotKind == 0 && elevationDegrees >= BL_MASSE_ELEVATION) return 3;
+    if (shotKind == 3 && elevationDegrees < BL_MASSE_ELEVATION) return 0;
+    return shotKind;
+}
+
 #endif
