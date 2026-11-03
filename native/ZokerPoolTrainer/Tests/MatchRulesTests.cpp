@@ -121,5 +121,26 @@ int main(){
      check(!a.accepted,"nonexistent IDs cannot manufacture a legal three-point break");}
     {auto r=playing(Discipline::NineBall);r.state.ballInHand=true;auto e=shot({0,1},{contact(1),rail(0)});e.before[1].p={.05715,-.9};
      auto a=r.complete(e);check(a.foul&&a.reason=="bad_cue_ball_placement","ball in hand must not be placed touching an object ball");}
+        // ---- 0.26 automatic call: straight-in pot counts, anything indirect is "lucky" ----
+    {auto r=playing(Discipline::EightBall);r.autoCall=true;r.state.groups={{0,1}};
+     auto a=r.complete(shot({0,1,8,9},{contact(1),pot(1,2)}));
+     check(!a.foul&&a.state.currentPlayer==0,"auto-call: object ball straight into a pocket is a called pot (8-ball)");}
+    {auto r=playing(Discipline::EightBall);r.autoCall=true;r.state.groups={{0,1}};
+     auto a=r.complete(shot({0,1,8,9},{contact(1),rail(1,0,.2),pot(1,2,.4)}));
+     check(a.state.currentPlayer==1,"auto-call: a bank is lucky unless called -> turn passes");}
+    {auto r=playing(Discipline::EightBall);r.autoCall=true;r.state.groups={{0,1}};
+     auto a=r.complete(shot({0,1,8,9},{contact(1),rail(1,0,.2),pot(1,2,.4)},Call{1,2}));
+     check(!a.foul&&a.state.currentPlayer==0,"Call: a called bank counts");}
+    {auto r=playing(Discipline::EightBall);r.autoCall=true;r.state.groups={{0,1}};
+     auto a=r.complete(shot({0,1,2,8,9},{contact(1),Event{1,1,2,.2,{}},pot(2,4,.4)}));
+     check(a.state.currentPlayer==1,"auto-call: a combination is lucky unless called");}
+    {auto r=playing(Discipline::TenBall);r.autoCall=true;
+     auto a=r.complete(shot({0,1,10},{contact(1),pot(1,3)}));
+     check(!a.foul&&a.state.currentPlayer==0,"auto-call: 10-ball straight-in pot of the lowest ball keeps the turn");}
+    {auto r=playing(Discipline::TenBall);r.autoCall=true;
+     auto a=r.complete(shot({0,1,10},{contact(1),pot(10,5,.5)}));
+     check(a.state.winner<0,"auto-call: 10-ball combination on the 10 is not a lucky win");}
+    {check(Rules::inferDirectCall({contact(3),pot(3,1)}).ball==3&&Rules::inferDirectCall({contact(3),pot(3,1)}).pocket==1,"inferDirectCall reads ball and pocket");
+     check(Rules::inferDirectCall({contact(3),Event{1,3,5,.2,{}},pot(3,1,.3)}).ball==0,"inferDirectCall: kiss before the pocket = no call");}
     std::cout<<"PASS MatchRules: "<<assertions<<" checks; WPA8/9/10 event adjudication, break choices, push-out, called shots, three-foul warning, seeded racks; Rotation15 named practice variant\n";
 }

@@ -76,7 +76,34 @@ public:
                 b.p={(col-(width-1)/2.0)*diameter,.635+(row-(nine?2:0))*rowHeight};result.push_back(b);}}
         return result;
     }
+    // 0.26 (owner 03/11/2026): no "lucky" balls in 8-ball / 10-ball without forcing a call before every shot.
+    // When the shooter made no call, the call is read from the shot itself: the first object ball the cue ball
+    // touches, if it goes straight into a pocket without touching any cushion or ball on the way, is the called
+    // ball/pocket. Anything else (bank, kick, combination, kiss, a second ball dropping) is uncalled -> it does not
+    // count, exactly as an uncalled pot under WPA rules. A different shot is called with the Call button.
+    // Off by default so the core keeps the explicit-call regressions; the app turns it on (BLMatch.mm).
+    bool autoCall=false;
+    static Call inferDirectCall(const std::vector<Event>& events) {
+        int target=-1;size_t i=0;
+        for(;i<events.size();++i)if(events[i].kind==1&&(events[i].a==0||events[i].b==0)){target=events[i].a==0?events[i].b:events[i].a;break;}
+        Call c;if(target<=0)return c;
+        for(++i;i<events.size();++i){
+            const Event& ev=events[i];
+            const bool involves=ev.a==target||(ev.kind==1&&ev.b==target);
+            if(!involves)continue;
+            if(ev.kind==2&&ev.a==target&&ev.b>=0){c.ball=target;c.pocket=ev.b;}
+            return c;   // first thing that happens to the target decides: pocket = called, anything else = not
+        }
+        return c;
+    }
     Action complete(const Evidence& e) {
+        if(autoCall&&state.requiresCall()&&e.call.ball==0&&!e.call.safety&&!e.call.pushOut){
+            Evidence inferred=e;inferred.call=inferDirectCall(e.events);
+            if(inferred.call.ball>0)return completeResolved(inferred);
+        }
+        return completeResolved(e);
+    }
+    Action completeResolved(const Evidence& e) {
         Action out;out.shooter=state.currentPlayer;
         if(!state.canShoot())return rejected("shot_not_allowed");
         if(!valid(e))return rejected("invalid_evidence");

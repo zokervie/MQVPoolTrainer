@@ -82,6 +82,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var eyePressDuringShot=false
     var eyeHoldWork:DispatchWorkItem?
     var frameLayoutAdopted=false
+    var matchCallPicking=0,matchCallBall=0,matchCallPose:CameraPose?
+    let quickCall=UIButton(type:.system)
     var leftHanded:Bool{UserDefaults.standard.bool(forKey:"leftHanded022")}
     var lastObservedMode=0
     var referenceSpeed:Double{lastShotSpeed>0 ? lastShotSpeed:testSpeed}
@@ -312,12 +314,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard spinWidth != nil,quickRailBottom != nil else{return}
         adoptFrameLayoutOnce()
         let safe=view.safeAreaLayoutGuide.layoutFrame,pad=UIDevice.current.userInterfaceIdiom == .pad
-        let f=BLHUDLayout(Double(safe.minX),Double(safe.minY),Double(safe.width),Double(safe.height),pad ? 1:0,leftHanded ? 1:0,matchIsCompetitive ? 0:1,spinExpanded ? 1:0)
+        // 6 shortcuts in practice (Lùi cú) and in called-shot matches (Call); 5 otherwise.
+        let sixItems = !matchIsCompetitive || matchBool("requiresCall")
+        let f=BLHUDLayout(Double(safe.minX),Double(safe.minY),Double(safe.width),Double(safe.height),pad ? 1:0,leftHanded ? 1:0,sixItems ? 1:0,spinExpanded ? 1:0)
         // bounds + center (not frame): elevation/wheel may carry a zoom transform while touched.
         func place(_ v:UIView,_ b:BLRect){v.bounds=CGRect(x:0,y:0,width:b.w,height:b.h);v.center=CGPoint(x:b.x+b.w/2,y:b.y+b.h/2)}
         place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
         place(menuButton,f.menu);place(coachButton,f.coach);place(lockButton,f.bridge);place(panel,f.panel);spin.setNeedsDisplay()
         retryButton.isHidden=matchIsCompetitive
+        quickCall.isHidden = !(matchIsCompetitive && matchBool("requiresCall"))
         for item in quickRail.arrangedSubviews{item.constraints.first{$0.firstAttribute == .height && $0.secondItem==nil}?.constant=CGFloat(f.button)}
         spinWidth.constant=CGFloat(f.spin.w);spinHeight.constant=CGFloat(f.spin.h)
     }
@@ -350,7 +355,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if leftHanded ? elevationPad.frame.minX<spin.frame.maxX : elevationPad.frame.maxX>spin.frame.minX{failures.append("Elevation is not beside the effect ball on the inner side")}
             if fineWheel.frame.minY<spin.frame.maxY{failures.append("Fine wheel is not under the effect ball")}
         }
-        let interactive:[UIControl]=[spin,lockButton,coachButton,quickReplay!,retryButton,quickPlace!,quickAdd!,quickRole!,quickCamera!].filter{!$0.isHidden}
+        let interactive:[UIControl]=[spin,lockButton,coachButton,quickReplay!,retryButton,quickCall,quickPlace!,quickAdd!,quickRole!,quickCamera!].filter{!$0.isHidden}
         for control in interactive {
             let name=control.accessibilityIdentifier ?? control.accessibilityLabel ?? String(describing:type(of:control))
             frames[name]=String(describing:control.convert(control.bounds,to:view))
@@ -617,7 +622,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickPlace.menu=UIMenu(title:"Đặt bi",children:[UIDeferredMenuElement.uncached{[weak self] completion in
             guard let self=self,self.isPlacingBalls else{completion([]);return}
             completion([UIAction(title:"Xong đặt bi"){[weak self]_ in self?.toggleEdit()},UIAction(title:"Hủy đặt bi",attributes:.destructive){[weak self]_ in self?.cancelPlacement()}])}])
-        for item in [quickReplay!,retryButton,quickPlace!,quickAdd!,quickRole!,quickCamera!] {
+        // 0.26: in 8/10-ball matches the Lùi cú slot becomes Call (full-screen pick: ball, then pocket).
+        quickCall.configuration=button("scope","Call","QuickCall").configuration;quickCall.accessibilityIdentifier="QuickCall"
+        quickCall.addAction(UIAction{[weak self]_ in self?.beginMatchCallPick()},for:.touchUpInside)
+        for item in [quickReplay!,retryButton,quickCall,quickPlace!,quickAdd!,quickRole!,quickCamera!] {
             item.heightAnchor.constraint(equalToConstant:44).isActive=true;quickRail.addArrangedSubview(item)
         }
         quickScroll.translatesAutoresizingMaskIntoConstraints=false;quickScroll.accessibilityIdentifier="QuickRailScroll";quickScroll.showsVerticalScrollIndicator=false
@@ -641,6 +649,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func syncQuickRail(){
         guard quickRole != nil else{return}
+        let wantCall=matchIsCompetitive && matchBool("requiresCall"),wantRetry = !matchIsCompetitive
+        if quickCall.isHidden == wantCall || retryButton.isHidden == wantRetry {quickCall.isHidden = !wantCall;retryButton.isHidden = !wantRetry;view.setNeedsLayout()}
         let role=engine.settings["cueType"]?.intValue ?? 0
         elevationPad.degrees=table.cueElevation
         let kindNames=[0:"Đánh",1:"Jump",2:"Break",3:"Massé"]
@@ -1297,7 +1307,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     @objc func tapTable(_ g:UITapGestureRecognizer){
         guard localTurn,!presentationBusy,!menuOpen,!spinExpanded,!locked,let p=tablePoint(g.location(in:scn)) else{return}
-        wakeRendering();shotCameraAnchor=nil;aimCameraYaw=0
+        wakeRendering()
+        if handleMatchCallTap(p){return}
+        shotCameraAnchor=nil;aimCameraYaw=0
         if isPlacingBalls {moveBall(0,to:p)}else if let c=cue {angle=atan2(p.y-c.y,p.x-c.x);refresh()}
     }
     @objc func panTable(_ g:UIPanGestureRecognizer){

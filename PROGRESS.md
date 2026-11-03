@@ -36,6 +36,9 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (23h30) · 0.26 luật gọi lỗ tự động — TESTED_PORTABLE (MatchRules 464 kiểm tra):
+  - 8-ball / 10-ball không còn bắt gọi trước mỗi cú. Không gọi → lỗ được đọc từ chính cú đánh: bi mục tiêu đầu tiên đi **thẳng** vào lỗ (không chạm băng/bi nào) là bi + lỗ đã gọi. Băng, kick, combo, kiss, bi khác rơi theo = ăn may → không tính (luật bi không gọi WPA). `Rules::autoCall` (lõi mặc định tắt, app bật).
+  - Phím **Call** trên cột phím (thay chỗ Lùi cú trong trận 8/10-ball): camera trên cao toàn màn hình → chạm bi → chạm lỗ; chạm Call lần nữa để hủy.
 - 03/11/2026 (23h) · `ci/native-0.21-vat-ly` gộp 0.22 + âm thanh — TESTED_PORTABLE (23 bộ C++), chờ CI Mac:
   - **0.22 HUD theo tầm ngón cái** (`BLHUDLayout`, test 5 cỡ màn × tay phải/trái × luyện tập/thi đấu × effect phóng to): cột phím cạnh phải, trên → dưới: Xem lại · Lùi cú (chỉ luyện tập) · Đặt bi · Thêm bi · Bao cơ · Camera; bi effect 76 pt (iPad 100); thanh nâng cơ bên trái bi effect, bánh xe ngắm nằm ngang bên dưới, cả hai phóng 1,6× khi chạm; Menu + Coach góc trên trái; B góc dưới trái. **Tay trái**: lật gương toàn bộ (Thư viện → Tay trái / tay phải).
   - **Camera**: giữ 0,25 s = xem góc kia (ngắm ↔ toàn cảnh), buông = về ngay; chạm nhanh = đổi qua lại. Bỏ menu giữ-lâu (cướp thao tác giữ). Sửa lỗi cũ: `peekPose` chưa bao giờ được gán.

@@ -26,7 +26,7 @@ std::vector<Ball> balls(NSArray *array){
 }
 @implementation BLMatch {std::unique_ptr<match::Rules> _rules;match::Call _call;}
 - (instancetype)init {return [self initWithRule:@"nineBall"];}
-- (instancetype)initWithRule:(NSString *)rule {if((self=[super init])){_rules=std::make_unique<match::Rules>(match::discipline(rule.UTF8String ?: "nineBall"));}return self;}
+- (instancetype)initWithRule:(NSString *)rule {if((self=[super init])){_rules=std::make_unique<match::Rules>(match::discipline(rule.UTF8String ?: "nineBall"));_rules->autoCall=true; /* 0.26 */}return self;}
 - (NSDictionary *)state {return dictionary(_rules->state);}
 - (void)resetWithBreaker:(NSInteger)breaker {_rules->reset(static_cast<int>(breaker));_call={};}
 - (NSArray *)rackWithSeed:(uint64_t)seed {NSMutableArray *result=[NSMutableArray array];for(const auto& b:_rules->rack(seed))

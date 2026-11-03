@@ -321,7 +321,7 @@ extension TrainingController {
         else if matchPlay.pushOut { detail = "Đã khai Push-out" }
         else if matchPlay.safety { detail = "Đã gọi đánh an toàn" }
         else if matchPlay.calledBall > 0 { detail = "Gọi bi \(matchPlay.calledBall) · lỗ \(matchPlay.calledPocket + 1)" }
-        else if matchBool("requiresCall") { detail = "Chạm để gọi bi / lỗ trước cú đánh" }
+        else if matchBool("requiresCall") { detail = "Tự động: bi đi thẳng vào lỗ được tính · băng/combo: bấm Call" }
         if let scores = matchPlay.state["scores"] as? [Int], scores.count == 2, matchPlay.state["rule"] as? String == "rotation15" { detail += " · \(scores[0])–\(scores[1])/61" }
         if let groups = matchPlay.state["groups"] as? [Int], groups.count == 2, matchPlay.state["rule"] as? String == "eightBall", groups[player] >= 0 { detail += groups[player] == 0 ? " · bi trơn" : " · bi sọc" }
         return "\(name) · \(room) · \(seat)\n\(detail)"
@@ -360,6 +360,36 @@ extension TrainingController {
         sheet.addAction(UIAlertAction(title: "Rời trận / về luyện tập", style: .destructive) { [weak self] _ in self?.leaveMatch() })
         sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel))
         presentSheet(sheet, source: matchPlay.banner)
+    }
+    /// 0.26 Call: full-screen top view; tap the ball, then the pocket. Cancel by tapping Call again.
+    func beginMatchCallPick() {
+        guard matchAllowsInput, !shotActive, matchBool("requiresCall") else { return }
+        if matchCallPicking != 0 { endMatchCallPick(); notifyStatus("Đã hủy gọi lỗ"); return }
+        matchCallPose = captureCamera(); selectCamera(1); matchCallPicking = 1; matchCallBall = 0
+        notifyStatus("Call · chạm vào bi muốn gọi")
+    }
+    func endMatchCallPick() {
+        matchCallPicking = 0; matchCallBall = 0
+        if let pose = matchCallPose { applyCamera(pose) }; matchCallPose = nil; syncQuickRail()
+    }
+    /// Returns true when the tap was used by the Call picker.
+    func handleMatchCallTap(_ p: SIMD2<Double>) -> Bool {
+        guard matchCallPicking != 0 else { return false }
+        if matchCallPicking == 1 {
+            let candidates = balls.filter { $0.id > 0 && !$0.sunk }
+            guard let ball = candidates.min(by: { hypot($0.x - p.x, $0.y - p.y) < hypot($1.x - p.x, $1.y - p.y) }),
+                  hypot(ball.x - p.x, ball.y - p.y) < 0.12 else { notifyStatus("Chạm gần một bi hơn"); return true }
+            matchCallBall = ball.id; matchCallPicking = 2; notifyStatus("Bi \(ball.id) · chạm vào lỗ"); return true
+        }
+        // Pocket order = solver order (Physics.cpp World::pocket), independent of camera rotation.
+        let g = engine.settings, x = (g["tableWidth"]?.doubleValue ?? 1.27) / 2, y = (g["tableLength"]?.doubleValue ?? 2.54) / 2
+        let holes = [(-x, -y), (x, -y), (-x, 0.0), (x, 0.0), (-x, y), (x, y)]
+        let pocket = holes.indices.min(by: { hypot(holes[$0].0 - p.x, holes[$0].1 - p.y) < hypot(holes[$1].0 - p.x, holes[$1].1 - p.y) }) ?? 0
+        guard hypot(holes[pocket].0 - p.x, holes[pocket].1 - p.y) < 0.35 else { notifyStatus("Chạm gần một lỗ hơn"); return true }
+        let ball = matchCallBall; endMatchCallPick()
+        submitMatchAction(.callShot, call: LANCall(ball: ball, pocket: pocket))
+        notifyStatus("Đã gọi bi \(ball) · lỗ \(pocket + 1)")
+        return true
     }
     func chooseMatchCall() {
         guard matchAllowsInput, !shotActive else { return }
@@ -403,9 +433,7 @@ extension TrainingController {
                 present(alert, animated: true); return true
             }
         }
-        if matchBool("requiresCall"), !matchPlay.pushOut, !matchPlay.safety, matchPlay.calledBall == 0 {
-            setHold(false); chooseMatchCall(); return true
-        }
+        // 0.26: no forced call. Uncalled shots are adjudicated by the straight-in rule (MatchRules::autoCall).
         if matchPlay.session.role == .none { return false }
         let shot = LANShot(angle: angle, speed: speed, side: side, top: top,
                            elevation: max(table.cueElevation, table.clearanceElevation),
@@ -478,7 +506,7 @@ extension TrainingController {
         case .strike:
             guard choices.isEmpty, let shot = command.shot, shot.isValid,
                   matchCuePositionValid(engine.states.map { BallState($0) }),
-                  !matchBool("requiresCall") || matchPlay.calledBall > 0 || matchPlay.safety || matchPlay.pushOut else { return false }
+                  true else { return false }
             angle = shot.angle; side = shot.side; top = shot.top
             var config = engine.settings
             config["cueType"] = NSNumber(value: shot.cueType)
