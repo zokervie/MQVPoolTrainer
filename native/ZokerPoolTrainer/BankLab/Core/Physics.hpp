@@ -40,8 +40,28 @@ struct Config {
     // "cue first, slate after". Default off; the app turns it on for the Massé shot kind. The cue keeps a
     // finite mass (cueMass()) and restitution .35 [assumed, from build 28; not fitted to video].
     bool masseCoupledContact=false;
+    // 0.21 (owner decision 03/11): with squirtRampDegrees > 0 the cue ball leaves on the aim line while the cue
+    // is level; squirt fades in with elevation, full at squirtRampDegrees [design ramp, avoids a jump at 0 deg].
+    // 0 = literature behaviour (squirt at every elevation), which keeps old regressions exact.
+    double squirtRampDegrees=0;
+    double squirtScale()const{return squirtRampDegrees<=0?1.0:std::clamp(cueElevationDegrees/squirtRampDegrees,0.0,1.0);}
+    // Cue tip: 0 medium (default, unchanged physics), 1 soft (massé), 2 hard (jump/break phenolic).
+    // A soft tip does NOT give more spin for the same contact point; it lets the tip hold further from centre
+    // before a miscue (larger maximum offset -> more maximum spin). A hard tip returns more energy.
+    // Offsets and efficiency ratios are ASSUMED (tip restitution .70/.75/.86 relative, TP A.30 (1+e) scaling).
+    int tipProfile=0;
+    double tipSpeedFactor()const{return tipProfile==1?.971:tipProfile==2?1.063:1.0;}
+    double tipMaxOffset(bool elevated)const{const double base=elevated?.60:.70;return base+(tipProfile==1?.08:tipProfile==2?-.05:0.0);}
+    // Break cue: heavier stroke the player can deliver with it [design gain]. Level 30 (8 m/s) x 1.4 x hard tip
+    // ~= 11.9 m/s, inside published pro break speeds (~25-30 mph = 11-13 m/s).
+    double breakSpeedGain=1.0;
+    double cueSpeedGain()const{return tipSpeedFactor()*(cueType==2?breakSpeedGain:1.0);}
+    static constexpr double maxBallSpeed=12.5;
     double masseCueRestitution=.35;
     double railRestitution=.82,railFriction=.16;
+    // Rail tangential restitution (grip-slip, CushionContact3D.hpp). 0 = rigid stick model (pre-0.21, keeps old
+    // regressions exact). The app sets railTangentialRestitution from the clip fit in Tests/ReverseZigzagTests.cpp.
+    double railTangentialRestitution=0;
     bool individualRails=false;
     std::array<double,4> railBounce{{.82,.82,.82,.82}},railGrip{{.16,.16,.16,.16}};
     double bounce(int i)const{return individualRails&&i>=0&&i<4?railBounce[i]:railRestitution;}

@@ -48,8 +48,8 @@ void World::strikeElevated(double angle,double speed,double side,double top){
     if(moving())return;
     auto it=std::find_if(balls.begin(),balls.end(),[](const Ball&b){return b.id==0&&!b.sunk;});
     if(it==balls.end())return;
-    speed=std::clamp(speed,0.0,8.0);
-    const double offset=std::hypot(side,top);if(offset>.60){side*=.60/offset;top*=.60/offset;}
+    speed=std::clamp(speed*config.cueSpeedGain(),0.0,Config::maxBallSpeed);
+    const double lim=config.tipMaxOffset(true),offset=std::hypot(side,top);if(offset>lim){side*=lim/offset;top*=lim/offset;}
     const double elevation=std::clamp(config.cueElevationDegrees,0.0,88.0)*pi/180; // 90° trên giao diện ≈ dựng đứng; 88° tránh hướng suy biến
     const double ca=std::cos(angle),sa=std::sin(angle),ce=std::cos(elevation),se=std::sin(elevation);
     const Vec direction{ca*ce,sa*ce,-se},lateral{-sa,ca,0},up{ca*se,sa*se,ce};
@@ -72,7 +72,7 @@ void World::strikeElevated(double angle,double speed,double side,double top){
         if(coupled.valid){setVelocity(*it,{coupled.velocity.x,coupled.velocity.y,coupled.velocity.z});setOmega(*it,{coupled.omega.x,coupled.omega.y,coupled.omega.z});}
     }
     // TP A.31: squirt cho thành phần ngang, cùng chiều quay ω_z (bi lệch ngược phía effect).
-    if(config.squirtEnabled){const double a=std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin);
+    if(config.squirtEnabled){const double a=config.squirtScale()*std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin);
      const double vx=it->v.x,vy=it->v.y;it->v={vx*std::cos(a)-vy*std::sin(a),vx*std::sin(a)+vy*std::cos(a)};}
     // Sequential cue impulse then slate response: explicit approximation, not a fake arc.
     // 0.15 (yêu cầu 27/10): chỉ cơ Phá/Jump (cueType 1, 2) làm bi bật khỏi mặt bàn. Cơ Đánh/Massé (0)
@@ -156,7 +156,7 @@ void World::stepElevated(double dt){
                 const double e=std::clamp(config.bounce(s.rail)-config.railSpeedSensitivity*std::abs(vn),.4,.98);
                 const double jn=-(1+e)*vn;const Vec slip=contact-normal*vn;
                 if(config.coupledCushions){
-                    auto out=contact3d::solve({b.v.x,b.v.y,b.vertical},{b.w.x,b.w.y,b.spin},{normal.x,normal.y,normal.z},r,e,config.grip(s.rail),config.slateFriction,b.height<=1e-8&&b.vertical<=1e-6);
+                    auto out=contact3d::solve({b.v.x,b.v.y,b.vertical},{b.w.x,b.w.y,b.spin},{normal.x,normal.y,normal.z},r,e,config.grip(s.rail),config.slateFriction,b.height<=1e-8&&b.vertical<=1e-6,config.railTangentialRestitution);
                     setVelocity(b,{out.velocity.x,out.velocity.y,out.velocity.z});setOmega(b,{out.omega.x,out.omega.y,out.omega.z});
                 }else impulse(b,arm,normal*jn+cap(slip*(-1/3.5),config.grip(s.rail)*jn),r);
                 b.p+=V2{normal.x,normal.y}*(r-distance+1e-9);b.height=std::max(0.0,b.height+normal.z*(r-distance));

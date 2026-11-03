@@ -36,6 +36,13 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (tối) · Nhánh `ci/native-0.21-vat-ly` — TESTED_PORTABLE (g++/clang++, 22 bộ C++), chờ CI Mac biên dịch Swift; chưa xác minh trên thiết bị:
+  - **Băng grip-slip (β):** clip *Reverse bank zigzag* (c-ZBSi9KBfc) được nắn phối cảnh về toạ độ nút (sai số ≤ 0,1 nút) và dò bi 8 qua 4 băng: 3,44 → 2,40 → 2,86 → 3,45 → lỗ giữa. Sau băng 2 bi **đổi chiều dọc bàn**; mô hình băng cứng 0.20 không làm được ở bất kỳ tốc độ/xoáy/ma sát nào. Thêm hệ số hồi phục tiếp tuyến β (Cross, Am. J. Phys. 70, 1093, 2002) vào `CushionContact3D.hpp` (mặc định lõi 0 = kết quả cũ y hệt). Hồ sơ app: β 0,30, giảm xoáy ngang 11 rad/s² (fit 1 clip) → 3,44 / 2,54 / 2,82 / 3,51, lệch ≤ 0,22 nút. `Tests/ReverseZigzagTests.cpp`. Còn mở: cuối cú bi trong clip chậm hơn mô hình 0,48 s.
+  - **Squirt theo độ nâng cơ (quyết định chủ dự án):** mọi gậy ra bi đúng hướng ngắm khi cơ ngang; squirt tăng dần theo độ nâng, đủ ở 15° (thiết kế). Thay chính sách theo kiểu cú của 0.20.
+  - **Lực:** bỏ kẹp 6 m/s của cú phẳng (mức 28–30 trước đây như nhau). Đánh mức 30 = 8,0 m/s; gậy phá ×1,4 + đầu cứng = 11,9 m/s (cú phá chuyên nghiệp ~11–13 m/s).
+  - **Đầu tẩy:** trung tính = vật lý cũ; mềm (Massé) chạm xa tâm hơn 0,08R → tỉ lệ effect ωR/v tối đa 1,75 → 1,95; cứng (Jump/Phá) +6% năng lượng. Mềm KHÔNG tăng xoáy ở cùng điểm chạm (vật lý thật). Giả định, chỉnh được trong *Hiệu chỉnh bàn*.
+  - **Massé:** mức 30, 70°/80°: 2,35 / 1,70 m/s, ~340 rad/s, đường cong 45° / 32° trong 1 s (clip D_lf-6KgFTo: ~2 m/s). Hình dạng đường cong so với clip: còn mở. Gậy Jump nằm ngang không nhảy; nâng 45° nhảy 180 mm.
+  - **Chỉnh tay:** thêm thanh trượt β, squirt theo độ nâng, hệ số gậy phá, đàn hồi massé; file MD xuất kèm nguồn từng hệ số. Cấu hình đã lưu được nâng cấp (bỏ giá trị cũ của các khoá mới).
 - 03/11/2026 · Nhánh `ci/native-0.20-ngam-thang` (sau 0.19) — TESTED_PORTABLE (g++/clang++, 20 bộ C++), chờ CI Mac biên dịch Swift; chưa xác minh trên thiết bị:
   - **Ngắm thẳng (quyết định chủ dự án):** Đánh/Phá tắt squirt → bi đi đúng đường ngắm (lệch 0,0000° thay vì 2,28° ở 0,5R). Jump/Massé giữ squirt TP A.31. Lõi giữ mặc định bật (`Config::squirtEnabled`) để LiteratureTests và replay cũ không đổi; `UI/ShotKindPolicy.h`. Cơ Đánh nâng còn lệch nhỏ do mặt bàn (swerve, 0,23° ở 8°/0,4R) — vật lý thật, giữ.
   - **Massé mạnh hơn, có cơ sở:** kiểu Massé giải đồng thời cơ–bi–mặt bàn (`Core/CueSlateContact.hpp`, chép từ build 28 repo private c5c2db3). 80°/4:30/lực 15: tốc độ bật 0,13 → 0,35 m/s; nâng cơ cao → bi chậm hơn, xoáy mạnh hơn (đúng Dr. Dave); không tạo năng lượng; đối xứng. Hệ số phục hồi cơ 0,35 là GIẢ ĐỊNH, chưa khớp video.

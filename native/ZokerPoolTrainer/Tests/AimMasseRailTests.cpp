@@ -28,7 +28,17 @@ static double energy(const Ball& b) {
 
 int main() {
     // ---------- A. aim-true ----------
-    check(!BLSquirtForShotKind(0) && BLSquirtForShotKind(1) && !BLSquirtForShotKind(2) && BLSquirtForShotKind(3), "policy: squirt only for Jump (1) and Massé (3)");
+    // 0.21 policy: squirt on for every cue, faded in by elevation (BL_SQUIRT_RAMP_DEGREES). Level cue = aim line.
+    for (int kind = 0; kind < 4; ++kind) {
+        Config c; c.width = 40; c.length = 40; c.squirtEnabled = true; c.squirtRampDegrees = BL_SQUIRT_RAMP_DEGREES;
+        c.tipProfile = BLTipForShotKind(kind); c.cueElevationDegrees = 0;
+        World w(c); Ball b; b.id = 0; w.balls = {b}; w.strike(.4, 2, .5, 0);
+        check(std::abs(std::remainder(std::atan2(w.balls[0].v.y, w.balls[0].v.x) - .4, 2 * pi)) < 1e-12, "policy 0.21: level cue leaves on the aim line for every shot kind");
+        c.cueElevationDegrees = 7.5; World h(c); h.balls = {b}; h.strike(.4, 2, .5, 0);
+        c.cueElevationDegrees = 15; World f(c); f.balls = {b}; f.strike(.4, 2, .5, 0);
+        const double dh = std::remainder(std::atan2(h.balls[0].v.y, h.balls[0].v.x) - .4, 2 * pi), df = std::remainder(std::atan2(f.balls[0].v.y, f.balls[0].v.x) - .4, 2 * pi);
+        check(std::abs(dh - df / 2) < 1e-9 && std::abs(df) > .3 * pi / 180, "policy 0.21: raised cue deflects, half at half the ramp");
+    }
     for (double side : {.5, -.5, .3}) for (double aim : {0.0, 1.1, -2.4}) {
         World off = planar(false), on = planar(true);
         off.strike(aim, 2, side, .2); on.strike(aim, 2, side, .2);

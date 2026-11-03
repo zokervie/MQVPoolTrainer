@@ -45,14 +45,18 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         }
         slider("Đàn hồi bi–bi","ballRestitution",0.80,1,0.94)
         slider("Ma sát bi–bi khi trượt chậm μ₀ (giảm theo tốc độ, TP A.14)","ballFriction",0,0.12,0.118)
-        slider("Giảm ép phê ngang (rad/s²)","spinDecay",1,20,7)
+        slider("Giảm ép phê ngang (rad/s²) — 0.21: 11, fit clip zigzag","spinDecay",1,20,11)
+        slider("Băng nảy ngược tiếp tuyến β (grip-slip) — 0.21: 0,30, fit clip zigzag","railTangentialRestitution",0,0.9,0.30)
+        slider("Squirt đủ ở độ nâng cơ (°) — 0: luôn có squirt","squirtRampDegrees",0,60,15)
+        slider("Gậy phá · hệ số lực","breakSpeedGain",1,1.8,1.4)
+        slider("Massé · đàn hồi cơ–bi (thấp: dính lâu, xoáy nhiều)","masseCueRestitution",0.1,0.9,0.35)
         slider("Độ nhạy vuốt cơ","sensitivity",0.5,1.8,1)
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định"){[weak self]in
             guard let self=self else{return};self.values=BLWorld().settings;self.sensitivity=1
             self.apply?(self.values,self.sensitivity);self.dismiss(animated:true)
         })
         let limits=UILabel();limits.numberOfLines=0;limits.textColor=UIColor(white:0.65,alpha:1);limits.font = .systemFont(ofSize:12)
-        limits.text="Hiệu chuẩn: va chạm băng dạng xung lực gần đúng, lòng lỗ dùng vùng bắt 2D. A1 dùng xung lực 3D, ma sát Coulomb hai chiều và ràng buộc mặt đá khi bi tiếp xúc. Đây chưa phải mô hình băng biến dạng Mathavan/Stronge. Thông số fit của mô hình cũ cần đo lại. Bản 0.14: throw theo ma sát phụ thuộc tốc độ (TP A.14), squirt (TP A.31, khối lượng đầu cơ giả định) và tốc độ bi theo điểm chạm (TP A.30). Chưa hiệu chuẩn băng biến dạng, độ ẩm, swerve hoặc Jump/Massé. Hãy đối chiếu bằng bài đo trước khi dùng để suy ra đường thi đấu."
+        limits.text="0.21: β băng và giảm xoáy fit theo clip zigzag; squirt chỉ khi nâng cơ; gậy phá ×1,4; đầu tẩy mềm/cứng (giả định). Hiệu chuẩn: va chạm băng dạng xung lực gần đúng, lòng lỗ dùng vùng bắt 2D. A1 dùng xung lực 3D, ma sát Coulomb hai chiều và ràng buộc mặt đá khi bi tiếp xúc. Đây chưa phải mô hình băng biến dạng Mathavan/Stronge. Thông số fit của mô hình cũ cần đo lại. Bản 0.14: throw theo ma sát phụ thuộc tốc độ (TP A.14), squirt (TP A.31, khối lượng đầu cơ giả định) và tốc độ bi theo điểm chạm (TP A.30). Chưa hiệu chuẩn băng biến dạng, độ ẩm, swerve hoặc Jump/Massé. Hãy đối chiếu bằng bài đo trước khi dùng để suy ra đường thi đấu."
         body.addArrangedSubview(limits)
     }
     private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,_ fallback:Double){
@@ -74,6 +78,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             lines.append("| \(key) | \(originalValues[key]?.stringValue ?? "—") | \(values[key]?.stringValue ?? "—") |")
         }
         lines.append("| swipeSensitivity | \(originalSensitivity) | \(sensitivity) |")
+        lines += ["", "## Nguồn hệ số (0.21)", "", "- railTangentialRestitution 0,30 và spinDecay 11: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút — đo 1 clip, chưa tổng quát.", "- railRestitution 0,82, railFriction 0,16: giữ nguyên (đã khớp clip với β).", "- squirtRampDegrees 15, breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
         lines += ["", "## Ghi chú đo bàn thật", "", "- Loại bàn / nỉ / bi:", "- Cự ly và tốc độ đầu đo được:", "- Quãng đường dừng / góc bật đo được:", "- Sai lệch so với ứng dụng:", "", "Xuất file không tự áp dụng cấu hình; bấm Lưu để áp dụng."]
         let url=FileManager.default.temporaryDirectory.appendingPathComponent("ZTrainer-calibration-"+UUID().uuidString+".md")
         do{

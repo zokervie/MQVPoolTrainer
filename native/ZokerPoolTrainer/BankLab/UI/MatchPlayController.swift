@@ -484,9 +484,10 @@ extension TrainingController {
             config["cueType"] = NSNumber(value: shot.cueType)
             config["cueElevationDegrees"] = NSNumber(value: shot.elevation)
             config["experimental3D"] = NSNumber(value: shot.elevation > 35 || shot.cueType == 1)
+            shotKind = shot.cueType == 0 && shot.elevation > 35 ? 3 : shot.cueType
+            shotKindPhysics(shotKind, &config)   // 0.21: same tip/squirt/massé policy as practice on both devices
             engine.settings = config
             table.selectCue(shot.cueType); table.cueElevation = shot.elevation
-            shotKind = shot.cueType == 0 && shot.elevation > 35 ? 3 : shot.cueType
             spin.select(side: shot.side, top: shot.top)
             guard cueClearance(side: shot.side, top: shot.top) <= shot.elevation + 0.01 else { return false }
             localTurn = true; locked = true; menuOpen = false

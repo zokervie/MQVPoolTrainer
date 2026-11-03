@@ -126,6 +126,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if UserDefaults.standard.integer(forKey:"physicsModelVersion")<14 {
                 config["ballFriction"]=nil;UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(14,forKey:"physicsModelVersion")
             }
+            // 0.21: hồ sơ vật lý mới (spinDecay 11, β băng .30, squirt theo độ nâng, lực gậy phá). Bỏ giá trị cũ đã
+            // lưu của các khóa này để dùng mặc định mới; các chỉnh tay khác giữ nguyên.
+            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<21 {
+                for key in ["spinDecay","railTangentialRestitution","squirtRampDegrees","breakSpeedGain","tipProfile","squirtEnabled"]{config[key]=nil}
+                UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(21,forKey:"physicsModelVersion")
+            }
             engine.settings=config
         }
         table=TableScene(rails:engine.rails)
@@ -147,7 +153,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let savedPitch=Float(UserDefaults.standard.double(forKey:"aimCameraPitch014"))
         table.aimPitch=TableScene.aimPitchRange.contains(savedPitch) ? savedPitch:TableScene.defaultAimPitch
         let configured=engine.settings
-        spin.maximumOffset=(configured["experimental3D"]?.boolValue ?? false) ? 0.6:0.7
+        spin.maximumOffset=tipLimit(elevated:configured["experimental3D"]?.boolValue ?? false)
         table.selectCue(configured["cueType"]?.intValue ?? 0)
         table.cueElevation=(configured["experimental3D"]?.boolValue ?? false) ? (configured["cueElevationDegrees"]?.doubleValue ?? 0):0
         shotKind=ProcessInfo.processInfo.arguments.contains("--visual-qa") ? 0:(UserDefaults.standard.object(forKey:"shotKind017") as? Int ?? (configured["cueType"]?.intValue ?? 0))
@@ -586,15 +592,26 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickBag.menu=UIMenu(title:"Bao cơ",children:[quickCue.menu!,UIMenu(title:"Đổi bao",children:CueBag.names.enumerated().map{i,title in UIAction(title:title){[weak self]_ in CueBag.active=i;self?.chooseRole(role)}}),UIAction(title:"Thư viện bàn & cơ"){[weak self]_ in self?.openLibrary()}])
     }
     // Đánh/Phá: no squirt, the ball leaves on the aim line. Jump/Massé keep TP A.31 squirt.
+    /// 0.21: squirt on for every cue but faded in by elevation (level cue = aim line); tip by shot kind.
+    func shotKindPhysics(_ kind:Int,_ values:inout [String:NSNumber]){
+        values["squirtEnabled"]=1;values["squirtRampDegrees"]=NSNumber(value:BL_SQUIRT_RAMP_DEGREES)
+        values["masseCoupledContact"]=NSNumber(value:BLMasseCoupledForShotKind(Int32(kind))>0)
+        values["tipProfile"]=NSNumber(value:BLTipForShotKind(Int32(kind)))
+    }
+    /// Largest effect offset (fraction of R) before a miscue, by tip (Config::tipMaxOffset).
+    func tipLimit(elevated:Bool)->Double{
+        let tip=Int(BLTipForShotKind(Int32(shotKind)))
+        return (elevated ? 0.60:0.70)+(tip==1 ? 0.08:(tip==2 ? -0.05:0))
+    }
     func applySquirtPolicy(){
-        var values=engine.settings;values["squirtEnabled"]=NSNumber(value:BLSquirtForShotKind(Int32(shotKind))>0);values["masseCoupledContact"]=NSNumber(value:BLMasseCoupledForShotKind(Int32(shotKind))>0);engine.settings=values
+        var values=engine.settings;shotKindPhysics(shotKind,&values);engine.settings=values
     }
     func chooseShotKind(_ kind:Int){
         guard !presentationBusy,!locked,localTurn,(0...3).contains(kind) else{return}
         UserDefaults.standard.set(["elevation":table.cueElevation,"side":side,"top":top],forKey:"cuePreset017-\(shotKind)")
         shotKind=kind;UserDefaults.standard.set(kind,forKey:"shotKind017")
         let role=kind==3 ? 0:kind
-        var values=engine.settings;values["cueType"]=NSNumber(value:role);values["squirtEnabled"]=NSNumber(value:BLSquirtForShotKind(Int32(kind))>0);values["masseCoupledContact"]=NSNumber(value:BLMasseCoupledForShotKind(Int32(kind))>0);engine.settings=values;table.selectCue(role)
+        var values=engine.settings;values["cueType"]=NSNumber(value:role);shotKindPhysics(kind,&values);engine.settings=values;table.selectCue(role)
         let preset=UserDefaults.standard.dictionary(forKey:"cuePreset017-\(kind)") as? [String:Double]
         setElevation(preset?["elevation"] ?? (kind==1 ? 45:(kind==3 ? 60:0)))
         spin.select(side:preset?["side"] ?? 0,top:preset?["top"] ?? 0)
@@ -636,7 +653,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard !presentationBusy,localTurn,!locked else{return}
         var values=engine.settings;values["cueElevationDegrees"]=NSNumber(value:degrees);values["experimental3D"]=NSNumber(value:degrees>0)
         engine.settings=values;table.cueElevation=degrees
-        spin.maximumOffset=degrees>0 ? 0.6:0.7
+        spin.maximumOffset=tipLimit(elevated:degrees>0)
         UserDefaults.standard.set(engine.settings,forKey:"physics");guideDirty=true;syncQuickRail()
     }
     func chooseRole(_ role:Int){chooseShotKind(max(0,min(2,role)))}
@@ -655,7 +672,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         controller.apply={[weak self] values in
             guard let self=self else{return}
             self.engine.settings=values
-            self.spin.maximumOffset=(values["experimental3D"]?.boolValue ?? false) ? 0.6:0.7
+            self.spin.maximumOffset=self.tipLimit(elevated:values["experimental3D"]?.boolValue ?? false)
             self.spin.select(side:self.side,top:self.top)
             UserDefaults.standard.set(self.engine.settings,forKey:"physics")
             self.table.selectCue(values["cueType"]?.intValue ?? 0)
@@ -805,7 +822,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func resetShotInputsAndAim(){
         spin.reset();side=0;top=0
         if shotKind==1 {
-            shotKind=0;var settings=engine.settings;settings["cueType"]=0;settings["cueElevationDegrees"]=0;settings["experimental3D"]=false;settings["squirtEnabled"]=false;settings["masseCoupledContact"]=false
+            shotKind=0;var settings=engine.settings;settings["cueType"]=0;settings["cueElevationDegrees"]=0;settings["experimental3D"]=false;shotKindPhysics(0,&settings)
             engine.settings=settings;table.selectCue(0);table.cueElevation=0;spin.maximumOffset=0.7;UserDefaults.standard.set(0,forKey:"shotKind017")
         }
         if let c=cue,!c.sunk,let target=matchPreferredAimTarget(in:balls) {
@@ -1710,7 +1727,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             UserDefaults.standard.set(settings,forKey:"physics");UserDefaults.standard.set(sensitivity,forKey:"sensitivity")
             self.table.selectCue(self.engine.settings["cueType"]?.intValue ?? 0)
             self.table.cueElevation=(self.engine.settings["experimental3D"]?.boolValue ?? false) ? (self.engine.settings["cueElevationDegrees"]?.doubleValue ?? 0):0
-            self.spin.maximumOffset=(self.engine.settings["experimental3D"]?.boolValue ?? false) ? 0.6:0.7
+            self.spin.maximumOffset=self.tipLimit(elevated:self.engine.settings["experimental3D"]?.boolValue ?? false)
             self.spin.select(side:self.side,top:self.top)
             self.statusLabel.text="Đã lưu cấu hình bàn trên máy"
             self.syncQuickRail()
