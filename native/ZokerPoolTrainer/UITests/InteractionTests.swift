@@ -1,6 +1,9 @@
 import XCTest
 
 final class InteractionTests: XCTestCase {
+    /// Intel CI simulators run ~3-4x slower than Apple Silicon; waits are for state, not for speed.
+    private let slow: TimeInterval = 4
+
     private func launch(_ extra: [String] = []) -> (XCUIApplication, XCUIElement) {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -37,7 +40,7 @@ final class InteractionTests: XCTestCase {
             return current.isFinite && abs(current-before) > 0.01
         }
         expectation(for: changed, evaluatedWith: scene)
-        waitForExpectations(timeout: 10)
+        waitForExpectations(timeout: 10 * slow)
         XCTAssertTrue((scene.value as? String ?? "").contains("moving=0"))
     }
 
@@ -64,6 +67,17 @@ final class InteractionTests: XCTestCase {
         return button
     }
 
+    /// Polls a probe field and reports the whole probe on failure (diagnosable from the CI log).
+    private func settle(_ scene: XCUIElement, _ key: String, _ value: Double, timeout: TimeInterval = 20,
+                        file: StaticString = #filePath, line: UInt = #line) {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            if field(scene, key) == value { return }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTFail("\(key) != \(value) · probe: \(scene.value ?? "")", file: file, line: line)
+    }
+
     private func wait(_ scene: XCUIElement, timeout: TimeInterval = 30,
                       _ condition: @escaping () -> Bool) {
         expectation(for: NSPredicate { _, _ in condition() }, evaluatedWith: scene)
@@ -85,7 +99,7 @@ final class InteractionTests: XCTestCase {
             return p.isFinite && abs(p - pitchBefore) > 0.01
         }
         expectation(for: changed, evaluatedWith: scene)
-        waitForExpectations(timeout: 10)
+        waitForExpectations(timeout: 10 * slow)
         XCTAssertEqual(angle(scene), angleBefore, accuracy: 1e-6, "kéo dọc không được đổi hướng ngắm")
         XCTAssertTrue((scene.value as? String ?? "").contains("moving=0"))
     }
@@ -98,18 +112,21 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThan(coach.frame.width,coach.frame.height,"Coach is a readable rectangle")
         let rail=app.scrollViews["QuickRailScroll"]
         XCTAssertTrue(rail.exists)
-        let bridge=app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch
-        XCTAssertEqual(coach.frame.midX,bridge.frame.midX,accuracy:1)
-        XCTAssertLessThan(coach.frame.maxY,bridge.frame.minY)
+        // 0.22 layout: Menu + Coach top-left, B bottom-left, thumb column on the right in owner order.
+        let menu=app.buttons["Menu"].firstMatch
+        XCTAssertEqual(coach.frame.minY,menu.frame.minY,accuracy:2)
+        XCTAssertGreaterThan(coach.frame.minX,menu.frame.maxX)
         XCTAssertLessThan(coach.frame.midX,scene.frame.midX)
-        XCTAssertLessThan(quick(app,"QuickCamera").frame.maxY,quick(app,"QuickTools").frame.minY)
-        XCTAssertLessThan(quick(app,"QuickTools").frame.maxY,quick(app,"QuickReplay").frame.minY)
+        XCTAssertGreaterThan(rail.frame.midX,scene.frame.midX)
+        let order=["QuickReplay","QuickRetry","QuickPlace","QuickAdd","QuickCue","QuickCamera"]
+        for (upper,lower) in zip(order,order.dropFirst()) {
+            XCTAssertLessThan(app.buttons[upper].frame.midY,app.buttons[lower].frame.midY,"\(upper) above \(lower)")
+        }
+        XCTAssertTrue(coach.isEnabled,"Coach enabled · \(scene.value ?? "")")
         coach.tap()
-        let enabled=NSPredicate { _,_ in self.field(scene,"coach")==1 }
-        expectation(for:enabled,evaluatedWith:scene);waitForExpectations(timeout:5)
+        settle(scene,"coach",1)
         coach.tap()
-        let disabled=NSPredicate { _,_ in self.field(scene,"coach")==0 }
-        expectation(for:disabled,evaluatedWith:scene);waitForExpectations(timeout:5)
+        settle(scene,"coach",0)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }
 
@@ -119,7 +136,7 @@ final class InteractionTests: XCTestCase {
         let zoom=field(scene,"zoom"),pitch=field(scene,"pitch")
         quick(app,"QuickCamera").tap();quick(app,"QuickCamera").tap()
         let returned=NSPredicate { _,_ in self.field(scene,"mode")==2 }
-        expectation(for:returned,evaluatedWith:scene);waitForExpectations(timeout:5)
+        expectation(for:returned,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
         XCTAssertEqual(field(scene,"zoom"),zoom,accuracy:0.002)
         XCTAssertEqual(field(scene,"pitch"),pitch,accuracy:0.002)
     }
@@ -127,13 +144,14 @@ final class InteractionTests: XCTestCase {
     func testPlaceCueBallAtCentreAndCancelRestoresLayout() {
         let (app,scene)=launch(["--ux017-qa"])
         let x=field(scene,"cueX"),y=field(scene,"cueY")
-        quick(app,"QuickTools").tap();app.buttons["Đặt bi"].firstMatch.tap()
+        quick(app,"QuickPlace").tap()
         let editing=NSPredicate { _,_ in self.field(scene,"editing")==1 }
-        expectation(for:editing,evaluatedWith:scene);waitForExpectations(timeout:5)
-        XCTAssertEqual(field(scene,"cueX"),0,accuracy:0.001);XCTAssertEqual(field(scene,"cueY"),0,accuracy:0.001)
-        quick(app,"QuickTools").tap();app.buttons["Hủy đặt bi"].firstMatch.tap()
+        expectation(for:editing,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
+        // 0.22: free spot nearest the centre (exactly the centre when it is empty)
+        XCTAssertLessThan(hypot(field(scene,"cueX"),field(scene,"cueY")),0.15)
+        quick(app,"QuickAdd").tap()   // "Hủy" while placing
         let cancelled=NSPredicate { _,_ in self.field(scene,"editing")==0 }
-        expectation(for:cancelled,evaluatedWith:scene);waitForExpectations(timeout:5)
+        expectation(for:cancelled,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
         XCTAssertEqual(field(scene,"cueX"),x,accuracy:0.001);XCTAssertEqual(field(scene,"cueY"),y,accuracy:0.001)
         // Cancelling editing must restore input mode as well as the visible camera transform.
         let pitch=field(scene,"pitch"),down=pitch<0.8
@@ -141,24 +159,27 @@ final class InteractionTests: XCTestCase {
         let end=scene.coordinate(withNormalizedOffset:CGVector(dx:0.40,dy:down ? 0.50:0.30))
         start.press(forDuration:0.05,thenDragTo:end)
         let heightChanged=NSPredicate { _,_ in abs(self.field(scene,"pitch")-pitch)>0.01 }
-        expectation(for:heightChanged,evaluatedWith:scene);waitForExpectations(timeout:5)
+        expectation(for:heightChanged,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
 
     }
 
-    func testFourCueChoicesKeepMasséAndBreakDistinct() {
+    func testCueBagOffersThreeBrandedCues() {
         let (app,scene)=launch(["--ux017-qa"])
-        for (name,kind) in [("Massé",3.0),("Jump",1.0),("Break",2.0),("Đánh",0.0)] {
-            quick(app,"QuickTools").tap();app.buttons["Kiểu cú / loại cơ"].firstMatch.tap()
-            let option=app.buttons[name].firstMatch;XCTAssertTrue(option.waitForExistence(timeout:5));option.tap()
+        for (name,kind) in [("Gậy Jump",1.0),("Gậy Break",2.0),("Gậy Đánh",0.0)] {
+            quick(app,"QuickCue").tap()
+            let option=app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@",name+" (")).firstMatch
+            XCTAssertTrue(option.waitForExistence(timeout:5 * slow),"\(name) (brand) in the bag");option.tap()
             let selected=NSPredicate { _,_ in self.field(scene,"kind")==kind }
-            expectation(for:selected,evaluatedWith:scene);waitForExpectations(timeout:5)
+            expectation(for:selected,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
         }
     }
 
     func testReplayManualCameraDoesNotChangeNextAimHeight() {
-        let (app,scene)=launch(["--ux017-shot-qa"])
+        // Shots now settle fast (0.29), so a short replay can finish before a slow simulator answers;
+        // --replay-hold-qa keeps the last frame until Done.
+        let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa"])
         let replay=app.buttons["QuickReplay"]
-        expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay);waitForExpectations(timeout:30)
+        expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay);waitForExpectations(timeout:30 * slow)
         let pitch=field(scene,"pitch")
         quick(app,"QuickReplay").tap();app.buttons["ReplayPause"].tap()
         let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.35,dy:0.30))
@@ -166,7 +187,7 @@ final class InteractionTests: XCTestCase {
         start.press(forDuration:0.05,thenDragTo:end)
         app.buttons["ReplayDone"].tap()
         let stopped=NSPredicate { _,_ in self.field(scene,"replay")==0 }
-        expectation(for:stopped,evaluatedWith:scene);waitForExpectations(timeout:5)
+        expectation(for:stopped,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
         XCTAssertEqual(field(scene,"pitch"),pitch,accuracy:0.002)
     }
 
@@ -180,7 +201,7 @@ final class InteractionTests: XCTestCase {
         let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.30,dy:0.32))
         let end=scene.coordinate(withNormalizedOffset:CGVector(dx:0.45,dy:0.32))
         start.press(forDuration:0.05,thenDragTo:end)
-        wait(scene,timeout:5){abs(self.angle(scene)-before)>0.01}
+        wait(scene,timeout:5 * slow){abs(self.angle(scene)-before)>0.01}
         XCTAssertEqual(field(scene,"moving"),0)
     }
 
@@ -190,7 +211,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"mode"),2)
         let zoomBefore=field(scene,"zoom")
         scene.pinch(withScale:0.82,velocity:-1)
-        wait(scene,timeout:5){abs(self.field(scene,"zoom")-zoomBefore)>0.02}
+        wait(scene,timeout:5 * slow){abs(self.field(scene,"zoom")-zoomBefore)>0.02}
         // An observation pan while balls run must orbit the same view rather
         // than selecting a different camera mode.
         let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.32,dy:0.34))
@@ -202,7 +223,7 @@ final class InteractionTests: XCTestCase {
         wait(scene){self.field(scene,"moving")==0}
         // The shot-settle gate must not restore a saved viewpoint afterward.
         let settled=Date().addingTimeInterval(1.2)
-        wait(scene,timeout:5){Date()>=settled}
+        wait(scene,timeout:5 * slow){Date()>=settled}
         XCTAssertEqual(field(scene,"mode"),2)
         XCTAssertEqual(field(scene,"cameraAngle"),observedAngle,accuracy:0.005)
         XCTAssertEqual(field(scene,"zoom"),observedZoom,accuracy:0.005)
@@ -210,7 +231,7 @@ final class InteractionTests: XCTestCase {
 
     func testJumpShotResetsEffectAndReturnsToPlayingCue() {
         let (_,scene)=launch(["--ux018-jump-qa"])
-        wait(scene,timeout:10){self.field(scene,"kind")==1 && self.field(scene,"moving")==1}
+        wait(scene,timeout:10 * slow){self.field(scene,"kind")==1 && self.field(scene,"moving")==1}
         wait(scene){self.field(scene,"moving")==0 && self.field(scene,"kind")==0}
         XCTAssertEqual(field(scene,"side"),0,accuracy:0.0001)
         XCTAssertEqual(field(scene,"top"),0,accuracy:0.0001)
@@ -219,12 +240,12 @@ final class InteractionTests: XCTestCase {
     func testRandomLayoutMenuSupportsOneThroughFifteenObjectBalls() {
         let (app,scene)=launch(["--ux017-qa"])
         for count in [1,14] {
-            quick(app,"QuickTools").tap()
+            quick(app,"QuickAdd").tap()
             app.buttons["Thêm bi · số lượng / bố trí"].firstMatch.tap()
             let alert=app.alerts["Thêm bi"]
-            XCTAssertTrue(alert.waitForExistence(timeout:5));alert.textFields.firstMatch.tap();alert.textFields.firstMatch.typeText(String(count))
+            XCTAssertTrue(alert.waitForExistence(timeout:5 * slow));alert.textFields.firstMatch.tap();alert.textFields.firstMatch.typeText(String(count))
             alert.buttons["Mặc định"].tap()
-            wait(scene,timeout:5){self.field(scene,"ballCount")==Double(count==1 ? 2:15)}
+            wait(scene,timeout:5 * slow){self.field(scene,"ballCount")==Double(count==1 ? 2:15)}
         }
     }
 
@@ -232,16 +253,17 @@ final class InteractionTests: XCTestCase {
     func testCompetitiveNineBallOnlyOffersDiamondNumbersAndBlocksPracticeEdits() {
         let (app,scene)=launch(["--ux018-match-nine-qa"])
         let status=app.buttons["MatchStatus"]
-        XCTAssertTrue(status.waitForExistence(timeout:5))
+        XCTAssertTrue(status.waitForExistence(timeout:5 * slow))
         XCTAssertTrue(status.label.contains("9 Ball"))
-        XCTAssertTrue(status.label.contains("Lượt người 1"))
+        XCTAssertTrue(status.label.lowercased().contains("lượt người 1"))   // 0.29: "Lượt <tên người chơi>"
         XCTAssertEqual(field(scene,"ballCount"),9)
         XCTAssertEqual(field(scene,"coach"),0)
         let numbers=app.buttons["CoachToggle"]
         XCTAssertTrue(numbers.label.contains("nút số"))
         numbers.tap()
         XCTAssertEqual(field(scene,"coach"),0,"Competitive mode cannot enable coaching")
-        XCTAssertFalse(app.buttons["QuickRetry"].isEnabled)
+        let retry=app.buttons["QuickRetry"]   // hidden (or disabled) in competitive play
+        XCTAssertTrue(!retry.exists || !retry.isEnabled)
         XCTAssertFalse(app.buttons["QuickReplay"].isEnabled)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }
@@ -249,7 +271,7 @@ final class InteractionTests: XCTestCase {
     func testRotationFifteenRackAndScoringTargetAreClearlyNamed() {
         let (app,scene)=launch(["--ux018-match-rotation-qa"])
         let status=app.buttons["MatchStatus"]
-        XCTAssertTrue(status.waitForExistence(timeout:5))
+        XCTAssertTrue(status.waitForExistence(timeout:5 * slow))
         XCTAssertTrue(status.label.contains("Rotation"))
         XCTAssertTrue(status.label.contains("/61"))
         XCTAssertEqual(field(scene,"ballCount"),15)
@@ -264,19 +286,19 @@ final class InteractionTests: XCTestCase {
         // while any pocket presentation or shot-ready guard remains active.
         let replay=app.buttons["QuickReplay"]
         expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay)
-        waitForExpectations(timeout:30)
+        waitForExpectations(timeout:30 * slow)
         quick(app,"QuickReplay").press(forDuration:1)
         let save=app.buttons["Lưu cú này"].firstMatch
-        XCTAssertTrue(save.waitForExistence(timeout:5));save.tap()
+        XCTAssertTrue(save.waitForExistence(timeout:5 * slow));save.tap()
         let alert=app.alerts["Lưu cú này"]
-        XCTAssertTrue(alert.waitForExistence(timeout:5))
+        XCTAssertTrue(alert.waitForExistence(timeout:5 * slow))
         let name="QA-"+String(UUID().uuidString.prefix(8))
         let text=alert.textFields.firstMatch;text.tap()
         let previous=text.value as? String ?? ""
         text.typeText(String(repeating:XCUIKeyboardKey.delete.rawValue,count:previous.count)+name)
         alert.buttons["Lưu"].tap()
         let saved=app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@","Đã lưu: "+name)).firstMatch
-        XCTAssertTrue(saved.waitForExistence(timeout:10))
+        XCTAssertTrue(saved.waitForExistence(timeout:10 * slow))
         // A distinct current aim proves replay did not simply reload its own
         // initial layout into the live world.
         let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.30,dy:0.32))
@@ -286,20 +308,20 @@ final class InteractionTests: XCTestCase {
         func openArchive() {
             quick(app,"QuickReplay").press(forDuration:1)
             let list=app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@","Cú đã lưu (")).firstMatch
-            XCTAssertTrue(list.waitForExistence(timeout:5));list.tap()
+            XCTAssertTrue(list.waitForExistence(timeout:5 * slow));list.tap()
             let item=app.buttons.matching(NSPredicate(format:"label CONTAINS %@",name)).firstMatch
-            XCTAssertTrue(item.waitForExistence(timeout:5));item.tap()
+            XCTAssertTrue(item.waitForExistence(timeout:5 * slow));item.tap()
             let play=app.buttons["Xem lại cú này"].firstMatch
-            XCTAssertTrue(play.waitForExistence(timeout:5));play.tap()
-            wait(scene,timeout:10){self.field(scene,"replay")==1}
+            XCTAssertTrue(play.waitForExistence(timeout:5 * slow));play.tap()
+            wait(scene,timeout:10 * slow){self.field(scene,"replay")==1}
             app.buttons["ReplayPause"].tap()
         }
         openArchive()
         XCTAssertEqual(field(scene,"coach"),0)
         app.buttons["CoachToggle"].tap()
-        wait(scene,timeout:5){self.field(scene,"coach")==1}
+        wait(scene,timeout:5 * slow){self.field(scene,"coach")==1}
         app.buttons["ReplayDone"].tap()
-        wait(scene,timeout:5){self.field(scene,"replay")==0}
+        wait(scene,timeout:5 * slow){self.field(scene,"replay")==0}
         XCTAssertEqual(angle(scene),liveAngle,accuracy:0.0001)
         XCTAssertEqual(field(scene,"cueX"),liveX,accuracy:0.0001)
         XCTAssertEqual(field(scene,"cueY"),liveY,accuracy:0.0001)
@@ -310,16 +332,16 @@ final class InteractionTests: XCTestCase {
 
     func testReplayIncludesActualPreparationBeforeNativeShotClock() {
         let (app,scene)=launch(["--replay-preroll-qa"])
-        wait(scene,timeout:30){self.field(scene,"preRoll")>5 && self.field(scene,"moving")==0}
+        wait(scene,timeout:30 * slow){self.field(scene,"preRoll")>5 && self.field(scene,"moving")==0}
         XCTAssertGreaterThan(field(scene,"preRoll"),5)
         XCTAssertLessThanOrEqual(field(scene,"preRoll"),8.01)
         let button=quick(app,"QuickReplay")
         expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:button)
-        waitForExpectations(timeout:15);button.tap()
-        wait(scene,timeout:5){self.field(scene,"replay")==1 && self.field(scene,"replayTime")<0}
+        waitForExpectations(timeout:15 * slow);button.tap()
+        wait(scene,timeout:5 * slow){self.field(scene,"replay")==1 && self.field(scene,"replayTime")<0}
         app.buttons["ReplayPause"].tap()
         app.buttons["ReplayDone"].tap()
-        wait(scene,timeout:5){self.field(scene,"replay")==0}
+        wait(scene,timeout:5 * slow){self.field(scene,"replay")==0}
     }
 
 }

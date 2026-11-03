@@ -46,6 +46,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSGKFriendListUsageDescription</key>
+	<string>Hiển thị bạn bè Game Center để mời chơi bida online trên Z-Trainer.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Kết nối hai người chơi Z-Trainer trên cùng Wi-Fi bằng mã phòng; không cần tài khoản hoặc máy chủ.</string>
 	<key>NSBonjourServices</key>

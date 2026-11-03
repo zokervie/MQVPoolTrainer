@@ -139,7 +139,12 @@ final class PoolAudio {
         guard (0...3).contains(kind), impact.isFinite, pan.isFinite, eventAge.isFinite, impact > 0 else { return }
         audioQueue.async { [weak self] in
             guard let self = self else { return }
-            guard eventAge <= 0.120, self.canPlay, !self.interrupted else { self.droppedCount += 1; return }
+            // 0.21: physics advances up to 0.1 s per frame and a slow frame adds more, so a 120 ms cut-off silently
+            // dropped real impacts ("sometimes the whole game is silent"). Late impacts now play (a few frames late is
+            // inaudible next to silence); only truly stale events after a stall/background are dropped. Pockets are
+            // never dropped within 1 s: the drop is the sound players wait for.
+            let limit = kind == 2 ? 1.0 : 0.35
+            guard eventAge <= limit, self.canPlay, !self.interrupted else { self.droppedCount += 1; return }
             if !self.engine.isRunning { self.start() }
             guard self.engine.isRunning else { self.droppedCount += 1; return }
             let type = max(0, min(3, kind))

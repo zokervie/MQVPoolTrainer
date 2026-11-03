@@ -47,16 +47,18 @@ void World::strike(double angle,double speed,double side,double top){
     if(moving())return;
     auto it=std::find_if(balls.begin(),balls.end(),[](const Ball&b){return b.id==0;});
     if(it==balls.end()||it->sunk)return;
-    side=std::clamp(side,-.7,.7);top=std::clamp(top,-.7,.7);
-    double mag=std::hypot(side,top);if(mag>.7){side*=.7/mag;top*=.7/mag;}
-    speed=std::clamp(speed,0.0,6.0);
+    const double lim=config.tipMaxOffset(false);
+    side=std::clamp(side,-lim,lim);top=std::clamp(top,-lim,lim);
+    double mag=std::hypot(side,top);if(mag>lim){side*=lim/mag;top*=lim/mag;}
+    // 0.21: was clamped at 6 m/s, so power levels 28-30 were identical. Default gain 1 keeps old results < 6 m/s.
+    speed=std::clamp(speed*config.cueSpeedGain(),0.0,Config::maxBallSpeed);
     // TP A.30: cùng tốc độ cơ, đánh lệch tâm → bi chậm hơn. `speed` là tốc độ bi khi đánh tâm.
     const double k=1+config.mass/config.cueMass();
     speed*=k/(k+2.5*(side*side+top*top));
     // Impulse at an offset cue contact, solid-sphere I=2/5 mR².
     it->spin=-2.5*side*speed/config.radius;
     // TP A.31: squirt — bi lệch ngược phía effect, tức cùng chiều quay với ω_z (hệ phải, z lên).
-    const double a=angle+(config.squirtEnabled?std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin):0.0);
+    const double a=angle+(config.squirtEnabled?config.squirtScale()*std::copysign(squirtAngle(side,config.mass,config.cueEndMass()),it->spin):0.0);
     V2 d{std::cos(angle),std::sin(angle)},dv{std::cos(a),std::sin(a)};
     it->v=dv*speed;it->w=d.perp()*(2.5*top*speed/config.radius);
     for(auto&b:balls)b.rails=0;
@@ -146,7 +148,7 @@ void World::cushionResponse(Ball&b,const Config&config,V2 n,int rail){
         contact3d::Vec normal{n.x*c,n.y*c,-h};
         const double vn=contact3d::Vec{b.v.x,b.v.y,b.vertical}.dot(normal);
         const double e=std::clamp(config.bounce(rail)-config.railSpeedSensitivity*std::abs(vn),.4,.98);
-        auto out=contact3d::solve({b.v.x,b.v.y,b.vertical},{b.w.x,b.w.y,b.spin},normal,r,e,config.grip(rail),config.slateFriction,b.height<=1e-8&&b.vertical<=1e-6);
+        auto out=contact3d::solve({b.v.x,b.v.y,b.vertical},{b.w.x,b.w.y,b.spin},normal,r,e,config.grip(rail),config.slateFriction,b.height<=1e-8&&b.vertical<=1e-6,config.railTangentialRestitution);
         b.v={out.velocity.x,out.velocity.y};b.vertical=out.velocity.z;b.w={out.omega.x,out.omega.y};b.spin=out.omega.z;return;
     }
     // The contact normal points inward and downward from the raised rail nose.
@@ -182,9 +184,17 @@ bool World::pocket(Ball&b){
     if(std::abs(b.p.x)>x+.24||std::abs(b.p.y)>y+.24){const double impact=b.v.length();b.sunk=true;b.v={};b.w={};b.spin=0;events.push_back({2,b.id,-1,time,b.p,impact});return true;}
     return false;
 }
+void World::settleSpinningBalls(){
+    if(!config.settleSpinInPlace)return;
+    for(auto&b:balls){
+        if(b.sunk||b.height>1e-7||std::abs(b.vertical)>1e-5)continue;
+        const V2 slip=b.v+b.w.perp()*config.radius;   // contact-point velocity (0 when rolling: w = v.perp/R)
+        if(b.v.length()<.005&&slip.length()<.005){b.v={};b.w={};b.spin=0;}
+    }
+}
 void World::step(double dt){
     previousPresentation=balls;presentationEventCount=events.size();
-    if(config.experimental3D||config.coupledCushions){stepElevated(dt);return;}
+    if(config.experimental3D||config.coupledCushions){stepElevated(dt);settleSpinningBalls();return;}
     // Within each fixed step, stop at the first swept sphere/capsule contact.
     // Prevents a 6 m/s ball being several millimetres overlapped before its cut normal is evaluated.
     auto sphereTime=[](V2 p,V2 v,double radius,double limit){

@@ -2,18 +2,33 @@
 #define ZOKER_SHOT_KIND_POLICY_H
 
 // Kiểu cú trên giao diện (shotKind017): 0 Đánh, 1 Jump, 2 Phá, 3 Massé. Dùng chung UIKit và test C++.
-//
-// Squirt (TP A.31) — bi cái lệch nhẹ ngược phía effect — chỉ bật cho Jump và Massé.
-// Đánh/Phá: bi đi đúng đường ngắm để người chơi tự hình dung góc chạm bi mục tiêu bằng mắt;
-// phần lệch do squirt ngoài đời để người chơi tự bù trên bàn thật.     [quyết định chủ dự án 03/11/2026]
-static inline int BLSquirtForShotKind(int shotKind) {
-    return shotKind == 1 || shotKind == 3;
-}
 
-// Massé: giải đồng thời cơ–bi–mặt bàn (CueSlateContact.hpp) thay cho "cơ trước, mặt bàn sau" — cú massé mạnh và
-// xoáy tăng theo độ nâng cơ. Chỉ kiểu Massé (3); Đánh/Jump/Phá giữ mô hình cũ.        [Tests/AimMasseRailTests.cpp]
+// 0.21 (quyết định chủ dự án 03/11/2026): mọi gậy ra bi đúng hướng ngắm khi cơ nằm ngang, dù effect xa hay gần
+// tâm. Độ lệch (squirt, TP A.31) chỉ xuất hiện khi nâng cơ, tăng dần tới đủ ở BL_SQUIRT_RAMP_DEGREES
+// [độ dốc là thiết kế, tránh nhảy bậc ở 0°]. Thay cho chính sách 0.20 theo kiểu cú.
+#define BL_SQUIRT_RAMP_DEGREES 15.0
+
+// Massé: giải đồng thời cơ–bi–mặt bàn (CueSlateContact.hpp). Chỉ kiểu Massé (3).     [Tests/AimMasseRailTests.cpp]
 static inline int BLMasseCoupledForShotKind(int shotKind) {
     return shotKind == 3;
+}
+
+// Đầu tẩy theo kiểu cú (Config::tipProfile): 0 trung tính (Đánh — vật lý mặc định), 1 mềm (Massé — chạm xa tâm
+// hơn), 2 cứng (Jump/Phá — phenolic, trả năng lượng nhiều hơn).                       [Tests/CueTipTests.cpp]
+static inline int BLTipForShotKind(int shotKind) {
+    return shotKind == 3 ? 1 : (shotKind == 1 || shotKind == 2) ? 2 : 0;
+}
+
+// Gậy phá: hệ số lực người chơi tạo được [thiết kế]; mức 30 ≈ 11,9 m/s với đầu cứng.  [Tests/CueTipTests.cpp]
+#define BL_BREAK_SPEED_GAIN 1.4
+
+// 0.22: Bao cơ chỉ có 3 gậy (Đánh / Jump / Phá). Massé không còn là gậy riêng: gậy Đánh nâng cơ từ 60° là Massé
+// (đầu tẩy mềm, tiếp xúc đồng thời), hạ dưới 60° về Đánh.                                  [Tests/CueTipTests.cpp]
+#define BL_MASSE_ELEVATION 60.0
+static inline int BLShotKindForElevation(int shotKind, double elevationDegrees) {
+    if (shotKind == 0 && elevationDegrees >= BL_MASSE_ELEVATION) return 3;
+    if (shotKind == 3 && elevationDegrees < BL_MASSE_ELEVATION) return 0;
+    return shotKind;
 }
 
 #endif

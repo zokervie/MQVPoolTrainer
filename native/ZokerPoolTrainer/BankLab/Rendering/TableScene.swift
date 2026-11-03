@@ -94,6 +94,7 @@ final class TableScene {
     private var trainingOverlaysHidden=true
     var focusBounds:SIMD4<Float>?
     var placementBlocked=false
+    var spectatorPivot=false
     var cameraMode=2 // Aim3D; numeric IDs remain 0=overview, 1=top, 2=aim.
     var zoom:Float=1
     var orbit:Float=0
@@ -116,29 +117,66 @@ final class TableScene {
     private lazy var clothImage=materialMap("PC_FeltEmerald_albedo",fallback:clothTexture)
     private lazy var normalImage=materialMap("PC_FeltEmerald_normal",fallback:clothNormal)
     private lazy var environment=studioEnvironment()
-    private lazy var feltNapImage=feltNap()
+    /// 0.21: cloth / ball wear (Thư viện). Old cloth adds ball tracks, spot burns and chalk; old balls lose gloss.
+    private(set) var oldCloth=UserDefaults.standard.bool(forKey:"clothWear021")
+    private(set) var oldBalls=UserDefaults.standard.bool(forKey:"ballWear021")
+    private var feltNapCache:[Bool:UIImage]=[:]
+    private var feltNapImage:UIImage{if let i=feltNapCache[oldCloth]{return i};let i=feltNap(old:oldCloth);feltNapCache[oldCloth]=i;return i}
+    private weak var bedMaterial:SCNMaterial?
+    func setClothWear(old:Bool){oldCloth=old;UserDefaults.standard.set(old,forKey:"clothWear021");bedMaterial?.multiply.contents=feltNapImage}
+    func setBallWear(old:Bool){oldBalls=old;UserDefaults.standard.set(old,forKey:"ballWear021");for g in cachedBallGeometry.values{if let m=g.firstMaterial{applyBallFinish(m)}}}
+    /// Phenolic ball: semi-matte body under a thin, very smooth lacquer -> one small, sharp highlight instead of a broad
+    /// glare over the top half (0.20 used roughness .27 + 8% emission). Old balls: worn lacquer, slight yellowing.
+    private func applyBallFinish(_ m:SCNMaterial){
+        m.emission.contents=UIColor.black;m.emission.intensity=0
+        if oldBalls{m.roughness.contents=0.55;m.clearCoat.contents=0.45;m.clearCoatRoughness.contents=0.22;m.multiply.contents=UIColor(red:0.97,green:0.95,blue:0.88,alpha:1)}
+        else{m.roughness.contents=0.45;m.clearCoat.contents=1.0;m.clearCoatRoughness.contents=0.035;m.multiply.contents=UIColor.white}
+    }
     /// Large-scale worsted nap streaks, soft mottling and cushion-side falloff.
     /// UV covers the 1.615 x 2.895 m footprint once (generate_table_mesh.py), so
     /// this layer never tiles; the fine weave remains in the kit felt maps.
-    private func feltNap()->UIImage {
-        texture(CGSize(width:512,height:1024)){c in
-            let ctx=c.cgContext,w:CGFloat=512,h:CGFloat=1024
-            UIColor.white.setFill();c.fill(CGRect(x:0,y:0,width:w,height:h))
-            var seed:UInt64=0x5EED_F17
+    /// Large-scale layer over the whole bed (UV covers the 1.615 x 2.895 m footprint once; bed spans u .107-.893,
+    /// v .061-.939). 0.21: no more long painted streaks (they read as smears). New cloth: faint low-frequency mottling
+    /// and cushion-side falloff only. Old cloth: whole cloth a little duller, burnished ball tracks from the break area
+    /// to the six pockets and along the rails, burns on the head/foot spots, chalk dust at the pockets.
+    private func feltNap(old:Bool)->UIImage {
+        texture(CGSize(width:1024,height:2048)){c in
+            let ctx=c.cgContext,w:CGFloat=1024,h:CGFloat=2048
+            UIColor(white:old ? 0.93:1,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:w,height:h))
+            var seed:UInt64=old ? 0x01D_C10F:0x5EED_F17
             func random()->CGFloat{seed=seed &* 6364136223846793005 &+ 1442695040888963407;return CGFloat((seed>>33)%10_000)/10_000}
-            // Brushed nap runs head-to-foot (along v).
-            for _ in 0..<900 {
-                let x=random()*w,y=random()*h,len=40+random()*220,shade=random()
-                UIColor(white:shade>0.5 ? 1:0.84,alpha:0.16).setStroke()
-                ctx.setLineWidth(0.6+random()*1.4);ctx.move(to:CGPoint(x:x,y:y));ctx.addLine(to:CGPoint(x:x+(random()-0.5)*3,y:y+len));ctx.strokePath()
-            }
-            for _ in 0..<160 {
-                let r=12+random()*40
-                UIColor(white:0.93+random()*0.05,alpha:0.08).setFill()
+            for _ in 0..<70 {
+                let r=90+random()*220
+                UIColor(white:0.955+random()*0.04,alpha:0.06).setFill()
                 ctx.fillEllipse(in:CGRect(x:random()*w-r,y:random()*h-r,width:r*2,height:r*2))
             }
-            // Soft darkening toward the cushions (bed spans u .107-.893, v .061-.939).
-            let colors=[UIColor(white:0,alpha:0).cgColor,UIColor(white:0,alpha:0.20).cgColor] as CFArray
+            func P(_ u:CGFloat,_ v:CGFloat)->CGPoint{CGPoint(x:u*w,y:v*h)}
+            if old {
+                let pockets=[P(0.107,0.061),P(0.893,0.061),P(0.107,0.5),P(0.893,0.5),P(0.107,0.939),P(0.893,0.939)]
+                let breakArea=P(0.5,0.30),rack=P(0.5,0.719)
+                ctx.setLineCap(.round)
+                for from in [breakArea,rack,P(0.5,0.5)] { for pocket in pockets {
+                    for k in 0..<3 {
+                        let jitter=(random()-0.5)*26
+                        UIColor(white:1,alpha:0.10+0.05*CGFloat(k%2)).setStroke();ctx.setLineWidth(14+random()*12)
+                        ctx.move(to:CGPoint(x:from.x+jitter,y:from.y+jitter));ctx.addLine(to:CGPoint(x:pocket.x-jitter*0.3,y:pocket.y+jitter*0.3));ctx.strokePath()
+                    }
+                }}
+                for u in [CGFloat(0.135),0.865] {   // rail tracks: balls rolling along the long cushions
+                    UIColor(white:1,alpha:0.12).setStroke();ctx.setLineWidth(22)
+                    ctx.move(to:P(u,0.09));ctx.addLine(to:P(u,0.91));ctx.strokePath()
+                }
+                for spot in [P(0.5,0.281),P(0.5,0.719)] {   // spot burns: darker, slightly glossy ring
+                    UIColor(white:0.80,alpha:0.55).setFill();ctx.fillEllipse(in:CGRect(x:spot.x-15,y:spot.y-15,width:30,height:30))
+                    UIColor(white:0.88,alpha:0.4).setFill();ctx.fillEllipse(in:CGRect(x:spot.x-34,y:spot.y-34,width:68,height:68))
+                }
+                for pocket in pockets { for _ in 0..<26 {   // chalk dust: blue-grey specks around the jaws
+                    let a=random()*CGFloat.pi*2,d=20+random()*90,r=2+random()*6
+                    UIColor(red:0.80,green:0.86,blue:0.95,alpha:0.35).setFill()
+                    ctx.fillEllipse(in:CGRect(x:pocket.x+cos(a)*d-r,y:pocket.y+sin(a)*d-r,width:r*2,height:r*2))
+                }}
+            }
+            let colors=[UIColor(white:0,alpha:0).cgColor,UIColor(white:0,alpha:0.18).cgColor] as CFArray
             if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0.55,1]){
                 ctx.saveGState();ctx.translateBy(x:w/2,y:h/2);ctx.scaleBy(x:1,y:h/w*0.98)
                 ctx.drawRadialGradient(g,startCenter:.zero,startRadius:0,endCenter:.zero,endRadius:w*0.52,options:[.drawsAfterEndLocation])
@@ -243,17 +281,21 @@ final class TableScene {
         let clothColor=clothTintIndex.map{Self.clothColors[$0].1} ?? .rgb(look.cloth)
         let cloth=mat(clothColor,roughness:0.97)
         cloth.diffuse.contents=clothAlbedo(clothColor)
-        cloth.normal.contents=normalImage;cloth.normal.intensity=0.34
+        cloth.normal.contents=normalImage;cloth.normal.intensity=0.5
         cloth.roughness.contents=materialMap("PC_FeltEmerald_roughness",fallback:{self.texture(CGSize(width:8,height:8)){c in UIColor(white:0.94,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:8,height:8))}});cloth.metalness.contents=0
         for channel in [cloth.diffuse,cloth.normal,cloth.roughness]{
             channel.wrapS = .repeat;channel.wrapT = .repeat
-            channel.contentsTransform=SCNMatrix4MakeScale(1.615,2.895,1)
+            // 0.21: the kit felt is a twill tile; at 1 tile per metre each twill rib was 2-4 cm wide and read as long
+            // diagonal smears. Real worsted cloth has ~1 mm ribs: 24 tiles per metre (tile ~4 cm). Mip + 16x anisotropic
+            // filtering average it out at distance, so the weave shows only close to the camera, as on a real table.
+            channel.contentsTransform=SCNMatrix4MakeScale(1.615*24,2.895*24,1)
             channel.minificationFilter = .linear;channel.magnificationFilter = .linear
             channel.mipFilter = .linear;channel.maxAnisotropy=16
         }
         let bedCloth=cloth.copy() as! SCNMaterial
         bedCloth.multiply.contents=feltNapImage;bedCloth.multiply.wrapS = .clamp;bedCloth.multiply.wrapT = .clamp
         bedCloth.multiply.contentsTransform=SCNMatrix4Identity;bedCloth.multiply.mipFilter = .linear
+        bedMaterial=bedCloth
         addMesh("bed",material:bedCloth)
         addMesh("deck",material:graphite)
         addMesh("trim",material:edge)
@@ -772,7 +814,7 @@ final class TableScene {
         let material=mat(.white,roughness:0.27)
         material.diffuse.contents=ballTexture(id);material.diffuse.maxAnisotropy=8
         material.diffuse.mipFilter = .linear;material.diffuse.minificationFilter = .linear
-        material.emission.contents=material.diffuse.contents;material.emission.intensity=0.08
+        applyBallFinish(material)
         sphere.materials=[material];cachedBallGeometry[id]=sphere;return sphere
     }
     private lazy var ballShadowGeometry:SCNPlane = {
@@ -785,6 +827,64 @@ final class TableScene {
         let old=node.position
         if old.x != position.x || old.y != position.y || old.z != position.z{node.position=position}
     }
+    // ---- 0.28: racking intro (owner request: 3-5 s at the start of each game; hands/rack only, no 3D person) ----
+    private let introRoot=SCNNode()
+    private var introDone:(()->Void)?
+    var rackIntroPlaying:Bool{introDone != nil}
+    /// Wooden triangle drops over loosely placed balls, the balls are pushed tight into the final rack positions
+    /// (exactly the solver's layout), the triangle lifts off. ~3.4 s; skipRackIntro() ends it at once.
+    func playRackIntro(_ balls:[BallState],completion:@escaping ()->Void){
+        skipRackIntro();introDone=completion
+        if introRoot.parent==nil{scene.rootNode.addChildNode(introRoot)}
+        let objects=balls.filter{$0.id>0 && !$0.sunk}
+        guard !objects.isEmpty else{finishRackIntro();return}
+        ballRoot.isHidden=true
+        let r=Float(radius),cx=objects.map{Float($0.x)}.reduce(0,+)/Float(objects.count),cy=objects.map{Float($0.y)}.reduce(0,+)/Float(objects.count)
+        var seed:UInt64=0x5AC4
+        func jitter()->Float{seed=seed &* 6364136223846793005 &+ 1442695040888963407;return Float(Int((seed>>33)%2001)-1000)/1000}
+        for b in balls where !b.sunk {
+            let node=SCNNode(geometry:ballGeometry(b.id));node.eulerAngles=SCNVector3(0.18,0.6,0.2)
+            let target=SCNVector3(Float(b.x),r,Float(b.y))
+            if b.id==0{node.position=target;introRoot.addChildNode(node);continue}
+            // loose start: spread 0-2 cm outward from the rack centre plus a little noise (hand-placed)
+            let dx=Float(b.x)-cx,dy=Float(b.y)-cy,len=max(0.001,sqrt(dx*dx+dy*dy))
+            let spread:Float=0.012+0.008*abs(jitter())
+            node.position=SCNVector3(Float(b.x)+dx/len*spread+0.004*jitter(),r,Float(b.y)+dy/len*spread+0.004*jitter())
+            introRoot.addChildNode(node)
+            let tighten=SCNAction.move(to:target,duration:0.9);tighten.timingMode = .easeInEaseOut
+            node.runAction(.sequence([.wait(duration:0.9),tighten]))
+        }
+        // triangle: three wooden bars around the rack, built from the actual rack extent
+        let xs=objects.map{Float($0.x)},ys=objects.map{Float($0.y)}
+        let minX=xs.min()!-r-0.006,maxX=xs.max()!+r+0.006,minY=ys.min()!-r-0.006,maxY=ys.max()!+r+0.006
+        let apexAtLow=abs(ys.min()!-cy)>abs(ys.max()!-cy)   // apex = the single-ball row
+        let apexRowY:Float=apexAtLow ? ys.min()!:ys.max()!
+        var apexX:Float=cx
+        for b in objects where abs(Float(b.y)-apexRowY)<0.01 {apexX=Float(b.x)}
+        let apex=SIMD2<Float>(apexX,apexAtLow ? minY-r*0.8:maxY+r*0.8)
+        let baseY=apexAtLow ? maxY:minY
+        let corners=[apex,SIMD2<Float>(minX-r*0.5,baseY),SIMD2<Float>(maxX+r*0.5,baseY)]
+        let wood=premiumMaterial("WalnutDark")
+        let triangle=SCNNode()
+        for i in 0..<3 {
+            let a=corners[i],b=corners[(i+1)%3],mid=(a+b)/2,d=b-a,length=simd_length(d)
+            let bar=SCNNode(geometry:SCNBox(width:CGFloat(length)+0.02,height:0.026,length:0.016,chamferRadius:0.004))
+            bar.geometry?.materials=[wood];bar.position=SCNVector3(mid.x,0.013,mid.y);bar.eulerAngles.y = -atan2(d.y,d.x)
+            triangle.addChildNode(bar)
+        }
+        triangle.position=SCNVector3(0,0.30,0);triangle.opacity=0;introRoot.addChildNode(triangle)
+        let drop=SCNAction.group([.move(to:SCNVector3(0,0,0),duration:0.7),.fadeIn(duration:0.4)]);drop.timingMode = .easeOut
+        let push=SCNAction.sequence([.moveBy(x:0,y:0,z:CGFloat(apexAtLow ? 0.008:-0.008),duration:0.45),.moveBy(x:0,y:0,z:CGFloat(apexAtLow ? -0.008:0.008),duration:0.45)])
+        let lift=SCNAction.group([.move(by:SCNVector3(0,0.35,0),duration:0.8),.fadeOut(duration:0.8)]);lift.timingMode = .easeIn
+        triangle.runAction(.sequence([drop,.wait(duration:0.2),push,.wait(duration:0.35),lift])){[weak self] in DispatchQueue.main.async{self?.finishRackIntro()}}
+    }
+    func skipRackIntro(){if introDone != nil{finishRackIntro()}}
+    private func finishRackIntro(){
+        introRoot.childNodes.forEach{$0.removeAllActions();$0.removeFromParentNode()}
+        ballRoot.isHidden=false
+        let done=introDone;introDone=nil;done?()
+    }
+
     func update(_ balls:[BallState],dt:Double){
         SCNTransaction.begin();SCNTransaction.animationDuration=0;SCNTransaction.disableActions=true
         defer{SCNTransaction.commit()}
@@ -989,11 +1089,12 @@ final class TableScene {
             let lift=SIMD3<Float>(0,radiusAim*sin(pitch),0)
             let behind:SIMD3<Float> = origin-retreat
             eye=behind+lift
-            let forward:SIMD3<Float> = d*Float(0.75)
-            let targetOrigin=SIMD3<Float>(Float(c.x),0.032,Float(c.y))
-            target=targetOrigin+forward
+            // 0.29 (owner): zoom slides the eye along ONE fixed axis through the cue ball, and the cue ball stays at
+            // the centre of the screen at every zoom (was: look 0.75 m past it, so it drifted when zooming).
+            target=SIMD3<Float>(Float(c.x),Float(radius),Float(c.y))
         }else{
-            let bounds=focusBounds ?? SIMD4<Float>(-0.78,0.78,-1.43,1.43)
+            // 0.29: watching the opponent orbits a FIXED pivot (table centre), not a moving shot frame.
+            let bounds=spectatorPivot ? SIMD4<Float>(-0.78,0.78,-1.43,1.43):(focusBounds ?? SIMD4<Float>(-0.78,0.78,-1.43,1.43))
             target=SIMD3((bounds.x+bounds.y)/2,0.025,(bounds.z+bounds.w)/2)
             let yaw:Float=orbit+0.20
             let elevation:Float=orbitPitch

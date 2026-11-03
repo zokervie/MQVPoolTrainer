@@ -1,3 +1,4 @@
+#include <vector>
 #include "../BankLab/UI/PresentationPolicy.h"
 #include <algorithm>
 #include <array>
@@ -9,7 +10,8 @@
 namespace {
 int scenarios = 0;
 void passed(const char *name) { ++scenarios; std::cout << "PASS G1: " << name << '\n'; }
-bool step(BLShotCameraState &s, double dt = 0.1, bool moving = false,
+const double U = BL_SHOT_READY_SECONDS / 5;   // one test frame; 5 frames = the rest window
+bool step(BLShotCameraState &s, double dt = U, bool moving = false,
           bool pocket = false, bool replay = false, bool local = true,
           bool editing = false, bool gesture = false) {
     return BLShotCameraTick(&s, dt, moving, pocket, replay, local, editing, gesture);
@@ -64,41 +66,71 @@ void checkLayout(double width, double height, bool expanded) {
 
 }
 
+
+static bool hit(const BLRect& a, const BLRect& b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; }
+static bool inside(const BLRect& r, double x0, double y0, double w, double h) { return r.x >= x0 - 1e-9 && r.y >= y0 - 1e-9 && r.x + r.w <= x0 + w + 1e-9 && r.y + r.h <= y0 + h + 1e-9; }
+// 0.22 thumb-first HUD: every combination of device, hand, mode and effect expansion.
+static void checkHUD022(double x0, double y0, double w, double h, int pad) {
+    for (int left = 0; left < 2; ++left) for (int practice = 0; practice < 2; ++practice) for (int expanded = 0; expanded < 2; ++expanded) {
+        const BLHUDFrames f = BLHUDLayout(x0, y0, w, h, pad, left, practice, expanded);
+        assert(f.items == (practice ? 6 : 5));
+        std::vector<BLRect> shown{f.rail, f.spin, f.menu, f.bridge};
+        if (!expanded) { shown.push_back(f.wheel); shown.push_back(f.elevation); }
+        if (practice) shown.push_back(f.coach);
+        for (const auto& r : shown) { assert(inside(r, x0, y0, w, h)); assert(r.w >= 44 && r.h >= 40); }
+        for (size_t a = 0; a < shown.size(); ++a) for (size_t b = a + 1; b < shown.size(); ++b) assert(!hit(shown[a], shown[b]));
+        assert(f.button >= 44);
+        const double cx = x0 + w / 2;
+        // thumb side: column, effect, elevation on the dominant-hand side; B on the other side
+        if (!left) { assert(f.rail.x > cx && f.spin.x > cx && f.bridge.x < cx && f.menu.x < cx); }
+        else       { assert(f.rail.x + f.rail.w < cx && f.spin.x + f.spin.w < cx && f.bridge.x > cx && f.menu.x > cx); }
+        if (!expanded) {
+            // owner layout: elevation beside the effect ball on the inner side, wheel under it, column at the edge
+            if (!left) assert(f.elevation.x + f.elevation.w <= f.spin.x && f.spin.x + f.spin.w <= f.rail.x);
+            else       assert(f.elevation.x >= f.spin.x + f.spin.w && f.spin.x >= f.rail.x + f.rail.w);
+            assert(f.wheel.y >= f.spin.y + f.spin.h && f.wheel.w > f.wheel.h);
+            assert(f.spin.w >= (pad ? 100 : 76));   // finger-sized effect ball
+        }
+        // left-handed is the exact mirror of right-handed
+        if (left) { const BLHUDFrames r = BLHUDLayout(x0, y0, w, h, pad, 0, practice, expanded);
+            assert(std::abs((f.spin.x - x0) - (w - (r.spin.x - x0) - r.spin.w)) < 1e-9 && std::abs(f.spin.y - r.spin.y) < 1e-9); }
+    }
+}
 int main() {
     BLShotCameraState s{};
     assert(!rest(s,100)); passed("idle never emits a shot-ready signal");
     BLShotCameraStart(&s);
-    for(int i=0;i<100;++i) assert(!step(s,0.1,true));
+    for(int i=0;i<100;++i) assert(!step(s,U,true));
     assert(s.stableSeconds==0); passed("all motion blocks readiness");
-    assert(!step(s,0.1)); assert(!step(s,0.1)); assert(!step(s,0.1)); assert(!step(s,0.1));
-    assert(!step(s,0.09)); assert(step(s,0.01)); passed("readiness starts at 0.5 seconds, never earlier");
-    BLShotCameraStart(&s); rest(s,4); assert(!step(s,0.1,true)); assert(!rest(s,4)); assert(step(s));
+    assert(!step(s,U)); assert(!step(s,U)); assert(!step(s,U)); assert(!step(s,U));
+    assert(!step(s,U*0.9)); assert(step(s,U*0.1)); passed("readiness starts at the rest window (0.3 s), never earlier");
+    BLShotCameraStart(&s); rest(s,4); assert(!step(s,U,true)); assert(!rest(s,4)); assert(step(s));
     passed("renewed motion resets uninterrupted rest");
-    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,true));
+    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,U,false,true));
     passed("pocket animation blocks readiness");
     assert(!rest(s,4)); assert(step(s)); passed("pocket completion requires a fresh rest window");
-    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,true));
+    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,U,false,false,true));
     passed("replay never emits a live-shot-ready signal");
     assert(!rest(s,4)); assert(step(s)); passed("replay exit restarts the full settle window");
-    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,false,false));
+    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,U,false,false,false,false));
     passed("spectator remains free to observe");
     assert(!rest(s,4)); assert(step(s)); passed("local turn becomes ready after settling");
-    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,false,true,true));
+    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,U,false,false,false,true,true));
     passed("ball editing suppresses readiness");
     assert(!rest(s,4)); assert(step(s)); passed("editing exit requires stable rest");
-    BLShotCameraStart(&s); rest(s,4); assert(!step(s,0.1,false,false,false,true,false,true));
+    BLShotCameraStart(&s); rest(s,4); assert(!step(s,U,false,false,false,true,false,true));
     passed("an active orbit or pinch defers readiness without changing pose");
     assert(!rest(s,4)); assert(step(s)); passed("manual observation becomes ready after gesture ends");
     BLShotCameraStart(&s);
     for(double dt : {0.0,-1.0,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()}) assert(!step(s,dt));
     assert(s.stableSeconds==0); passed("invalid timing cannot complete a shot");
     assert(!step(s,3600)); assert(std::abs(s.stableSeconds-0.1)<1e-10);
-    passed("resume gaps do not count as 0.5 seconds of observed rest");
+    passed("resume gaps do not count as a full rest window");
     assert(rest(s,4)); for(int i=0;i<100;++i) assert(!step(s));
     passed("readiness is emitted once per shot");
     BLShotCameraStart(&s); assert(rest(s)); assert(BLShotCameraBusy(s));
-    rest(s,4); assert(BLShotCameraBusy(s)); step(s,0.05); assert(!BLShotCameraBusy(s));
-    passed("stroke remains blocked throughout the final 0.45 second settle guard");
+    rest(s,4); assert(BLShotCameraBusy(s)); step(s,BL_SHOT_RETURN_SECONDS-4*U+1e-9); assert(!BLShotCameraBusy(s));
+    passed("stroke remains blocked throughout the final settle guard");
     BLShotCameraStart(&s); rest(s,3); BLShotCameraReset(&s);
     assert(!BLShotCameraBusy(s)); assert(!rest(s,20)); passed("Undo cancels pending shot settlement");
     BLShotCameraStart(&s); rest(s,3); BLShotCameraStart(&s);
@@ -106,7 +138,7 @@ int main() {
     for(int fps : {30,60,120}) {
         BLShotCameraStart(&s); int emitted=0,first=0;
         for(int frame=1;frame<=fps*2;++frame) if(step(s,1.0/fps)){++emitted;first=frame;}
-        assert(emitted==1); assert(std::abs(static_cast<double>(first)/fps-0.5)<1e-8);
+        assert(emitted==1); assert(std::abs(static_cast<double>(first)/fps-BL_SHOT_READY_SECONDS)<1e-8);
     }
     passed("30/60/120 Hz produce the same settle deadline");
     assert(BLStrokeAllowed(true,false,false,false,false,true));
@@ -123,6 +155,25 @@ int main() {
     passed("compact vertical HUD and Coach fit phone and iPad safe areas");
     for(auto size : {std::array<double,2>{568,299},{750,369},{830,388},{1024,744}})checkLayout(size[0],size[1],true);
     passed("expanded effect leaves B, Coach, Menu, wheel and scroll column separate");
+    // safe-area rects (landscape): iPhone SE, iPhone 15 Pro, 15 Pro Max, iPad 10.9", iPad Pro 13"
+    checkHUD022(0, 0, 568, 299, 0); checkHUD022(59, 0, 734, 372, 0); checkHUD022(59, 0, 814, 409, 0);
+    checkHUD022(0, 24, 1180, 776, 1); checkHUD022(0, 24, 1376, 1000, 1);
+    passed("0.22 HUD: thumb column, effect 76/100 pt, elevation left, wheel below, left-hand mirror, no overlaps");
+    {   double x = 9, y = 9; const double R = .028575;
+        assert(BLFreeSpotNearCentre(nullptr, nullptr, 0, R, .635, 1.27, &x, &y) && x == 0 && y == 0);
+        const double xs[3] = {0, .03, -.02}, ys[3] = {0, .01, -.04};
+        assert(BLFreeSpotNearCentre(xs, ys, 3, R, .635, 1.27, &x, &y));
+        for (int k = 0; k < 3; ++k) assert(std::hypot(xs[k] - x, ys[k] - y) >= 2 * R);
+        assert(std::hypot(x, y) < .12);
+    }
+    passed("0.22 Đặt bi: free spot nearest the centre, never on another ball");
+    {   int a = 0, b = 0; int w = -1;
+        for (int k = 0; k < 4; ++k) { w = BLRaceRecordRack(&a, &b, 5, 0); assert(w == -1); w = BLRaceRecordRack(&a, &b, 5, 1); assert(w == -1); }
+        assert(a == 4 && b == 4 && BLRaceRecordRack(&a, &b, 5, 1) == 1 && b == 5);
+        assert(BLRaceRecordRack(&a, &b, 5, -1) == 1);   // no winner yet: score unchanged, match already decided
+        assert(BLRaceNextBreaker(0) == 1 && BLRaceNextBreaker(1) == 0 && BLRaceClamp(0) == 1 && BLRaceClamp(99) == 25);
+    }
+    passed("0.29 race to N: frames tally, hill-hill decider, alternate break");
     for(int fps : {30,60,120}) {
         double remaining=0.45,value=0;
         while(remaining>0) {

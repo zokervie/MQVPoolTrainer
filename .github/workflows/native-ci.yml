@@ -56,7 +56,7 @@ jobs:
     name: Nghiệm thu Mac (Simulator, XCTest, IPA)
     needs: portable
     runs-on: ${{ github.event.inputs.runner || 'macos-15-intel' }}
-    timeout-minutes: 75
+    timeout-minutes: 150   # per-stage limits live in run_acceptance.py; slow Intel runners exceeded 75
     permissions:
       contents: write
     defaults:
