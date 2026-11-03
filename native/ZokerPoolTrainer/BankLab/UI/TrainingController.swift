@@ -1,4 +1,5 @@
 import UIKit
+import GameKit
 import SceneKit
 import simd
 import AVFoundation
@@ -157,6 +158,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             scn.topAnchor.constraint(equalTo:view.topAnchor),
             scn.bottomAnchor.constraint(equalTo:view.bottomAnchor)])
         buildHUD();buildQuickRail();buildCoachCard();buildStatusToast();configureGestures();loadDrill(drillIndex);configureMatchPlay()
+        // 0.27 Game Center: invitations can arrive at any time; QA launches stay offline.
+        GameCenterHub.shared.presenter=self
+        GameCenterHub.shared.onStatus={[weak self] text in self?.notifyStatus(text)}
+        GameCenterHub.shared.onMatch={[weak self] match,rule in self?.startGameCenterMatch(match,rule:rule)}
+        if !ProcessInfo.processInfo.arguments.contains(where:{$0.hasPrefix("--")}){GameCenterHub.shared.authenticate()}
         let aimZoom=UserDefaults.standard.double(forKey:"aimCameraZoom013")
         table.zoom=Float(aimZoom>=0.45 && aimZoom<=2.6 ? aimZoom:1)
         let savedPitch=Float(UserDefaults.standard.double(forKey:"aimCameraPitch014"))
@@ -329,6 +335,18 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickCall.isHidden = !(matchIsCompetitive && matchBool("requiresCall"))
         for item in quickRail.arrangedSubviews{item.constraints.first{$0.firstAttribute == .height && $0.secondItem==nil}?.constant=CGFloat(f.button)}
         spinWidth.constant=CGFloat(f.spin.w);spinHeight.constant=CGFloat(f.spin.h)
+    }
+    /// 0.27 account management: Game Center profile, friends, sign-in. No password is stored by the app.
+    func openAccount(){
+        let hub=GameCenterHub.shared
+        let sheet=UIAlertController(title:"Tài khoản",message:hub.isSignedIn ? "Đăng nhập Game Center: \(hub.displayName)":(hub.unavailableReason ?? "Đăng nhập Game Center để chơi online với bạn bè. Wi‑Fi mã phòng không cần tài khoản."),preferredStyle:.actionSheet)
+        if hub.isSignedIn {
+            sheet.addAction(UIAlertAction(title:"Hồ sơ người chơi",style:.default){_ in hub.showProfile()})
+            sheet.addAction(UIAlertAction(title:"Bạn bè / mời bạn",style:.default){_ in hub.showFriends()})
+        } else {
+            sheet.addAction(UIAlertAction(title:"Đăng nhập Game Center",style:.default){_ in hub.authenticate()})
+        }
+        sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));presentSheet(sheet,source:menuButton)
     }
     func setLeftHanded(_ on:Bool){
         UserDefaults.standard.set(on,forKey:"leftHanded022");view.setNeedsLayout();view.layoutIfNeeded()
@@ -526,7 +544,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         let modes=group("Chế độ chơi · Offline / Wi‑Fi / Online",[
             ("Offline · luyện tự do",{[weak self] in self?.setMenu(false)}),
-            ("Wi‑Fi (mã phòng) / Online",{[weak self] in self?.openMatchMenu()})])
+            ("Wi‑Fi (mã phòng) / Online / Game Center",{[weak self] in self?.openMatchMenu()}),
+            ("Tài khoản · Game Center",{[weak self] in self?.openAccount()})])
         modes.accessibilityIdentifier="MenuModes"
         let guide=group("Hướng dẫn",[
             ("Cách chơi & điều khiển",{[weak self] in self?.help()}),

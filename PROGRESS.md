@@ -36,6 +36,10 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (khuya) · 0.27 online Game Center (chờ CI Mac; cần chủ dự án bật Game Center cho App ID + App Store Connect):
+  - Kênh kết nối thứ ba trong `LocalMatchSession` (`.gameCenter`, GKMatch, Apple chuyển dữ liệu, miễn phí): mời bạn bè / ghép ngẫu nhiên theo thể loại (playerGroup), chủ bàn = mã người chơi nhỏ hơn, cùng giao thức trận như Wi‑Fi/relay.
+  - Tài khoản = Game Center: Menu → Chế độ chơi → Tài khoản (hồ sơ, bạn bè, đăng nhập). Ứng dụng không lưu mật khẩu. Lời mời đến bất cứ lúc nào đều mở trận.
+  - Wi‑Fi mã phòng (không tài khoản) và Online relay mã phòng giữ nguyên.
 - 03/11/2026 (khuya) · 0.28 cảnh xếp bi (chờ CI Mac; chưa xem trên thiết bị):
   - Đầu mỗi ván và mỗi lần xếp lại: khung tam giác gỗ hạ xuống trên bi đặt lỏng, đẩy chặt (bi trượt vào đúng vị trí của bộ giải luật), nhấc lên và mờ đi, ~3,4 s, 3 tiếng bi chạm. Chạm bàn để bỏ qua; không nhận cú đánh trong lúc chạy. Không dựng người 3D (theo đề xuất đã nêu). Các lần chạy kiểm thử tự động bỏ qua cảnh này.
 - 03/11/2026 (khuya) · 0.25 xem lại / lùi–tiến cú / highlight (chờ CI Mac):

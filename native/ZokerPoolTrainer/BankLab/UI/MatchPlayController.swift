@@ -1,4 +1,5 @@
 import UIKit
+import GameKit
 import simd
 
 /// UI state is deliberately separate from the host's rules and fixed-step world.
@@ -157,6 +158,8 @@ extension TrainingController {
             sheet.addAction(UIAlertAction(title: title + " · tạo phòng Wi-Fi", style: .default) { [weak self] _ in self?.startMatch(rule: rule, network: true) })
             sheet.addAction(UIAlertAction(title: title + " · tạo phòng Online", style: .default) { [weak self] _ in self?.startMatch(rule: rule, network: true, online: true) })
         }
+        // 0.27: Game Center — friends, invitations, auto-match; no room code, no own server.
+        sheet.addAction(UIAlertAction(title: "Online · Game Center (bạn bè / ghép trận)", style: .default) { [weak self] _ in self?.chooseGameCenterMatch() })
         sheet.addAction(UIAlertAction(title: "Vào phòng Wi-Fi bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom() })
         sheet.addAction(UIAlertAction(title: "Vào phòng Online bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom(online: true) })
         sheet.addAction(UIAlertAction(title: "Máy chủ online…", style: .default) { [weak self] _ in self?.configureOnlineRelay() })
@@ -183,7 +186,24 @@ extension TrainingController {
     var matchDisciplines: [(String,String)] {
         [("nineBall","9 Ball"),("eightBall","8 Ball"),("tenBall","10 Ball"),("rotation15","15 Ball Rotation · 61 điểm")]
     }
-    func startMatch(rule: String, network: Bool, online: Bool = false) {
+    func chooseGameCenterMatch() {
+        let sheet = UIAlertController(title: "Game Center", message: "Mời bạn trong danh sách bạn bè hoặc ghép ngẫu nhiên với người cùng chọn thể loại.", preferredStyle: .actionSheet)
+        for (rule, title) in matchDisciplines {
+            sheet.addAction(UIAlertAction(title: title, style: .default) { _ in GameCenterHub.shared.findMatch(rule: rule) })
+        }
+        sheet.addAction(UIAlertAction(title: "Hủy", style: .cancel)); presentSheet(sheet, source: menuButton)
+    }
+    /// Both devices land here with the same GKMatch; the session decides the seat (lower player ID hosts).
+    func startGameCenterMatch(_ match: GKMatch, rule: String) {
+        guard !shotActive, replayIndex == nil else { return }
+        let me = GKLocalPlayer.local.gamePlayerID, other = match.players.first?.gamePlayerID ?? ""
+        if me < other { startMatch(rule: rule, network: true, gameCenter: match); return }
+        prepareGuestMatch()
+        matchPlay.session.startGameCenter(match: match, game: rule)
+        setMenu(false); syncMatchControls(); updateControls()
+        notifyStatus("Game Center · đang đồng bộ với \(match.players.first?.displayName ?? "bạn")")
+    }
+    func startMatch(rule: String, network: Bool, online: Bool = false, gameCenter: GKMatch? = nil) {
         guard !shotActive, replayIndex == nil else { return }
         if online && OnlineRelayConfig.url == nil {
             configureOnlineRelay { [weak self] in self?.startMatch(rule: rule, network: true, online: true) }
@@ -215,12 +235,15 @@ extension TrainingController {
         table.resetPocketPresentation()
         table.setCompetitivePresentation(numbers: false)
         if network {
-            _ = matchPlay.session.createRoom(game: rule, internet: online)
+            if let match = gameCenter { matchPlay.session.startGameCenter(match: match, game: rule) }
+            else { _ = matchPlay.session.createRoom(game: rule, internet: online) }
             publishMatchSnapshot(force: true)
         }
         setMenu(false); refresh(); syncMatchControls(); updateControls()
         let code = matchPlay.session.roomCode
-        if online && !code.isEmpty {
+        if gameCenter != nil {
+            notifyStatus("Game Center · bạn là chủ bàn, phá trước")
+        } else if online && !code.isEmpty {
             UIPasteboard.general.string = code
             notifyStatus("Mã phòng online \(code) (đã sao chép) · gửi cho bạn, bạn chọn Vào phòng Online bằng mã")
         } else {
@@ -251,20 +274,23 @@ extension TrainingController {
             } else {
                 guard code.count == 6, code.allSatisfy({ $0.isNumber && $0.isASCII }) else { self.notifyStatus("Mã phòng cần 6 chữ số"); return }
             }
-            self.clearShot()
-            self.matchPlay.rules = nil; self.matchPlay.state = [:]
-            self.matchPlay.active = true; self.matchPlay.showNumbers = false
-            self.matchPlay.guestBalls = []; self.matchPlay.snapshots = []; self.matchPlay.playout.reset()
-            self.matchPlay.lastGuestShot = -1; self.matchPlay.lastGuestTurn = -1; self.matchPlay.pendingAimSync = true; self.matchPlay.needsFullSync = true
-            self.matchPlay.audioShotID = -1; self.matchPlay.audioEvents = []; self.matchPlay.playedEvents = []
-            self.matchPlay.placementDraft = nil
-            self.coaching = false; self.guideOn = false; self.locked = false
-            self.table.cameraMode = 0; self.table.zoom = 1; self.table.focusBounds = nil
-            self.table.setCompetitivePresentation(numbers: false)
+            self.prepareGuestMatch()
             _ = self.matchPlay.session.joinRoom(code: code, internet: online)
             self.setMenu(false); self.syncMatchControls(); self.updateControls()
         })
         present(alert, animated: true)
+    }
+    func prepareGuestMatch() {
+        clearShot()
+        matchPlay.rules = nil; matchPlay.state = [:]
+        matchPlay.active = true; matchPlay.showNumbers = false
+        matchPlay.guestBalls = []; matchPlay.snapshots = []; matchPlay.playout.reset()
+        matchPlay.lastGuestShot = -1; matchPlay.lastGuestTurn = -1; matchPlay.pendingAimSync = true; matchPlay.needsFullSync = true
+        matchPlay.audioShotID = -1; matchPlay.audioEvents = []; matchPlay.playedEvents = []
+        matchPlay.placementDraft = nil
+        coaching = false; guideOn = false; locked = false
+        table.cameraMode = 0; table.zoom = 1; table.focusBounds = nil
+        table.setCompetitivePresentation(numbers: false)
     }
     func leaveMatch() {
         guard !shotActive || matchSimulationPaused || matchPlay.session.role == .guest else { notifyStatus("Chờ bi dừng trước khi rời trận"); return }

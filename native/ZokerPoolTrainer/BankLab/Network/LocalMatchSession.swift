@@ -1,5 +1,6 @@
 import Foundation
 import MultipeerConnectivity
+import GameKit
 import UIKit
 
 /// Two devices, no account. Nearby: MultipeerConnectivity. Internet: a WebSocket
@@ -9,7 +10,7 @@ import UIKit
 /// Host is seat 0 and the only solver/rules authority; guest is seat 1.
 final class LocalMatchSession: NSObject {
     enum Role { case none, host, guest }
-    enum Transport { case nearby, internet }
+    enum Transport { case nearby, internet, gameCenter }
     static let serviceType = "zt-pool18"
 
     var onStateChanged: ((String) -> Void)?
@@ -35,12 +36,20 @@ final class LocalMatchSession: NSObject {
     }
     /// Transport-level link to exactly one peer.
     private var linkUp: Bool {
-        transport == .internet ? (relay?.isOpen == true && relayPeerPresent) : session?.connectedPeers.count == 1
+        switch transport {
+        case .internet: return relay?.isOpen == true && relayPeerPresent
+        case .gameCenter: return gameCenterMatch != nil && gameCenterPeerPresent
+        case .nearby: return session?.connectedPeers.count == 1
+        }
     }
     private var peerName: String {
-        transport == .internet ? "bạn chơi online" : (reservedPeer?.displayName ?? "bạn chơi")
+        transport == .gameCenter ? (gameCenterMatch?.players.first?.displayName ?? "bạn Game Center")
+            : (transport == .internet ? "bạn chơi online" : (reservedPeer?.displayName ?? "bạn chơi"))
     }
     private var relay: RelayLink?
+    // 0.27 Game Center: Apple relays the bytes; no room code, no own server, free.
+    private var gameCenterMatch: GKMatch?
+    private var gameCenterPeerPresent = false
     private var relayPeerPresent = false
     private var relayToken = ""
     private var relayFailures = 0
@@ -146,6 +155,24 @@ final class LocalMatchSession: NSObject {
         return true
     }
 
+    /// 0.27: start a 1-vs-1 match found or invited through Game Center. Both devices call this with the same
+    /// GKMatch; the seat is decided deterministically (lower gamePlayerID hosts), the host's `game` wins.
+    func startGameCenter(match: GKMatch, game: String) {
+        requireMain()
+        leave()
+        guard validGame(game) else { report("Thể loại trận không hợp lệ"); return }
+        let me = GKLocalPlayer.local.gamePlayerID, other = match.players.first?.gamePlayerID ?? ""
+        role = me < other ? .host : .guest
+        transport = .gameCenter
+        gameCenterMatch = match
+        self.game = game
+        roomCode = "GAMECENTER"
+        matchID = role == .host ? UUID().uuidString : ""
+        restartSession()
+        startHeartbeat()
+        describe(role == .host ? "Game Center · bạn là chủ bàn" : "Game Center · đang đồng bộ với chủ bàn")
+    }
+
     func leave() {
         requireMain()
         if role != .none { send(kind: .leave) }
@@ -156,6 +183,7 @@ final class LocalMatchSession: NSObject {
         heartbeat?.invalidate(); heartbeat = nil
         session?.delegate = nil; session?.disconnect(); session = nil
         relay?.close(); relay = nil; relayPeerPresent = false; relayFailures = 0
+        gameCenterMatch?.delegate = nil; gameCenterMatch?.disconnect(); gameCenterMatch = nil; gameCenterPeerPresent = false
         transport = .nearby; relayToken = ""
         roomCode = ""; game = ""; matchID = ""
         reservedPeer = nil; pendingPeer = nil
@@ -249,6 +277,14 @@ final class LocalMatchSession: NSObject {
         receivedSequence = 0
         stopDiscovery()
         session?.delegate = nil; session?.disconnect()
+        if transport == .gameCenter {
+            session = nil
+            lastReceived = ProcessInfo.processInfo.systemUptime; retryAt = lastReceived
+            gameCenterMatch?.delegate = self
+            gameCenterPeerPresent = (gameCenterMatch?.players.count ?? 0) == 1
+            if gameCenterPeerPresent { handleRelay(.peer(true)) }
+            return
+        }
         if transport == .internet {
             session = nil
             relay?.close(); relayPeerPresent = false
@@ -299,6 +335,13 @@ final class LocalMatchSession: NSObject {
     private func tick() {
         guard role != .none, !backgrounded, !protocolBlocked else { return }
         let now = ProcessInfo.processInfo.systemUptime
+        if transport == .gameCenter {
+            if linkUp && remoteReady {
+                if now - lastReceived > 10 { describe("Mất tín hiệu Game Center · trận tạm dừng"); remoteReady = false; return }
+                if now - lastPing >= 2 { lastPing = now; send(kind: .ping) }
+            }
+            return
+        }
         if transport == .internet {
             if linkUp {
                 if remoteReady && now - lastReceived > 10 {
@@ -356,7 +399,10 @@ final class LocalMatchSession: NSObject {
         if kind == .hello { packet.role = role == .host ? "host" : "guest"; packet.game = game }
         do {
             let data = try LANWireCodec.encode(packet)
-            if transport == .internet {
+            if transport == .gameCenter {
+                guard let match = gameCenterMatch else { return false }
+                try match.sendData(toAllPlayers: data, with: .reliable)
+            } else if transport == .internet {
                 guard let relay = relay else { return false }
                 relay.send(data)
             } else {
@@ -382,7 +428,7 @@ final class LocalMatchSession: NSObject {
         guard data.count <= LANEnvelope.maximumBytes,
               let packet = try? LANWireCodec.decode(data), packet.roomCode == roomCode,
               packet.sequence > receivedSequence else { return }
-        guard transport == .internet || reservedPeer == nil || reservedPeer == peer else { return }
+        guard transport != .nearby || reservedPeer == nil || reservedPeer == peer else { return }
         if packet.kind != .hello && packet.matchID != matchID { return }
         receivedSequence = packet.sequence
         lastReceived = ProcessInfo.processInfo.systemUptime
@@ -770,4 +816,96 @@ extension LocalMatchSession: MCNearbyServiceBrowserDelegate {
             self.report("Kiểm tra quyền Mạng cục bộ và Wi-Fi, rồi chọn Nối lại.")
         }
     }
+}
+
+// MARK: - Game Center transport (0.27)
+extension LocalMatchSession: GKMatchDelegate {
+    func match(_ match: GKMatch, didReceive data: Data, fromRemotePlayer player: GKPlayer) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.gameCenterMatch === match else { return }
+            self.receive(data, from: nil)
+        }
+    }
+    func match(_ match: GKMatch, player: GKPlayer, didChange state: GKPlayerConnectionState) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.gameCenterMatch === match else { return }
+            self.gameCenterPeerPresent = state == .connected
+            self.handleRelay(.peer(state == .connected))
+        }
+    }
+    func match(_ match: GKMatch, didFailWithError error: Error?) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.gameCenterMatch === match else { return }
+            self.gameCenterPeerPresent = false; self.remoteReady = false
+            self.describe("Game Center mất kết nối · trận tạm dừng")
+            self.report(error?.localizedDescription ?? "Game Center mất kết nối")
+        }
+    }
+}
+
+// MARK: - Game Center account, friends and matchmaking (0.27)
+/// Accounts are Apple Game Center accounts: sign-in, friends, invitations and the match relay are Apple's,
+/// free, with no password storage or own server. Needs the Game Center capability on the App ID and the app
+/// record in App Store Connect (owner action); without it sign-in reports unavailable and Wi-Fi / relay
+/// online play keep working unchanged.
+final class GameCenterHub: NSObject, GKMatchmakerViewControllerDelegate, GKLocalPlayerListener, GKGameCenterControllerDelegate {
+    static let shared = GameCenterHub()
+    /// Disciplines in playerGroup order: auto-match only pairs players who asked for the same game.
+    static let rules = ["eightBall", "nineBall", "tenBall", "rotation15"]
+    weak var presenter: UIViewController?
+    var onMatch: ((GKMatch, String) -> Void)?
+    var onStatus: ((String) -> Void)?
+    private var pendingRule = "nineBall"
+    private(set) var unavailableReason: String?
+
+    var isSignedIn: Bool { GKLocalPlayer.local.isAuthenticated }
+    var displayName: String { GKLocalPlayer.local.isAuthenticated ? GKLocalPlayer.local.displayName : "Chưa đăng nhập" }
+
+    func authenticate(then next: (() -> Void)? = nil) {
+        GKLocalPlayer.local.authenticateHandler = { [weak self] controller, error in
+            guard let self = self else { return }
+            if let controller = controller { self.presenter?.present(controller, animated: true); return }
+            if GKLocalPlayer.local.isAuthenticated {
+                self.unavailableReason = nil
+                GKLocalPlayer.local.unregisterAllListeners(); GKLocalPlayer.local.register(self)
+                self.onStatus?("Game Center: \(GKLocalPlayer.local.displayName)"); next?()
+            } else {
+                self.unavailableReason = error?.localizedDescription ?? "Game Center chưa sẵn sàng trên máy này"
+                self.onStatus?("Game Center: " + (self.unavailableReason ?? ""))
+            }
+        }
+    }
+    func findMatch(rule: String) {
+        guard isSignedIn else { authenticate { [weak self] in self?.findMatch(rule: rule) }; return }
+        pendingRule = rule
+        let request = GKMatchRequest(); request.minPlayers = 2; request.maxPlayers = 2
+        request.playerGroup = Self.rules.firstIndex(of: rule) ?? 1
+        request.inviteMessage = "Mời bạn một ván bida trên Z-Trainer"
+        guard let controller = GKMatchmakerViewController(matchRequest: request) else { onStatus?("Không mở được ghép trận Game Center"); return }
+        controller.matchmakerDelegate = self
+        presenter?.present(controller, animated: true)
+    }
+    func showFriends() { showDashboard(.localPlayerFriendsList) }
+    func showProfile() { showDashboard(.localPlayerProfile) }
+    private func showDashboard(_ state: GKGameCenterViewControllerState) {
+        guard isSignedIn else { authenticate { [weak self] in self?.showDashboard(state) }; return }
+        let controller = GKGameCenterViewController(state: state); controller.gameCenterDelegate = self
+        presenter?.present(controller, animated: true)
+    }
+    // Invitation accepted from a notification or the friends list: the invite carries the game.
+    func player(_ player: GKPlayer, didAccept invite: GKInvite) {
+        pendingRule = Self.rules.indices.contains(invite.playerGroup) ? Self.rules[invite.playerGroup] : "nineBall"
+        guard let controller = GKMatchmakerViewController(invite: invite) else { return }
+        controller.matchmakerDelegate = self
+        presenter?.present(controller, animated: true)
+    }
+    func matchmakerViewController(_ viewController: GKMatchmakerViewController, didFind match: GKMatch) {
+        let rule = pendingRule
+        viewController.dismiss(animated: true) { [weak self] in self?.onMatch?(match, rule) }
+    }
+    func matchmakerViewControllerWasCancelled(_ viewController: GKMatchmakerViewController) { viewController.dismiss(animated: true) }
+    func matchmakerViewController(_ viewController: GKMatchmakerViewController, didFailWithError error: Error) {
+        viewController.dismiss(animated: true); onStatus?("Game Center: " + error.localizedDescription)
+    }
+    func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) { gameCenterViewController.dismiss(animated: true) }
 }
