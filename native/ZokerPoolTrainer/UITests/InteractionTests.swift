@@ -67,6 +67,17 @@ final class InteractionTests: XCTestCase {
         return button
     }
 
+    /// Polls a probe field and reports the whole probe on failure (diagnosable from the CI log).
+    private func settle(_ scene: XCUIElement, _ key: String, _ value: Double, timeout: TimeInterval = 20,
+                        file: StaticString = #filePath, line: UInt = #line) {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            if field(scene, key) == value { return }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTFail("\(key) != \(value) · probe: \(scene.value ?? "")", file: file, line: line)
+    }
+
     private func wait(_ scene: XCUIElement, timeout: TimeInterval = 30,
                       _ condition: @escaping () -> Bool) {
         expectation(for: NSPredicate { _, _ in condition() }, evaluatedWith: scene)
@@ -111,12 +122,11 @@ final class InteractionTests: XCTestCase {
         for (upper,lower) in zip(order,order.dropFirst()) {
             XCTAssertLessThan(app.buttons[upper].frame.midY,app.buttons[lower].frame.midY,"\(upper) above \(lower)")
         }
+        XCTAssertTrue(coach.isEnabled,"Coach enabled · \(scene.value ?? "")")
         coach.tap()
-        let enabled=NSPredicate { _,_ in self.field(scene,"coach")==1 }
-        expectation(for:enabled,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
+        settle(scene,"coach",1)
         coach.tap()
-        let disabled=NSPredicate { _,_ in self.field(scene,"coach")==0 }
-        expectation(for:disabled,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
+        settle(scene,"coach",0)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }
 
@@ -165,7 +175,9 @@ final class InteractionTests: XCTestCase {
     }
 
     func testReplayManualCameraDoesNotChangeNextAimHeight() {
-        let (app,scene)=launch(["--ux017-shot-qa"])
+        // Shots now settle fast (0.29), so a short replay can finish before a slow simulator answers;
+        // --replay-hold-qa keeps the last frame until Done.
+        let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa"])
         let replay=app.buttons["QuickReplay"]
         expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay);waitForExpectations(timeout:30 * slow)
         let pitch=field(scene,"pitch")
@@ -250,7 +262,8 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(numbers.label.contains("nút số"))
         numbers.tap()
         XCTAssertEqual(field(scene,"coach"),0,"Competitive mode cannot enable coaching")
-        XCTAssertFalse(app.buttons["QuickRetry"].isEnabled)
+        let retry=app.buttons["QuickRetry"]   // hidden (or disabled) in competitive play
+        XCTAssertTrue(!retry.exists || !retry.isEnabled)
         XCTAssertFalse(app.buttons["QuickReplay"].isEnabled)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }

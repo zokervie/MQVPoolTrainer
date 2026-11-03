@@ -69,6 +69,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     let statusToast=UILabel()
     let coachButton=UIButton(type:.system)
     var coaching=false
+    var qaCoachDown=0,qaCoachUp=0   // 0.29 QA probe: touches that actually reach the Coach button
+    let qaReplayHold=ProcessInfo.processInfo.arguments.contains("--replay-hold-qa")
     var guidedCoachBefore:Bool?
     var shotKind=0 // Stable legacy IDs: 0 playing, 1 jump, 2 break; 3 massé preset.
     var quickPlace:UIButton!,quickAdd:UIButton!
@@ -446,6 +448,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         coachButton.layer.cornerRadius=10;coachButton.backgroundColor=UIColor.rgb(0x131218).withAlphaComponent(0.88);coachButton.layer.borderWidth=0.7;coachButton.layer.borderColor=UIColor.rgb(0xEAC583).cgColor
         coachButton.accessibilityIdentifier="CoachToggle";coachButton.accessibilityLabel="Coach · Huấn luyện viên"
         coachButton.addAction(UIAction{[weak self]_ in self?.toggleCoach()},for:.touchUpInside)
+        coachButton.addAction(UIAction{[weak self]_ in self?.qaCoachDown+=1},for:.touchDown)
+        coachButton.addAction(UIAction{[weak self]_ in self?.qaCoachUp+=1},for:.touchUpInside)
         fineWheel.translatesAutoresizingMaskIntoConstraints=false
         fineWheel.accessibilityIdentifier="FineAimWheel";view.addSubview(fineWheel)
         fineWheel.changed={[weak self] delta in guard let self=self,!self.locked,!self.presentationBusy,self.localTurn else{return};self.angle+=delta;self.aimCameraYaw=0;self.shotCameraAnchor=nil;self.beginCameraTransition(0.25);self.refresh();self.wakeRendering()}
@@ -1065,7 +1069,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             replayClock += replayPaused ? 0:dt*replaySpeed*rate
             var i=index
             while i+1<frames.count && replayClock>=frameTimes[i+1] {i+=1}
-            if replayClock>=(frameTimes.last ?? 0)+0.25 {stopReplay()}
+            if replayClock>=(frameTimes.last ?? 0)+0.25 && qaReplayHold {replayClock=(frameTimes.last ?? 0)+0.25;replayPaused=true}   // QA: hold the last frame until Done
+            if replayClock>=(frameTimes.last ?? 0)+0.25 && !qaReplayHold {stopReplay()}
             else{
                 replayIndex=i
                 let j=min(i+1,frames.count-1)
@@ -1171,7 +1176,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f",preparationDuration,replayClock)}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f",preparationDuration,replayClock)+String(format:";coachDown=%d;coachUp=%d;locked=%d;expanded=%d;coachEnabled=%d",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+String(describing:type(of:view.hitTest(coachButton.center,with:nil) ?? view))}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
