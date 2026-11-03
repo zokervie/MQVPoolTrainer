@@ -36,6 +36,10 @@ Không lấy (lý do):
 - Ghost ball khi đánh: trái nguyên tắc ngắm bằng mắt; chỉ dùng trong phân tích sau cú.
 
 ## Nhật ký
+- 03/11/2026 (23h50) · 0.29 trải nghiệm thi đấu — TESTED_PORTABLE (23 bộ), chờ CI Mac:
+  - **Hết chờ lâu sau khi bi dừng:** bi đứng yên nhưng còn xoáy ngang giữ bàn "đang chạy" tới 5,7 s (xoáy tắt 11 rad/s²). `Config::settleSpinInPlace` (app bật): bi đã lăn đúng (trượt < 5 mm/s) và tâm < 5 mm/s là đứng yên → 0 s; cú kéo/đẩy không đổi (test: lệch < 2 mm). Cửa sổ sẵn sàng 0,5 → 0,3 s, khoá trả camera 0,45 → 0,3 s.
+  - **Camera:** zoom ngắm trượt trên một trục cố định qua bi cái, bi cái luôn ở tâm màn hình; xem đối thủ xoay quanh trục cố định (tâm bàn); đến lượt mình (cả chuyền máy) tự về góc ngắm.
+  - **Bảng điểm điện tử:** thiết lập tên 2 người + race to N trước trận (nhớ cho lần sau; Game Center lấy tên tài khoản); bảng NAME · số ván · RACE N · VÁN k · số ván · NAME, chấm vàng người đang đánh; ván xong → 1,2 s sau tự xếp ván mới (đổi người phá) kèm cảnh xếp bi; thắng race → "thắng trận x–y", Trận mới cùng người chơi. Đồng bộ cho máy khách qua JSON luật.
 - 03/11/2026 (khuya) · 0.27 online Game Center (chờ CI Mac; cần chủ dự án bật Game Center cho App ID + App Store Connect):
   - Kênh kết nối thứ ba trong `LocalMatchSession` (`.gameCenter`, GKMatch, Apple chuyển dữ liệu, miễn phí): mời bạn bè / ghép ngẫu nhiên theo thể loại (playerGroup), chủ bàn = mã người chơi nhỏ hơn, cùng giao thức trận như Wi‑Fi/relay.
   - Tài khoản = Game Center: Menu → Chế độ chơi → Tài khoản (hồ sơ, bạn bè, đăng nhập). Ứng dụng không lưu mật khẩu. Lời mời đến bất cứ lúc nào đều mở trận.

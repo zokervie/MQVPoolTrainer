@@ -62,6 +62,11 @@ struct Config {
     // Rail tangential restitution (grip-slip, CushionContact3D.hpp). 0 = rigid stick model (pre-0.21, keeps old
     // regressions exact). The app sets railTangentialRestitution from the clip fit in Tests/ReverseZigzagTests.cpp.
     double railTangentialRestitution=0;
+    // 0.29 (owner: "waiting after the balls stop is too long"): a ball that has stopped rolling but still spins
+    // about the vertical axis kept World::moving() true for seconds (side spin decays ~11 rad/s^2). With
+    // settleSpinInPlace, a grounded ball whose centre speed AND rolling-contact slip are both below 5 mm/s is at
+    // rest: its residual spin is cleared. A draw/follow ball still sliding (large slip) is never touched.
+    bool settleSpinInPlace=false;
     bool individualRails=false;
     std::array<double,4> railBounce{{.82,.82,.82,.82}},railGrip{{.16,.16,.16,.16}};
     double bounce(int i)const{return individualRails&&i>=0&&i<4?railBounce[i]:railRestitution;}
@@ -99,6 +104,7 @@ public:
     void strike(double angle,double speed,double side,double top);
     void advance(double elapsed);
     void step(double dt=stepSize);
+    void settleSpinningBalls();
     bool moving()const;
     std::vector<V2> idealGuide(V2 start,double angle,int count)const;
     std::vector<PredictionSample> predict(double angle,double speed,double side,double top,double seconds=12)const;

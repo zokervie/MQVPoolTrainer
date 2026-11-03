@@ -10,7 +10,7 @@ using namespace banklab;
 //    rectified track of the 8-ball over 4 cushions), Tests/ReverseZigzagTests.cpp. Single clip = measured, not general.
 //  - squirt only with a raised cue (owner decision), break-cue gain 1.4 [design].
 - (instancetype)init { if((self=[super init])){_world=std::make_unique<World>();auto&c=_world->config;c.coupledCushions=true;
-    c.railTangentialRestitution=.30;c.spinDecay=11;c.squirtRampDegrees=15;c.breakSpeedGain=1.4;}return self; }
+    c.railTangentialRestitution=.30;c.spinDecay=11;c.squirtRampDegrees=15;c.breakSpeedGain=1.4;c.settleSpinInPlace=true;}return self; }
 - (BOOL)moving{return _world->moving();}
 - (double)elapsed{return _world->time;}
 - (NSArray*)states{

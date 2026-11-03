@@ -1,4 +1,4 @@
-# Nghiệm thu Z-Trainer 0.21 → 0.28
+# Nghiệm thu Z-Trainer 0.21 → 0.29
 
 Nhánh `ci/native-0.21-vat-ly`. Cột **CI** = đã được kiểm tra tự động (test C++ trên Linux / Simulator trên Mac). Cột **Máy thật** = bạn tick khi thử trên iPhone/iPad. Ghi chú ngắn vào cuối mỗi dòng nếu chưa đạt rồi gửi lại file này.
 
@@ -75,5 +75,15 @@ Nhánh `ci/native-0.21-vat-ly`. Cột **CI** = đã được kiểm tra tự đ�
 | 33 | Wi‑Fi mã phòng, không tài khoản | có từ 0.19 | [ ] |
 | 34 | Game Center: đăng nhập, bạn bè, mời / ghép trận | cần bật Game Center (bên dưới) | [ ] |
 | 35 | Cảnh xếp bi đầu ván ~3,4 s, chạm để bỏ qua | — | [ ] |
+
+## Trải nghiệm thi đấu (0.29)
+
+| # | Hạng mục | CI | Máy thật |
+| --- | --- | --- | --- |
+| 36 | Bi dừng → được đánh tiếp gần như ngay (trước: chờ tới ~5 s khi bi còn xoáy tại chỗ) | ✅ 0 s, cú kéo không đổi | [ ] |
+| 37 | Zoom góc ngắm: bi cái luôn ở tâm màn hình, trượt trên một trục | — | [ ] |
+| 38 | Xem đối thủ: xoay quanh tâm bàn cố định | — | [ ] |
+| 39 | Đến lượt mình: tự về góc ngắm sẵn sàng ra cơ | — | [ ] |
+| 40 | Thiết lập tên + race to N trước trận; bảng điểm kiểu truyền hình; ván mới tự xếp | ✅ logic race | [ ] |
 
 **Bật Game Center (việc của chủ tài khoản Apple Developer):** developer.apple.com → Identifiers → App ID của Z-Trainer → bật *Game Center*; App Store Connect → app → *Game Center* bật; ký lại IPA bằng profile có Game Center. Tài khoản Apple miễn phí không dùng được Game Center; khi đó Wi‑Fi và Online mã phòng vẫn chơi bình thường.

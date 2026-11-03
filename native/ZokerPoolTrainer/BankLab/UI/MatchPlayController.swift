@@ -34,6 +34,11 @@ final class MatchPlayState {
     var placementOrigin: [BallState]?
     var pendingChoiceKey = ""
     var banner = UIButton(type: .system)
+    // 0.29 race-to-N scoreboard (host authority; published in the rules JSON as raceTo/frames/names/rackNo/matchWinner).
+    var raceTo = 5, frames = [0, 0], names = ["Người 1", "Người 2"], rackNo = 1, breaker = 0, matchWinner = -1
+    var rackCounted = false
+    let scoreboard = UIView()
+    var scoreboardBuilt = false
     var bannerConfigured = false
     var lastStatus = ""
 }
@@ -154,9 +159,9 @@ extension TrainingController {
         if matchPlay.active { openMatchActions(); return }
         let sheet = UIAlertController(title: "Chơi theo luật", message: "8/9/10 Ball: luật WPA. 15 Ball: Rotation, chạm số nhỏ nhất trước, đạt 61 điểm. Wi-Fi: hai máy cùng mạng. Online: hai máy ở bất kỳ đâu (Wi-Fi/4G) qua máy chủ chuyển tiếp miễn phí; máy tạo phòng tính vật lý cho cả hai.", preferredStyle: .actionSheet)
         for (rule, title) in matchDisciplines {
-            sheet.addAction(UIAlertAction(title: title + " · chuyền máy", style: .default) { [weak self] _ in self?.startMatch(rule: rule, network: false) })
-            sheet.addAction(UIAlertAction(title: title + " · tạo phòng Wi-Fi", style: .default) { [weak self] _ in self?.startMatch(rule: rule, network: true) })
-            sheet.addAction(UIAlertAction(title: title + " · tạo phòng Online", style: .default) { [weak self] _ in self?.startMatch(rule: rule, network: true, online: true) })
+            sheet.addAction(UIAlertAction(title: title + " · chuyền máy", style: .default) { [weak self] _ in self?.setupMatch { self?.startMatch(rule: rule, network: false) } })
+            sheet.addAction(UIAlertAction(title: title + " · tạo phòng Wi-Fi", style: .default) { [weak self] _ in self?.setupMatch { self?.startMatch(rule: rule, network: true) } })
+            sheet.addAction(UIAlertAction(title: title + " · tạo phòng Online", style: .default) { [weak self] _ in self?.setupMatch { self?.startMatch(rule: rule, network: true, online: true) } })
         }
         // 0.27: Game Center — friends, invitations, auto-match; no room code, no own server.
         sheet.addAction(UIAlertAction(title: "Online · Game Center (bạn bè / ghép trận)", style: .default) { [weak self] _ in self?.chooseGameCenterMatch() })
@@ -185,6 +190,27 @@ extension TrainingController {
     }
     var matchDisciplines: [(String,String)] {
         [("nineBall","9 Ball"),("eightBall","8 Ball"),("tenBall","10 Ball"),("rotation15","15 Ball Rotation · 61 điểm")]
+    }
+    /// 0.29: names + race to N agreed before the match (remembered for next time).
+    func setupMatch(_ start: @escaping () -> Void) {
+        let defaults = UserDefaults.standard
+        let alert = UIAlertController(title: "Thiết lập trận", message: "Tên người chơi và số ván thắng (race to). Ví dụ race 5: ai thắng 5 ván trước thắng trận.", preferredStyle: .alert)
+        alert.addTextField { $0.placeholder = "Người chơi 1"; $0.text = defaults.string(forKey: "playerName0") ?? "Người 1" }
+        alert.addTextField { $0.placeholder = "Người chơi 2"; $0.text = defaults.string(forKey: "playerName1") ?? "Người 2" }
+        alert.addTextField { $0.placeholder = "Race to (1–25)"; $0.keyboardType = .numberPad
+            $0.text = String(defaults.object(forKey: "raceTo029") as? Int ?? 5) }
+        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Bắt đầu", style: .default) { [weak self, weak alert] _ in
+            guard let self = self, let fields = alert?.textFields, fields.count == 3 else { return }
+            let clean: (String?, String) -> String = { text, fallback in
+                let t = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines); return t.isEmpty ? fallback : String(t.prefix(16)) }
+            let n0 = clean(fields[0].text, "Người 1"), n1 = clean(fields[1].text, "Người 2")
+            let race = Int(BLRaceClamp(Int32(Int(fields[2].text ?? "") ?? 5)))
+            defaults.set(n0, forKey: "playerName0"); defaults.set(n1, forKey: "playerName1"); defaults.set(race, forKey: "raceTo029")
+            self.matchPlay.names = [n0, n1]; self.matchPlay.raceTo = race
+            start()
+        })
+        present(alert, animated: true)
     }
     func chooseGameCenterMatch() {
         let sheet = UIAlertController(title: "Game Center", message: "Mời bạn trong danh sách bạn bè hoặc ghép ngẫu nhiên với người cùng chọn thể loại.", preferredStyle: .actionSheet)
@@ -226,6 +252,11 @@ extension TrainingController {
         engine.settings = BLWorld().settings
         side = 0; top = 0; spin.reset(); shotKind = 0
         table.selectCue(0); table.cueElevation = 0
+        if gameCenter != nil {   // Game Center: names come from the accounts
+            matchPlay.names = [GKLocalPlayer.local.displayName, gameCenter?.players.first?.displayName ?? "Đối thủ"]
+            matchPlay.raceTo = UserDefaults.standard.object(forKey: "raceTo029") as? Int ?? 5
+        }
+        matchPlay.frames = [0, 0]; matchPlay.rackNo = 1; matchPlay.breaker = 0; matchPlay.matchWinner = -1; matchPlay.rackCounted = false
         let rack = matchPlay.rules?.rack(seed: UInt64.random(in: 1...UInt64.max)) ?? []
         engine.loadLayout(rack)
         initial = balls; before = initial
@@ -292,6 +323,40 @@ extension TrainingController {
         table.cameraMode = 0; table.zoom = 1; table.focusBounds = nil
         table.setCompetitivePresentation(numbers: false)
     }
+    /// 0.29 broadcast-style scoreboard, top centre: NAME  frames  RACE N  frames  NAME, gold dot on the shooter.
+    func updateScoreboard() {
+        let board = matchPlay.scoreboard
+        if !matchPlay.scoreboardBuilt {
+            matchPlay.scoreboardBuilt = true
+            board.translatesAutoresizingMaskIntoConstraints = false; board.isUserInteractionEnabled = false
+            board.backgroundColor = UIColor(red: 0.04, green: 0.06, blue: 0.11, alpha: 0.88); board.layer.cornerRadius = 10
+            board.layer.borderWidth = 1; board.layer.borderColor = UIColor.rgb(0xEAC583).withAlphaComponent(0.55).cgColor
+            board.accessibilityIdentifier = "MatchScoreboard"
+            view.addSubview(board)
+            NSLayoutConstraint.activate([board.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+                                         board.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+                                         board.heightAnchor.constraint(equalToConstant: 40)])
+            let row = UIStackView(); row.axis = .horizontal; row.spacing = 10; row.alignment = .center
+            row.translatesAutoresizingMaskIntoConstraints = false; board.addSubview(row); row.tag = 1
+            NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo: board.leadingAnchor, constant: 12), row.trailingAnchor.constraint(equalTo: board.trailingAnchor, constant: -12),
+                                         row.centerYAnchor.constraint(equalTo: board.centerYAnchor)])
+            for tag in 10...14 { let label = UILabel(); label.tag = tag; row.addArrangedSubview(label) }
+        }
+        board.isHidden = !matchPlay.active
+        guard matchPlay.active, let row = board.viewWithTag(1) else { return }
+        let player = matchInt("currentPlayer"), gold = UIColor.rgb(0xEAC583)
+        func set(_ tag: Int, _ text: String, _ size: CGFloat, _ color: UIColor, _ weight: UIFont.Weight) {
+            guard let label = row.viewWithTag(tag) as? UILabel else { return }
+            label.text = text; label.textColor = color; label.font = .monospacedDigitSystemFont(ofSize: size, weight: weight)
+        }
+        let shooting = matchPlay.matchWinner < 0 && matchInt("winner", fallback: -1) < 0
+        set(10, (shooting && player == 0 ? "● " : "") + matchPlay.names[0], 14, player == 0 ? .white : UIColor(white: 0.7, alpha: 1), .semibold)
+        set(11, "\(matchPlay.frames[0])", 22, .white, .bold)
+        set(12, "RACE \(matchPlay.raceTo) · VÁN \(matchPlay.rackNo)", 11, gold, .bold)
+        set(13, "\(matchPlay.frames[1])", 22, .white, .bold)
+        set(14, matchPlay.names[1] + (shooting && player == 1 ? " ●" : ""), 14, player == 1 ? .white : UIColor(white: 0.7, alpha: 1), .semibold)
+        view.bringSubviewToFront(board)
+    }
     func leaveMatch() {
         guard !shotActive || matchSimulationPaused || matchPlay.session.role == .guest else { notifyStatus("Chờ bi dừng trước khi rời trận"); return }
         matchPlay.active = false
@@ -306,8 +371,15 @@ extension TrainingController {
     }
 
     func syncMatchControls() {
-        guard matchPlay.active else { matchPlay.banner.isHidden = true; return }
+        guard matchPlay.active else { matchPlay.banner.isHidden = true; matchPlay.scoreboard.isHidden = true; table.spectatorPivot = false; return }
+        let wasLocal = localTurn
         localTurn = matchAllowsInput
+        updateScoreboard()
+        table.spectatorPivot = !localTurn
+        // 0.29: when the turn comes to this device, it is already in the ready-to-shoot aim view.
+        if localTurn && !wasLocal && !shotActive && replayIndex == nil && table.cameraMode != 2 {
+            aimCameraYaw = 0; shotCameraAnchor = nil; selectCamera(2)
+        }
         matchPlay.banner.isHidden = locked || menuOpen
         matchPlay.banner.setTitle(matchStatusText(), for: .normal)
         coachButton.setTitle(matchPlay.showNumbers ? "123 ✓" : "123", for: .normal)
@@ -337,9 +409,10 @@ extension TrainingController {
         let room = matchPlay.session.role == .none ? "Chuyền máy" : "Mã \(matchPlay.session.roomCode)"
         if matchSimulationPaused { return "\(room) · TẠM DỪNG\n\(matchPlay.lastStatus)" }
         let winner = matchInt("winner", fallback: -1)
-        if winner >= 0 { return "\(name) · \(room)\nNgười \(winner + 1) thắng · chạm để xem trận" }
+        if matchPlay.matchWinner >= 0 { return "\(name) · \(room)\n\(matchPlay.names[matchPlay.matchWinner]) thắng trận \(matchPlay.frames.max() ?? 0)–\(matchPlay.frames.min() ?? 0) · chạm để chơi trận mới" }
+        if winner >= 0 { return "\(name) · \(room)\n\(matchPlay.names[winner]) thắng ván · ván mới sau giây lát" }
         let player = matchInt("currentPlayer")
-        let seat = matchPlay.session.role == .none ? "Lượt người \(player + 1)" : (player == matchPlay.session.localPlayer ? "Lượt của bạn" : "Đang xem đối thủ")
+        let seat = matchPlay.session.role == .none ? "Lượt \(matchPlay.names[min(1, max(0, player))])" : (player == matchPlay.session.localPlayer ? "Lượt của bạn" : "Đang xem đối thủ")
         var detail = matchReason(matchPlay.state["reason"] as? String ?? "")
         if let warnings = matchPlay.state["twoFoulWarning"] as? [Bool], warnings.indices.contains(player), warnings[player] {
             detail = "2 lỗi liên tiếp · lỗi nữa thua ván"
@@ -357,6 +430,13 @@ extension TrainingController {
     func openMatchActions() {
         guard matchPlay.active, !locked else { return }
         let sheet = UIAlertController(title: matchStatusText(), message: "Camera quan sát thuộc từng máy. Trận đối kháng luôn tắt mọi đường hướng dẫn; chỉ có nút số băng tùy chọn.", preferredStyle: .actionSheet)
+        if matchPlay.matchWinner >= 0, matchPlay.session.role != .guest {
+            sheet.addAction(UIAlertAction(title: "Trận mới · cùng người chơi, race \(matchPlay.raceTo)", style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                self.matchPlay.frames = [0, 0]; self.matchPlay.rackNo = 0; self.matchPlay.matchWinner = -1; self.matchPlay.breaker = 1
+                self.startNextRack()
+            })
+        }
         if matchAllowsInput, !shotActive, matchInt("winner", fallback: -1) < 0 {
             let options = matchPlay.state["choiceOptions"] as? [String] ?? []
             for option in options {
@@ -645,6 +725,36 @@ extension TrainingController {
         frameStateCache = nil
         resetMatchCall()
         statusLabel.text = matchReason(matchPlay.state["reason"] as? String ?? "")
+        recordRackIfFinished()
+    }
+    /// 0.29: count the rack; next rack starts by itself after 1.2 s (alternate break) unless the race is won.
+    func recordRackIfFinished() {
+        let winner = matchInt("winner", fallback: -1)
+        guard winner >= 0, !matchPlay.rackCounted, matchPlay.matchWinner < 0, matchPlay.session.role != .guest else { return }
+        matchPlay.rackCounted = true
+        var a = Int32(matchPlay.frames[0]), b = Int32(matchPlay.frames[1])
+        let decided = Int(BLRaceRecordRack(&a, &b, Int32(matchPlay.raceTo), Int32(winner)))
+        matchPlay.frames = [Int(a), Int(b)]
+        updateScoreboard()
+        if decided >= 0 {
+            matchPlay.matchWinner = decided
+            notifyStatus("\(matchPlay.names[decided]) thắng trận \(matchPlay.frames[decided])–\(matchPlay.frames[1 - decided])")
+            publishMatchSnapshot(force: true); return
+        }
+        notifyStatus("\(matchPlay.names[winner]) thắng ván \(matchPlay.rackNo) · \(matchPlay.frames[0])–\(matchPlay.frames[1])")
+        publishMatchSnapshot(force: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.startNextRack() }
+    }
+    func startNextRack() {
+        guard matchPlay.active, matchPlay.matchWinner < 0, let rules = matchPlay.rules, !shotActive else { return }
+        matchPlay.breaker = Int(BLRaceNextBreaker(Int32(matchPlay.breaker)))
+        matchPlay.rackNo += 1; matchPlay.rackCounted = false
+        rules.reset(breaker: matchPlay.breaker)
+        engine.loadLayout(rules.rack(seed: UInt64.random(in: 1...UInt64.max)))
+        table.resetPocketPresentation(); clearShot()
+        updateMatchState(); initial = balls; before = initial
+        startRackIntro()
+        refresh(); updateControls(); syncMatchControls(); publishMatchSnapshot(force: true)
     }
 
     func matchCuePositionValid(_ state: [BallState]) -> Bool {
@@ -760,6 +870,8 @@ extension TrainingController {
         var state = matchPlay.state
         state["calledBall"] = matchPlay.calledBall; state["calledPocket"] = matchPlay.calledPocket
         state["safety"] = matchPlay.safety; state["pushOut"] = matchPlay.pushOut
+        state["raceTo"] = matchPlay.raceTo; state["frames"] = matchPlay.frames; state["names"] = matchPlay.names
+        state["rackNo"] = matchPlay.rackNo; state["matchWinner"] = matchPlay.matchWinner
         guard let json = try? JSONSerialization.data(withJSONObject: state) else { return }
         let events = engine.events.enumerated().suffix(128).compactMap { matchEvent($0.element, index: $0.offset) }
         // Read the world rather than the placement preview or presentation
@@ -796,6 +908,11 @@ extension TrainingController {
         matchPlay.calledPocket = (state["calledPocket"] as? NSNumber)?.intValue ?? -1
         matchPlay.safety = (state["safety"] as? NSNumber)?.boolValue ?? false
         matchPlay.pushOut = (state["pushOut"] as? NSNumber)?.boolValue ?? false
+        if let race = (state["raceTo"] as? NSNumber)?.intValue { matchPlay.raceTo = Int(BLRaceClamp(Int32(race))) }
+        if let f = state["frames"] as? [NSNumber], f.count == 2 { matchPlay.frames = f.map { max(0, min(99, $0.intValue)) } }
+        if let n = state["names"] as? [String], n.count == 2 { matchPlay.names = n.map { String($0.prefix(16)) } }
+        matchPlay.rackNo = (state["rackNo"] as? NSNumber)?.intValue ?? matchPlay.rackNo
+        matchPlay.matchWinner = (state["matchWinner"] as? NSNumber)?.intValue ?? -1
         if newShot {
             matchPlay.snapshots = []
             matchPlay.guestClock = max(0, snapshot.elapsed - matchPlay.playout.delay)

@@ -739,7 +739,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         statusToast.textColor = .white;statusToast.backgroundColor=UIColor(white:0.035,alpha:0.9)
         statusToast.font = .systemFont(ofSize:13,weight:.medium);statusToast.textAlignment = .center;statusToast.numberOfLines=2
         statusToast.layer.cornerRadius=10;statusToast.clipsToBounds=true;statusToast.isHidden=true
-        NSLayoutConstraint.activate([statusToast.centerXAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerXAnchor),statusToast.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),statusToast.widthAnchor.constraint(lessThanOrEqualToConstant:390),statusToast.widthAnchor.constraint(lessThanOrEqualTo:view.safeAreaLayoutGuide.widthAnchor,multiplier:0.7),statusToast.heightAnchor.constraint(greaterThanOrEqualToConstant:44)])
+        NSLayoutConstraint.activate([statusToast.centerXAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerXAnchor),statusToast.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:56),statusToast.widthAnchor.constraint(lessThanOrEqualToConstant:390),statusToast.widthAnchor.constraint(lessThanOrEqualTo:view.safeAreaLayoutGuide.widthAnchor,multiplier:0.7),statusToast.heightAnchor.constraint(greaterThanOrEqualToConstant:44)])
     }
     func notifyStatus(_ text:String){
         statusLabel.text=text;statusToast.text="  "+text+"  ";statusToast.isHidden=false;view.bringSubviewToFront(statusToast)
@@ -1118,7 +1118,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         let authorityReadiness=localTurn || (matchIsCompetitive && matchPlay.session.role != .guest)
         if BLShotCameraTick(&shotCameraState,dt,wasSimulating || shotActive || engine.moving,table.hasActivePocketAnimations,wasReplaying || replayIndex != nil,authorityReadiness,isPlacingBalls,cameraGestureActive) {
-            wakeRendering() // Readiness gate only; keep the live camera pose.
+            wakeRendering() // Readiness gate; practice keeps the live camera pose.
+            // 0.29: in a match (also pass-and-play on one device) the player to shoot starts in the aim view.
+            if matchIsCompetitive && localTurn && table.cameraMode != 2 && peekPose == nil {aimCameraYaw=0;shotCameraAnchor=nil;selectCamera(2)}
         }
         if wasBusy != BLShotCameraBusy(shotCameraState){updateControls()}
         if qaAwaitingAimReturn && !presentationBusy {
@@ -1127,7 +1129,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             precondition(abs(table.zoom-1.18)<0.001,"G1: selected aim zoom was lost")
             precondition(abs(angle+aimCameraYaw-qaExpectedCameraAngle)<0.00001,"Next-ball aiming changed the live camera angle")
             precondition(!table.hasActivePocketAnimations && !engine.moving)
-            qaAwaitingAimReturn=false;recordG1QA("return",["cameraMode":table.cameraMode,"zoom":table.zoom,"settleSeconds":0.5,"cameraAngle":angle+aimCameraYaw,"expectedCameraAngle":qaExpectedCameraAngle,"automaticViewChanges":0])
+            qaAwaitingAimReturn=false;recordG1QA("return",["cameraMode":table.cameraMode,"zoom":table.zoom,"settleSeconds":BL_SHOT_READY_SECONDS,"cameraAngle":angle+aimCameraYaw,"expectedCameraAngle":qaExpectedCameraAngle,"automaticViewChanges":0])
         }
         let displayCue:BallState? = replayIndex.flatMap{frames[$0].first{$0.id==0}} ?? cue
         var cameraCue=displayCue

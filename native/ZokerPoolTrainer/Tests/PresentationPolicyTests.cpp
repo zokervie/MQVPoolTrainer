@@ -10,7 +10,8 @@
 namespace {
 int scenarios = 0;
 void passed(const char *name) { ++scenarios; std::cout << "PASS G1: " << name << '\n'; }
-bool step(BLShotCameraState &s, double dt = 0.1, bool moving = false,
+const double U = BL_SHOT_READY_SECONDS / 5;   // one test frame; 5 frames = the rest window
+bool step(BLShotCameraState &s, double dt = U, bool moving = false,
           bool pocket = false, bool replay = false, bool local = true,
           bool editing = false, bool gesture = false) {
     return BLShotCameraTick(&s, dt, moving, pocket, replay, local, editing, gesture);
@@ -99,37 +100,37 @@ int main() {
     BLShotCameraState s{};
     assert(!rest(s,100)); passed("idle never emits a shot-ready signal");
     BLShotCameraStart(&s);
-    for(int i=0;i<100;++i) assert(!step(s,0.1,true));
+    for(int i=0;i<100;++i) assert(!step(s,U,true));
     assert(s.stableSeconds==0); passed("all motion blocks readiness");
-    assert(!step(s,0.1)); assert(!step(s,0.1)); assert(!step(s,0.1)); assert(!step(s,0.1));
-    assert(!step(s,0.09)); assert(step(s,0.01)); passed("readiness starts at 0.5 seconds, never earlier");
-    BLShotCameraStart(&s); rest(s,4); assert(!step(s,0.1,true)); assert(!rest(s,4)); assert(step(s));
+    assert(!step(s,U)); assert(!step(s,U)); assert(!step(s,U)); assert(!step(s,U));
+    assert(!step(s,U*0.9)); assert(step(s,U*0.1)); passed("readiness starts at the rest window (0.3 s), never earlier");
+    BLShotCameraStart(&s); rest(s,4); assert(!step(s,U,true)); assert(!rest(s,4)); assert(step(s));
     passed("renewed motion resets uninterrupted rest");
-    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,true));
+    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,U,false,true));
     passed("pocket animation blocks readiness");
     assert(!rest(s,4)); assert(step(s)); passed("pocket completion requires a fresh rest window");
-    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,true));
+    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,U,false,false,true));
     passed("replay never emits a live-shot-ready signal");
     assert(!rest(s,4)); assert(step(s)); passed("replay exit restarts the full settle window");
-    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,false,false));
+    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,U,false,false,false,false));
     passed("spectator remains free to observe");
     assert(!rest(s,4)); assert(step(s)); passed("local turn becomes ready after settling");
-    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,0.1,false,false,false,true,true));
+    BLShotCameraStart(&s); for(int i=0;i<20;++i) assert(!step(s,U,false,false,false,true,true));
     passed("ball editing suppresses readiness");
     assert(!rest(s,4)); assert(step(s)); passed("editing exit requires stable rest");
-    BLShotCameraStart(&s); rest(s,4); assert(!step(s,0.1,false,false,false,true,false,true));
+    BLShotCameraStart(&s); rest(s,4); assert(!step(s,U,false,false,false,true,false,true));
     passed("an active orbit or pinch defers readiness without changing pose");
     assert(!rest(s,4)); assert(step(s)); passed("manual observation becomes ready after gesture ends");
     BLShotCameraStart(&s);
     for(double dt : {0.0,-1.0,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()}) assert(!step(s,dt));
     assert(s.stableSeconds==0); passed("invalid timing cannot complete a shot");
     assert(!step(s,3600)); assert(std::abs(s.stableSeconds-0.1)<1e-10);
-    passed("resume gaps do not count as 0.5 seconds of observed rest");
+    passed("resume gaps do not count as a full rest window");
     assert(rest(s,4)); for(int i=0;i<100;++i) assert(!step(s));
     passed("readiness is emitted once per shot");
     BLShotCameraStart(&s); assert(rest(s)); assert(BLShotCameraBusy(s));
-    rest(s,4); assert(BLShotCameraBusy(s)); step(s,0.05); assert(!BLShotCameraBusy(s));
-    passed("stroke remains blocked throughout the final 0.45 second settle guard");
+    rest(s,4); assert(BLShotCameraBusy(s)); step(s,BL_SHOT_RETURN_SECONDS-4*U+1e-9); assert(!BLShotCameraBusy(s));
+    passed("stroke remains blocked throughout the final settle guard");
     BLShotCameraStart(&s); rest(s,3); BLShotCameraReset(&s);
     assert(!BLShotCameraBusy(s)); assert(!rest(s,20)); passed("Undo cancels pending shot settlement");
     BLShotCameraStart(&s); rest(s,3); BLShotCameraStart(&s);
@@ -137,7 +138,7 @@ int main() {
     for(int fps : {30,60,120}) {
         BLShotCameraStart(&s); int emitted=0,first=0;
         for(int frame=1;frame<=fps*2;++frame) if(step(s,1.0/fps)){++emitted;first=frame;}
-        assert(emitted==1); assert(std::abs(static_cast<double>(first)/fps-0.5)<1e-8);
+        assert(emitted==1); assert(std::abs(static_cast<double>(first)/fps-BL_SHOT_READY_SECONDS)<1e-8);
     }
     passed("30/60/120 Hz produce the same settle deadline");
     assert(BLStrokeAllowed(true,false,false,false,false,true));
@@ -166,6 +167,13 @@ int main() {
         assert(std::hypot(x, y) < .12);
     }
     passed("0.22 Đặt bi: free spot nearest the centre, never on another ball");
+    {   int a = 0, b = 0; int w = -1;
+        for (int k = 0; k < 4; ++k) { w = BLRaceRecordRack(&a, &b, 5, 0); assert(w == -1); w = BLRaceRecordRack(&a, &b, 5, 1); assert(w == -1); }
+        assert(a == 4 && b == 4 && BLRaceRecordRack(&a, &b, 5, 1) == 1 && b == 5);
+        assert(BLRaceRecordRack(&a, &b, 5, -1) == 1);   // no winner yet: score unchanged, match already decided
+        assert(BLRaceNextBreaker(0) == 1 && BLRaceNextBreaker(1) == 0 && BLRaceClamp(0) == 1 && BLRaceClamp(99) == 25);
+    }
+    passed("0.29 race to N: frames tally, hill-hill decider, alternate break");
     for(int fps : {30,60,120}) {
         double remaining=0.45,value=0;
         while(remaining>0) {

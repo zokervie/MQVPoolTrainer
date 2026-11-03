@@ -94,6 +94,7 @@ final class TableScene {
     private var trainingOverlaysHidden=true
     var focusBounds:SIMD4<Float>?
     var placementBlocked=false
+    var spectatorPivot=false
     var cameraMode=2 // Aim3D; numeric IDs remain 0=overview, 1=top, 2=aim.
     var zoom:Float=1
     var orbit:Float=0
@@ -1088,11 +1089,12 @@ final class TableScene {
             let lift=SIMD3<Float>(0,radiusAim*sin(pitch),0)
             let behind:SIMD3<Float> = origin-retreat
             eye=behind+lift
-            let forward:SIMD3<Float> = d*Float(0.75)
-            let targetOrigin=SIMD3<Float>(Float(c.x),0.032,Float(c.y))
-            target=targetOrigin+forward
+            // 0.29 (owner): zoom slides the eye along ONE fixed axis through the cue ball, and the cue ball stays at
+            // the centre of the screen at every zoom (was: look 0.75 m past it, so it drifted when zooming).
+            target=SIMD3<Float>(Float(c.x),Float(radius),Float(c.y))
         }else{
-            let bounds=focusBounds ?? SIMD4<Float>(-0.78,0.78,-1.43,1.43)
+            // 0.29: watching the opponent orbits a FIXED pivot (table centre), not a moving shot frame.
+            let bounds=spectatorPivot ? SIMD4<Float>(-0.78,0.78,-1.43,1.43):(focusBounds ?? SIMD4<Float>(-0.78,0.78,-1.43,1.43))
             target=SIMD3((bounds.x+bounds.y)/2,0.025,(bounds.z+bounds.w)/2)
             let yaw:Float=orbit+0.20
             let elevation:Float=orbitPitch

@@ -9,6 +9,7 @@
 #include "../BankLab/Core/Physics.hpp"
 #include "../BankLab/UI/PowerScale.h"
 #include "../BankLab/UI/ShotKindPolicy.h"
+#include <array>
 #include <cmath>
 #include <cstdio>
 using namespace banklab;
@@ -83,6 +84,20 @@ int main() {
     // ---- 0.22: three cues in the bag; Massé follows the playing cue's elevation ----
     check(BLShotKindForElevation(0, 59.9) == 0 && BLShotKindForElevation(0, 60) == 3 && BLShotKindForElevation(3, 45) == 0 &&
           BLShotKindForElevation(1, 80) == 1 && BLShotKindForElevation(2, 70) == 2, "Đánh raised to 60 deg becomes Massé (soft tip); Jump/Break unchanged");
+    // ---- 0.29: a ball spinning in place is at rest (no multi-second wait); draw/follow untouched ----
+    {   auto spinner = [](bool settle) { Config c; c.coupledCushions = true; c.settleSpinInPlace = settle; c.width = 40; c.length = 40;
+            World w(c); Ball b; b.id = 0; b.spin = 40; w.balls = {b}; double t = 0; while (w.moving() && t < 10) { w.step(); t += World::stepSize; } return t; };
+        const double fast = spinner(true), slow = spinner(false);
+        std::printf("REPORT: ball spinning in place at 40 rad/s: at rest after %.2f s (was %.2f s)\n", fast, slow);
+        check(fast < .01 && slow > 2, "spin in place no longer delays the next shot");
+        auto drawShot = [](bool settle) { Config c; c.coupledCushions = true; c.settleSpinInPlace = settle; c.width = 40; c.length = 40;
+            World w(c); Ball b; b.id = 0; Ball o; o.id = 1; o.p = {.25, 0}; w.balls = {b, o}; w.strike(0, 3.5, 0, -.6); double minX = 0, maxX = 0;
+            for (int i = 0; i < 960 * 15 && w.moving(); ++i) { w.step(); minX = std::min(minX, w.balls[0].p.x); maxX = std::max(maxX, w.balls[0].p.x); }
+            return std::array<double,3>{w.balls[0].p.x, maxX, minX}; };
+        const auto a = drawShot(true), b = drawShot(false);
+        std::printf("REPORT: draw shot into a ball: cue ends at x=%.3f m (furthest %.3f) with settle, %.3f without\n", a[0], a[1], b[0]);
+        check(std::abs(a[0] - b[0]) < .002 && a[0] < a[1] - .05, "draw shot path unchanged (still draws back), within 2 mm");
+    }
     std::printf("%s\n", failures ? "CueTip: FAILED" : "CueTip: all checks passed");
     return failures ? 1 : 0;
 }

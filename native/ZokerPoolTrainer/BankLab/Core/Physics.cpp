@@ -184,9 +184,17 @@ bool World::pocket(Ball&b){
     if(std::abs(b.p.x)>x+.24||std::abs(b.p.y)>y+.24){const double impact=b.v.length();b.sunk=true;b.v={};b.w={};b.spin=0;events.push_back({2,b.id,-1,time,b.p,impact});return true;}
     return false;
 }
+void World::settleSpinningBalls(){
+    if(!config.settleSpinInPlace)return;
+    for(auto&b:balls){
+        if(b.sunk||b.height>1e-7||std::abs(b.vertical)>1e-5)continue;
+        const V2 slip=b.v+b.w.perp()*config.radius;   // contact-point velocity (0 when rolling: w = v.perp/R)
+        if(b.v.length()<.005&&slip.length()<.005){b.v={};b.w={};b.spin=0;}
+    }
+}
 void World::step(double dt){
     previousPresentation=balls;presentationEventCount=events.size();
-    if(config.experimental3D||config.coupledCushions){stepElevated(dt);return;}
+    if(config.experimental3D||config.coupledCushions){stepElevated(dt);settleSpinningBalls();return;}
     // Within each fixed step, stop at the first swept sphere/capsule contact.
     // Prevents a 6 m/s ball being several millimetres overlapped before its cut normal is evaluated.
     auto sphereTime=[](V2 p,V2 v,double radius,double limit){

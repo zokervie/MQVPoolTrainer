@@ -6,6 +6,10 @@
 
 // UIKit and the portable regression suite consume this same policy. No physics
 // state lives here; time comes exclusively from the main display loop.
+// 0.29 (owner: shorter wait after the balls stop): rest window 0.5 -> 0.3 s, return guard 0.45 -> 0.3 s.
+// 0.3 s is a whole number of frames at 30/60/120 Hz, so the deadline is display-rate independent.
+#define BL_SHOT_READY_SECONDS 0.3
+#define BL_SHOT_RETURN_SECONDS 0.3
 typedef struct {
     bool pending;
     double stableSeconds;
@@ -50,10 +54,10 @@ static inline bool BLShotCameraTick(BLShotCameraState *state, double dt,
         return false;
     }
     state->stableSeconds += dt;
-    if (state->stableSeconds + 1e-9 < 0.5) return false;
+    if (state->stableSeconds + 1e-9 < BL_SHOT_READY_SECONDS) return false;
     state->pending = false;
     state->stableSeconds = 0;
-    state->returnSeconds = 0.45;
+    state->returnSeconds = BL_SHOT_RETURN_SECONDS;
     return true;
 }
 
@@ -174,5 +178,18 @@ static inline int BLFreeSpotNearCentre(const double *xs, const double *ys, int n
     }
     return 0;
 }
+
+// 0.29 race-to-N scoreboard (owner: agree the number of racks before the match, show the score like a pro
+// broadcast). Returns the match winner (0/1) or -1 while the match continues. Alternate break (WPA default for
+// 9/10-ball race play): the next rack is broken by the player who did not break this one.
+static inline int BLRaceRecordRack(int *frames0, int *frames1, int raceTo, int rackWinner) {
+    if (raceTo < 1) raceTo = 1;
+    if (rackWinner == 0) ++*frames0; else if (rackWinner == 1) ++*frames1;
+    if (*frames0 >= raceTo) return 0;
+    if (*frames1 >= raceTo) return 1;
+    return -1;
+}
+static inline int BLRaceNextBreaker(int lastBreaker) { return lastBreaker == 0 ? 1 : 0; }
+static inline int BLRaceClamp(int raceTo) { return raceTo < 1 ? 1 : (raceTo > 25 ? 25 : raceTo); }
 
 #endif
