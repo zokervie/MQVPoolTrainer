@@ -332,6 +332,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
         place(menuButton,f.menu);place(coachButton,f.coach);place(lockButton,f.bridge);place(panel,f.panel);spin.setNeedsDisplay()
         retryButton.isHidden=matchIsCompetitive
+        if spinExpanded{elevationPad.isHidden=true;fineWheel.isHidden=true}   // expanded ball covers their slots
         quickCall.isHidden = !(matchIsCompetitive && matchBool("requiresCall"))
         for item in quickRail.arrangedSubviews{item.constraints.first{$0.firstAttribute == .height && $0.secondItem==nil}?.constant=CGFloat(f.button)}
         spinWidth.constant=CGFloat(f.spin.w);spinHeight.constant=CGFloat(f.spin.h)
@@ -363,7 +364,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func verifyRightHUD(){
         view.layoutIfNeeded()
-        let controls:[UIView]=[spin,elevationPad,quickScroll,menuButton,lockButton,coachButton]
+        let controls:[UIView]=[spin,elevationPad,quickScroll,menuButton,lockButton,coachButton].filter{!$0.isHidden}
         let safe=view.safeAreaLayoutGuide.layoutFrame
         var failures:[String]=[],frames:[String:String]=[:],hitResults:[String:String]=[:]
         for (index,control) in controls.enumerated(){
