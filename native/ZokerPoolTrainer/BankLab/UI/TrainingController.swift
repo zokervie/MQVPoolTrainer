@@ -151,6 +151,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         table.selectCue(configured["cueType"]?.intValue ?? 0)
         table.cueElevation=(configured["experimental3D"]?.boolValue ?? false) ? (configured["cueElevationDegrees"]?.doubleValue ?? 0):0
         shotKind=ProcessInfo.processInfo.arguments.contains("--visual-qa") ? 0:(UserDefaults.standard.object(forKey:"shotKind017") as? Int ?? (configured["cueType"]?.intValue ?? 0))
+        applySquirtPolicy()
         syncQuickRail()
         highGraphics=UserDefaults.standard.object(forKey:"highGraphics018") as? Bool ?? false
         applyGraphics()
@@ -584,12 +585,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickCue.menu=UIMenu(title:"Cơ",children:(0...2).map{i in UIAction(title:CueBag.cue(i).title){[weak self]_ in self?.chooseRole(i)}})
         quickBag.menu=UIMenu(title:"Bao cơ",children:[quickCue.menu!,UIMenu(title:"Đổi bao",children:CueBag.names.enumerated().map{i,title in UIAction(title:title){[weak self]_ in CueBag.active=i;self?.chooseRole(role)}}),UIAction(title:"Thư viện bàn & cơ"){[weak self]_ in self?.openLibrary()}])
     }
+    // Đánh/Phá: no squirt, the ball leaves on the aim line. Jump/Massé keep TP A.31 squirt.
+    func applySquirtPolicy(){
+        var values=engine.settings;values["squirtEnabled"]=NSNumber(value:BLSquirtForShotKind(Int32(shotKind))>0);values["masseCoupledContact"]=NSNumber(value:BLMasseCoupledForShotKind(Int32(shotKind))>0);engine.settings=values
+    }
     func chooseShotKind(_ kind:Int){
         guard !presentationBusy,!locked,localTurn,(0...3).contains(kind) else{return}
         UserDefaults.standard.set(["elevation":table.cueElevation,"side":side,"top":top],forKey:"cuePreset017-\(shotKind)")
         shotKind=kind;UserDefaults.standard.set(kind,forKey:"shotKind017")
         let role=kind==3 ? 0:kind
-        var values=engine.settings;values["cueType"]=NSNumber(value:role);engine.settings=values;table.selectCue(role)
+        var values=engine.settings;values["cueType"]=NSNumber(value:role);values["squirtEnabled"]=NSNumber(value:BLSquirtForShotKind(Int32(kind))>0);values["masseCoupledContact"]=NSNumber(value:BLMasseCoupledForShotKind(Int32(kind))>0);engine.settings=values;table.selectCue(role)
         let preset=UserDefaults.standard.dictionary(forKey:"cuePreset017-\(kind)") as? [String:Double]
         setElevation(preset?["elevation"] ?? (kind==1 ? 45:(kind==3 ? 60:0)))
         spin.select(side:preset?["side"] ?? 0,top:preset?["top"] ?? 0)
@@ -800,7 +805,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func resetShotInputsAndAim(){
         spin.reset();side=0;top=0
         if shotKind==1 {
-            shotKind=0;var settings=engine.settings;settings["cueType"]=0;settings["cueElevationDegrees"]=0;settings["experimental3D"]=false
+            shotKind=0;var settings=engine.settings;settings["cueType"]=0;settings["cueElevationDegrees"]=0;settings["experimental3D"]=false;settings["squirtEnabled"]=false;settings["masseCoupledContact"]=false
             engine.settings=settings;table.selectCue(0);table.cueElevation=0;spin.maximumOffset=0.7;UserDefaults.standard.set(0,forKey:"shotKind017")
         }
         if let c=cue,!c.sunk,let target=matchPreferredAimTarget(in:balls) {

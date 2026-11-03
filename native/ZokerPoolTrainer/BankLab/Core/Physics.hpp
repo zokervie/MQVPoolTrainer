@@ -32,6 +32,15 @@ struct Config {
     // Khối lượng cơ theo cueType (0 thường 19 oz, 1 nhảy, 2 phá); mₑ là GIẢ ĐỊNH (ngọn chuẩn ~7 g), chưa đo.
     double cueMass()const{return cueType==1?.31:cueType==2?.56:.54;}
     double cueEndMass()const{return cueType==1?.012:cueType==2?.010:.007;}
+    // Squirt (TP A.31) on/off. Core default ON keeps the literature model and old replays exact.
+    // The app turns it OFF for Đánh/Phá so the ball leaves along the aim line and the player
+    // judges the contact angle by eye (owner decision 03/11/2026); ON for Jump/Massé.
+    bool squirtEnabled=true;
+    // Massé: solve cue impulse, ball rotation and slate reaction TOGETHER (CueSlateContact.hpp) instead of
+    // "cue first, slate after". Default off; the app turns it on for the Massé shot kind. The cue keeps a
+    // finite mass (cueMass()) and restitution .35 [assumed, from build 28; not fitted to video].
+    bool masseCoupledContact=false;
+    double masseCueRestitution=.35;
     double railRestitution=.82,railFriction=.16;
     bool individualRails=false;
     std::array<double,4> railBounce{{.82,.82,.82,.82}},railGrip{{.16,.16,.16,.16}};
