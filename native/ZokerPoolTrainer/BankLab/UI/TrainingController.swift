@@ -83,6 +83,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var eyePressDuringShot=false
     var eyeHoldWork:DispatchWorkItem?
     var frameLayoutAdopted=false
+    var replayBarRight:[NSLayoutConstraint]=[],replayBarLeft:[NSLayoutConstraint]=[]
     var matchCallPicking=0,matchCallBall=0,matchCallPose:CameraPose?
     // 0.25: practice history (step back / forward per shot or whole session) and session highlights.
     var shotBack:[[BallState]]=[],shotForward:[[BallState]]=[]
@@ -313,7 +314,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// Menu + Coach at the top on the other side, B bottom on the other side. Left-handed mirrors everything.
     func adoptFrameLayoutOnce(){
         guard !frameLayoutAdopted else{return};frameLayoutAdopted=true
-        for v:UIView in [quickScroll,spin,fineWheel,elevationPad,menuButton,coachButton,lockButton,panel,replayBar]{
+        for v:UIView in [quickScroll,spin,fineWheel,elevationPad,menuButton,coachButton,lockButton,panel]{
             var owned:[NSLayoutConstraint]=v.constraints.filter{($0.firstItem as? UIView)===v && $0.secondItem==nil}
             var ancestor=v.superview
             while let a=ancestor{owned+=a.constraints.filter{($0.firstItem as? UIView)===v};ancestor=a.superview}
@@ -331,10 +332,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         func place(_ v:UIView,_ b:BLRect){v.bounds=CGRect(x:0,y:0,width:b.w,height:b.h);v.center=CGPoint(x:b.x+b.w/2,y:b.y+b.h/2)}
         place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
         place(menuButton,f.menu);place(coachButton,f.coach);place(lockButton,f.bridge);place(panel,f.panel);spin.setNeedsDisplay()
-        // Replay bar: top row between the Menu/Coach pair and the shortcut column (never over Menu or Coach).
-        let start=leftHanded ? f.rail.x+f.rail.w+8:f.coach.x+f.coach.w+8
-        let end=leftHanded ? min(f.menu.x,f.coach.x)-8:f.rail.x-8
-        place(replayBar,BLRectMake(start,f.menu.y+f.menu.h/2-24,max(220,end-start),48))
+        // Replay bar: top row between Coach and the shortcut column (never over Coach); mirrored for left hand.
+        if (replayBarRight.first?.isActive ?? false) == leftHanded {   // only on a hand change (avoids a layout loop)
+            NSLayoutConstraint.deactivate(leftHanded ? replayBarRight:replayBarLeft);NSLayoutConstraint.activate(leftHanded ? replayBarLeft:replayBarRight)
+        }
         retryButton.isHidden=matchIsCompetitive
         if spinExpanded{elevationPad.isHidden=true;fineWheel.isHidden=true}   // expanded ball covers their slots
         quickCall.isHidden = !(matchIsCompetitive && matchBool("requiresCall"))
@@ -1330,7 +1331,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let close=UIButton(type:.system);close.setTitle("Xong",for:.normal);close.accessibilityIdentifier="ReplayDone";replayAutoButton.accessibilityIdentifier="ReplayAuto"
         for item in [replayPause,replayRate,replayAutoButton,close]{item.titleLabel?.font = .systemFont(ofSize:13,weight:.semibold);item.widthAnchor.constraint(equalToConstant:52).isActive=true}
         for item in [replayPause,replayRate,replaySlider,replayAutoButton,close] as [UIView]{replayBar.addArrangedSubview(item)}
-        NSLayoutConstraint.activate([replayBar.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),replayBar.trailingAnchor.constraint(equalTo:quickScroll.leadingAnchor,constant:-8),replayBar.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),replayBar.heightAnchor.constraint(equalToConstant:48)])
+        replayBarRight=[replayBar.leadingAnchor.constraint(equalTo:coachButton.trailingAnchor,constant:8),replayBar.trailingAnchor.constraint(equalTo:quickScroll.leadingAnchor,constant:-8)]
+        replayBarLeft=[replayBar.leadingAnchor.constraint(equalTo:quickScroll.trailingAnchor,constant:8),replayBar.trailingAnchor.constraint(equalTo:coachButton.leadingAnchor,constant:-8)]
+        NSLayoutConstraint.activate(replayBarRight+[replayBar.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),replayBar.heightAnchor.constraint(equalToConstant:48)])
         replayPause.accessibilityIdentifier="ReplayPause";replaySlider.accessibilityIdentifier="ReplaySeek"
         replayPause.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.replayPaused.toggle();self.replayPause.setTitle(self.replayPaused ? "Tiếp":"Dừng",for:.normal)},for:.touchUpInside)
         replayRate.showsMenuAsPrimaryAction=true;replayRate.menu=UIMenu(children:[0.25,0.5,1.0].map{rate in UIAction(title:"\(rate)×"){[weak self]_ in self?.replaySpeed=rate;self?.replayRate.setTitle("\(rate)×",for:.normal)}})
