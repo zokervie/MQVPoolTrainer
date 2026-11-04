@@ -287,6 +287,9 @@ final class InteractionTests: XCTestCase {
             }
             XCTAssertEqual(field.value as? String,String(count),"typed count")
             alert.buttons["Mặc định"].tap()
+            // a dropped tap leaves the alert up: tap again (the app ignores nothing once the alert is gone)
+            for _ in 0..<2 where alert.waitForExistence(timeout:2) && alert.buttons["Mặc định"].isHittable { alert.buttons["Mặc định"].tap() }
+            XCTAssertFalse(alert.exists,"alert closed")
             wait(scene,timeout:5 * slow){self.field(scene,"ballCount")==Double(count==1 ? 2:15)}
         }
     }
