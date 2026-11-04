@@ -28,7 +28,7 @@ static double along(const Config& c, V2 p) { return (p.y + c.length / 2) / (c.le
 
 struct Rail { double x, t; };
 static std::vector<Rail> run(double beta, double decay) {
-    Config c; c.coupledCushions = true; c.railTangentialRestitution = beta; c.spinDecay = decay;
+    Config c = Config::app(); c.railTangentialRestitution = beta; c.spinDecay = decay; if (beta == 0) c.railFriction = .16;
     World w(c); Ball b; b.id = 8; b.p = world(c, 4.36, 1.83);
     b.v = (world(c, 3.44, 3.91) - b.p).unit() * 6.5; b.spin = -30; w.balls = {b};
     std::vector<Rail> rails; size_t seen = 0;
@@ -41,7 +41,7 @@ static std::vector<Rail> run(double beta, double decay) {
 
 int main() {
     const double clipX[4] = {3.44, 2.40, 2.86, 3.45}, clipT[4] = {0, .27, .87, 1.87};
-    const auto fit = run(.30, 11), rigid = run(0, 7);
+    const auto fit = run(.30, Config::app().spinDecay), rigid = run(0, 7);   // 0.30: app decay 18 (was 11)
     check(fit.size() >= 4 && rigid.size() >= 4, "both models reach four cushions");
     if (fit.size() < 4 || rigid.size() < 4) return 1;
     for (int i = 0; i < 4; ++i) {

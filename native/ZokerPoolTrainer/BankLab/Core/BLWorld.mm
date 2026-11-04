@@ -5,12 +5,11 @@
 #include <memory>
 using namespace banklab;
 @implementation BLWorld { std::unique_ptr<World> _world; }
-// App physics profile 0.21. Core Config defaults stay at the literature/regression values; the app uses:
+// App physics profile: Config::app() in Physics.hpp (0.30). History 0.21: Core Config defaults stay at the literature/regression values; the app uses:
 //  - rail grip-slip beta .30 and side-spin decay 11 rad/s^2: fitted to clip c-ZBSi9KBfc ("Reverse bank zigzag",
 //    rectified track of the 8-ball over 4 cushions), Tests/ReverseZigzagTests.cpp. Single clip = measured, not general.
 //  - squirt only with a raised cue (owner decision), break-cue gain 1.4 [design].
-- (instancetype)init { if((self=[super init])){_world=std::make_unique<World>();auto&c=_world->config;c.coupledCushions=true;
-    c.railTangentialRestitution=.30;c.spinDecay=11;c.squirtRampDegrees=15;c.breakSpeedGain=1.4;c.settleSpinInPlace=true;}return self; }
+- (instancetype)init { if((self=[super init])){_world=std::make_unique<World>(Config::app());}return self; }
 - (BOOL)moving{return _world->moving();}
 - (double)elapsed{return _world->time;}
 - (NSArray*)states{
@@ -33,7 +32,7 @@ using namespace banklab;
 }
 - (NSDictionary*)settings{
     auto&c=_world->config;
-    NSMutableDictionary *result=[@{@"experimental3D":@(c.experimental3D),@"cueType":@(c.cueType),@"squirtEnabled":@(c.squirtEnabled),@"cueElevationDegrees":@(c.cueElevationDegrees),@"rolling":@(c.rolling),@"sliding":@(c.sliding),@"railRestitution":@(c.railRestitution),@"railFriction":@(c.railFriction),@"railSpeedSensitivity":@(c.railSpeedSensitivity),@"ballRestitution":@(c.ballRestitution),@"ballFriction":@(c.ballFriction),@"spinDecay":@(c.spinDecay),@"railTangentialRestitution":@(c.railTangentialRestitution),@"tipProfile":@(c.tipProfile),@"squirtRampDegrees":@(c.squirtRampDegrees),@"breakSpeedGain":@(c.breakSpeedGain),@"masseCueRestitution":@(c.masseCueRestitution),@"masseCoupledContact":@(c.masseCoupledContact),@"individualRails":@(c.individualRails),@"coupledCushions":@(c.coupledCushions),@"railNoseHeightMeters":@(c.railNoseHeightMeters())} mutableCopy];
+    NSMutableDictionary *result=[@{@"experimental3D":@(c.experimental3D),@"cueType":@(c.cueType),@"squirtEnabled":@(c.squirtEnabled),@"cueElevationDegrees":@(c.cueElevationDegrees),@"rolling":@(c.rolling),@"sliding":@(c.sliding),@"railRestitution":@(c.railRestitution),@"railFriction":@(c.railFriction),@"railSpeedSensitivity":@(c.railSpeedSensitivity),@"ballRestitution":@(c.ballRestitution),@"ballFriction":@(c.ballFriction),@"ballFrictionMin":@(c.ballFrictionMin),@"spinDecay":@(c.spinDecay),@"railTangentialRestitution":@(c.railTangentialRestitution),@"tipProfile":@(c.tipProfile),@"squirtRampDegrees":@(c.squirtRampDegrees),@"breakSpeedGain":@(c.breakSpeedGain),@"masseSpeedGain":@(c.masseSpeedGain),@"masseCueRestitution":@(c.masseCueRestitution),@"masseCoupledContact":@(c.masseCoupledContact),@"individualRails":@(c.individualRails),@"coupledCushions":@(c.coupledCushions),@"railNoseHeightMeters":@(c.railNoseHeightMeters())} mutableCopy];
     // Chỉ đọc (hình học bàn) cho UIKit: cơ tránh băng, đánh số nút kim cương.
     result[@"tableWidth"]=@(c.width);result[@"tableLength"]=@(c.length);result[@"ballRadius"]=@(c.radius);result[@"railHeight"]=@(c.railHeight);
     for(int i=0;i<4;i++){result[[NSString stringWithFormat:@"railBounce%d",i]]=@(c.railBounce[i]);result[[NSString stringWithFormat:@"railGrip%d",i]]=@(c.railGrip[i]);}
@@ -43,7 +42,7 @@ using namespace banklab;
     auto&c=_world->config;
     auto get=[&](NSString*k,double old,double lo,double hi){NSNumber*n=v[k];double a=n?n.doubleValue:old;return std::isfinite(a)?std::clamp(a,lo,hi):old;};
     c.individualRails=get(@"individualRails",c.individualRails,0,1)>.5;
-    for(int i=0;i<4;i++){c.railBounce[i]=get([NSString stringWithFormat:@"railBounce%d",i],c.railBounce[i],.4,.98);c.railGrip[i]=get([NSString stringWithFormat:@"railGrip%d",i],c.railGrip[i],0,.35);}
+    for(int i=0;i<4;i++){c.railBounce[i]=get([NSString stringWithFormat:@"railBounce%d",i],c.railBounce[i],.4,.98);c.railGrip[i]=get([NSString stringWithFormat:@"railGrip%d",i],c.railGrip[i],0,.6);}
     c.coupledCushions=get(@"coupledCushions",c.coupledCushions,0,1)>.5;
     c.experimental3D=get(@"experimental3D",c.experimental3D,0,1)>.5;
     c.cueType=(int)get(@"cueType",c.cueType,0,2);
@@ -51,13 +50,13 @@ using namespace banklab;
     c.masseCoupledContact=get(@"masseCoupledContact",c.masseCoupledContact,0,1)>.5;
     c.cueElevationDegrees=get(@"cueElevationDegrees",c.cueElevationDegrees,0,90);
     c.rolling=get(@"rolling",c.rolling,.003,.04);c.sliding=get(@"sliding",c.sliding,.08,.35);
-    c.railRestitution=get(@"railRestitution",c.railRestitution,.4,.98);c.railFriction=get(@"railFriction",c.railFriction,0,.35);
+    c.railRestitution=get(@"railRestitution",c.railRestitution,.4,.98);c.railFriction=get(@"railFriction",c.railFriction,0,.6);
     c.railSpeedSensitivity=get(@"railSpeedSensitivity",c.railSpeedSensitivity,0,.08);
-    c.ballRestitution=get(@"ballRestitution",c.ballRestitution,.8,1);c.ballFriction=get(@"ballFriction",c.ballFriction,0,.12);c.spinDecay=get(@"spinDecay",c.spinDecay,1,20);
+    c.ballRestitution=get(@"ballRestitution",c.ballRestitution,.8,1);c.ballFriction=get(@"ballFriction",c.ballFriction,0,.12);c.ballFrictionMin=get(@"ballFrictionMin",c.ballFrictionMin,0,.1);c.spinDecay=get(@"spinDecay",c.spinDecay,1,40);
     c.railTangentialRestitution=get(@"railTangentialRestitution",c.railTangentialRestitution,0,.9);
     c.tipProfile=(int)std::lround(get(@"tipProfile",c.tipProfile,0,2));
     c.squirtRampDegrees=get(@"squirtRampDegrees",c.squirtRampDegrees,0,60);
-    c.breakSpeedGain=get(@"breakSpeedGain",c.breakSpeedGain,1,1.8);
+    c.breakSpeedGain=get(@"breakSpeedGain",c.breakSpeedGain,1,1.8);c.masseSpeedGain=get(@"masseSpeedGain",c.masseSpeedGain,1,1.6);
     c.masseCueRestitution=get(@"masseCueRestitution",c.masseCueRestitution,.1,.9);
 }
 - (void)loadLayout:(NSArray*)layout{

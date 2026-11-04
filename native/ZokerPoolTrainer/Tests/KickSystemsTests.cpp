@@ -13,7 +13,7 @@ static int failures = 0;
 static void check(bool ok, const char* what) { std::printf("%s: %s\n", ok ? "PASS" : "FAIL", what); if (!ok) ++failures; }
 
 int main() {
-    Config c; c.coupledCushions = true; c.railTangentialRestitution = .30; c.spinDecay = 11;
+    Config c = Config::app();   // 0.30: the app profile (rail friction .45 measured, spin decay 18)
 
     // ---- corner-5 holds at medium speed with ~1.5 tips running english ----
     const auto base = kick::corner5Fit(c, 3, .35);

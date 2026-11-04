@@ -72,6 +72,16 @@ int main() {
         std::printf("REPORT: massé %2.0f deg: path turns %.0f deg in the first 1.0 s\n", e, bend);
         check(bend > 30, "massé path curves (> 30 deg in 1 s). Curve SHAPE vs clip D_lf-6KgFTo: open calibration item");
     }
+    // ---- 0.30: massé +20% (owner item 7), play cue unchanged ----
+    {   Config m = forKind(3, 70), m2 = m; m2.masseSpeedGain = Config::app().masseSpeedGain;
+        World a = one(m), b = one(m2); a.strike(1.0, BLPowerSpeed(BL_POWER_LEVELS), .5, -.3); b.strike(1.0, BLPowerSpeed(BL_POWER_LEVELS), .5, -.3);
+        const double ratio = b.balls[0].v.length() / a.balls[0].v.length();
+        std::printf("REPORT: massé gain %.2f -> full-power massé speed x%.2f\n", m2.masseSpeedGain, ratio);
+        check(ratio > 1.1 && ratio < 1.3, "app massé is 10-30% stronger at full power");
+        Config p = forKind(0, 0), p2 = p; p2.masseSpeedGain = Config::app().masseSpeedGain;
+        World c = one(p), d = one(p2); c.strike(0, 3, .3, 0); d.strike(0, 3, .3, 0);
+        check(std::abs(c.balls[0].v.length() - d.balls[0].v.length()) < 1e-12, "massé gain does not touch the playing cue");
+    }
     // ---- jump only when raised ----
     {   World flat = one(forKind(1, 0)); flat.strike(0, 5, 0, 0);
         double maxH = 0; for (int i = 0; i < 960; ++i) { flat.step(); maxH = std::max(maxH, flat.balls[0].height); }
