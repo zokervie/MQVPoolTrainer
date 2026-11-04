@@ -226,7 +226,9 @@ final class StrokePad:UIControl {
             fired=true;shot?(BLStrokeSpeed(Double(speed),edge,sensitivity));pullChanged?(0);return
         }
     }
-    override func touchesEnded(_ touches:Set<UITouch>,with event:UIEvent?){if let t=finger,touches.contains(t){cancelStroke()}}
+    /// 0.30b: called when the stroke finger lifts; false = no shot fired (the controller unlocks).
+    var released:((Bool)->Void)?
+    override func touchesEnded(_ touches:Set<UITouch>,with event:UIEvent?){if let t=finger,touches.contains(t){let didFire=fired;cancelStroke();released?(didFire)}}
     override func touchesCancelled(_ touches:Set<UITouch>,with event:UIEvent?){cancelStroke()}
     func cancelStroke(){finger=nil;samples=[];fired=false;pullChanged?(0)}
 }

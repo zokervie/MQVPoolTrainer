@@ -182,15 +182,11 @@ final class InteractionTests: XCTestCase {
 
     }
 
-    func testCueBagOffersThreeBrandedCues() {
-        let (app,scene)=launch(["--ux017-qa"])
-        for (name,kind) in [("Gậy Jump",1.0),("Gậy Break",2.0),("Gậy Đánh",0.0)] {
-            quick(app,"QuickCue").tap()
-            let option=app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@",name+" (")).firstMatch
-            XCTAssertTrue(option.waitForExistence(timeout:5 * slow),"\(name) (brand) in the bag");option.tap()
-            let selected=NSPredicate { _,_ in self.field(scene,"kind")==kind }
-            expectation(for:selected,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
-        }
+    /// 0.30b: Bao cơ opens the cue library directly (looks are linked to the cue icons).
+    func testCueBagOpensCueLibrary() {
+        let (app,_)=launch(["--ux017-qa"])
+        quick(app,"QuickCue").tap()
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout:5 * slow),"cue library opens")
     }
 
     func testReplayManualCameraDoesNotChangeNextAimHeight() {
@@ -210,17 +206,23 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"pitch"),pitch,accuracy:0.002)
     }
 
-    /// 0.30: no B button; holding the effect ball is the lock. Releasing it must not fire or leave the aim locked.
-    func testHoldingAndReleasingEffectBallDoesNotFireOrLeaveAimLocked() {
+    /// 0.30b: no B button; touching the effect ball LATCHES the lock. A non-firing touch on the table unlocks
+    /// without shooting, after which aiming works again.
+    func testEffectBallLatchesLockAndNonFiringTouchUnlocks() {
         let (app,scene)=launch(["--ux017-qa"])
         XCTAssertFalse(app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch.isHittable, "B is gone")
         let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
         XCTAssertTrue(effect.isHittable)
         effect.press(forDuration:0.5)
-        XCTAssertEqual(field(scene,"moving"),0)
+        settle(scene,"locked",1)                       // still locked after the finger lifts
+        XCTAssertTrue(app.otherElements["FineAimWheel"].exists || app.descendants(matching:.any)["FineAimWheel"].exists)
         let before=angle(scene)
         let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.30,dy:0.32))
         let end=scene.coordinate(withNormalizedOffset:CGVector(dx:0.45,dy:0.32))
+        start.press(forDuration:0.05,thenDragTo:end)   // sideways: no stroke -> unlock, no shot
+        settle(scene,"locked",0)
+        XCTAssertEqual(field(scene,"moving"),0)
+        XCTAssertEqual(angle(scene),before,accuracy:1e-6,"locked aim did not move")
         start.press(forDuration:0.05,thenDragTo:end)
         wait(scene,timeout:5 * slow){abs(self.angle(scene)-before)>0.01}
         XCTAssertEqual(field(scene,"moving"),0)

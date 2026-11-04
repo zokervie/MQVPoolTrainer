@@ -74,7 +74,7 @@ static void checkHUD022(double x0, double y0, double w, double h, int pad) {
     for (int left = 0; left < 2; ++left) for (int practice = 0; practice < 2; ++practice) for (int expanded = 0; expanded < 2; ++expanded) {
         const BLHUDFrames f = BLHUDLayout(x0, y0, w, h, pad, left, practice, expanded);
         assert(f.items == (practice ? 6 : 5));
-        // 0.30: while the effect ball is held only it and the wheel are shown (plus nothing else)
+        // while the effect ball is held only it and the wheel are shown
         std::vector<BLRect> shown{f.spin, f.wheel};
         if (!expanded) { shown.push_back(f.rail); shown.push_back(f.menu); shown.push_back(f.elevation); for (int k = 0; k < BL_CUE_ICONS; ++k) shown.push_back(BLHUDCueIcon(f, k)); }
         if (practice && !expanded) shown.push_back(f.coach);
@@ -82,19 +82,14 @@ static void checkHUD022(double x0, double y0, double w, double h, int pad) {
         for (size_t a = 0; a < shown.size(); ++a) for (size_t b = a + 1; b < shown.size(); ++b) assert(!hit(shown[a], shown[b]));
         assert(f.button >= 44);
         const double cx = x0 + w / 2;
-        if (!left) { assert(f.rail.x > cx && f.spin.x > cx && f.cues.x > cx && f.elevation.x > cx && f.menu.x < cx); }
-        else       { assert(f.rail.x + f.rail.w < cx && f.spin.x + f.spin.w < cx && f.cues.x + f.cues.w < cx && f.menu.x > cx); }
-        if (!expanded) {
-            // owner layout: fan left of the effect ball sitting on the wheel; icons above the ball; column at the edge
-            if (!left) assert(f.elevation.x + f.elevation.w <= f.spin.x && f.spin.x + f.spin.w <= f.rail.x);
-            else       assert(f.elevation.x >= f.spin.x + f.spin.w && f.spin.x >= f.rail.x + f.rail.w);
-            assert(f.wheel.y >= f.spin.y + f.spin.h && f.wheel.y >= f.elevation.y + f.elevation.h && f.wheel.w > f.wheel.h);
-            assert(f.wheel.x <= std::min(f.elevation.x, f.spin.x) + 1e-9 && f.wheel.x + f.wheel.w >= std::max(f.elevation.x + f.elevation.w, f.spin.x + f.spin.w) - 1e-9);
-            assert(f.cues.y + f.cues.h <= f.spin.y);
-            assert(f.spin.w >= (pad ? 100 : 76));
-        } else {
-            assert(f.spin.y + f.spin.h <= f.wheel.y);   // wheel stays usable under the held effect ball
-        }
+        // 0.30b: effect ball + cue icons bottom-left, column + wheel + fan right (right-handed); mirror for left
+        if (!left) { assert(f.rail.x > cx && f.wheel.x > cx && f.elevation.x > cx && f.spin.x + f.spin.w < cx && f.cues.x + f.cues.w < cx && f.menu.x < cx); }
+        else       { assert(f.rail.x + f.rail.w < cx && f.wheel.x + f.wheel.w < cx && f.spin.x > cx && f.cues.x > cx && f.menu.x > cx); }
+        if (!left) assert(f.wheel.x + f.wheel.w <= f.rail.x); else assert(f.wheel.x >= f.rail.x + f.rail.w);
+        assert(std::abs(f.wheel.y + f.wheel.h - (y0 + h - 6)) < 1e-9 && f.wheel.w > f.wheel.h);   // wheel on the bottom edge
+        assert(f.elevation.y + f.elevation.h <= f.wheel.y && f.elevation.x >= f.wheel.x && f.elevation.x + f.elevation.w <= f.wheel.x + f.wheel.w);
+        if (!expanded) { assert(f.cues.y + f.cues.h <= f.spin.y && f.spin.w >= (pad ? 100 : 76)); }
+        else { assert(f.spin.w <= (pad ? 200 : 150) + 1e-9); }   // zoom, but not so big it hides the table
         if (left) { const BLHUDFrames r = BLHUDLayout(x0, y0, w, h, pad, 0, practice, expanded);
             assert(std::abs((f.spin.x - x0) - (w - (r.spin.x - x0) - r.spin.w)) < 1e-9 && std::abs(f.spin.y - r.spin.y) < 1e-9); }
     }
@@ -161,7 +156,7 @@ int main() {
     // safe-area rects (landscape): iPhone SE, iPhone 15 Pro, 15 Pro Max, iPad 10.9", iPad Pro 13"
     checkHUD022(0, 0, 568, 299, 0); checkHUD022(59, 0, 734, 372, 0); checkHUD022(59, 0, 814, 409, 0);
     checkHUD022(0, 24, 1180, 776, 1); checkHUD022(0, 24, 1376, 1000, 1);
-    passed("0.30 HUD: thumb column, effect 76/100 pt, fan on the wheel, 4 cue icons above, no B, left-hand mirror, no overlaps");
+    passed("0.30b HUD: effect ball + 4 cue icons bottom-left, column + wheel + fan right, no B, left-hand mirror, no overlaps");
     assert(BLCueIconKind(0) == 0 && BLCueIconKind(1) == 1 && BLCueIconKind(2) == 3 && BLCueIconKind(3) == 2);
     assert(BLCueIconElevation(1) == 45 && BLCueIconElevation(2) == 70 && BLCueIconElevation(0) == 0 && BLCueIconElevation(3) == 0);
     assert(BLFanDegrees(60, 64, 64, 64, 0) == 0 && BLFanDegrees(0, 0, 64, 64, 0) == 90 && BLFanDegrees(40, 24, 64, 64, 0) == 45);

@@ -111,15 +111,14 @@ static inline BLRightHUDMetrics BLRightHUDLayout(double safeHeight, bool expande
 }
 
 
-// ---- 0.30 HUD (owner acceptance 04/11/2026; 0.22 layout before) ------------------------------------------------
-// Thumb-first landscape layout. Right-handed (default): shortcut column on the right edge, top to bottom
-// Xem lại · Lùi cú (practice only) · Đặt bi · Thêm bi · Bao cơ · Camera, bottom-aligned so the most used (Camera)
-// sits under the thumb. Left of the column, the right-hand control cluster:
-//              [Đánh][Jump][Massé][Break]      <- cue icons, translucent squares above the effect ball
-//      [fan ]  [ effect ball ]                 <- elevation fan sits on the wheel, left of the effect ball
-//      [========= fine-aim wheel ========]
-// The B (bridge) button is gone: holding the effect ball locks the aim (0.30). While it is held only the effect
-// ball (expanded) and the wheel stay; everything else hides. Menu + Coach top-left. Left-handed mirrors every x.
+// ---- 0.30b HUD (owner acceptance of 0.30 build 103, 04/11/2026) ----------------------------------------------------
+// Right-handed (default):
+//   bottom-left : effect ball, the 4 cue icons (Đánh · Jump · Massé · Break) in a row above it
+//   right edge  : shortcut column, top to bottom Xem lại · Lùi cú (practice) · Đặt bi · Thêm bi · Bao cơ · Camera
+//   bottom-right: horizontal fine-aim wheel left of the column, elevation fan on top of the wheel
+//   top-left    : Menu + Coach
+// Touching the effect ball latches the aim lock (no B); then everything except the effect ball and the wheel hides
+// and a stroke anywhere on the empty table fires. Left-handed mirrors every x.
 typedef struct { double x, y, w, h; } BLRect;
 typedef struct {
     BLRect rail, spin, wheel, elevation, menu, coach, panel, cues;
@@ -136,22 +135,21 @@ static inline BLRect BLMirror(BLRect r, double x0, double w) { BLRect m = r; m.x
 static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, int pad, int leftHanded, int practice, int expanded) {
     BLHUDFrames f;
     const double edge = 6, gap = pad ? 10 : 8, bh = pad ? 56 : 44, bgap = 4, railW = pad ? 64 : 54;
-    const double spinS = pad ? 100 : 76, fanS = pad ? 84 : 64, wheelH = pad ? 48 : 40, icon = pad ? 52 : 44, igap = 4;
+    const double spinS = pad ? 100 : 76, fanS = pad ? 84 : 64, wheelW = pad ? 192 : 148, wheelH = pad ? 48 : 40, icon = pad ? 52 : 44, igap = 4;
     f.items = practice ? 6 : 5; f.button = bh; f.cueIcon = icon;
     const double content = f.items * bh + (f.items - 1) * bgap;
     const double railH = fmin(content, h - 2 * edge);
     f.railScrolls = railH + 1e-9 < content;
-    f.rail = BLRectMake(x0 + w - edge - railW, y0 + h - edge - railH, railW, railH);
-    const double clusterRight = f.rail.x - gap;
-    const double wheelW = fanS + gap + spinS;
-    f.wheel = BLRectMake(clusterRight - wheelW, y0 + h - edge - wheelH, wheelW, wheelH);
-    f.spin = BLRectMake(clusterRight - spinS, f.wheel.y - gap - spinS, spinS, spinS);
-    f.elevation = BLRectMake(f.spin.x - gap - fanS, f.spin.y + spinS - fanS, fanS, fanS);
+    const double bottom = y0 + h - edge;
+    f.rail = BLRectMake(x0 + w - edge - railW, bottom - railH, railW, railH);
+    f.wheel = BLRectMake(f.rail.x - gap - wheelW, bottom - wheelH, wheelW, wheelH);
+    f.elevation = BLRectMake(f.wheel.x + (wheelW - fanS) / 2, f.wheel.y - gap - fanS, fanS, fanS);
+    f.spin = BLRectMake(x0 + edge + 6, bottom - spinS, spinS, spinS);
     const double cuesW = BL_CUE_ICONS * icon + (BL_CUE_ICONS - 1) * igap;
-    f.cues = BLRectMake(clusterRight - cuesW, f.spin.y - gap - icon, cuesW, icon);
-    if (expanded) {   // grows up/left from the same bottom-right corner; the wheel stays usable under it
-        const double big = fmax(spinS, fmin(pad ? 240 : 190, fmin(f.wheel.y - gap - (y0 + edge), clusterRight - x0 - 3 * gap - 120)));
-        f.spin = BLRectMake(clusterRight - big, f.spin.y + spinS - big, big, big);
+    f.cues = BLRectMake(f.spin.x, f.spin.y - gap - icon, cuesW, icon);
+    if (expanded) {   // grows up/right from the bottom-left corner: big enough to aim, not hiding the table
+        const double big = fmax(spinS, fmin(pad ? 200 : 150, bottom - (y0 + edge + 50)));
+        f.spin = BLRectMake(f.spin.x, bottom - big, big, big);
     }
     f.menu = BLRectMake(x0 + 12, y0 + 10, pad ? 92 : 78, 44);
     f.coach = BLRectMake(f.menu.x + f.menu.w + 8, y0 + 10, pad ? 92 : 76, 44);

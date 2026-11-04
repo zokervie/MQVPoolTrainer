@@ -19,27 +19,32 @@ Cột **CI** = đã kiểm tra tự động (test C++ trên Linux / Simulator tr
 
 Mọi hệ số mới đều chỉnh tay được trong **Menu → Hiệu chỉnh vật lý** (ma sát băng, truyền xoáy bi–bi, giảm xoáy ngang, hệ số massé). Bản xuất Markdown ghi nguồn từng hệ số.
 
-## Điều khiển
+## Điều khiển (0.30b — sửa theo nghiệm thu build 103)
 
 | # | Hạng mục | CI | Máy thật |
 | --- | --- | --- | --- |
-| 10 | Không còn phím B. **Giữ bi effect = khoá hướng**: bi phóng to, chỉnh điểm chạm; ngón khác vuốt cơ trên bàn; buông = ngắm lại | UI test | [ ] |
-| 11 | Khi giữ bi effect chỉ còn bi effect + bánh răng; bánh răng vẫn vi chỉnh được | ✅ bố cục 5 cỡ màn | [ ] |
-| 12 | 4 icon gậy trên bi effect: Đánh · Jump (45°) · Massé (gậy Đánh 70°) · Break; icon đang chọn sáng lên, gậy trên bàn đổi theo | UI test | [ ] |
-| 13 | Độ dốc cơ hình quạt 0–90°, nằm trên bánh răng bên trái bi effect, phóng to khi chạm | ✅ | [ ] |
-| 14 | Bao cơ: 3 gậy kèm thương hiệu + "Thư viện gậy…" | UI test | [ ] |
-| 15 | Vuốt cơ mịn hơn (ước lượng tốc độ trên cửa sổ dài hơn) | — | [ ] |
-| 16 | Cơ không đâm xuyên bi: có bi sau bi cái thì cơ tự nâng lên đủ để vượt qua; điểm chạm thấp bị đẩy lên vùng với tới | ✅ bi cách 10 cm cần ~30°, 60 cm ~4° | [ ] |
-| 17 | Tay trái: toàn bộ cụm (quạt, icon, bi effect, cột phím) lật gương | ✅ | [ ] |
+| 10 | Không còn phím B. **Chạm giữ hoặc chạm buông bi effect = khoá tạm**; buông tay vẫn khoá. Vuốt cơ ở bất kỳ chỗ trống nào trên màn hình để đánh | UI test | [ ] |
+| 11 | Khi đã khoá: chỉ còn bi effect + bánh răng (bánh răng vẫn chỉnh được), các phím khác ẩn | UI test | [ ] |
+| 12 | Sau khi ra cơ → tự mở khoá, mọi thứ hiện lại, xoay cơ bình thường. Chạm bàn mà không vuốt đánh → mở khoá, không bắn | UI test | [ ] |
+| 13 | Góc dưới trái: bi effect, phía trên là 4 icon gậy Đánh · Jump (45°) · Massé (70°) · Break, có tên thương hiệu | ✅ bố cục 5 cỡ màn | [ ] |
+| 14 | Chạm bi effect phóng to vừa phải (150 pt iPhone / 200 pt iPad), không che bàn | ✅ | [ ] |
+| 15 | Cạnh phải: Xem lại · Lùi cú · Đặt bi · Thêm bi · Bao cơ · Camera | UI test | [ ] |
+| 16 | Bao cơ = mở thẳng thư viện gậy; gậy chọn trong thư viện hiện tên trên icon gậy | UI test | [ ] |
+| 17 | Góc dưới phải: bánh răng nằm ngang, quạt độ dốc nằm trên bánh răng | ✅ | [ ] |
+| 18 | Camera: giữ = xem nhanh, buông = về; chạm nhanh = đổi. Hai góc: **Góc ngắm** ↔ **Trên xuống 2D** (bỏ 3D toàn bàn) | UI test | [ ] |
+| 19 | Phím mờ trong, chữ chú thích to và rõ hơn | — | [ ] |
+| 20 | Menu chế độ chơi / Wi‑Fi / Online trên iPhone: nền tối, chữ đọc rõ | — | [ ] |
+| 21 | Cơ không đâm xuyên bi: có bi phía sau thì cơ tự nâng lên vượt qua | ✅ | [ ] |
+| 22 | Tay trái: toàn bộ lật gương | ✅ | [ ] |
 
 ## Lùi cú / đặt bi
 
 | # | Hạng mục | CI | Máy thật |
 | --- | --- | --- | --- |
-| 18 | Lùi cú khôi phục đúng gậy, độ dốc, effect và hướng ngắm của cú đó | — | [ ] |
-| 19 | Lùi cú được ngay khi bi còn đang lăn (luyện tập) | — | [ ] |
-| 20 | Cú mới sau khi đánh: effect về tâm | — | [ ] |
-| 21 | Đặt bi: bi cái về đúng chỗ vừa đánh (nếu chỗ đó trống), không thì ô trống gần giữa bàn | UI test | [ ] |
+| 23 | Lùi cú khôi phục đúng gậy, độ dốc, effect và hướng ngắm của cú đó | — | [ ] |
+| 24 | Lùi cú được ngay khi bi còn đang lăn (luyện tập) | — | [ ] |
+| 25 | Cú mới sau khi đánh: effect về tâm | — | [ ] |
+| 26 | Đặt bi: bi cái về đúng chỗ vừa đánh (nếu chỗ đó trống), không thì ô trống gần giữa bàn | UI test | [ ] |
 
 ## Còn ở các đợt sau
 

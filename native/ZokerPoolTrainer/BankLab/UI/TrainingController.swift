@@ -324,7 +324,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spinExpanded=true;quickRail.isHidden=false
             spin.select(side:0.25,top:0.35)
         }
-        stroke.shot={[weak self]v in guard let self=self else{return};self.shoot(v)}
+        stroke.shot={[weak self]v in guard let self=self else{return};self.shoot(v);self.spin.collapse();self.setHold(false)}   // 0.30b: reset after the stroke
+        stroke.released={[weak self] fired in guard let self=self,!fired,self.locked else{return};self.setHold(false)}
         stroke.pullChanged={[weak self]p in self?.pull=p}
         displayLink=CADisplayLink(target:self,selector:#selector(tick(_:)));displayLink?.preferredFramesPerSecond=60
         displayLink?.add(to:.main,forMode:.common)
@@ -418,8 +419,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             for other in controls.dropFirst(index+1){if control.frame.intersects(other.frame){failures.append("Overlapping HUD containers: \(name)")}}
         }
         if !spinExpanded{
-            if leftHanded ? elevationPad.frame.minX<spin.frame.maxX : elevationPad.frame.maxX>spin.frame.minX{failures.append("Elevation is not beside the effect ball on the inner side")}
-            if fineWheel.frame.minY<spin.frame.maxY{failures.append("Fine wheel is not under the effect ball")}
+            if elevationPad.frame.maxY>fineWheel.frame.minY+1{failures.append("Elevation fan is not on top of the wheel")}
+            if leftHanded ? spin.frame.minX<view.bounds.midX : spin.frame.maxX>view.bounds.midX{failures.append("Effect ball is not on the side opposite the shortcut column")}
         }
         let interactive:[UIControl]=([spin,coachButton,quickReplay!,retryButton,quickCall,quickPlace!,quickAdd!,quickRole!,quickCamera!]+cueIcons).filter{!$0.isHidden}
         for control in interactive {
@@ -462,16 +463,17 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         spinHeight=spin.heightAnchor.constraint(equalToConstant:52)
         spin.expandedChanged={[weak self] expanded in
             guard let self=self else{return}
-            // 0.30: the effect ball is the lock (B removed). Held = aim locked, second finger strokes on the table.
+            // 0.30b (owner): touching the effect ball (hold or tap) LATCHES the aim lock. Lifting the finger keeps it;
+            // the next stroke on the empty table fires, then everything resets. A non-firing touch on the table unlocks.
             self.spinExpanded=expanded
-            if expanded{self.hideCoach()}
-            self.setHold(expanded && !self.presentationBusy && self.localTurn && !self.isPlacingBalls)
+            if expanded{self.hideCoach();if !self.locked{self.setHold(!self.presentationBusy && self.localTurn && !self.isPlacingBalls)}}
             self.spin.alpha=expanded ? 0.97:0.60
             self.layoutRightHUD();self.updateControls()
             self.fineWheel.isHidden=self.menuOpen
             self.elevationPad.isHidden=expanded || self.menuOpen || self.locked
             for icon in self.cueIcons{icon.isHidden=expanded || self.menuOpen || self.locked}
             self.coachButton.isEnabled = !expanded
+            self.spin.isHidden=self.menuOpen
             self.spinCenter.isHidden = !expanded
             self.view.layoutIfNeeded()
         }
@@ -661,14 +663,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         func button(_ symbol:String,_ name:String,_ id:String)->UIButton {
             let b=UIButton(type:.system);var c=UIButton.Configuration.plain()
             c.image=UIImage(systemName:symbol);c.title=name;c.imagePlacement = .top;c.imagePadding=1
-            c.baseForegroundColor = .rgb(0xEAC583);c.background.backgroundColor=UIColor.rgb(0x131218).withAlphaComponent(0.88);c.background.cornerRadius=10
+            c.baseForegroundColor = .rgb(0xF3D9A4);c.background.backgroundColor=UIColor.rgb(0x131218).withAlphaComponent(0.42);c.background.cornerRadius=10
             c.background.strokeColor=UIColor.rgb(0xEAC583).withAlphaComponent(0.4);c.background.strokeWidth=0.7
             let names=["QuickCamera":"Camera","QuickTools":"Tools","QuickReplay":"Replay","unused":"Undo"]
             if let name=names[id],let data=NSDataAsset(name:"PC_Icon_"+name),let image=UIImage(data:data.data){c.image=(image.preparingThumbnail(of:CGSize(width:18,height:18)) ?? image).withRenderingMode(.alwaysOriginal)}
             c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:12,weight:.medium)
             c.contentInsets=NSDirectionalEdgeInsets(top:4,leading:2,bottom:4,trailing:2)
-            c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:9,weight:.medium);return a}
-            b.configuration=c;b.accessibilityIdentifier=id;return b
+            c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:10.5,weight:.semibold);return a}
+            b.configuration=c;b.accessibilityIdentifier=id;b.titleLabel?.layer.shadowOpacity=0.8;return b
         }
         quickCamera=button("camera","Camera","QuickCamera")
         quickCamera.addAction(UIAction{[weak self]_ in self?.eyeDown()},for:.touchDown)
@@ -679,7 +681,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickReplay.menu=UIMenu(title:"Lưu cú / Thư viện",children:[UIDeferredMenuElement.uncached{[weak self] completion in completion(self?.replayMenu().children ?? [])}])
         retryButton.configuration=button("arrow.uturn.backward","Lùi cú","unused").configuration
         retryButton.accessibilityIdentifier="QuickRetry"
-        quickRole=button("bag","Bao cơ","QuickCue");quickRole.showsMenuAsPrimaryAction=true
+        quickRole=button("bag","Bao cơ","QuickCue")   // 0.30b: Bao cơ = thư viện gậy (links the looks to the cue icons)
+        quickRole.addAction(UIAction{[weak self]_ in self?.equipment()},for:.touchUpInside)
         quickPlace=button("hand.draw","Đặt bi","QuickPlace")
         quickPlace.addAction(UIAction{[weak self]_ in self?.toggleEdit()},for:.touchUpInside)
         quickAdd=button("plus.circle","Thêm bi","QuickAdd")
@@ -733,7 +736,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             let b=UIButton(type:.system);var c=UIButton.Configuration.plain()
             c.title=names[k];c.image=UIImage(systemName:k==2 ? "arrow.turn.up.right":(k==1 ? "arrow.up.forward":(k==3 ? "burst":"line.diagonal")))
             c.imagePlacement = .top;c.imagePadding=2;c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:11,weight:.semibold)
-            c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:9,weight:.semibold);return a}
+            c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:10.5,weight:.bold);return a}
+            c.subtitleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:8,weight:.medium);return a}
             c.background.backgroundColor=UIColor(white:0.03,alpha:0.32);c.background.cornerRadius=8;c.contentInsets = .zero
             b.configuration=c;b.accessibilityIdentifier=ids[k];b.accessibilityLabel="Gậy "+names[k]
             b.addAction(UIAction{[weak self]_ in self?.chooseCueIcon(k)},for:.touchUpInside)
@@ -753,6 +757,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             icon.configuration?.background.strokeColor=on ? .white:UIColor.white.withAlphaComponent(0.15);icon.configuration?.background.strokeWidth=on ? 1:0.5
             icon.isEnabled = localTurn && !presentationBusy && !locked
             icon.accessibilityValue=on ? "Đang chọn":""
+            let role=Int(BLCueIconKind(Int32(k)))==2 ? 2:(Int(BLCueIconKind(Int32(k)))==1 ? 1:0)
+            icon.configuration?.subtitle=CueBag.cue(role).title.components(separatedBy:" · ").first
         }
     }
     func syncQuickRail(){
@@ -765,11 +771,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let kindNames=[0:"Đánh",1:"Jump",2:"Break",3:"Massé"]
         quickRole.configuration?.title="Bao cơ · "+(kindNames[shotKind] ?? "Đánh")
         // Bao cơ: only the three cues of the selected bag, brand in brackets. Massé = Đánh raised to 60°+.
-        quickRole.menu=UIMenu(title:"Bao cơ",children:[(0,"Gậy Đánh"),(1,"Gậy Jump"),(2,"Gậy Break")].map{item->UIMenuElement in let (role,label)=item
-            let look=CueBag.cue(role),brand=look.title.components(separatedBy:" · ").first ?? look.title
-            let on=(role==0 ? (shotKind==0 || shotKind==3):shotKind==role)
-            return UIAction(title:"\(label) (\(brand))",state:on ? .on:.off){[weak self]_ in self?.chooseShotKind(role)}
-        }+[UIAction(title:"Thư viện gậy…",image:UIImage(systemName:"books.vertical")){[weak self]_ in self?.equipment()}])   // 0.30: Bao cơ = thư viện
+        quickRole.menu=nil
         quickPlace.configuration?.title=isPlacingBalls ? "Xong":"Đặt bi"
         quickPlace.showsMenuAsPrimaryAction=false
         quickAdd.configuration?.title=isPlacingBalls ? "Hủy":"Thêm bi"
@@ -889,7 +891,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         stroke.isUserInteractionEnabled=locked;stroke.isEnabled=locked
         menuButton.isHidden=locked
         fineWheel.isHidden=menuOpen   // 0.30: fine aim stays usable while the effect ball is held
-        spin.isHidden=menuOpen || (locked && !spinExpanded)
+        spin.isHidden=menuOpen   // 0.30b: the effect ball stays (it is the lock)
         quickScroll.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen || spinExpanded
         for icon in cueIcons{icon.isHidden=locked || menuOpen || spinExpanded}
         coachButton.isHidden=locked || menuOpen
@@ -1016,7 +1018,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let work=DispatchWorkItem{[weak self] in
             guard let self=self,self.quickCamera.isTracking,self.peekPose==nil else{return}
             self.peekPose=self.captureCamera();self.aimCameraYaw=0;self.shotCameraAnchor=nil
-            self.selectCamera(self.table.cameraMode==2 ? 0:2)
+            self.selectCamera(self.table.cameraMode==2 ? 1:2)   // 0.30b: aim <-> top-down 2D
         }
         eyeHoldWork=work;DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work)
     }
@@ -1030,8 +1032,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if peekPose != nil{releasePeek();return}
         if observingShot{return}
         guard !shotActive,replayIndex==nil,!isPlacingBalls,!locked else{return}
-        // Quick tap toggles between the two views the owner kept: aim (2) and overview (0).
-        aimCameraYaw=0;shotCameraAnchor=nil;selectCamera(table.cameraMode==2 ? 0:2);syncQuickRail()
+        // Quick tap toggles between the two views the owner kept: aim (2) and top-down 2D (1) — 0.30b.
+        aimCameraYaw=0;shotCameraAnchor=nil;selectCamera(table.cameraMode==2 ? 1:2);syncQuickRail()
     }
     func directCamera(time:Double,state:[BallState],replay:Bool){
         guard replay,replayAuto,!cameraManual else{return}
@@ -1581,6 +1583,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         state[i].x=x;state[i].y=y;state[i].sunk=false;engine.loadLayout(state.map{$0.dictionary});table.placementBlocked = isPlacingBalls && !placementValid();refresh()
     }
     func presentSheet(_ sheet:UIAlertController,source:UIView?=nil){
+        sheet.overrideUserInterfaceStyle = .dark   // 0.30b: readable over the bright table (owner: menu text washed out)
         sheet.popoverPresentationController?.sourceView=source ?? view
         sheet.popoverPresentationController?.sourceRect=source?.bounds ?? CGRect(x:view.bounds.midX,y:view.bounds.midY,width:1,height:1)
         present(sheet,animated:true)
