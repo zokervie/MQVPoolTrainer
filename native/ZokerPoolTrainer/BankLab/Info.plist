@@ -54,5 +54,7 @@
 	<array>
 		<string>_zt-pool18._tcp</string>
 	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
 </dict>
 </plist>
