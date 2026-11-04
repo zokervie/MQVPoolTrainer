@@ -1,0 +1,47 @@
+{
+  "failures" : [
+
+  ],
+  "frames" : {
+    "CoachToggle" : "(160.0, 10.0, 76.0, 44.0)",
+    "CueIconBreak" : "(218.0, 285.0, 44.0, 44.0)",
+    "CueIconJump" : "(122.0, 285.0, 44.0, 44.0)",
+    "CueIconMasse" : "(170.0, 285.0, 44.0, 44.0)",
+    "CueIconPlay" : "(74.0, 285.0, 44.0, 44.0)",
+    "Điểm chạm đầu cơ" : "(74.0, 337.0, 76.0, 76.0)",
+    "ElevationPad-1" : "(720.0, 301.0, 64.0, 64.0)",
+    "QuickAdd" : "(834.0, 267.0, 54.0, 44.0)",
+    "QuickCamera" : "(834.0, 359.0, 54.0, 44.0)",
+    "QuickCue" : "(834.0, 313.0, 54.0, 44.0)",
+    "QuickPlace" : "(834.0, 221.0, 54.0, 44.0)",
+    "QuickReplay" : "(834.0, 129.0, 54.0, 44.0)",
+    "QuickRetry" : "(834.0, 175.0, 54.0, 44.0)",
+    "SpinPad-0" : "(74.0, 337.0, 76.0, 76.0)",
+    "UIButton-3" : "(74.0, 10.0, 78.0, 44.0)",
+    "UIButton-4" : "(160.0, 10.0, 76.0, 44.0)",
+    "UIButton-5" : "(74.0, 285.0, 44.0, 44.0)",
+    "UIButton-6" : "(122.0, 285.0, 44.0, 44.0)",
+    "UIButton-7" : "(170.0, 285.0, 44.0, 44.0)",
+    "UIButton-8" : "(218.0, 285.0, 44.0, 44.0)",
+    "UIScrollView-2" : "(834.0, 129.0, 54.0, 284.0)"
+  },
+  "height" : 419,
+  "hitResults" : {
+    "CoachToggle" : "UIButton",
+    "CueIconBreak" : "UIButton",
+    "CueIconJump" : "UIButton",
+    "CueIconMasse" : "UIButton",
+    "CueIconPlay" : "UIButton",
+    "Điểm chạm đầu cơ" : "SpinPad",
+    "QuickAdd" : "UIButton",
+    "QuickCamera" : "UIButton",
+    "QuickCue" : "UIButton",
+    "QuickPlace" : "UIButton",
+    "QuickReplay" : "intentionally disabled",
+    "QuickRetry" : "UIButton"
+  },
+  "probe" : "hud",
+  "result" : "PASS",
+  "safeArea" : "(62.0, 0.0, 832.0, 419.0)",
+  "width" : 832
+}
