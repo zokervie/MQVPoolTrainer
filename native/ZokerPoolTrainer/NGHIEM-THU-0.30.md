@@ -1,6 +1,6 @@
 # Nghiệm thu Z-Trainer 0.30
 
-Nhánh `ci/native-0.30`. App giờ hiện đúng **phiên bản 0.30** (trước đây vẫn ghi nhầm 0.19).
+Nhánh `ci/native-0.30` · build 107 (run 83) · CI xanh: Linux g++/clang++, Mac Simulator, 17/17 UI test, IPA. App giờ hiện đúng **phiên bản 0.30** (trước đây vẫn ghi nhầm 0.19).
 Cột **CI** = đã kiểm tra tự động (test C++ trên Linux / Simulator trên Mac). Cột **Máy thật** = anh tick khi thử. Ghi chú ngắn vào cuối dòng nếu chưa đạt.
 
 ## Vật lý
