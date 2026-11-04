@@ -78,10 +78,16 @@ final class InteractionTests: XCTestCase {
         XCTFail("\(key) != \(value) · probe: \(scene.value ?? "")", file: file, line: line)
     }
 
+    /// Polls `condition`; on timeout fails with the whole app probe so CI logs show the state (0.30).
     private func wait(_ scene: XCUIElement, timeout: TimeInterval = 30,
+                      file: StaticString = #filePath, line: UInt = #line,
                       _ condition: @escaping () -> Bool) {
-        expectation(for: NSPredicate { _, _ in condition() }, evaluatedWith: scene)
-        waitForExpectations(timeout: timeout)
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            if condition() { return }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTFail("timed out after \(Int(timeout)) s · probe: \(scene.value ?? "")", file: file, line: line)
     }
 
     /// B1: kéo một ngón theo chiều dọc chỉ đổi độ cao camera ngắm, không làm lệch hướng đánh.
@@ -123,11 +129,24 @@ final class InteractionTests: XCTestCase {
             XCTAssertLessThan(app.buttons[upper].frame.midY,app.buttons[lower].frame.midY,"\(upper) above \(lower)")
         }
         XCTAssertTrue(coach.isEnabled,"Coach enabled · \(scene.value ?? "")")
-        coach.tap()
-        settle(scene,"coach",1)
-        coach.tap()
-        settle(scene,"coach",0)
+        tapCoach(app,scene,coach,expect:1)
+        tapCoach(app,scene,coach,expect:0)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
+    }
+
+    /// Intel CI sometimes drops a synthesized tap before it reaches the app (probe coachDown unchanged).
+    /// Retry only in that case, so a tap that DID reach the button but did not toggle still fails.
+    private func tapCoach(_ app: XCUIApplication, _ scene: XCUIElement, _ coach: XCUIElement, expect: Double) {
+        let downs = field(scene, "coachDown")
+        for attempt in 0..<3 {
+            coach.tap()
+            let end = Date().addingTimeInterval(8)
+            while Date() < end && field(scene, "coach") != expect && field(scene, "coachDown") == downs + Double(attempt) { Thread.sleep(forTimeInterval: 0.3) }
+            if field(scene, "coach") == expect { return }
+            if field(scene, "coachDown") > downs + Double(attempt) { break }   // reached the button but did not toggle: real failure
+            print("REPORT coach tap \(attempt + 1) did not reach the app · probe: \(scene.value ?? "")")
+        }
+        settle(scene, "coach", expect)
     }
 
     func testCameraRoundTripPreservesAimHeightAndZoom() {
