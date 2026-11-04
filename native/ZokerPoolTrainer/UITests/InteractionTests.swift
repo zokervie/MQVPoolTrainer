@@ -277,7 +277,15 @@ final class InteractionTests: XCTestCase {
             quick(app,"QuickAdd").tap()
             app.buttons["Thêm bi · số lượng / bố trí"].firstMatch.tap()
             let alert=app.alerts["Thêm bi"]
-            XCTAssertTrue(alert.waitForExistence(timeout:5 * slow));alert.textFields.firstMatch.tap();alert.textFields.firstMatch.typeText(String(count))
+            XCTAssertTrue(alert.waitForExistence(timeout:5 * slow))
+            // Intel CI: keystrokes sent before the field has focus are lost — retype until the field shows the count.
+            let field=alert.textFields.firstMatch
+            for _ in 0..<3 {
+                field.tap();if let old=field.value as? String,!old.isEmpty,old != field.placeholderValue{field.typeText(String(repeating:XCUIKeyboardKey.delete.rawValue,count:old.count))}
+                field.typeText(String(count))
+                if (field.value as? String) == String(count) {break}
+            }
+            XCTAssertEqual(field.value as? String,String(count),"typed count")
             alert.buttons["Mặc định"].tap()
             wait(scene,timeout:5 * slow){self.field(scene,"ballCount")==Double(count==1 ? 2:15)}
         }
