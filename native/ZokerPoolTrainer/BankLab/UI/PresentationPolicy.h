@@ -63,7 +63,8 @@ static inline bool BLShotCameraTick(BLShotCameraState *state, double dt,
 
 static inline bool BLStrokeAllowed(bool localTurn, bool busy, bool menuOpen,
                                     bool spinExpanded, bool editing, bool cuePlayable) {
-    return localTurn && !busy && !menuOpen && !spinExpanded && !editing && cuePlayable;
+    (void)spinExpanded;   // 0.30b: the effect ball IS the lock — holding it must allow the stroke
+    return localTurn && !busy && !menuOpen && !editing && cuePlayable;
 }
 
 // Incremental smoothstep weight: repeated interpolation reaches the destination

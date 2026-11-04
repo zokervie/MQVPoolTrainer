@@ -143,12 +143,12 @@ int main() {
     assert(!BLStrokeAllowed(false,false,false,false,false,true)); passed("spectator cannot shoot");
     assert(!BLStrokeAllowed(true,true,false,false,false,true)); passed("simulation and settlement cannot shoot");
     assert(!BLStrokeAllowed(true,false,true,false,false,true)); passed("Menu cannot shoot");
-    assert(!BLStrokeAllowed(true,false,false,true,false,true)); passed("expanded effect cannot arm B or shoot");
+    assert(BLStrokeAllowed(true,false,false,true,false,true)); passed("0.30b: holding the effect ball (the lock) allows the stroke");
     assert(!BLStrokeAllowed(true,false,false,false,true,true)); passed("editing cannot shoot");
     assert(!BLStrokeAllowed(true,false,false,false,false,false)); passed("scratch cannot shoot before ball placement");
     int permitted=0;
     for(unsigned mask=0;mask<64;++mask) if(BLStrokeAllowed(mask&1,mask&2,mask&4,mask&8,mask&16,mask&32))++permitted;
-    assert(permitted==1); passed("all 64 input flag combinations fail closed");
+    assert(permitted==2); passed("all 64 flag combinations fail closed except the effect-ball flag (0.30b)");
     for(auto size : {std::array<double,2>{568,299},{750,369},{830,388},{1024,744}})checkLayout(size[0],size[1],false);
     passed("compact vertical HUD and Coach fit phone and iPad safe areas");
     for(auto size : {std::array<double,2>{568,299},{750,369},{830,388},{1024,744}})checkLayout(size[0],size[1],true);
