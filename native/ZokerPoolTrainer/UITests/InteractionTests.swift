@@ -141,7 +141,7 @@ final class InteractionTests: XCTestCase {
         for attempt in 0..<3 {
             coach.tap()
             let end = Date().addingTimeInterval(8)
-            while Date() < end && field(scene, "coach") != expect && field(scene, "coachDown") == downs + Double(attempt) { Thread.sleep(forTimeInterval: 0.3) }
+            while Date() < end && field(scene, "coach") != expect { Thread.sleep(forTimeInterval: 0.3) }
             if field(scene, "coach") == expect { return }
             if field(scene, "coachDown") > downs + Double(attempt) { break }   // reached the button but did not toggle: real failure
             print("REPORT coach tap \(attempt + 1) did not reach the app · probe: \(scene.value ?? "")")

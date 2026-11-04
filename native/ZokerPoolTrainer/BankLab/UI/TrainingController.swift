@@ -213,9 +213,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if args.contains("--ux017-qa"){loadDrill(0)}
             if args.contains("--replay-preroll-qa") {
                 loadDrill(8);table.cameraMode=2
-                DispatchQueue.main.asyncAfter(deadline:.now()+9){[weak self] in
-                    guard let self=self else{return};self.locked=true;self.shoot(0.5)
+                // 0.30: shoot once >= 5.5 s of continuous preparation exists (a slow CI simulator stalls ticks and
+                // restarts the buffer, so a fixed 9 s delay was flaky). Keeps rendering awake meanwhile.
+                func tryShoot(_ left:Int){
+                    DispatchQueue.main.asyncAfter(deadline:.now()+0.5){[weak self] in
+                        guard let self=self else{return};self.wakeRendering()
+                        let span=(self.aimBuffer.last?.time ?? 0)-(self.aimBuffer.first?.time ?? 0)
+                        if span>=5.5 || left<=0 {self.locked=true;self.shoot(0.5)} else {tryShoot(left-1)}
+                    }
                 }
+                tryShoot(120)
             }
             if args.contains("--premium-qa") {
                 table.setClothColor(nil);table.selectTable(TableLook.all[6]);table.camera.camera?.exposureOffset = -0.8
@@ -817,7 +824,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         toastGeneration+=1;let generation=toastGeneration
         DispatchQueue.main.asyncAfter(deadline:.now()+3){[weak self] in guard let self=self,self.toastGeneration==generation else{return};self.statusToast.isHidden=true}
     }
+    var lastCoachToggle=0.0
     func toggleCoach(){
+        // 0.30: one physical tap can arrive as two touch sequences (seen on CI: 2 taps -> 3 touch-downs); debounce.
+        let now=ProcessInfo.processInfo.systemUptime;guard now-lastCoachToggle>0.35 else{return};lastCoachToggle=now
         guard !locked,!spinExpanded else{return};if matchIsCompetitive{matchToggleNumbers();return};coaching.toggle();persistArchiveCoach();applyCoachVisibility()
         if coaching && replayIndex==nil {if lastShot != nil,!shotActive{requestCoachReport(drill:Drill.all[drillIndex],events:lastShotEvents,passed:lastPassed,scratch:lastScratch)}else{showCoach(drillBrief(Drill.all[drillIndex]))}}
     }
