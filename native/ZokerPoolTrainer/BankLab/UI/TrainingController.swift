@@ -88,7 +88,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var replayBarRight:[NSLayoutConstraint]=[],replayBarLeft:[NSLayoutConstraint]=[]
     var matchCallPicking=0,matchCallBall=0,matchCallPose:CameraPose?
     // 0.25: practice history (step back / forward per shot or whole session) and session highlights.
-    var shotBack:[[BallState]]=[],shotForward:[[BallState]]=[]
+    /// 0.30: each step keeps the layout AND the setup used for the shot taken from it (gậy, độ dốc, effect, hướng).
+    struct ShotSetup{var angle:Double,side:Double,top:Double,kind:Int,elevation:Double}
+    struct ShotStep{var balls:[BallState];var setup:ShotSetup?}
+    var shotBack:[ShotStep]=[],shotForward:[ShotStep]=[]
+    func currentSetup()->ShotSetup{ShotSetup(angle:angle,side:side,top:top,kind:shotKind,elevation:table.cueElevation)}
     var sessionShots:[(shot:SavedShot,score:Int,label:String)]=[]
     var autoSaveEveryShot:Bool{UserDefaults.standard.bool(forKey:"autoSaveEveryShot025")}
     let quickCall=UIButton(type:.system)
@@ -1008,9 +1012,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             let others=state.filter{$0.id != 0 && !$0.sunk},geo=engine.settings
             var xs=others.map{$0.x},ys=others.map{$0.y},fx=0.0,fy=0.0
             _=BLFreeSpotNearCentre(&xs,&ys,Int32(others.count),geo["ballRadius"]?.doubleValue ?? 0.028575,(geo["tableWidth"]?.doubleValue ?? 1.27)/2,(geo["tableLength"]?.doubleValue ?? 2.54)/2,&fx,&fy)
+            // 0.30 (owner item 22): in practice, back to where the cue ball was for the last shot when that spot is free.
+            let r=geo["ballRadius"]?.doubleValue ?? 0.028575
+            if lastShot != nil,!matchIsCompetitive,let last=before.first(where:{$0.id==0 && !$0.sunk}),
+               others.allSatisfy({hypot($0.x-last.x,$0.y-last.y)>2*r+0.002}) {fx=last.x;fy=last.y}
             if let i=state.firstIndex(where:{$0.id==0}){state[i].x=fx;state[i].y=fy;state[i].sunk=false}else{state.append(BallState(id:0,x:fx,y:fy))}
             engine.loadLayout(state.map{$0.dictionary});selectCamera(1)
-            table.placementBlocked = !placementValid();notifyStatus("Bi cái ở ô trống gần giữa bàn · kéo để chỉnh · Xong để nhận · Hủy để phục hồi")
+            table.placementBlocked = !placementValid();notifyStatus("Bi cái về chỗ vừa đánh (hoặc ô trống gần giữa bàn) · kéo để chỉnh · Xong để nhận · Hủy để phục hồi")
         }
         refresh();updateControls();syncQuickRail()
     }
@@ -1038,7 +1046,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if table.cameraMode==2 {savedAimCamera=captureCamera()}
         BLShotCameraStart(&shotCameraState)
         cameraManual=false;lastDirectorTime = -10;peekPose=nil;lastShotEvents=[]
-        if !matchIsCompetitive{shotBack.append(balls);shotForward.removeAll()}
+        if !matchIsCompetitive{shotBack.append(ShotStep(balls:balls,setup:currentSetup()));shotForward.removeAll()}
         before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0
         let strikeAngle=table.shotAngle(cue,angle:angle,side:side,top:top)
         lastShot=SavedShot(name:"",date:Date(),balls:balls,aimAngle:angle,speed:speed,side:side,top:top,
@@ -1289,19 +1297,33 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var sessionHighlights:[(shot:SavedShot,score:Int,label:String)]{Array(sessionShots.enumerated().sorted{$0.element.score==$1.element.score ? $0.offset>$1.offset:$0.element.score>$1.element.score}.prefix(5).map{$0.element})}
     /// 0.25: practice only. -1/+1 one shot; -99 start of session; +99 latest position.
     func stepShot(_ direction:Int){
-        guard matchAllowsEditing,!matchIsCompetitive,localTurn,!shotActive,replayIndex==nil,!isPlacingBalls else{return}
-        var target:[BallState]?
+        guard matchAllowsEditing,!matchIsCompetitive,localTurn,replayIndex==nil,!isPlacingBalls else{return}
+        // 0.30: "Lùi cú" also while the balls are still rolling (practice only): the running shot is dropped.
+        let rolling=shotActive
+        if rolling && direction != -1 {return}
+        let here=ShotStep(balls:balls,setup:currentSetup())
+        var target:ShotStep?
         switch direction {
-        case -1: guard let state=shotBack.popLast() else{notifyStatus("Đã ở cú đầu");return};shotForward.append(balls);target=state
-        case 1: guard let state=shotForward.popLast() else{notifyStatus("Đã ở cú mới nhất");return};shotBack.append(balls);target=state
-        case -99: guard !shotBack.isEmpty else{return};shotForward.append(balls);shotForward+=shotBack.dropFirst().reversed();target=shotBack.first;shotBack.removeAll()
-        default: guard !shotForward.isEmpty else{return};shotBack.append(balls);shotBack+=shotForward.dropFirst().reversed();target=shotForward.first;shotForward.removeAll()
+        case -1: guard let state=shotBack.popLast() else{notifyStatus("Đã ở cú đầu");return};if !rolling{shotForward.append(here)};target=state
+        case 1: guard let state=shotForward.popLast() else{notifyStatus("Đã ở cú mới nhất");return};shotBack.append(here);target=state
+        case -99: guard !shotBack.isEmpty else{return};shotForward.append(here);shotForward+=shotBack.dropFirst().reversed();target=shotBack.first;shotBack.removeAll()
+        default: guard !shotForward.isEmpty else{return};shotBack.append(here);shotBack+=shotForward.dropFirst().reversed();target=shotForward.first;shotForward.removeAll()
         }
-        guard let state=target else{return}
-        lockButton.releaseHold();setHold(false);engine.loadLayout(state.map{$0.dictionary});clearShot();restoreAimCamera();locked=false
+        guard let step=target else{return}
+        lockButton.releaseHold();setHold(false);engine.loadLayout(step.balls.map{$0.dictionary});clearShot();restoreAimCamera();locked=false
+        applySetup(step.setup)
         notifyStatus("Cú \(shotBack.count+1)/\(shotBack.count+shotForward.count+1)");refresh();updateControls();syncQuickRail()
     }
-    func undo(){guard matchAllowsEditing,localTurn,!before.isEmpty,!isPlacingBalls else{return};lockButton.releaseHold();setHold(false);engine.loadLayout(before.map{$0.dictionary});clearShot();restoreAimCamera();locked=false;statusLabel.text="Đã trở về trước cú đánh";refresh();updateControls()}
+    /// Restores cue, elevation, effect and aim exactly as they were when that shot was played (0.30).
+    func applySetup(_ setup:ShotSetup?){
+        guard let setup=setup else{spin.reset();side=0;top=0;return}
+        if setup.kind != shotKind {chooseShotKind(setup.kind)}
+        setElevation(setup.elevation);spin.select(side:setup.side,top:setup.top);side=setup.side;top=setup.top
+        let old=angle;angle=setup.angle;aimCameraYaw+=old-angle
+    }
+    func undo(){guard matchAllowsEditing,localTurn,!before.isEmpty,!isPlacingBalls else{return};lockButton.releaseHold();setHold(false);engine.loadLayout(before.map{$0.dictionary});clearShot();restoreAimCamera();locked=false
+        if !matchIsCompetitive,let shot=lastShot{applySetup(ShotSetup(angle:shot.aimAngle,side:shot.side,top:shot.top,kind:shot.shotKind ?? 0,elevation:shot.elevation))}
+        statusLabel.text="Đã trở về trước cú đánh";refresh();updateControls()}
     func reset(){
         guard matchAllowsEditing else{return}
         guard localTurn else{return}
