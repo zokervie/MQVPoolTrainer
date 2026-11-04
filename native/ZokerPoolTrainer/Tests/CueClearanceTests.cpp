@@ -32,5 +32,22 @@ int main() {
     // Đánh ra xa băng theo đường chéo: khoảng cách tới băng tính theo phương ngược hướng đánh.
     assert(std::abs(BLCueRailDistance(0, 0, M_PI, W, L) - W / 2) < 1e-12);
     assert(std::abs(BLCueRailDistance(0, 0, -M_PI / 2, W, L) - L / 2) < 1e-12);
+    // ---- 0.30: balls behind the cue ball ----
+    {   auto withBall = [&](double bx, double by, double s, double t) { const double xs[1] = {bx}, ys[1] = {by};
+            return BLCueMinimumElevationBalls(0, 0, 0, s, t, W, L, R, nose, xs, ys, 1); };   // shooting +x, cue lies towards -x
+        const double free = minE(0, 0, 0, 0, 0);
+        assert(std::abs(withBall(0.5, 0, 0, 0) - free) < 1e-9);             // ball in front: irrelevant
+        assert(std::abs(withBall(-0.3, 0.2, 0, 0) - free) < 1e-9);          // well off the cue line: irrelevant
+        const double touching = withBall(-2 * R - 0.001, 0, 0, 0), near = withBall(-0.10, 0, 0, 0), far = withBall(-0.60, 0, 0, 0);
+        std::cout << "REPORT cue over a ball behind: 1 mm gap " << touching << " deg, 10 cm " << near << " deg, 60 cm " << far << " deg\n";
+        assert(touching > 45 && near > far && far > free && far < 12);       // closer ball -> steeper cue (jacked up)
+        assert(withBall(-0.10, 0, 0, 0.5) < near);                            // follow (high tip) needs less elevation
+        assert(withBall(-0.10, R + 0.009, 0, 0) < near);                      // ball partly off the line: less
+        assert(withBall(-2.0, 0, 0, 0) == free);                              // beyond the cue's length
+        const double xs[1] = {-0.10}, ys[1] = {0};
+        const double clamped = BLCueClampTopBalls(0, 0, 0, 0, -0.5, W, L, R, nose, 25, 0.7, xs, ys, 1);   // normal stroke limit 35°; 25° forces a clamp
+        assert(clamped > -0.5 && BLCueMinimumElevationBalls(0, 0, 0, 0, clamped, W, L, R, nose, xs, ys, 1) <= 25 + 1e-6);
+        std::cout << "PASS CueClearance balls: cue lifts over balls behind, low tip clamps up\n";
+    }
     std::cout << "PASS CueClearance\n";
 }

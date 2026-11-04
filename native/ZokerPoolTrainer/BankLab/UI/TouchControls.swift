@@ -208,7 +208,7 @@ final class StrokePad:UIControl {
             guard !fired else{break}
             let y=sample.location(in:self).y,time=sample.timestamp
             if let last=samples.last,time<=last.0{continue}
-            furthest=max(furthest,y);samples.append((time,y));samples.removeAll{time-$0.0>0.060}
+            furthest=max(furthest,y);samples.append((time,y));samples.removeAll{time-$0.0>0.085}   // 0.30: wider window = smoother speed estimate
             pullChanged?(max(0,min(1,Double((y-start)/110))))
             let crosses=previous>start && y<=start
             previous=y
@@ -231,38 +231,54 @@ final class StrokePad:UIControl {
     func cancelStroke(){finger=nil;samples=[];fired=false;pullChanged?(0)}
 }
 
-/// Độ dốc cơ 0–90°: kéo lên/xuống; con trỏ là hình cây cơ nhỏ nằm ngang ở 0°, chéo ở 45°, dựng đứng ở 90°.
+/// 0.30 độ dốc cơ 0–90° dạng quạt (owner: "hình quạt nằm vừa vặn trên bánh răng"). Tâm quạt ở góc dưới phía
+/// ngoài (trái với tay phải), chạm/kéo theo góc = độ dốc (BLFanDegrees). Kim là cây cơ nhỏ; phóng to khi chạm.
 final class ElevationPad:UIControl {
     static let maximum=90.0
     var degrees:Double=0 {didSet{accessibilityValue="\(Int(degrees)) độ";setNeedsDisplay()}}
+    var leftHanded=false {didSet{if leftHanded != oldValue{setNeedsDisplay()}}}
     var changed:((Double)->Void)?
-    override init(frame:CGRect){super.init(frame:frame);backgroundColor = .clear;isAccessibilityElement=true;accessibilityLabel="Độ dốc cơ";accessibilityTraits = .adjustable}
+    override init(frame:CGRect){super.init(frame:frame);backgroundColor = .clear;isAccessibilityElement=true;accessibilityLabel="Độ dốc cơ";accessibilityIdentifier="ElevationFan";accessibilityTraits = .adjustable;contentMode = .redraw}
     required init?(coder:NSCoder){fatalError()}
+    private var pivot:CGPoint{CGPoint(x:leftHanded ? bounds.maxX-4:bounds.minX+4,y:bounds.maxY-4)}
+    private var radius:CGFloat{min(bounds.width,bounds.height)-8}
+    private func point(_ deg:Double,_ r:CGFloat)->CGPoint{let a=CGFloat(deg*Double.pi/180);return CGPoint(x:pivot.x+(leftHanded ? -1:1)*r*cos(a),y:pivot.y-r*sin(a))}
     override func draw(_ rect:CGRect){
         guard let ctx=UIGraphicsGetCurrentContext() else{return}
-        let track=CGRect(x:bounds.midX-2,y:22,width:4,height:bounds.height-42)
-        UIColor.white.withAlphaComponent(0.14).setFill();UIBezierPath(roundedRect:track,cornerRadius:2).fill()
-        ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.3).cgColor);ctx.setLineWidth(1)
-        for tick in stride(from:0,through:90,by:45){let ty=track.maxY-CGFloat(tick)/CGFloat(Self.maximum)*track.height;ctx.move(to:CGPoint(x:bounds.midX-9,y:ty));ctx.addLine(to:CGPoint(x:bounds.midX+9,y:ty))}
-        ctx.strokePath()
-        // Hình cây cơ: đầu cơ chạm bi nhỏ, thân cơ quay theo góc dốc.
-        let y=track.maxY-CGFloat(degrees/Self.maximum)*track.height
-        let ball=CGPoint(x:bounds.midX+7,y:y+6),radius:CGFloat=4.5
-        let theta=CGFloat(degrees*Double.pi/180)
-        let tip=CGPoint(x:ball.x-radius*cos(theta)-1,y:ball.y-radius*sin(theta)-1)
-        let length:CGFloat=24
-        let butt=CGPoint(x:tip.x-length*cos(theta),y:tip.y-length*sin(theta))
-        let alpha:CGFloat=isTracking ? 0.95:0.7
-        UIColor.white.withAlphaComponent(alpha).setFill();ctx.fillEllipse(in:CGRect(x:ball.x-radius,y:ball.y-radius,width:2*radius,height:2*radius))
+        let r=radius,p=pivot
+        // fan body
+        let fan=UIBezierPath();fan.move(to:p);fan.addLine(to:point(0,r))
+        fan.addArc(withCenter:p,radius:r,startAngle:leftHanded ? .pi:0,endAngle:-.pi/2,clockwise:leftHanded);fan.close()
+        UIColor(white:0.04,alpha:0.30).setFill();fan.fill()
+        UIColor.white.withAlphaComponent(0.16).setStroke();fan.lineWidth=0.8;fan.stroke()
+        // filled sector up to the current elevation
+        if degrees>0.5 {
+            let on=UIBezierPath();on.move(to:p);on.addLine(to:point(0,r))
+            on.addArc(withCenter:p,radius:r,startAngle:leftHanded ? .pi:0,endAngle:leftHanded ? .pi+CGFloat(degrees*Double.pi/180):-CGFloat(degrees*Double.pi/180),clockwise:leftHanded);on.close()
+            UIColor.rgb(0xEAC583).withAlphaComponent(0.22).setFill();on.fill()
+        }
+        // ticks every 15°, longer at 0/45/90 (jump 45, massé 60+)
+        ctx.setLineWidth(1)
+        for tick in stride(from:0,through:90,by:15){
+            let long=tick%45==0,a=point(Double(tick),r-(long ? 9:5)),b=point(Double(tick),r)
+            ctx.setStrokeColor(UIColor.white.withAlphaComponent(tick==60 ? 0.55:0.32).cgColor);ctx.move(to:a);ctx.addLine(to:b);ctx.strokePath()
+        }
+        // needle = small cue
+        let alpha:CGFloat=isTracking ? 0.98:0.78
+        let tip=point(degrees,r*0.18),butt=point(degrees,r*0.92),mid=CGPoint(x:(tip.x+butt.x)/2,y:(tip.y+butt.y)/2)
         ctx.setLineCap(.round)
-        ctx.setStrokeColor(UIColor(red:0.86,green:0.70,blue:0.45,alpha:alpha).cgColor);ctx.setLineWidth(3.2)
-        ctx.move(to:butt);ctx.addLine(to:CGPoint(x:(tip.x+butt.x)/2,y:(tip.y+butt.y)/2));ctx.strokePath()
-        ctx.setStrokeColor(UIColor(white:0.95,alpha:alpha).cgColor);ctx.setLineWidth(2.2)
-        ctx.move(to:CGPoint(x:(tip.x+butt.x)/2,y:(tip.y+butt.y)/2));ctx.addLine(to:tip);ctx.strokePath()
-        let attrs:[NSAttributedString.Key:Any]=[.font:UIFont.monospacedDigitSystemFont(ofSize:11,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.75)]
-        let text="\(Int(degrees))°" as NSString,sz=text.size(withAttributes:attrs);text.draw(at:CGPoint(x:bounds.midX-sz.width/2,y:2),withAttributes:attrs)
+        ctx.setStrokeColor(UIColor(red:0.86,green:0.70,blue:0.45,alpha:alpha).cgColor);ctx.setLineWidth(3.0);ctx.move(to:butt);ctx.addLine(to:mid);ctx.strokePath()
+        ctx.setStrokeColor(UIColor(white:0.95,alpha:alpha).cgColor);ctx.setLineWidth(2.0);ctx.move(to:mid);ctx.addLine(to:tip);ctx.strokePath()
+        UIColor.white.withAlphaComponent(alpha).setFill();ctx.fillEllipse(in:CGRect(x:p.x-3,y:p.y-3,width:6,height:6))
+        let attrs:[NSAttributedString.Key:Any]=[.font:UIFont.monospacedDigitSystemFont(ofSize:11,weight:.semibold),.foregroundColor:UIColor.white.withAlphaComponent(0.85)]
+        let text="\(Int(degrees))°" as NSString,sz=text.size(withAttributes:attrs)
+        text.draw(at:CGPoint(x:leftHanded ? bounds.minX+3:bounds.maxX-sz.width-3,y:bounds.minY+2),withAttributes:attrs)
     }
-    private func set(_ p:CGPoint){degrees=(max(0,min(Self.maximum,Double((bounds.height-20-p.y)/(bounds.height-42))*Self.maximum))).rounded();changed?(degrees)}
+    private func set(_ q:CGPoint){
+        // the fan is drawn inset by 4 pt; BLFanDegrees works in the fan's own square
+        let w=Double(bounds.width-8),h=Double(bounds.height-8)
+        degrees=BLFanDegrees(Double(q.x-4),Double(q.y-4),w,h,leftHanded ? 1:0);changed?(degrees)
+    }
     override func beginTracking(_ touch:UITouch,with event:UIEvent?)->Bool{guard isEnabled else{return false};zoomForTouch(true);set(touch.location(in:self));return true}
     override func continueTracking(_ touch:UITouch,with event:UIEvent?)->Bool{set(touch.location(in:self));return true}
     override func endTracking(_ touch:UITouch?,with event:UIEvent?){zoomForTouch(false);setNeedsDisplay()}

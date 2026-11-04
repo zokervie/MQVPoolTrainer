@@ -191,11 +191,13 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"pitch"),pitch,accuracy:0.002)
     }
 
-    func testHoldingAndReleasingBridgeDoesNotFireOrLeaveAimLocked() {
+    /// 0.30: no B button; holding the effect ball is the lock. Releasing it must not fire or leave the aim locked.
+    func testHoldingAndReleasingEffectBallDoesNotFireOrLeaveAimLocked() {
         let (app,scene)=launch(["--ux017-qa"])
-        let bridge=app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch
-        XCTAssertTrue(bridge.isHittable)
-        bridge.press(forDuration:0.5)
+        XCTAssertFalse(app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch.isHittable, "B is gone")
+        let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
+        XCTAssertTrue(effect.isHittable)
+        effect.press(forDuration:0.5)
         XCTAssertEqual(field(scene,"moving"),0)
         let before=angle(scene)
         let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.30,dy:0.32))
@@ -203,6 +205,19 @@ final class InteractionTests: XCTestCase {
         start.press(forDuration:0.05,thenDragTo:end)
         wait(scene,timeout:5 * slow){abs(self.angle(scene)-before)>0.01}
         XCTAssertEqual(field(scene,"moving"),0)
+    }
+
+    /// 0.30: four cue icons above the effect ball; Jump 45°, Massé 70° (play cue raised), Break, back to Đánh.
+    func testCueIconsSelectPlayJumpMasseBreak() {
+        let (app,scene)=launch(["--ux017-qa"])
+        for (id,kind) in [("CueIconJump",1.0),("CueIconMasse",3.0),("CueIconBreak",2.0),("CueIconPlay",0.0)] {
+            let icon=app.buttons[id];XCTAssertTrue(icon.waitForExistence(timeout:5 * slow),id);icon.tap()
+            settle(scene,"kind",kind)
+        }
+        let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
+        for id in ["CueIconPlay","CueIconJump","CueIconMasse","CueIconBreak"] {
+            XCTAssertLessThan(app.buttons[id].frame.maxY,effect.frame.minY+1,"\(id) above the effect ball")
+        }
     }
 
     func testLiveShotKeepsAimViewAndManualZoomAfterBallsStop() {

@@ -82,4 +82,59 @@ static inline double BLCueClampTop(double x, double y, double angle, double side
     return hi;
 }
 
+// ---- 0.30: other balls behind the cue ball (owner: "côn bi" — never draw the cue through a ball) ----
+// Each obstacle ball j is cut by the vertical plane of the cue line at lateral offset e' = max(0, |e| - r_cue):
+// a circle of radius rho = sqrt(R^2 - e'^2) centred at height R, along-distance a_j behind the cue-ball centre.
+// The underside line z(d) = h_c + d tan(theta) - r_cue / cos(theta) must pass above it:
+//   z(a_j - back) >= R + rho / cos(theta)   (line-circle distance, exact in that plane).
+// Shaft radius grows from the tip 6.5 mm to 10 mm at 0.7 m [assumed, typical taper]; cue length 1.45 m.
+#define BL_CUE_LENGTH 1.45
+static inline double BLCueRadiusAt(double d) { return BL_CUE_TIP_RADIUS + 0.0035 * fmin(1.0, fmax(0.0, d) / 0.7); }
+
+static inline int BLCueClearsBall(double contactHeight, double back, double along, double lateral, double radius, double theta) {
+    const double d = along - back;
+    const double rc = BLCueRadiusAt(d);
+    const double e = fmax(0.0, fabs(lateral) - rc);
+    if (e >= radius) return 1;
+    const double rho = sqrt(radius * radius - e * e);
+    const double z = contactHeight + d * tan(theta) - rc / cos(theta);
+    return z >= radius + rho / cos(theta);
+}
+
+static inline double BLCueMinimumElevationBalls(double x, double y, double angle, double side, double top,
+                                                double width, double length, double radius, double noseRatio,
+                                                const double *bx, const double *by, int n) {
+    double best = BLCueMinimumElevation(x, y, angle, side, top, width, length, radius, noseRatio);
+    if (!bx || !by || n <= 0 || !isfinite(x) || !isfinite(y) || !isfinite(angle) || radius <= 0) return best;
+    const double s2 = fmin(1.0, side * side + top * top);
+    const double back = radius * sqrt(fmax(0.0, 1.0 - s2)), contactHeight = radius * (1.0 + top);
+    const double dx = -cos(angle), dy = -sin(angle);   // towards the butt
+    for (int j = 0; j < n; ++j) {
+        const double rx = bx[j] - x, ry = by[j] - y;
+        const double along = rx * dx + ry * dy, lateral = -rx * dy + ry * dx;
+        if (along <= 0 || along > BL_CUE_LENGTH + radius) continue;
+        if (fabs(lateral) >= radius + BLCueRadiusAt(along)) continue;
+        if (BLCueClearsBall(contactHeight, back, along, lateral, radius, 0)) continue;
+        double lo = 0, hi = 89.5 * M_PI / 180;
+        if (!BLCueClearsBall(contactHeight, back, along, lateral, radius, hi)) return 90;
+        for (int i = 0; i < 60; ++i) { const double mid = (lo + hi) / 2; if (BLCueClearsBall(contactHeight, back, along, lateral, radius, mid)) hi = mid; else lo = mid; }
+        best = fmax(best, hi * 180 / M_PI);
+    }
+    return best;
+}
+
+// Same as BLCueClampTop, with the balls behind the cue ball as obstacles too.
+static inline double BLCueClampTopBalls(double x, double y, double angle, double side, double top,
+                                        double width, double length, double radius, double noseRatio,
+                                        double maxElevationDeg, double maxOffset, const double *bx, const double *by, int n) {
+#define BL_REACH(t) (BLCueMinimumElevationBalls(x, y, angle, side, (t), width, length, radius, noseRatio, bx, by, n) <= maxElevationDeg + 1e-9)
+    if (BL_REACH(top)) return top;
+    const double ceiling = sqrt(fmax(0.0, maxOffset * maxOffset - side * side));
+    if (!BL_REACH(ceiling)) return ceiling;
+    double lo = top, hi = ceiling;
+    for (int i = 0; i < 50; ++i) { const double mid = (lo + hi) / 2; if (BL_REACH(mid)) hi = mid; else lo = mid; }
+    return hi;
+#undef BL_REACH
+}
+
 #endif

@@ -92,6 +92,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     struct ShotSetup{var angle:Double,side:Double,top:Double,kind:Int,elevation:Double}
     struct ShotStep{var balls:[BallState];var setup:ShotSetup?}
     var shotBack:[ShotStep]=[],shotForward:[ShotStep]=[]
+    /// 0.30: Đánh / Jump / Massé / Break above the effect ball (BLHUDCueIcon, BLCueIconKind).
+    var cueIcons:[UIButton]=[]
     func currentSetup()->ShotSetup{ShotSetup(angle:angle,side:side,top:top,kind:shotKind,elevation:table.cueElevation)}
     var sessionShots:[(shot:SavedShot,score:Int,label:String)]=[]
     var autoSaveEveryShot:Bool{UserDefaults.standard.bool(forKey:"autoSaveEveryShot025")}
@@ -342,13 +344,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // bounds + center (not frame): elevation/wheel may carry a zoom transform while touched.
         func place(_ v:UIView,_ b:BLRect){v.bounds=CGRect(x:0,y:0,width:b.w,height:b.h);v.center=CGPoint(x:b.x+b.w/2,y:b.y+b.h/2)}
         place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
-        place(menuButton,f.menu);place(coachButton,f.coach);place(lockButton,f.bridge);place(panel,f.panel);spin.setNeedsDisplay()
+        place(menuButton,f.menu);place(coachButton,f.coach);place(panel,f.panel);spin.setNeedsDisplay()
+        lockButton.isHidden=true   // 0.30: no B — holding the effect ball locks the aim
+        for (k,icon) in cueIcons.enumerated(){place(icon,BLHUDCueIcon(f,Int32(k)))}
+        elevationPad.leftHanded=leftHanded
         // Replay bar: top row between Coach and the shortcut column (never over Coach); mirrored for left hand.
         if (replayBarRight.first?.isActive ?? false) == leftHanded {   // only on a hand change (avoids a layout loop)
             NSLayoutConstraint.deactivate(leftHanded ? replayBarRight:replayBarLeft);NSLayoutConstraint.activate(leftHanded ? replayBarLeft:replayBarRight)
         }
         retryButton.isHidden=matchIsCompetitive
-        if spinExpanded{elevationPad.isHidden=true;fineWheel.isHidden=true}   // expanded ball covers their slots
+        if spinExpanded{elevationPad.isHidden=true;for icon in cueIcons{icon.isHidden=true}}   // only the held ball + wheel stay (0.30)
         quickCall.isHidden = !(matchIsCompetitive && matchBool("requiresCall"))
         for item in quickRail.arrangedSubviews{item.constraints.first{$0.firstAttribute == .height && $0.secondItem==nil}?.constant=CGFloat(f.button)}
         spinWidth.constant=CGFloat(f.spin.w);spinHeight.constant=CGFloat(f.spin.h)
@@ -380,7 +385,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func verifyRightHUD(){
         view.layoutIfNeeded()
-        let controls:[UIView]=[spin,elevationPad,quickScroll,menuButton,lockButton,coachButton].filter{!$0.isHidden}
+        let controls:[UIView]=([spin,elevationPad,quickScroll,menuButton,coachButton]+cueIcons).filter{!$0.isHidden}
         let safe=view.safeAreaLayoutGuide.layoutFrame
         var failures:[String]=[],frames:[String:String]=[:],hitResults:[String:String]=[:]
         for (index,control) in controls.enumerated(){
@@ -394,7 +399,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if leftHanded ? elevationPad.frame.minX<spin.frame.maxX : elevationPad.frame.maxX>spin.frame.minX{failures.append("Elevation is not beside the effect ball on the inner side")}
             if fineWheel.frame.minY<spin.frame.maxY{failures.append("Fine wheel is not under the effect ball")}
         }
-        let interactive:[UIControl]=[spin,lockButton,coachButton,quickReplay!,retryButton,quickCall,quickPlace!,quickAdd!,quickRole!,quickCamera!].filter{!$0.isHidden}
+        let interactive:[UIControl]=([spin,coachButton,quickReplay!,retryButton,quickCall,quickPlace!,quickAdd!,quickRole!,quickCamera!]+cueIcons).filter{!$0.isHidden}
         for control in interactive {
             let name=control.accessibilityIdentifier ?? control.accessibilityLabel ?? String(describing:type(of:control))
             frames[name]=String(describing:control.convert(control.bounds,to:view))
@@ -435,12 +440,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         spinHeight=spin.heightAnchor.constraint(equalToConstant:52)
         spin.expandedChanged={[weak self] expanded in
             guard let self=self else{return}
-            if expanded{self.lockButton.releaseHold();self.setHold(false);self.hideCoach()}
+            // 0.30: the effect ball is the lock (B removed). Held = aim locked, second finger strokes on the table.
             self.spinExpanded=expanded
+            if expanded{self.hideCoach()}
+            self.setHold(expanded && !self.presentationBusy && self.localTurn && !self.isPlacingBalls)
             self.spin.alpha=expanded ? 0.97:0.60
             self.layoutRightHUD();self.updateControls()
-            self.fineWheel.isHidden=expanded || self.menuOpen
+            self.fineWheel.isHidden=self.menuOpen
             self.elevationPad.isHidden=expanded || self.menuOpen || self.locked
+            for icon in self.cueIcons{icon.isHidden=expanded || self.menuOpen || self.locked}
             self.coachButton.isEnabled = !expanded
             self.spinCenter.isHidden = !expanded
             self.view.layoutIfNeeded()
@@ -461,7 +469,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         coachButton.addAction(UIAction{[weak self]_ in self?.qaCoachUp+=1},for:.touchUpInside)
         fineWheel.translatesAutoresizingMaskIntoConstraints=false
         fineWheel.accessibilityIdentifier="FineAimWheel";view.addSubview(fineWheel)
-        fineWheel.changed={[weak self] delta in guard let self=self,!self.locked,!self.presentationBusy,self.localTurn else{return};self.angle+=delta;self.aimCameraYaw=0;self.shotCameraAnchor=nil;self.beginCameraTransition(0.25);self.refresh();self.wakeRendering()}
+        fineWheel.changed={[weak self] delta in guard let self=self,!self.presentationBusy,self.localTurn else{return};self.angle+=delta;self.aimCameraYaw=0;self.shotCameraAnchor=nil;self.beginCameraTransition(0.25);self.refresh();self.wakeRendering()}
         menuButton.setTitle("Menu",for:.normal)
         menuButton.titleLabel?.font = .systemFont(ofSize:13,weight:.semibold)
         menuButton.setTitleColor(UIColor.rgb(0xEAC583),for:.normal)
@@ -620,8 +628,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         menuOpen=open;focusMode = !open;panel.isHidden = !open
         menuButton.setTitle(open ? "Đóng":"Menu",for:.normal)
         fineWheel.isHidden=open
-        spinCenter.isHidden=true;spin.isHidden=open;lockButton.isHidden=open;coachButton.isHidden=open
-        quickScroll.isHidden=open;elevationPad.isHidden=open
+        spinCenter.isHidden=true;spin.isHidden=open;lockButton.isHidden=true;coachButton.isHidden=open
+        quickScroll.isHidden=open;elevationPad.isHidden=open;for icon in cueIcons{icon.isHidden=open}
         coachCard.isHidden=open || !coachOn || coachCard.alpha==0
         updateControls()
     }
@@ -694,9 +702,39 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             fineWheel.centerXAnchor.constraint(equalTo:spin.centerXAnchor),fineWheel.bottomAnchor.constraint(equalTo:spin.topAnchor,constant:-8),fineWheel.widthAnchor.constraint(equalToConstant:44),fineWheel.heightAnchor.constraint(equalToConstant:100),
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
         elevationPad.changed={[weak self] value in self?.setElevation(value)}
+        buildCueIcons()
         buildReplayBar();syncQuickRail();applyCoachVisibility()
     }
+    func buildCueIcons(){
+        let names=["Đánh","Jump","Massé","Break"],ids=["CueIconPlay","CueIconJump","CueIconMasse","CueIconBreak"]
+        for k in 0..<Int(BL_CUE_ICONS) {
+            let b=UIButton(type:.system);var c=UIButton.Configuration.plain()
+            c.title=names[k];c.image=UIImage(systemName:k==2 ? "arrow.turn.up.right":(k==1 ? "arrow.up.forward":(k==3 ? "burst":"line.diagonal")))
+            c.imagePlacement = .top;c.imagePadding=2;c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:11,weight:.semibold)
+            c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:9,weight:.semibold);return a}
+            c.background.backgroundColor=UIColor(white:0.03,alpha:0.32);c.background.cornerRadius=8;c.contentInsets = .zero
+            b.configuration=c;b.accessibilityIdentifier=ids[k];b.accessibilityLabel="Gậy "+names[k]
+            b.addAction(UIAction{[weak self]_ in self?.chooseCueIcon(k)},for:.touchUpInside)
+            view.addSubview(b);cueIcons.append(b)
+        }
+    }
+    func chooseCueIcon(_ k:Int){
+        let kind=Int(BLCueIconKind(Int32(k)))
+        if kind != shotKind {chooseShotKind(kind)} else if kind==3 || kind==1 {setElevation(BLCueIconElevation(Int32(k)))}
+        syncQuickRail()
+    }
+    func syncCueIcons(){
+        for (k,icon) in cueIcons.enumerated(){
+            let on=Int(BLCueIconKind(Int32(k)))==shotKind
+            icon.configuration?.baseForegroundColor=on ? .white:UIColor.rgb(0xEAC583).withAlphaComponent(0.8)
+            icon.configuration?.background.backgroundColor=on ? UIColor.rgb(0xEAC583).withAlphaComponent(0.42):UIColor(white:0.03,alpha:0.32)
+            icon.configuration?.background.strokeColor=on ? .white:UIColor.white.withAlphaComponent(0.15);icon.configuration?.background.strokeWidth=on ? 1:0.5
+            icon.isEnabled = localTurn && !presentationBusy && !locked
+            icon.accessibilityValue=on ? "Đang chọn":""
+        }
+    }
     func syncQuickRail(){
+        syncCueIcons()
         guard quickRole != nil else{return}
         let wantCall=matchIsCompetitive && matchBool("requiresCall"),wantRetry = !matchIsCompetitive
         if quickCall.isHidden == wantCall || retryButton.isHidden == wantRetry {quickCall.isHidden = !wantCall;retryButton.isHidden = !wantRetry;view.setNeedsLayout()}
@@ -705,11 +743,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let kindNames=[0:"Đánh",1:"Jump",2:"Break",3:"Massé"]
         quickRole.configuration?.title="Bao cơ · "+(kindNames[shotKind] ?? "Đánh")
         // Bao cơ: only the three cues of the selected bag, brand in brackets. Massé = Đánh raised to 60°+.
-        quickRole.menu=UIMenu(title:"Bao cơ",children:[(0,"Gậy Đánh"),(1,"Gậy Jump"),(2,"Gậy Break")].map{role,label in
+        quickRole.menu=UIMenu(title:"Bao cơ",children:[(0,"Gậy Đánh"),(1,"Gậy Jump"),(2,"Gậy Break")].map{item->UIMenuElement in let (role,label)=item
             let look=CueBag.cue(role),brand=look.title.components(separatedBy:" · ").first ?? look.title
             let on=(role==0 ? (shotKind==0 || shotKind==3):shotKind==role)
             return UIAction(title:"\(label) (\(brand))",state:on ? .on:.off){[weak self]_ in self?.chooseShotKind(role)}
-        })
+        }+[UIAction(title:"Thư viện gậy…",image:UIImage(systemName:"books.vertical")){[weak self]_ in self?.equipment()}])   // 0.30: Bao cơ = thư viện
         quickPlace.configuration?.title=isPlacingBalls ? "Xong":"Đặt bi"
         quickPlace.showsMenuAsPrimaryAction=false
         quickAdd.configuration?.title=isPlacingBalls ? "Hủy":"Thêm bi"
@@ -747,7 +785,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let role=kind==3 ? 0:kind
         var values=engine.settings;values["cueType"]=NSNumber(value:role);shotKindPhysics(kind,&values);engine.settings=values;table.selectCue(role)
         let preset=UserDefaults.standard.dictionary(forKey:"cuePreset017-\(kind)") as? [String:Double]
-        setElevation(preset?["elevation"] ?? (kind==1 ? 45:(kind==3 ? 60:0)))
+        setElevation(preset?["elevation"] ?? (kind==1 ? 45:(kind==3 ? 70:0)))
         spin.select(side:preset?["side"] ?? 0,top:preset?["top"] ?? 0)
         syncQuickRail()
     }
@@ -825,9 +863,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         for recognizer in aimRecognizers{recognizer.isEnabled = !locked}
         stroke.isUserInteractionEnabled=locked;stroke.isEnabled=locked
         menuButton.isHidden=locked
-        fineWheel.isHidden=locked || menuOpen
-        spin.isHidden=locked || menuOpen
+        fineWheel.isHidden=menuOpen   // 0.30: fine aim stays usable while the effect ball is held
+        spin.isHidden=menuOpen || (locked && !spinExpanded)
         quickScroll.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen || spinExpanded
+        for icon in cueIcons{icon.isHidden=locked || menuOpen || spinExpanded}
         coachButton.isHidden=locked || menuOpen
         table.setTrainingOverlaysHidden(!coachOn || locked)
         if !locked{stroke.cancelStroke();pull=0;if matchIsCompetitive{table.setCompetitivePresentation(numbers:matchPlay.showNumbers)}}
@@ -836,7 +875,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var aimPanAxis=0
     var presentationBusy:Bool{shotActive || replayIndex != nil || replayPreparing || BLShotCameraBusy(shotCameraState)}
     var strokeHint:String{
-        "Giữ B để khóa hướng. Ngón khác kéo lùi rồi đẩy tới: đẩy nhanh hơn là mạnh hơn. Buông B để hủy/ngắm lại. C bật/tắt trợ giúp."
+        "Chọn gậy → ngắm → giữ bi effect (khóa hướng, chỉnh điểm chạm) → ngón khác kéo lùi rồi đẩy tới: nhanh hơn là mạnh hơn. Buông bi effect để ngắm lại."
     }
 
     var strokeAllowed:Bool{
@@ -872,18 +911,24 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var maxStrokeElevation:Double{(engine.settings["experimental3D"]?.boolValue ?? false) ? 80:35}
     func cueClearance(side s:Double,top t:Double)->Double{
         guard let c=cue,!c.sunk else{return 0}
-        return BLCueMinimumElevation(c.x,c.y,angle,s,t,geometry.width,geometry.length,geometry.radius,geometry.nose)
+        // 0.30: balls behind the cue ball count too — the cue is never drawn through a ball.
+        var xs=obstacleXs,ys=obstacleYs
+        return BLCueMinimumElevationBalls(c.x,c.y,angle,s,t,geometry.width,geometry.length,geometry.radius,geometry.nose,&xs,&ys,Int32(xs.count))
     }
+    /// Object-ball positions for the clearance test; refreshed in updateCueClearance (the effect pad samples it often).
+    var obstacleXs:[Double]=[],obstacleYs:[Double]=[]
     func updateCueClearance(){
         let g=engine.settings
         geometry=TableGeometry(width:g["tableWidth"]?.doubleValue ?? 1.27,length:g["tableLength"]?.doubleValue ?? 2.54,
                                radius:g["ballRadius"]?.doubleValue ?? 0.028575,nose:g["railHeight"]?.doubleValue ?? 0.27)
         let limit=maxStrokeElevation
+        let others=balls.filter{$0.id != 0 && !$0.sunk};obstacleXs=others.map{$0.x};obstacleYs=others.map{$0.y}
         if spin.reachable==nil {
             spin.reachable={[weak self] x,y in guard let self=self else{return true};return self.cueClearance(side:x,top:y)<=self.maxStrokeElevation}
             spin.clampTop={[weak self] x,y in
                 guard let self=self,let c=self.cue else{return y}
-                return BLCueClampTop(c.x,c.y,self.angle,x,y,self.geometry.width,self.geometry.length,self.geometry.radius,self.geometry.nose,self.maxStrokeElevation,self.spin.maximumOffset)
+                var xs=self.obstacleXs,ys=self.obstacleYs
+                return BLCueClampTopBalls(c.x,c.y,self.angle,x,y,self.geometry.width,self.geometry.length,self.geometry.radius,self.geometry.nose,self.maxStrokeElevation,self.spin.maximumOffset,&xs,&ys,Int32(xs.count))
             }
         }
         if cueClearance(side:side,top:top)>limit {spin.select(side:side,top:top)} // select() kẹp lên vùng với tới
@@ -893,7 +938,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func refresh(){wakeRendering();updateCueClearance();table.update(balls,dt:0);guideDirty=true;scoreLabel.text="\(successes) / \(attempts) đạt · góc \(String(format:"%.1f",angle*180/Double.pi))°"}
     func updateControls(){
         let busy=presentationBusy
-        fineWheel.isEnabled = !busy && localTurn && !isPlacingBalls && !spinExpanded
+        syncCueIcons()
+        fineWheel.isEnabled = !busy && localTurn && !isPlacingBalls
         lockButton.isEnabled = strokeAllowed
         stroke.isEnabled=locked && strokeAllowed
         stroke.isUserInteractionEnabled=stroke.isEnabled

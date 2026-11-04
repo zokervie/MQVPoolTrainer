@@ -111,51 +111,75 @@ static inline BLRightHUDMetrics BLRightHUDLayout(double safeHeight, bool expande
 }
 
 
-// ---- 0.22 HUD (owner acceptance 03/11/2026) -------------------------------------------------------------------
+// ---- 0.30 HUD (owner acceptance 04/11/2026; 0.22 layout before) ------------------------------------------------
 // Thumb-first landscape layout. Right-handed (default): shortcut column on the right edge, top to bottom
 // Xem lại · Lùi cú (practice only) · Đặt bi · Thêm bi · Bao cơ · Camera, bottom-aligned so the most used (Camera)
-// sits under the thumb. Left of the column, bottom: elevation | effect ball, fine-aim wheel under the effect ball.
-// Menu + Coach top-left, B (bridge/lock) bottom-left. Left-handed mirrors every x. All rects are in the safe area.
+// sits under the thumb. Left of the column, the right-hand control cluster:
+//              [Đánh][Jump][Massé][Break]      <- cue icons, translucent squares above the effect ball
+//      [fan ]  [ effect ball ]                 <- elevation fan sits on the wheel, left of the effect ball
+//      [========= fine-aim wheel ========]
+// The B (bridge) button is gone: holding the effect ball locks the aim (0.30). While it is held only the effect
+// ball (expanded) and the wheel stay; everything else hides. Menu + Coach top-left. Left-handed mirrors every x.
 typedef struct { double x, y, w, h; } BLRect;
 typedef struct {
-    BLRect rail, spin, wheel, elevation, menu, coach, bridge, panel;
+    BLRect rail, spin, wheel, elevation, menu, coach, panel, cues;
     double button;      // shortcut button height (also its width minus padding)
+    double cueIcon;     // side of one cue icon square
     int items;          // shortcut count
     int railScrolls;    // 1 when the column is shorter than its content (scroll to reveal)
 } BLHUDFrames;
 
 static inline BLRect BLRectMake(double x, double y, double w, double h) { BLRect r; r.x = x; r.y = y; r.w = w; r.h = h; return r; }
 static inline BLRect BLMirror(BLRect r, double x0, double w) { BLRect m = r; m.x = x0 + w - (r.x - x0) - r.w; return m; }
+#define BL_CUE_ICONS 4
 
 static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, int pad, int leftHanded, int practice, int expanded) {
     BLHUDFrames f;
     const double edge = 6, gap = pad ? 10 : 8, bh = pad ? 56 : 44, bgap = 4, railW = pad ? 64 : 54;
-    const double spinS = pad ? 100 : 76, elevW = pad ? 52 : 44, elevH = pad ? 120 : 96;
-    const double wheelW = pad ? 124 : 100, wheelH = pad ? 48 : 40, bridgeS = pad ? 92 : 72;
-    f.items = practice ? 6 : 5; f.button = bh;
+    const double spinS = pad ? 100 : 76, fanS = pad ? 84 : 64, wheelH = pad ? 48 : 40, icon = pad ? 52 : 44, igap = 4;
+    f.items = practice ? 6 : 5; f.button = bh; f.cueIcon = icon;
     const double content = f.items * bh + (f.items - 1) * bgap;
     const double railH = fmin(content, h - 2 * edge);
     f.railScrolls = railH + 1e-9 < content;
     f.rail = BLRectMake(x0 + w - edge - railW, y0 + h - edge - railH, railW, railH);
     const double clusterRight = f.rail.x - gap;
-    f.wheel = BLRectMake(clusterRight - spinS / 2 - wheelW / 2, y0 + h - edge - wheelH, wheelW, wheelH);
-    if (f.wheel.x + f.wheel.w > clusterRight) f.wheel.x = clusterRight - f.wheel.w;
+    const double wheelW = fanS + gap + spinS;
+    f.wheel = BLRectMake(clusterRight - wheelW, y0 + h - edge - wheelH, wheelW, wheelH);
     f.spin = BLRectMake(clusterRight - spinS, f.wheel.y - gap - spinS, spinS, spinS);
-    f.elevation = BLRectMake(f.spin.x - gap - elevW, f.spin.y + spinS - elevH, elevW, elevH);
-    if (expanded) {   // grows up/left from the same bottom-right corner; elevation and wheel are hidden meanwhile
-        const double big = fmax(spinS, fmin(pad ? 240 : 190, fmin(h - 2 * edge - 60, clusterRight - x0 - bridgeS - 3 * gap)));
+    f.elevation = BLRectMake(f.spin.x - gap - fanS, f.spin.y + spinS - fanS, fanS, fanS);
+    const double cuesW = BL_CUE_ICONS * icon + (BL_CUE_ICONS - 1) * igap;
+    f.cues = BLRectMake(clusterRight - cuesW, f.spin.y - gap - icon, cuesW, icon);
+    if (expanded) {   // grows up/left from the same bottom-right corner; the wheel stays usable under it
+        const double big = fmax(spinS, fmin(pad ? 240 : 190, fmin(f.wheel.y - gap - (y0 + edge), clusterRight - x0 - 3 * gap - 120)));
         f.spin = BLRectMake(clusterRight - big, f.spin.y + spinS - big, big, big);
     }
     f.menu = BLRectMake(x0 + 12, y0 + 10, pad ? 92 : 78, 44);
     f.coach = BLRectMake(f.menu.x + f.menu.w + 8, y0 + 10, pad ? 92 : 76, 44);
-    f.bridge = BLRectMake(x0 + 12, y0 + h - 12 - bridgeS, bridgeS, bridgeS);
     f.panel = BLRectMake(f.menu.x, f.menu.y + f.menu.h + 8, pad ? 360 : 318, h - (f.menu.h + 8 + 10) - 12);
     if (leftHanded) {
         f.rail = BLMirror(f.rail, x0, w); f.spin = BLMirror(f.spin, x0, w); f.wheel = BLMirror(f.wheel, x0, w);
         f.elevation = BLMirror(f.elevation, x0, w); f.menu = BLMirror(f.menu, x0, w); f.coach = BLMirror(f.coach, x0, w);
-        f.bridge = BLMirror(f.bridge, x0, w); f.panel = BLMirror(f.panel, x0, w);
+        f.panel = BLMirror(f.panel, x0, w); f.cues = BLMirror(f.cues, x0, w);
     }
     return f;
+}
+
+// Cue icon k (0 Đánh, 1 Jump, 2 Massé, 3 Break) inside f.cues, left to right in both hands (reading order).
+static inline BLRect BLHUDCueIcon(BLHUDFrames f, int k) {
+    const double igap = (f.cues.w - BL_CUE_ICONS * f.cueIcon) / (BL_CUE_ICONS - 1);
+    return BLRectMake(f.cues.x + k * (f.cueIcon + igap), f.cues.y, f.cueIcon, f.cueIcon);
+}
+// Icon order -> shot kind (ShotKindPolicy: 0 play, 1 jump, 2 break, 3 massé) and its default elevation (deg).
+static inline int BLCueIconKind(int k) { return k == 1 ? 1 : (k == 2 ? 3 : (k == 3 ? 2 : 0)); }
+static inline double BLCueIconElevation(int k) { return k == 1 ? 45.0 : (k == 2 ? 70.0 : 0.0); }
+
+// 0.30 elevation fan: quarter circle, pivot at the bottom corner nearest the effect ball side opposite
+// (bottom-left for right hand). Touch angle above the horizontal = cue elevation, 0-90 deg, whole degrees.
+static inline double BLFanDegrees(double px, double py, double w, double h, int leftHanded) {
+    const double dx = leftHanded ? (w - px) : px, dy = h - py;
+    if (dx <= 0 && dy <= 0) return 0;
+    double a = atan2(fmax(0.0, dy), fmax(0.0, dx)) * 180 / 3.14159265358979323846;
+    return fmin(90.0, fmax(0.0, round(a)));
 }
 
 // 0.22 "Đặt bi": the cue ball goes to the free spot nearest the table centre (never on top of another ball).
