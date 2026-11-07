@@ -334,9 +334,10 @@ final class InteractionTests: XCTestCase {
         let replay=app.buttons["QuickReplay"]
         expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay)
         waitForExpectations(timeout:30 * slow)
-        quick(app,"QuickReplay").press(forDuration:1)
+        // Intel CI: a long press occasionally lands before the menu is ready — press again (max 3).
         let save=app.buttons["Lưu cú này"].firstMatch
-        XCTAssertTrue(save.waitForExistence(timeout:5 * slow));save.tap()
+        for _ in 0..<3 where !save.exists { quick(app,"QuickReplay").press(forDuration:1.2); _=save.waitForExistence(timeout:4 * slow) }
+        XCTAssertTrue(save.exists,"replay menu · probe: \(scene.value ?? "")");save.tap()
         let alert=app.alerts["Lưu cú này"]
         XCTAssertTrue(alert.waitForExistence(timeout:5 * slow))
         let name="QA-"+String(UUID().uuidString.prefix(8))
