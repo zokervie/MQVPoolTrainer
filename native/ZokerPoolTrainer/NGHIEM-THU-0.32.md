@@ -1,6 +1,6 @@
 # Nghiệm thu Z-Trainer 0.32 — bộ chuẩn 2: kick, bank, massé, jump, trick shot
 
-Nhánh `ci/native-0.32`. Tổng **63 bài chuẩn** chạy trong CI mỗi lần build: 20 bài vật lý cơ bản (`PublishedBenchmarkTests`, xem 0.31) + 43 bài hệ thống (`SystemsBenchmarkTests`). Nguồn: Alciatore (TP + video tốc độ cao), Bob Jewett (Billiards Digest), Corner‑5 / Diamond system, Coriolis (massé), thông số bi/bàn công bố.
+Nhánh `ci/native-0.32` · build 112 (run 88) · CI xanh: Linux g++/clang++ (63 bài chuẩn), Mac Simulator, 17/17 UI test, IPA. Tổng **63 bài chuẩn** chạy trong CI mỗi lần build: 20 bài vật lý cơ bản (`PublishedBenchmarkTests`, xem 0.31) + 43 bài hệ thống (`SystemsBenchmarkTests`). Nguồn: Alciatore (TP + video tốc độ cao), Bob Jewett (Billiards Digest), Corner‑5 / Diamond system, Coriolis (massé), thông số bi/bàn công bố.
 
 | Nhóm | Bài | Kết quả 0.32 |
 | --- | --- | --- |
