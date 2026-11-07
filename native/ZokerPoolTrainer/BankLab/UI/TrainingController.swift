@@ -171,6 +171,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 for key in ["railFriction","spinDecay","ballFrictionMin","railGrip0","railGrip1","railGrip2","railGrip3"]{config[key]=nil}
                 UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(30,forKey:"physicsModelVersion")
             }
+            // 0.31: hệ số theo nguồn công bố (băng .20, xoáy ngang 15 rad/s²).
+            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<31 {
+                for key in ["railFriction","spinDecay","ballFrictionMin","railGrip0","railGrip1","railGrip2","railGrip3"]{config[key]=nil}
+                UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(31,forKey:"physicsModelVersion")
+            }
             engine.settings=config
         }
         table=TableScene(rails:engine.rails)

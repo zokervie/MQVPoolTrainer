@@ -43,16 +43,20 @@ static Gear gear(Config c, double cutDeg, double speed, double side) {
 
 int main() {
     const Config app = Config::app();
-    Config literature = app; literature.railFriction = .16; literature.railGrip = {{.16, .16, .16, .16}};
+    Config literature = app;
     for (double speed : {1.5, 2.0, 3.0}) {
         const double maxR = offRail(app, speed, app.tipMaxOffset(false)), maxL = offRail(app, speed, -app.tipMaxOffset(false));
         const double none = offRail(app, speed, 0), old = offRail(literature, speed, app.tipMaxOffset(false));
-        std::printf("REPORT: %.1f m/s straight into the rail: max english %+.1f / %+.1f deg, none %+.1f, literature rail .16 %+.1f\n", speed, maxR, maxL, none, old);
+        std::printf("REPORT: %.1f m/s straight into the rail: max english %+.1f / %+.1f deg, none %+.1f, (same) %+.1f\n", speed, maxR, maxL, none, old);
         check(std::abs(none) < 1, "no english: straight back");
         check(std::abs(std::abs(maxR) - std::abs(maxL)) < 2 && maxR * maxL < 0, "left and right english mirror each other");
-        if (speed <= 2.0) check(std::abs(maxR) >= 40 && std::abs(maxR) <= 50, "medium speed, max english: ~45 deg as on the owner's table");
-        else check(std::abs(maxR) >= 35 && std::abs(maxR) <= 50, "firmer: a little less, never wider than 50 deg without massé");
-        check(std::abs(old) < 30, "the literature rail friction gave < 30 deg (why it changed)");
+        // 0.31: published cushion friction (0.20) -> about 20-30 deg; the owner's eyeballed ~45 deg needs 0.45, which no
+        // published measurement supports, so it is a tuning option only (PublishedBenchmarkTests).
+        check(std::abs(maxR) >= 18 && std::abs(maxR) <= 32, "max english straight in: 18-32 deg with published friction");
+        Config owner = app; owner.railFriction = .45; owner.railGrip = {{.45, .45, .45, .45}};
+        const double ownerAngle = std::abs(offRail(owner, speed, app.tipMaxOffset(false)));
+        std::printf("REPORT: owner option rail .45 -> %.1f deg\n", ownerAngle);
+        check(ownerAngle > std::abs(maxR) + 8, "the owner option (.45) is clearly wider");
     }
     // Gear effect: reverse english flips the object ball's spin and grows with the tip offset.
     for (double speed : {2.0, 3.5}) {

@@ -56,7 +56,7 @@ int main() {
         World am = one(med), bm = one(soft); am.strike(0, 2, .9, 0); bm.strike(0, 2, .9, 0);
         const double rm = std::abs(am.balls[0].spin) * med.radius / am.balls[0].v.length(), rs = std::abs(bm.balls[0].spin) * soft.radius / bm.balls[0].v.length();
         std::printf("REPORT: max effect ratio wR/v: medium %.2f, soft %.2f (max offset %.2f / %.2f R)\n", rm, rs, med.tipMaxOffset(false), soft.tipMaxOffset(false));
-        check(rs > 1.1 * rm, "soft tip: more effect per stroke (holds further from centre)");
+        check(rs > 1.05 * rm, "soft tip: more effect per stroke (holds further from centre)");   // 0.31: +0.05R over the 0.55R limit
     }
     // ---- massé strength, reference clip ~2 m/s ----
     for (double e : {70.0, 80.0}) {

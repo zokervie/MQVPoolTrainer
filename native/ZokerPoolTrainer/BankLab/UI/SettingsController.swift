@@ -34,7 +34,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         slider("Ma sát trượt — thời gian chuyển sang lăn","sliding",0.08,0.35,0.20)
         slider("Đàn hồi băng — cao: giữ lực nhiều","railRestitution",0.4,0.98,0.82)
         slider("ZUPE: giảm độ nảy theo lực — 0 là bản gốc","railSpeedSensitivity",0,0.08,0)
-        slider("Ma sát băng — ảnh hưởng ép phê (0.30: 0,45 đo bàn thật, effect max → 45°)","railFriction",0,0.6,0.45)
+        slider("Ma sát băng — ảnh hưởng ép phê (0.31: 0,20 theo Mathavan 2010; 0,45 = cảm nhận bàn anh)","railFriction",0,0.6,0.20)
         let railSwitch=UISwitch();railSwitch.isOn=values["individualRails"]?.boolValue ?? false
         railSwitch.addAction(UIAction{[weak self,weak railSwitch]_ in self?.values["individualRails"]=NSNumber(value:railSwitch?.isOn ?? false)},for:.valueChanged)
         let railLabel=UILabel();railLabel.text="Dùng thông số riêng từng băng";railLabel.textColor = .white
@@ -46,7 +46,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         slider("Đàn hồi bi–bi","ballRestitution",0.80,1,0.94)
         slider("Ma sát bi–bi khi trượt chậm μ₀ (giảm theo tốc độ, TP A.14)","ballFriction",0,0.12,0.118)
         slider("Truyền xoáy bi–bi (bánh răng) — ma sát khi trượt nhanh, 0.30: 0,05","ballFrictionMin",0,0.1,0.05)
-        slider("Giảm ép phê ngang (rad/s²) — 0.30: 18 (tắt nhanh hơn)","spinDecay",1,40,18)
+        slider("Giảm ép phê ngang (rad/s²) — 0.31: 15 (công bố 5–15)","spinDecay",1,40,15)
         slider("Băng nảy ngược tiếp tuyến β (grip-slip) — 0.21: 0,30, fit clip zigzag","railTangentialRestitution",0,0.9,0.30)
         slider("Squirt đủ ở độ nâng cơ (°) — 0: luôn có squirt","squirtRampDegrees",0,60,15)
         slider("Gậy phá · hệ số lực","breakSpeedGain",1,1.8,1.4)
@@ -80,7 +80,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             lines.append("| \(key) | \(originalValues[key]?.stringValue ?? "—") | \(values[key]?.stringValue ?? "—") |")
         }
         lines.append("| swipeSensitivity | \(originalSensitivity) | \(sensitivity) |")
-        lines += ["", "## Nguồn hệ số (0.30)", "", "- railTangentialRestitution 0,30: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút.", "- railFriction 0,45: đo bàn thật của anh (04/11/2026) — effect max, lực vừa, vào băng 90° → ra ~45°.", "- ballFrictionMin 0,05: fit — effect ngược truyền xoáy ngược sang bi đích (bánh răng), R·ω/v ≈ 0,13 như clip.", "- spinDecay 18: xoáy ngang tắt nhanh hơn theo nghiệm thu mục 5.", "- railRestitution 0,82: giữ nguyên.", "- squirtRampDegrees 15, breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
+        lines += ["", "## Nguồn hệ số (0.30)", "", "- railTangentialRestitution 0,30: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút.", "- railFriction 0,20: Mathavan 2010 / pooltool (ma sát bi–băng công bố 0,14–0,2). 0,45 = cảm nhận bàn anh (tuỳ chọn).", "- Đầu cơ tối đa 0,55R: giới hạn trượt cơ ~0,5R điểm chạm (Alciatore).", "- ballFrictionMin 0,05: fit — effect ngược truyền xoáy ngược sang bi đích (bánh răng), R·ω/v ≈ 0,13 như clip.", "- spinDecay 15: đầu trên khoảng công bố 5–15 rad/s² (Alciatore, Physical properties).", "- railRestitution 0,82: giữ nguyên.", "- squirtRampDegrees 15, breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
         lines += ["", "## Ghi chú đo bàn thật", "", "- Loại bàn / nỉ / bi:", "- Cự ly và tốc độ đầu đo được:", "- Quãng đường dừng / góc bật đo được:", "- Sai lệch so với ứng dụng:", "", "Xuất file không tự áp dụng cấu hình; bấm Lưu để áp dụng."]
         let url=FileManager.default.temporaryDirectory.appendingPathComponent("ZTrainer-calibration-"+UUID().uuidString+".md")
         do{
@@ -125,7 +125,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             alert.addAction(UIAlertAction(title:"Đóng",style:.cancel))
             if validation<baseline {alert.addAction(UIAlertAction(title:"Chọn kết quả · sau đó bấm Lưu",style:.default){[weak self]_ in
                 if let self=self,!(self.values["individualRails"]?.boolValue ?? false){
-                    for i in 0..<4{self.values["railBounce\(i)"]=self.values["railRestitution"] ?? 0.82;self.values["railGrip\(i)"]=self.values["railFriction"] ?? 0.45}
+                    for i in 0..<4{self.values["railBounce\(i)"]=self.values["railRestitution"] ?? 0.82;self.values["railGrip\(i)"]=self.values["railFriction"] ?? 0.20}
                 }
                 self?.values["individualRails"]=1;self?.values["railBounce\(rail)"]=NSNumber(value:bounce);self?.values["railGrip\(rail)"]=NSNumber(value:grip)
                 self?.message("Đã chọn thông số ứng viên. Bấm Lưu để áp dụng; cần nghiệm thu bằng cú nhiều băng độc lập.")

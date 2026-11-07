@@ -9,9 +9,9 @@ int main(){try{
     World sliding(c);sliding.reset({ball(0,{0,0})});sliding.strike(0,1,0,0);sliding.step(.1);
     near(sliding.balls[0].v.x,1-.2*9.81*.1,"sliding deceleration must be mu*g");
     near(sliding.balls[0].p.x,.1-.5*.2*9.81*.1*.1,"sliding displacement must integrate acceleration");
-    World follow(c);follow.reset({ball(0,{0,0})});follow.strike(0,1,0,.6);follow.step(.01);
+    World follow(c);follow.reset({ball(0,{0,0})});follow.strike(0,1,0,.5);follow.step(.01);   // 0.31: within the 0.55R miscue limit
     // 0.14: đánh lệch tâm 0,6R bi khởi đầu chậm hơn theo TP A.30 (k = 1 + m/M), rồi xoáy trên kéo bi nhanh dần.
-    {const double k=1+c.mass/c.cueMass(),v0=k/(k+2.5*.36);
+    {const double k=1+c.mass/c.cueMass(),v0=k/(k+2.5*.25);
     near(follow.balls[0].v.x,v0+.2*9.81*.01,"overspin accelerates centre until no-slip");}
     c.rolling=.012;World rolling(c);Ball b=ball(0,{0,0});b.v={1,0};b.w={0,1/c.radius};rolling.balls={b};rolling.step(.1);
     near(rolling.balls[0].v.x,1-.012*9.81*.1,"rolling deceleration is distinct from sliding");

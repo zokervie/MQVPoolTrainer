@@ -51,7 +51,7 @@ struct Config {
     // Offsets and efficiency ratios are ASSUMED (tip restitution .70/.75/.86 relative, TP A.30 (1+e) scaling).
     int tipProfile=0;
     double tipSpeedFactor()const{return tipProfile==1?.971:tipProfile==2?1.063:1.0;}
-    double tipMaxOffset(bool elevated)const{const double base=elevated?.60:.70;return base+(tipProfile==1?.08:tipProfile==2?-.05:0.0);}
+    double tipMaxOffset(bool elevated)const{const double base=elevated?.50:.55;return base+(tipProfile==1?.05:tipProfile==2?-.05:0.0);}   // 0.31: miscue limit ~0.5R contact point [TP, B17]; soft +.05
     // Break cue: heavier stroke the player can deliver with it [design gain]. Level 30 (8 m/s) x 1.4 x hard tip
     // ~= 11.9 m/s, inside published pro break speeds (~25-30 mph = 11-13 m/s).
     double breakSpeedGain=1.0;
@@ -87,17 +87,16 @@ struct Config {
     /// App physics profile (single source for BLWorld.mm and the tests). Core defaults above stay at the
     /// literature/regression values. Sources:
     ///  - railTangentialRestitution .30: FITTED to clip c-ZBSi9KBfc (Tests/ReverseZigzagTests.cpp).
-    ///  - railFriction .45: MEASURED on the owner's table 04/11/2026 (acceptance 0.29 item 11): maximum side
-    ///    english, medium speed, straight into a long rail -> the ball leaves at most ~45 deg from the rail normal
-    ///    (Tests/RailEnglishTests.cpp). The literature default .16 gave ~24 deg, so running/reverse english on
-    ///    kicks was too weak ("effect ngược không thu lại").
+    ///  - railFriction .20 (0.31): published ball-cushion friction 0.14-0.2 (Mathavan et al. 2010; pooltool
+    ///    default f_c 0.2). 0.30 used .45 to match the owner's eyeballed "~45 deg with max english" — outside every
+    ///    published value, so it is now only a tuning option (Menu > Hiệu chỉnh vật lý). Tests/PublishedBenchmarkTests.cpp.
     ///  - ballFrictionMin .05 (high-slip floor of the ball-ball friction, literature .00995): FITTED so the
     ///    cue ball's side spin gears into the object ball (owner 04/11/2026: reverse english makes the object ball
     ///    spin the other way and jerk back off the rail). With the literature floor the object ball got
     ///    R*w/v ~ 0.03 and the clip's -30 rad/s (R*w/v ~ 0.13) was unreachable from a real collision.
-    ///  - spinDecay: side spin dies faster, owner acceptance items 5 (0.19 and 0.29) [fitted to feedback].
+    ///  - spinDecay 15: top of the published 5-15 rad/s^2 range [PP] (owner wanted side spin to die faster; 0.30 had 18).
     ///  - squirt only with a raised cue, break-cue gain 1.4, massé gain 1.2 [owner decisions], settle spin-in-place [0.29].
-    static Config app(){Config c;c.coupledCushions=true;c.railTangentialRestitution=.30;c.railFriction=.45;c.railGrip={{.45,.45,.45,.45}};c.spinDecay=18;c.ballFrictionMin=.05;
+    static Config app(){Config c;c.coupledCushions=true;c.railTangentialRestitution=.30;c.railFriction=.20;c.railGrip={{.20,.20,.20,.20}};c.spinDecay=15;c.ballFrictionMin=.05;
         c.squirtRampDegrees=15;c.breakSpeedGain=1.4;c.masseSpeedGain=1.2;c.settleSpinInPlace=true;return c;}
 };
 struct Rotation {double x=0,y=0,z=0,w=1;};
