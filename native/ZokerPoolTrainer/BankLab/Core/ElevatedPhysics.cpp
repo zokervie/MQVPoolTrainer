@@ -104,6 +104,13 @@ void World::stepElevated(double dt){
             orientation(b,h);
         }
         time+=h;
+        // 0.31: ball-ball contacts of this slice are collected first, then resolved EARLIEST FIRST (by time of
+        // impact). Contacts that touch at the same instant (frozen rack, symmetric break) form one group solved
+        // SIMULTANEOUSLY (projected Jacobi). Before, pairs were solved in array order: the same centred break
+        // ended up to ~1.2 m different just by listing the balls in reverse, and mirror-asymmetric
+        // (Tests/BreakSymmetryTests.cpp). A group of one contact is exactly the previous sequential code.
+        struct Contact{size_t i,j;Vec normal;double closing,rewind;};
+        std::vector<Contact> contacts;
         for(size_t i=0;i<balls.size();i++)for(size_t j=i+1;j<balls.size();j++){
             auto&a=balls[i];auto&b=balls[j];if(a.sunk||b.sunk)continue;
             Vec delta{b.p.x-a.p.x,b.p.y-a.p.y,b.height-a.height};
@@ -111,8 +118,7 @@ void World::stepElevated(double dt){
             Vec normal=delta*(1/length);const Vec relative=velocity(b)-velocity(a);
             const double closing=relative.dot(normal),overlap=2*r-length;
             // Phát hiện sau khi đã chồng lấn: lùi cặp bi về đúng thời điểm chạm (|Δ − v_rel·τ| = 2R) để pháp tuyến
-            // đúng. Trước 0.14 pháp tuyến lấy ở vị trí đã lún tới 0,12R → hướng bi mục tiêu sai tới ~1° ở cú nhanh
-            // (Tests/LiteratureTests.cpp). Trong τ (≤ 1 lát) bỏ qua ma sát nỉ.
+            // đúng (Tests/LiteratureTests.cpp). Trong τ (≤ 1 lát) bỏ qua ma sát nỉ.
             double rewind=0;
             if(closing<0){
                 const double a2=relative.dot(relative),dr=delta.dot(relative),c2=delta.dot(delta)-4*r*r;
@@ -120,29 +126,61 @@ void World::stepElevated(double dt){
                 if(a2>1e-18&&disc>=0)rewind=std::clamp((dr+std::sqrt(disc))/a2,0.0,h);
             }
             if(rewind>0){
-                const Vec va=velocity(a),vb=velocity(b);
-                a.p-=V2{va.x,va.y}*rewind;b.p-=V2{vb.x,vb.y}*rewind;a.height-=va.z*rewind;b.height-=vb.z*rewind;
-                const Vec touch{b.p.x-a.p.x,b.p.y-a.p.y,b.height-a.height};
-                normal=touch*(1/std::max(1e-12,touch.length()));
+                const Vec touch=delta-relative*rewind;normal=touch*(1/std::max(1e-12,touch.length()));
             }else{
                 a.p-=V2{normal.x,normal.y}*(overlap/2);b.p+=V2{normal.x,normal.y}*(overlap/2);
                 a.height=std::max(0.0,a.height-normal.z*overlap/2);b.height=std::max(0.0,b.height+normal.z*overlap/2);
             }
             if(closing>=0)continue;
-            const double jn=-(1+config.ballRestitution)*closing/2;
-            const Vec arm=normal*r,slip=relative-(omega(a)+omega(b)).cross(arm);
-            const Vec tangent=slip-normal*slip.dot(normal);
-            const Vec contactImpulse=normal*jn+cap(tangent*(-1/7.0),config.ballFrictionAt(tangent.length())*jn);
-            impulse(a,arm,contactImpulse*(-1),r);impulse(b,arm*(-1),contactImpulse,r);
-            if(a.height<=0)floorImpact(a,config,false);
-            if(b.height<=0)floorImpact(b,config,false);
-            if(rewind>0){
-                // Đi tiếp phần thời gian đã lùi với vận tốc mới.
-                const Vec va=velocity(a),vb=velocity(b);
-                a.p+=V2{va.x,va.y}*rewind;b.p+=V2{vb.x,vb.y}*rewind;
-                a.height=std::max(0.0,a.height+va.z*rewind);b.height=std::max(0.0,b.height+vb.z*rewind);
+            contacts.push_back({i,j,normal,closing,rewind});
+        }
+        // earliest contact first (largest rewind); ties keep pair order but are solved together below
+        std::stable_sort(contacts.begin(),contacts.end(),[](const Contact&x,const Contact&y){return x.rewind>y.rewind+1e-9;});
+        for(size_t g=0;g<contacts.size();){
+            size_t e=g+1;while(e<contacts.size()&&std::abs(contacts[e].rewind-contacts[g].rewind)<=1e-9)++e;
+            std::vector<size_t> members;for(size_t k=g;k<e;++k){members.push_back(contacts[k].i);members.push_back(contacts[k].j);}
+            std::sort(members.begin(),members.end());members.erase(std::unique(members.begin(),members.end()),members.end());
+            std::vector<double> rewindOf(balls.size(),0.0);std::vector<Vec> before(balls.size());
+            for(size_t k=g;k<e;++k){rewindOf[contacts[k].i]=std::max(rewindOf[contacts[k].i],contacts[k].rewind);rewindOf[contacts[k].j]=std::max(rewindOf[contacts[k].j],contacts[k].rewind);}
+            for(size_t m:members)before[m]=velocity(balls[m]);
+            // geometry at the touch instant: move back along the pre-impact velocity
+            for(size_t m:members){const Vec v=before[m];balls[m].p-=V2{v.x,v.y}*rewindOf[m];balls[m].height-=v.z*rewindOf[m];}
+            const size_t n=e-g;
+            std::vector<double> lambda(n,0.0);
+            if(n==1){
+                const auto&c=contacts[g];lambda[0]=-(1+config.ballRestitution)*c.closing/2;
+                impulse(balls[c.i],c.normal*r,c.normal*(-lambda[0]),r);impulse(balls[c.j],c.normal*(-r),c.normal*lambda[0],r);
+            }else{
+                // projected Jacobi on the normal impulses: every contact sees the same velocities each sweep, so the
+                // answer does not depend on the order of the balls; relaxation 1/(max contacts per ball) converges.
+                std::vector<int> degree(balls.size(),0);for(size_t k=g;k<e;++k){++degree[contacts[k].i];++degree[contacts[k].j];}
+                int maxDegree=1;for(size_t m:members)maxDegree=std::max(maxDegree,degree[m]);
+                const double relax=1.0/maxDegree;
+                for(int sweep=0;sweep<400;++sweep){
+                    std::vector<double> delta(n,0.0);double worst=0;
+                    for(size_t k=0;k<n;++k){const auto&c=contacts[g+k];
+                        const double now=(velocity(balls[c.j])-velocity(balls[c.i])).dot(c.normal);
+                        const double target=-config.ballRestitution*c.closing;   // separating speed
+                        const double next=std::max(0.0,lambda[k]+relax*(target-now)/2);
+                        delta[k]=next-lambda[k];worst=std::max(worst,std::abs(delta[k]));}
+                    for(size_t k=0;k<n;++k){if(delta[k]==0)continue;const auto&c=contacts[g+k];lambda[k]+=delta[k];
+                        impulse(balls[c.i],c.normal*r,c.normal*(-delta[k]),r);impulse(balls[c.j],c.normal*(-r),c.normal*delta[k],r);}
+                    if(worst<1e-10)break;
+                }
             }
-            events.push_back({1,a.id,b.id,time,(a.p+b.p)*.5,std::abs(closing)});
+            // friction (throw, gear effect), capped by each contact's normal impulse — also simultaneous
+            std::vector<Vec> friction(n);
+            for(size_t k=0;k<n;++k){const auto&c=contacts[g+k];auto&a=balls[c.i];auto&b=balls[c.j];
+                const Vec arm=c.normal*r,relative=velocity(b)-velocity(a),slip=relative-(omega(a)+omega(b)).cross(arm);
+                const Vec tangent=slip-c.normal*slip.dot(c.normal);
+                friction[k]=cap(tangent*(-1/7.0),config.ballFrictionAt(tangent.length())*lambda[k]);}
+            for(size_t k=0;k<n;++k){const auto&c=contacts[g+k];
+                impulse(balls[c.i],c.normal*r,friction[k]*(-1),r);impulse(balls[c.j],c.normal*(-r),friction[k],r);}
+            for(size_t m:members){auto&b=balls[m];if(b.height<=0)floorImpact(b,config,false);
+                // Đi tiếp phần thời gian đã lùi với vận tốc mới.
+                const Vec v=velocity(b);b.p+=V2{v.x,v.y}*rewindOf[m];b.height=std::max(0.0,b.height+v.z*rewindOf[m]);}
+            for(size_t k=g;k<e;++k){const auto&c=contacts[k];events.push_back({1,balls[c.i].id,balls[c.j].id,time,(balls[c.i].p+balls[c.j].p)*.5,std::abs(c.closing)});}
+            g=e;
         }
         for(auto&b:balls){
             if(b.sunk)continue;
