@@ -176,7 +176,9 @@ void World::stepElevated(double dt){
                 friction[k]=cap(tangent*(-1/7.0),config.ballFrictionAt(tangent.length())*lambda[k]);}
             for(size_t k=0;k<n;++k){const auto&c=contacts[g+k];
                 impulse(balls[c.i],c.normal*r,friction[k]*(-1),r);impulse(balls[c.j],c.normal*(-r),friction[k],r);}
-            for(size_t m:members){auto&b=balls[m];if(b.height<=0)floorImpact(b,config,false);
+            // 0.32: a ball driven DOWN into the slate by another ball bounces with the slate restitution (0.5 [PP]) —
+            // an airborne cue ball landing on top of an object ball makes it hop like a second jump shot (Alciatore HSV).
+            for(size_t m:members){auto&b=balls[m];if(b.height<=0)floorImpact(b,config,true);
                 // Đi tiếp phần thời gian đã lùi với vận tốc mới.
                 const Vec v=velocity(b);b.p+=V2{v.x,v.y}*rewindOf[m];b.height=std::max(0.0,b.height+v.z*rewindOf[m]);}
             for(size_t k=g;k<e;++k){const auto&c=contacts[k];events.push_back({1,balls[c.i].id,balls[c.j].id,time,(balls[c.i].p+balls[c.j].p)*.5,std::abs(c.closing)});}
