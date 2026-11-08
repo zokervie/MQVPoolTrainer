@@ -1200,8 +1200,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let active=premiumPending || ProcessInfo.processInfo.systemUptime<startupRenderUntil || (shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
         let guestMoving=guestTick && matchPlay.session.isConnected && matchPlay.session.latestSnapshot?.isMoving==true
         let moving=(shotActive && !matchSimulationPaused) || replayIndex != nil
+        #if targetEnvironment(simulator)
+        // Simulator/CI has no ProMotion; 120 Hz only starves XCUITest of idle time (0.34 UI tests timed out). Same pacing as 0.32.
+        displayLink?.preferredFramesPerSecond=active ? 60:15
+        #else
         displayLink?.preferredFrameRateRange=moving ? CAFrameRateRange(minimum:60,maximum:120,preferred:120):(active ? CAFrameRateRange(minimum:30,maximum:60,preferred:60):CAFrameRateRange(minimum:10,maximum:15,preferred:15))
         scn.preferredFramesPerSecond=moving ? 120:60
+        #endif
         scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
         if active || guestMoving{scn.setNeedsDisplay()}
         if !active && !guestMoving && !(coachOn && guideOn && guideDirty){return}
