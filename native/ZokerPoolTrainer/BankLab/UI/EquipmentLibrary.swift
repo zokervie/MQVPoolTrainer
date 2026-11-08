@@ -30,7 +30,7 @@ struct TableLook {
         .init(id:"victory",brand:"Z-Ra",name:"Victory II Plus",base:4,cabinet:0xd4d7d5,cloth:0x33828e,trim:0x60686d,wood:false,source:"https://www.rasson.cn/pool-tables"),
         .init(id:"acurra",brand:"Z-Ra",name:"Acurra",base:3,cabinet:0x33383d,cloth:0x377f99,trim:0xbdc2c6,wood:false,source:"https://www.rasson.cn/acurra-mr-sung"),
         .init(id:"tournament",brand:"Z-Ol",name:"Tournament Pro",base:4,cabinet:0x38332f,cloth:0x2d7d96,trim:0x94918a,wood:false,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament"),
-        .init(id:"champion",brand:"Z-Ol",name:"Grand Champion III",base:1,cabinet:0x775136,cloth:0x31795b,trim:0xaaa49c,wood:true,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament")
+        .init(id:"champion",brand:"Z-Ol",name:"Grand Champion III",base:1,cabinet:0x775136,cloth:0x31795b,trim:0xaaa49c,wood:true,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament"),
         // 0.35: bar-box bodies (solid cabinet to the floor, coin door) — Zoker designs; the bed stays the 9 ft physics bed.
         .init(id:"zbar",brand:"Z-Va",name:"Bar Box Classic",base:6,cabinet:0x1b1d20,cloth:0x7a2529,trim:0xb9bdc1,wood:false,source:"Zoker design (bar-box style)"),
         .init(id:"zbaroak",brand:"Z-Va",name:"Bar Box Oak",base:6,cabinet:0x6a4a30,cloth:0x2f6e4a,trim:0xc8b27a,wood:true,source:"Zoker design (bar-box style)"),
