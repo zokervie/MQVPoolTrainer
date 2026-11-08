@@ -125,6 +125,8 @@ struct Drill {
     var level:Int = 1
     /// Hệ nút số / mẹo của bài (nguồn đã công bố ghi trong chuỗi).
     var system:String = ""
+    /// 0.35: public video / article of the author (opened, never embedded).
+    var video:String? = nil
     static let levelNames=["Công cụ","Cấp 1 · Nền tảng: lực và vị trí bi cái","Cấp 2 · Nút số: kick 1 băng (hệ gương)","Cấp 3 · Nút số: kick 2–3 băng (Corner-5)","Cấp 4 · Bank và hệ Plus","Cấp 5 · Trick shot"]
     static let levelIcons=["wrench","target","1.circle","3.circle","arrow.triangle.branch","sparkles"]
     var levelName:String { Drill.levelNames[max(0,min(5,level))] }
@@ -235,7 +237,31 @@ struct Drill {
             system:"Massé: hướng cuối của bi cái ≈ 5/7 hướng ra cơ + 2/7 do xoáy (Coriolis), cong về phía effect đặt. Cơ càng dốc, đường cong càng ngắn."))
         r.append(Drill(title:"Trick · Kick 3 băng thoát cụm",note:"Bi 1 nằm sau cụm bi cản; kick 3 băng rồi đưa bi 1 vào lỗ.",rails:0,kick:false,
             balls:[BallState(id:0,x:-0.30,y:-0.70),BallState(id:2,x:0.05,y:0.10),BallState(id:3,x:0.25,y:0.25),BallState(id:1,x:0.52,y:1.10)],angle:0.36,goal:pot,level:5,system:corner5))
-        return r
+        // Thế bi theo clip "Reverse bank zigzag" (đo trong Tests/ReverseZigzagTests.cpp: bi đích ở nút dài 4,36 / ngắn 1,83,
+        // đi tới băng tại nút 3,44, rồi zigzag đổi chiều sau băng 2).
+        r.append(Drill(title:"Trick · Reverse bank zigzag",note:"Như clip: bi 1 đập băng rồi zigzag ĐỔI CHIỀU về lỗ. Đánh effect ngược với hướng bi 1 văng ra (bánh răng), lực mạnh.",rails:0,kick:false,
+            balls:[BallState(id:0,x:-0.511,y:0.316),BallState(id:1,x:-0.054,y:0.114)],angle:atan2(-0.404,0.914),goal:pot,level:5,
+            system:"Hiệu ứng bánh răng: effect bi cái ngược chiều văng của bi 1 truyền xoáy ngược sang bi 1 (≈ R·ω/v 0,13–0,14 ở effect tối đa). Chạm băng, xoáy ngược kéo bi 1 giật về, đường đi đổi chiều sau băng thứ 2. Effect thuận thì không giật mà mở góc."))
+        let videos:[String:String]=[
+            "Kick 1 băng · Gương A":"https://www.youtube.com/watch?v=rcWccgPnoso",
+            "Kick 1 băng · Gương B":"https://drdavepoolinfo.com/faq/bank-kick/two-to-one/",
+            "Kick 1 băng · Thoát bi cản":"https://www.youtube.com/watch?v=11iSqkJjWgM",
+            "Kick 1 băng · Bi cản xa":"https://www.youtube.com/watch?v=11iSqkJjWgM",
+            "Kick 2 băng · Gương kép":"https://www.youtube.com/watch?v=UhIH0BmuSdE",
+            "Kick 2 băng · Thoát bi cản":"https://www.youtube.com/watch?v=UhIH0BmuSdE",
+            "Kick 3 băng · Corner-5":"https://drdavepoolinfo.com/faq/bank-kick/corner-5/",
+            "Kick 3 băng · Bi cản giữa bàn":"https://drdavepoolinfo.com/faq/bank-kick/corner-5/",
+            "Kick 3 băng · Bi cản cao":"https://drdavepoolinfo.com/faq/bank-kick/corner-5/",
+            "Bank 1 băng":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
+            "Bank 2 băng":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
+            "Bank 3 băng":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
+            "Kick 2 băng · Hệ Plus":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
+            "Kick 4 băng":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
+            "Trick · Jump qua bi cản":"https://drdavepoolinfo.com/FAQ/jump/technique/",
+            "Trick · Massé vòng bi cản":"https://www.youtube.com/shorts/D_lf-6KgFTo",
+            "Trick · Reverse bank zigzag":"https://youtube.com/shorts/c-ZBSi9KBfc",
+            "Trick · Kick 3 băng thoát cụm":"https://drdavepoolinfo.com/faq/bank-kick/corner-5/"]
+        return r.map{var d=$0;d.video=videos[d.title];return d}
     }()
 }
 
@@ -257,6 +283,11 @@ private final class DrillLessonController:UIViewController {
         stack.addArrangedSubview(label("Cách chấm điểm",16,MenuSkin.gold,.bold));stack.addArrangedSubview(label(drill.coaching,14,.white))
         let button=UIButton(type:.system);var config=UIButton.Configuration.filled();config.title="Bắt đầu · 5 cú";config.baseBackgroundColor=MenuSkin.gold;config.baseForegroundColor = .black;button.configuration=config;button.addAction(UIAction{[weak self]_ in self?.start?()},for:.touchUpInside);stack.addArrangedSubview(button)
         let guided=UIButton(type:.system);guided.setTitle("Bắt đầu có Coach (xem điểm va băng, lời khuyên)",for:.normal);guided.heightAnchor.constraint(greaterThanOrEqualToConstant:44).isActive=true;guided.addAction(UIAction{[weak self]_ in self?.guidedStart?()},for:.touchUpInside);stack.addArrangedSubview(guided)
+        if let link=drill.video,let url=URL(string:link) {
+            let video=UIButton(type:.system);video.setTitle(link.contains("youtu") ? "▶︎ Xem video hướng dẫn của tác giả":"📄 Đọc hướng dẫn của tác giả",for:.normal)
+            video.heightAnchor.constraint(greaterThanOrEqualToConstant:44).isActive=true
+            video.addAction(UIAction{_ in UIApplication.shared.open(url)},for:.touchUpInside);stack.addArrangedSubview(video)
+        }
         NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:20),scroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-20),scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:12),scroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12),stack.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor),stack.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor),stack.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor),stack.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor),stack.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor)])
     }
 }

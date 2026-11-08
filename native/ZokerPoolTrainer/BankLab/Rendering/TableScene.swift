@@ -317,9 +317,14 @@ final class TableScene {
         }
     }
     private func buildTable(_ rails:[[String:NSNumber]]){
-        let graphite=look.wood ? premiumMaterial("WalnutDark"):mat(.rgb(look.cabinet),roughness:0.5,metal:0.12)
+        // 0.35 (owner: rail geometry may be shared, but colour and MATERIAL follow each brand): finish per model family.
+        // Gloss lacquer: Z-Ra (Rasson OX / Acurra / Victory), Z-Di Smart, Z-Pr ARC; matte powder-coat: Z-Br Black Wolf;
+        // brushed metal: Z-Max, Z-Pr APEX; satin: the rest. Wood tables keep the walnut maps tinted to the cabinet colour.
+        let gloss:Set<String>=["ox","acurra","victory","smart","arc","zbarpro"],matte:Set<String>=["blackwolf","blackwolfpro","zbar"],brushed:Set<String>=["zmax","apex","tournament"]
+        let graphite=look.wood ? premiumMaterial("WalnutDark"):mat(.rgb(look.cabinet),roughness:gloss.contains(look.id) ? 0.22:(matte.contains(look.id) ? 0.78:(brushed.contains(look.id) ? 0.38:0.5)),metal:brushed.contains(look.id) ? 0.35:0.08)
+        if !look.wood && gloss.contains(look.id) {graphite.clearCoat.contents=0.8;graphite.clearCoatRoughness.contents=0.08}
         if look.wood {
-            graphite.multiply.contents=UIColor(white:0.95,alpha:1)
+            graphite.multiply.contents=UIColor.rgb(look.cabinet).blended(0.55)   // 0.35: brand wood tone (was one walnut for all)
             graphite.normal.contents=materialMap("PC_WalnutDark_normal"){self.clothNormal()};graphite.normal.intensity=0.08
             graphite.roughness.contents=materialMap("PC_WalnutDark_roughness"){self.clothNormal()}
             for channel in [graphite.diffuse,graphite.normal,graphite.roughness]{channel.minificationFilter = .linear;channel.mipFilter = .linear;channel.maxAnisotropy=16}
