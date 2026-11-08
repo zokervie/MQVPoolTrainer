@@ -1,6 +1,6 @@
 # Nghiệm thu Z-Trainer 0.34 — bàn mặc định theo ảnh, logo, 7 không gian
 
-Nhánh `ci/native-0.34` (gồm 0.33). App hiện phiên bản **0.34**.
+Nhánh `ci/native-0.34` (gồm 0.33) · build 118 (run 94) · CI xanh: Linux g++/clang++, Mac Simulator, 17/17 UI test, IPA. App hiện phiên bản **0.34**. 120 Hz và vân nỉ khi zoom chưa xác minh trên máy thật.
 
 | # | Hạng mục | CI | Máy thật |
 | --- | --- | --- | --- |
