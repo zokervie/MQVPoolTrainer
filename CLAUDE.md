@@ -10,6 +10,7 @@ Nguồn gốc: repo private `ZokerPoolTrainer-0.11-Native-Jump-Masse…` tại `
 - Chỉ đánh dấu xong khi CI macOS chạy thật; phần cần thiết bị ghi "chưa xác minh trên thiết bị".
 - Báo cáo ngắn; không in toàn bộ log.
 - (Anh dặn 09/11/2026) Hạng mục nào sửa đi sửa lại nhiều lần (ánh sáng, bố cục phím, màu nỉ…) thì chủ động nhắc và đề xuất đưa thành tuỳ chỉnh trong Menu → Tuỳ chỉnh, theo hướng anh muốn; có đề xuất gì cứ nêu để anh tham khảo.
+- (Anh dặn 09/11/2026) Anh không phải chuyên gia: luôn đứng ở góc độ chuyên gia (bida + phần mềm), chủ động góp ý, phản biện và đưa phương án tốt hơn dựa trên ý tưởng anh nêu — nói rõ vì sao tốt hơn, anh quyết.
 
 ## CI
 `.github/workflows/native-ci.yml`: cổng Linux (g++/clang++, check_suite_lists, Run-All-Checks) → `Tools/run_acceptance.py` trên macOS (Simulator, ảnh + đầu dò G1, XCTest cử chỉ, IPA) → Release `native-*` + nhánh `dist-zoker-native`; ảnh ở `shots/native`. Thêm bộ test C++ mới: đăng ký ở cả `CMakeLists.txt` (ZOKER_TEST_SUITES) và `Run-All-Checks.command`. Đọc thêm `AGENTS.md` (hợp đồng của nhánh council).
