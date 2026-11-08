@@ -133,7 +133,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var replayYaw=0.0
     var quickCamera:UIButton!,quickTools:UIButton!,quickRole:UIButton!,quickCue:UIButton!,quickBag:UIButton!
     var lastGuideAngle=Double.infinity,lastGuideVisible=false
-    var guideDirty=true
+    var guideDirty=true,aimGuideShown=false
     var lastPredictionTime:TimeInterval=0
     let feedback=UIImpactFeedbackGenerator(style:.light)
     let poolAudio=PoolAudio()
@@ -152,7 +152,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     let predictionQueue=DispatchQueue(label:"ZTrainer.prediction",qos:.utility)
     var predictionPending=false,predictionGeneration=0,coachGeneration=0
     let coachQueue=DispatchQueue(label:"ZTrainer.coach",qos:.utility)
-    func wakeRendering(){renderUntil=ProcessInfo.processInfo.systemUptime+0.4;displayLink?.preferredFramesPerSecond=60;scn?.setNeedsDisplay()}
+    func wakeRendering(){renderUntil=ProcessInfo.processInfo.systemUptime+0.4;displayLink?.preferredFramesPerSecond=Tuning.frameRate;scn?.setNeedsDisplay()}
     @objc func thermalChanged(){table.setThermalState(ProcessInfo.processInfo.thermalState);wakeRendering()}
     override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
     override var prefersStatusBarHidden:Bool{true}
@@ -190,7 +190,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         table=TableScene(rails:engine.rails)
         if let color=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int {table.setClothColor(color)}
         scn=SCNView(frame:.zero);scn.scene=table.scene;scn.pointOfView=table.camera
-        scn.backgroundColor = .black;scn.antialiasingMode = .multisampling2X;scn.preferredFramesPerSecond=60
+        scn.backgroundColor = .black;scn.antialiasingMode = .multisampling2X;scn.preferredFramesPerSecond=60;scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
         scn.isPlaying=false;scn.rendersContinuously=false;scn.translatesAutoresizingMaskIntoConstraints=false
         view.addSubview(scn)
         scn.isMultipleTouchEnabled=true
@@ -344,7 +344,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spinExpanded=true;quickRail.isHidden=false
             spin.select(side:0.25,top:0.35)
         }
-        stroke.shot={[weak self]v in guard let self=self else{return};self.shoot(v);self.spin.collapse();self.setHold(false)}   // 0.30b: reset after the stroke
+        stroke.shot={[weak self]v in guard let self=self else{return};self.shoot(v*Tuning.maxPower);self.spin.collapse();self.setHold(false)}   // 0.30b: reset after the stroke
         stroke.released={[weak self] fired in guard let self=self,!fired,self.locked else{return};self.setHold(false)}
         stroke.pullChanged={[weak self]p in self?.pull=p}
         displayLink=CADisplayLink(target:self,selector:#selector(tick(_:)));displayLink?.preferredFramesPerSecond=60
@@ -380,7 +380,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func layoutRightHUD(){
         guard spinWidth != nil,quickRailBottom != nil else{return}
         adoptFrameLayoutOnce()
-        let safe=view.safeAreaLayoutGuide.layoutFrame,pad=UIDevice.current.userInterfaceIdiom == .pad
+        let safe=hudSafeFrame,pad=UIDevice.current.userInterfaceIdiom == .pad
         // 6 shortcuts in practice (Lùi cú) and in called-shot matches (Call); 5 otherwise.
         let sixItems = !matchIsCompetitive || matchBool("requiresCall")
         let f=BLHUDLayout(Double(safe.minX),Double(safe.minY),Double(safe.width),Double(safe.height),pad ? 1:0,leftHanded ? 1:0,sixItems ? 1:0,spinExpanded ? 1:0)
@@ -388,7 +388,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         func place(_ v:UIView,_ b:BLRect){v.bounds=CGRect(x:0,y:0,width:b.w,height:b.h);v.center=CGPoint(x:b.x+b.w/2,y:b.y+b.h/2)}
         place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
         place(menuButton,f.menu);place(coachButton,f.coach);place(panel,f.panel);spin.setNeedsDisplay()
-        lockButton.isHidden=true   // 0.30: no B — holding the effect ball locks the aim
+        place(lockButton,f.lock);lockButton.isHidden=menuOpen || spinExpanded;lockButton.setNeedsDisplay()   // 0.36: B is back (hold = lock aim), square, left of the effect ball
         for (k,icon) in cueIcons.enumerated(){place(icon,BLHUDCueIcon(f,Int32(k)))}
         elevationPad.leftHanded=leftHanded
         let small=BLRectMake(0,f.coach.y+4,pad ? 76:62,36),guideW=pad ? 92:80
@@ -404,6 +404,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickCall.isHidden = !(matchIsCompetitive && matchBool("requiresCall"))
         for item in quickRail.arrangedSubviews{item.constraints.first{$0.firstAttribute == .height && $0.secondItem==nil}?.constant=CGFloat(f.button)}
         spinWidth.constant=CGFloat(f.spin.w);spinHeight.constant=CGFloat(f.spin.h)
+        applyHUDOffsets()
     }
     /// 0.27 account management: Game Center profile, friends, sign-in. No password is stored by the app.
     func openAccount(){
@@ -430,10 +431,17 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             try data.write(to:directory.appendingPathComponent(name+".json"),options:.atomic)
         }catch{preconditionFailure("Cannot write G1 QA evidence: \(error)")}
     }
+    /// 0.36 (owner): on iPhone pull both side clusters a little closer to the screen edges (35 % of the notch /
+    /// rounded-corner inset is given back). iPad has no horizontal inset to give.
+    var hudSafeFrame:CGRect{
+        var safe=view.safeAreaLayoutGuide.layoutFrame
+        if UIDevice.current.userInterfaceIdiom != .pad {let l=view.safeAreaInsets.left*0.35,r=view.safeAreaInsets.right*0.35;safe.origin.x-=l;safe.size.width+=l+r}
+        return safe
+    }
     func verifyRightHUD(){
         view.layoutIfNeeded()
-        let controls:[UIView]=([spin,elevationPad,quickScroll,menuButton,coachButton]+cueIcons).filter{!$0.isHidden}
-        let safe=view.safeAreaLayoutGuide.layoutFrame
+        let controls:[UIView]=([spin,lockButton,elevationPad,quickScroll,menuButton,coachButton]+cueIcons).filter{!$0.isHidden}
+        let safe=hudSafeFrame.insetBy(dx:-0.5,dy:-0.5)
         var failures:[String]=[],frames:[String:String]=[:],hitResults:[String:String]=[:]
         for (index,control) in controls.enumerated(){
             let name=String(describing:type(of:control))+"-\(index)"
@@ -644,9 +652,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             ("Mở bảng hiệu chỉnh",{[weak self] in self?.settings()}),
             ("ZUPE Lab · nghiên cứu",{[weak self] in self?.setMenu(false);self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})])
         tuning.accessibilityIdentifier="MenuPhysicsTuning"
+        // 0.36: one place for every user preference (owner IQ200 #4).
+        let customize=UIButton.lab("Tuỳ chỉnh · ánh sáng, lực, bố cục phím, độ mượt"){[weak self] in self?.openCustomize()}
+        customize.accessibilityIdentifier="MenuCustomize"
         _=(center,trails,fine,felt,sound,coachToggle,cameraOptions,kick,advanced,physicsTuning,equipment,lessons,help,matches,guideButton,resetButton,graphicsButton,layoutButton,drillButton)
         let controls=stack(.vertical,10,[brand,titleLabel,statusLabel,scoreLabel,hintLabel,
-            modes,guide,drills,recordings,library,journal,tuning,close])
+            modes,guide,drills,recordings,library,journal,customize,tuning,close])
         controls.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(controls)
         NSLayoutConstraint.activate([
             controls.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),
@@ -676,7 +687,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         menuOpen=open;focusMode = !open;panel.isHidden = !open
         menuButton.setTitle(open ? "Đóng":"Menu",for:.normal)
         fineWheel.isHidden=open
-        spinCenter.isHidden=true;spin.isHidden=open;lockButton.isHidden=true;coachButton.isHidden=open
+        spinCenter.isHidden=true;spin.isHidden=open;lockButton.isHidden=open;coachButton.isHidden=open
         quickScroll.isHidden=open;elevationPad.isHidden=open;for icon in cueIcons{icon.isHidden=open}
         coachCard.isHidden=open || !coachOn || !cardOn || coachCard.alpha==0
         updateControls()
@@ -752,7 +763,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
         elevationPad.changed={[weak self] value in self?.setElevation(value)}
         buildCueIcons()
-        for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Bảng","CoachCardToggle")] {
+        for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Board","CoachCardToggle")] {
             var c=UIButton.Configuration.plain();c.title=title;c.background.backgroundColor=UIColor(white:0.03,alpha:0.42);c.background.cornerRadius=10
             c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:12,weight:.semibold);return a}
             b.configuration=c;b.accessibilityIdentifier=id;view.addSubview(b)
@@ -955,7 +966,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         menuButton.isHidden=locked
         fineWheel.isHidden=menuOpen   // 0.30: fine aim stays usable while the effect ball is held
         spin.isHidden=menuOpen   // 0.30b: the effect ball stays (it is the lock)
-        quickScroll.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen || spinExpanded
+        quickScroll.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen || spinExpanded;lockButton.isHidden=menuOpen || spinExpanded
         for icon in cueIcons{icon.isHidden=locked || menuOpen || spinExpanded}
         coachButton.isHidden=locked || menuOpen
         syncOverlayButtons()
@@ -1067,12 +1078,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         cameraButton.configuration?.title=["Toàn bàn","Trên cao","Ngắm cơ"][mode];syncQuickRail()
     }
     func beginCameraTransition(_ duration:Double){cameraTransitionDuration=duration;cameraTransition=duration}
-    func restoreAimCamera(){
+    func restoreAimCamera(transition:Double=0.45){
         guard localTurn,replayIndex==nil else{return}
         releasePeek()
         let saved=savedAimCamera ?? cameraMemory[2] ?? CameraPose(mode:2,zoom:1,yaw:0,pitch:0.57,aimPitch:table.aimPitch)
         aimCameraYaw=0;shotCameraAnchor=nil;applyCamera(saved);table.cameraMode=2;observationCamera=false;table.focusBounds=nil
-        beginCameraTransition(0.45);cameraButton.configuration?.title="Ngắm cơ";syncQuickRail()
+        beginCameraTransition(transition);cameraButton.configuration?.title="Ngắm cơ";syncQuickRail()
     }
     func eyeDown(){
         eyePressDuringShot=shotActive || BLShotCameraBusy(shotCameraState);wakeRendering()
@@ -1212,7 +1223,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let guestMoving=guestTick && matchPlay.session.isConnected && matchPlay.session.latestSnapshot?.isMoving==true
         // 0.35 (owner: still judders and the phone gets hot): 120 Hz doubled GPU work and heat without curing the judder.
         // One fixed 60 Hz cadence for simulation and rendering; idle drops to 15 Hz.
-        displayLink?.preferredFramesPerSecond=active ? 60:15
+        displayLink?.preferredFramesPerSecond=active ? Tuning.frameRate:30   // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh
         scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
         if active || guestMoving{scn.setNeedsDisplay()}
         if !active && !guestMoving && !(coachOn && guideOn && guideDirty){return}
@@ -1285,9 +1296,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if BLShotCameraTick(&shotCameraState,dt,wasSimulating || shotActive || engine.moving,table.hasActivePocketAnimations,wasReplaying || replayIndex != nil,authorityReadiness,isPlacingBalls,cameraGestureActive) {
             wakeRendering() // Readiness gate; practice keeps the live camera pose.
             // 0.29: in a match (also pass-and-play on one device) the player to shoot starts in the aim view.
-            if matchIsCompetitive && localTurn && table.cameraMode != 2 && peekPose == nil {aimCameraYaw=0;shotCameraAnchor=nil;selectCamera(2)}
-            // 0.35 (owner): practice too — once the balls stop, the aim view comes back by itself, no extra tap.
-            else if !matchIsCompetitive && localTurn && replayIndex == nil && table.cameraMode != 2 && peekPose == nil {shotCameraAnchor=nil;selectCamera(2)}
+            // 0.36 (owner: 0.35 still did not return): the shot camera usually STAYS in mode 2 while it follows the
+            // balls, so "cameraMode != 2" never fired. Once everything stops, always restore the saved aim pose behind
+            // the cue ball (yaw 0, zoom kept) — match and practice alike.
+            if localTurn && replayIndex == nil && peekPose == nil && !isPlacingBalls {restoreAimCamera(transition:0.2)}
         }
         if wasBusy != BLShotCameraBusy(shotCameraState){updateControls()}
         if qaAwaitingAimReturn && !presentationBusy {
@@ -1341,13 +1353,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }else{
             table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
         }
-        let show=coachOn && guideOn && !presentationBusy && localTurn && !isPlacingBalls
+        let guideAllowed=coachOn && guideOn && !presentationBusy && localTurn && !isPlacingBalls && !locked
+        // 0.36: "Điểm ngắm" = analytic line to the ghost ball, every frame (realtime); "Cả đường" = full simulated roll.
+        if guideAllowed && guideMode==1 {updateAimGuide();aimGuideShown=true} else if aimGuideShown {table.aimGuide(cue:nil);aimGuideShown=false}
+        let show=guideAllowed && guideMode==2
         if !show && lastGuideVisible {
             table.prediction([],visible:false);lastGuideVisible=false
         }
         let changed=guideDirty || abs(angle-lastGuideAngle)>0.00001 || !lastGuideVisible
         if !show{predictionGeneration+=1}
-        if show && changed && !predictionPending && link.timestamp-lastPredictionTime>=0.3 {
+        if show && changed && !predictionPending && link.timestamp-lastPredictionTime>=0.08 {
             predictionPending=true;predictionGeneration+=1;let generation=predictionGeneration
             let layout=engine.states,settings=engine.settings,a=table.shotAngle(cue,angle:angle,side:side,top:top),v=referenceSpeed,x=side,y=top,aim=angle
             lastPredictionTime=link.timestamp;guideDirty=false;lastGuideAngle=aim
@@ -1356,8 +1371,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 let samples=world.prediction(angle:a,speed:v,side:x,top:y)
                 DispatchQueue.main.async{
                     guard let self=self else{return};self.predictionPending=false
-                    guard generation==self.predictionGeneration,self.coachOn,self.guideOn,!self.presentationBusy,abs(self.angle-aim)<0.00001,self.side==x,self.top==y else{self.guideDirty=true;return}
-                    self.table.prediction(self.guideMode==1 ? TrainingController.toFirstContact(samples):samples,visible:true);self.lastGuideVisible=true;self.wakeRendering()
+                    guard generation==self.predictionGeneration,self.coachOn,self.guideOn,self.guideMode==2,!self.presentationBusy,abs(self.angle-aim)<0.00001,self.side==x,self.top==y else{self.guideDirty=true;return}
+                    guard self.guideMode==2 else{return};self.table.prediction(samples,visible:true);self.lastGuideVisible=true;self.wakeRendering()
                 }
             }
         }
@@ -2352,5 +2367,115 @@ extension TrainingController {
         if let next=next {alert.addAction(UIAlertAction(title:"Bài tiếp theo",style:.default){[weak self]_ in self?.beginDrill(next,guided:false)})}
         alert.addAction(UIAlertAction(title:"Đóng",style:.cancel){[weak self]_ in self?.lessonActive=false})
         DispatchQueue.main.asyncAfter(deadline:.now()+1.2){[weak self] in self?.present(alert,animated:true)}
+    }
+}
+
+// 0.36 "Điểm ngắm" — analytic, per frame: cue line to the first ball it meets (ghost-ball contact), the object
+// ball's departure line (line of centres) and the cue ball's stun tangent line. Uses the squirt-corrected shot angle.
+extension TrainingController {
+    func updateAimGuide(){
+        guard let c=cue,!c.sunk else{table.aimGuide(cue:nil);return}
+        let R=geometry.radius,a=table.shotAngle(c,angle:angle,side:side,top:top)
+        let d=SIMD2<Double>(cos(a),sin(a)),p=SIMD2<Double>(c.x,c.y)
+        let hx=geometry.width/2-R,hy=geometry.length/2-R
+        func wall(_ o:SIMD2<Double>,_ v:SIMD2<Double>)->Double{
+            var t=Double.infinity
+            if v.x>1e-9{t=min(t,(hx-o.x)/v.x)}else if v.x < -1e-9{t=min(t,(-hx-o.x)/v.x)}
+            if v.y>1e-9{t=min(t,(hy-o.y)/v.y)}else if v.y < -1e-9{t=min(t,(-hy-o.y)/v.y)}
+            return t.isFinite ? max(0,t):0
+        }
+        var best=wall(p,d),hit:BallState?=nil
+        for b in balls where b.id != 0 && !b.sunk {
+            let m=p-SIMD2<Double>(b.x,b.y),bq=simd_dot(m,d),cc=simd_dot(m,m)-4*R*R,disc=bq*bq-cc
+            guard disc>=0 else{continue}
+            let t = -bq-disc.squareRoot();if t>0 && t<best{best=t;hit=b}
+        }
+        let g=p+d*best
+        func f(_ v:SIMD2<Double>)->SIMD2<Float>{SIMD2<Float>(Float(v.x),Float(v.y))}
+        guard let b=hit else{table.aimGuide(cue:f(p),ghost:f(g),ringVisible:false);return}
+        let o=SIMD2<Double>(b.x,b.y),n=simd_normalize(o-g)
+        let oe=o+n*min(0.9,wall(o,n))
+        let tan=d-n*simd_dot(d,n),tl=simd_length(tan)
+        let te:SIMD2<Float>? = tl>0.05 ? f(g+(tan/tl)*min(0.3,wall(g,tan/tl))):nil
+        table.aimGuide(cue:f(p),ghost:f(g),object:f(o),objectEnd:f(oe),tangentEnd:te,ringVisible:true)
+    }
+}
+
+// 0.36 Tuỳ chỉnh: lighting / power / smoothness live-apply, and manual HUD arrangement (drag each key; offsets
+// from the default layout are saved per hand, so the C++-tested default layout stays the base).
+extension TrainingController {
+    var hudItems:[(String,UIView)]{
+        var items:[(String,UIView)]=[("spin",spin),("lock",lockButton),("wheel",fineWheel),("elevation",elevationPad),("rail",quickScroll),("menu",menuButton),("coach",coachButton)]
+        for (k,icon) in cueIcons.enumerated(){items.append(("cue\(k)",icon))}
+        return items
+    }
+    func hudOffsetKey(_ name:String)->String{"hudOffset036-"+(leftHanded ? "L":"R")+"-"+name}
+    func applyHUDOffsets(){
+        for (name,v) in hudItems{
+            guard let o=UserDefaults.standard.array(forKey:hudOffsetKey(name)) as? [Double],o.count==2 else{continue}
+            v.center=CGPoint(x:v.center.x+o[0],y:v.center.y+o[1])
+        }
+    }
+    func applyTuning(){
+        table.applyTuning()
+        scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
+        displayLink?.preferredFramesPerSecond=Tuning.frameRate
+        guideDirty=true;wakeRendering()
+    }
+    func openCustomize(){
+        setMenu(false)
+        let vc=CustomizeController()
+        vc.changed={[weak self] in self?.applyTuning()}
+        vc.openPhysics={[weak self] in self?.settings()}
+        vc.arrangeHUD={[weak self] in self?.beginHUDArrange()}
+        vc.resetHUD={[weak self] in guard let self=self else{return}
+            for (name,_) in self.hudItems{UserDefaults.standard.removeObject(forKey:self.hudOffsetKey(name))}
+            self.view.setNeedsLayout();self.layoutRightHUD()}
+        let nav=UINavigationController(rootViewController:vc);nav.modalPresentationStyle = .formSheet;present(nav,animated:true)
+    }
+    func beginHUDArrange(){
+        let overlay=UIView(frame:view.bounds);overlay.autoresizingMask=[.flexibleWidth,.flexibleHeight]
+        overlay.backgroundColor=UIColor(white:0,alpha:0.25);overlay.accessibilityIdentifier="HUDArrange"
+        let note=UILabel();note.text="Kéo từng phím tới vị trí muốn · bấm Xong để lưu";note.textColor = .white
+        note.font = .systemFont(ofSize:14,weight:.semibold);note.textAlignment = .center
+        note.backgroundColor=UIColor(white:0,alpha:0.6);note.layer.cornerRadius=10;note.clipsToBounds=true
+        note.frame=CGRect(x:view.bounds.midX-190,y:view.safeAreaInsets.top+12,width:380,height:36);overlay.addSubview(note)
+        let done=UIButton.lab("Xong"){[weak self,weak overlay] in overlay?.removeFromSuperview();self?.layoutRightHUD()}
+        done.frame=CGRect(x:view.bounds.midX-50,y:view.safeAreaInsets.top+56,width:100,height:44);overlay.addSubview(done)
+        var dragging:(String,UIView,CGPoint)?
+        let pan=UIPanGestureRecognizer()
+        pan.addAction{[weak self,weak overlay] g in
+            guard let self=self,let overlay=overlay else{return}
+            let p=g.location(in:self.view)
+            switch g.state{
+            case .began:
+                // Topmost visible HUD key under the finger (enlarged 10 pt so small keys are easy to grab).
+                dragging=self.hudItems.reversed().first{!$0.1.isHidden && $0.1.frame.insetBy(dx:-10,dy:-10).contains(p)}.map{($0.0,$0.1,$0.1.center)}
+                if let d=dragging{d.1.alpha=0.6;self.view.bringSubviewToFront(d.1);self.view.bringSubviewToFront(overlay)}
+            case .changed:
+                guard let d=dragging else{return};let t=g.translation(in:self.view)
+                var c=CGPoint(x:d.2.x+t.x,y:d.2.y+t.y);let b=self.view.bounds,h=d.1.bounds
+                c.x=min(max(c.x,h.width/2),b.width-h.width/2);c.y=min(max(c.y,h.height/2),b.height-h.height/2);d.1.center=c
+            default:
+                guard let d=dragging else{return};d.1.alpha=1
+                let old=UserDefaults.standard.array(forKey:self.hudOffsetKey(d.0)) as? [Double] ?? [0,0]
+                let moved=CGPoint(x:d.1.center.x-d.2.x,y:d.1.center.y-d.2.y)
+                UserDefaults.standard.set([old[0]+Double(moved.x),old[1]+Double(moved.y)],forKey:self.hudOffsetKey(d.0));dragging=nil
+            }
+        }
+        overlay.addGestureRecognizer(pan);view.addSubview(overlay)
+    }
+}
+
+private final class GestureAction:NSObject {
+    let run:(UIGestureRecognizer)->Void
+    init(_ run:@escaping(UIGestureRecognizer)->Void){self.run=run}
+    @objc func fire(_ g:UIGestureRecognizer){run(g)}
+}
+private var gestureActionKey:UInt8=0
+extension UIGestureRecognizer {
+    func addAction(_ run:@escaping(UIGestureRecognizer)->Void){
+        let target=GestureAction(run);objc_setAssociatedObject(self,&gestureActionKey,target,.OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        addTarget(target,action:#selector(GestureAction.fire(_:)))
     }
 }

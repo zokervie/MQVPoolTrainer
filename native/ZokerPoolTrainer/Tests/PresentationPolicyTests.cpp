@@ -76,7 +76,7 @@ static void checkHUD022(double x0, double y0, double w, double h, int pad) {
         assert(f.items == (practice ? 6 : 5));
         // while the effect ball is held only it and the wheel are shown
         std::vector<BLRect> shown{f.spin, f.wheel};
-        if (!expanded) { shown.push_back(f.rail); shown.push_back(f.menu); shown.push_back(f.elevation); for (int k = 0; k < BL_CUE_ICONS; ++k) shown.push_back(BLHUDCueIcon(f, k)); }
+        if (!expanded) { shown.push_back(f.rail); shown.push_back(f.menu); shown.push_back(f.elevation); shown.push_back(f.lock); for (int k = 0; k < BL_CUE_ICONS; ++k) shown.push_back(BLHUDCueIcon(f, k)); }
         if (practice && !expanded) shown.push_back(f.coach);
         for (const auto& r : shown) { assert(inside(r, x0, y0, w, h)); assert(r.w >= 44 && r.h >= 40); }
         for (size_t a = 0; a < shown.size(); ++a) for (size_t b = a + 1; b < shown.size(); ++b) assert(!hit(shown[a], shown[b]));
@@ -90,9 +90,12 @@ static void checkHUD022(double x0, double y0, double w, double h, int pad) {
         assert(f.elevation.y + f.elevation.h <= f.wheel.y && f.elevation.x >= f.wheel.x && f.elevation.x + f.elevation.w <= f.wheel.x + f.wheel.w);
         if (!expanded) {
             assert(f.spin.w >= (pad ? 100 : 76));
-            const BLRect jump = BLHUDCueIcon(f, 1), play = BLHUDCueIcon(f, 0), masse = BLHUDCueIcon(f, 2), brk = BLHUDCueIcon(f, 3);
-            assert(jump.y + jump.h <= f.spin.y && play.y >= f.spin.y + f.spin.h);              // Jump above, Đánh below
-            assert(masse.x + masse.w <= f.spin.x && brk.x >= f.spin.x + f.spin.w);            // Massé left, Break right (both hands)
+            // 0.36: one row of 4 cue icons above B + effect ball; B square on the outer side, ball next to it
+            for (int k = 0; k < BL_CUE_ICONS; ++k) { const BLRect c = BLHUDCueIcon(f, k); assert(c.y + c.h <= f.spin.y && c.y + c.h <= f.lock.y && std::abs(c.y - BLHUDCueIcon(f, 0).y) < 1e-9);
+                if (k) assert(c.x >= BLHUDCueIcon(f, k - 1).x + BLHUDCueIcon(f, k - 1).w); }
+            assert(std::abs(f.lock.w - f.lock.h) < 1e-9 && f.lock.w >= 44);
+            if (!left) assert(f.lock.x + f.lock.w <= f.spin.x); else assert(f.lock.x >= f.spin.x + f.spin.w);
+            assert(std::abs((f.lock.y + f.lock.h / 2) - (f.spin.y + f.spin.h / 2)) < 1e-9);   // vertically centred pair
         }
         else { assert(f.spin.w <= (pad ? 200 : 150) + 1e-9); }   // zoom, but not so big it hides the table
         if (left) { const BLHUDFrames r = BLHUDLayout(x0, y0, w, h, pad, 0, practice, expanded);

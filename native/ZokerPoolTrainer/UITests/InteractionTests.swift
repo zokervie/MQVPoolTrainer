@@ -131,7 +131,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(coach.isEnabled,"Coach enabled · \(scene.value ?? "")")
         tapCoach(app,scene,coach,expect:1)
         XCTAssertTrue(app.buttons["GuideToggle"].waitForExistence(timeout:5 * slow) && app.buttons["GuideToggle"].isHittable,"Coach shows Chỉ dẫn")
-        XCTAssertTrue(app.buttons["NumbersToggle"].isHittable && app.buttons["CoachCardToggle"].isHittable,"Coach shows Nút số and Bảng")
+        XCTAssertTrue(app.buttons["NumbersToggle"].isHittable && app.buttons["CoachCardToggle"].isHittable,"Coach shows Nút số and Board")
         tapCoach(app,scene,coach,expect:0)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }
@@ -212,7 +212,7 @@ final class InteractionTests: XCTestCase {
     /// without shooting, after which aiming works again.
     func testEffectBallLatchesLockAndNonFiringTouchUnlocks() {
         let (app,scene)=launch(["--ux017-qa"])
-        XCTAssertFalse(app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch.isHittable, "B is gone")
+        XCTAssertTrue(app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch.isHittable, "0.36: B is back beside the effect ball")
         let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
         XCTAssertTrue(effect.isHittable)
         effect.press(forDuration:0.5)

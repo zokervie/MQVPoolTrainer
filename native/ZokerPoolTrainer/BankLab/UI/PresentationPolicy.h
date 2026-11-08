@@ -122,7 +122,7 @@ static inline BLRightHUDMetrics BLRightHUDLayout(double safeHeight, bool expande
 // and a stroke anywhere on the empty table fires. Left-handed mirrors every x.
 typedef struct { double x, y, w, h; } BLRect;
 typedef struct {
-    BLRect rail, spin, wheel, elevation, menu, coach, panel, cues;
+    BLRect rail, spin, wheel, elevation, menu, coach, panel, cues, lock;   // lock = B (0.36)
     double button;      // shortcut button height (also its width minus padding)
     double cueIcon;     // side of one cue icon square
     int items;          // shortcut count
@@ -145,11 +145,14 @@ static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, 
     f.rail = BLRectMake(x0 + w - edge - railW, bottom - railH, railW, railH);
     f.wheel = BLRectMake(f.rail.x - gap - wheelW, bottom - wheelH, wheelW, wheelH);
     f.elevation = BLRectMake(f.wheel.x + (wheelW - fanS) / 2, f.wheel.y - gap - fanS, fanS, fanS);
-    // 0.33 (owner): the 4 cue icons sit AROUND the effect ball — Jump above, Đánh below, Massé left, Break right.
-    (void)igap;
-    const double clusterX = x0 + edge + 6, side = icon + gap;
-    f.spin = BLRectMake(clusterX + side, bottom - side - spinS, spinS, spinS);
-    f.cues = BLRectMake(clusterX, f.spin.y - side, spinS + 2 * side, spinS + 2 * side);
+    // 0.36 (owner): bottom-left cluster = a row of the 4 cue icons on top; below it the square B (outer side) and
+    // the round effect ball next to it. The pair is centred under the row.
+    const double lockS = pad ? 72 : 56, clusterX = x0 + edge;
+    const double rowW = BL_CUE_ICONS * icon + (BL_CUE_ICONS - 1) * igap, pairW = lockS + gap + spinS;
+    const double width = fmax(rowW, pairW), pairX = clusterX + (width - pairW) / 2;
+    f.lock = BLRectMake(pairX, bottom - spinS + (spinS - lockS) / 2, lockS, lockS);
+    f.spin = BLRectMake(pairX + lockS + gap, bottom - spinS, spinS, spinS);
+    f.cues = BLRectMake(clusterX + (width - rowW) / 2, f.spin.y - gap - icon, rowW, icon);
     if (expanded) {   // grows up/right from the bottom-left corner: big enough to aim, not hiding the table
         const double big = fmax(spinS, fmin(pad ? 200 : 150, bottom - (y0 + edge + 50)));
         f.spin = BLRectMake(f.spin.x, bottom - big, big, big);
@@ -160,21 +163,16 @@ static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, 
     if (leftHanded) {
         f.rail = BLMirror(f.rail, x0, w); f.spin = BLMirror(f.spin, x0, w); f.wheel = BLMirror(f.wheel, x0, w);
         f.elevation = BLMirror(f.elevation, x0, w); f.menu = BLMirror(f.menu, x0, w); f.coach = BLMirror(f.coach, x0, w);
-        f.panel = BLMirror(f.panel, x0, w); f.cues = BLMirror(f.cues, x0, w);
+        f.panel = BLMirror(f.panel, x0, w); f.cues = BLMirror(f.cues, x0, w); f.lock = BLMirror(f.lock, x0, w);
     }
     return f;
 }
 
-// Cue icon k (0 Đánh, 1 Jump, 2 Massé, 3 Break) around the effect ball inside f.cues: Jump top, Đánh bottom,
-// Massé left, Break right (0.33) — same reading order in both hands; the cluster itself mirrors.
+// Cue icon k (0 Đánh, 1 Jump, 2 Massé, 3 Break) in one row inside f.cues, left to right in that order (0.36);
+// same reading order in both hands, the row itself mirrors.
 static inline BLRect BLHUDCueIcon(BLHUDFrames f, int k) {
-    const double s = f.cueIcon, cx = f.cues.x + f.cues.w / 2, cy = f.cues.y + f.cues.h / 2;
-    switch (k) {
-        case 1: return BLRectMake(cx - s / 2, f.cues.y, s, s);                       // Jump: top
-        case 2: return BLRectMake(f.cues.x, cy - s / 2, s, s);                       // Massé: left
-        case 3: return BLRectMake(f.cues.x + f.cues.w - s, cy - s / 2, s, s);        // Break: right
-        default: return BLRectMake(cx - s / 2, f.cues.y + f.cues.h - s, s, s);       // Đánh: bottom
-    }
+    const double s = f.cueIcon, step = (f.cues.w - s) / (BL_CUE_ICONS - 1);
+    return BLRectMake(f.cues.x + k * step, f.cues.y, s, s);
 }
 // Icon order -> shot kind (ShotKindPolicy: 0 play, 1 jump, 2 break, 3 massé) and its default elevation (deg).
 static inline int BLCueIconKind(int k) { return k == 1 ? 1 : (k == 2 ? 3 : (k == 3 ? 2 : 0)); }

@@ -136,3 +136,75 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
     @objc private func save(){apply?(values,sensitivity);dismiss(animated:true)}
     @objc private func cancel(){dismiss(animated:true)}
 }
+
+// MARK: - 0.36 Tuỳ chỉnh (owner IQ200 #4): lighting, diamond prominence, max power + physics, HUD arrangement, smoothness.
+enum Tuning {
+    static func value(_ key:String,_ fallback:Double)->Double{UserDefaults.standard.object(forKey:key) as? Double ?? fallback}
+    /// Active render cadence. 120 needs ProMotion (CADisableMinimumFrameDurationOnPhone is set); more heat.
+    static var frameRate:Int{UserDefaults.standard.integer(forKey:"tuneFPS036")==120 ? 120:60}
+    /// Fraction of the native pixel scale the 3D view renders at (1, 0.85, 0.7).
+    static var renderScale:Double{value("tuneScale036",1)}
+    /// Multiplier on the stroke speed (BLStrokeSpeed tops out at 8 m/s): 0.6 → 4.8 m/s, 1.3 → 10.4 m/s.
+    static var maxPower:Double{value("tuneMaxPower036",1)}
+}
+
+final class CustomizeController:UIViewController {
+    var changed:(()->Void)?
+    var openPhysics:(()->Void)?
+    var arrangeHUD:(()->Void)?
+    var resetHUD:(()->Void)?
+    private let body=UIStackView()
+    override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
+    override func viewDidLoad(){
+        super.viewDidLoad();title="Tuỳ chỉnh";view.backgroundColor = .ink
+        navigationController?.navigationBar.barStyle = .black
+        navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Xong",style:.done,target:self,action:#selector(done))
+        let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
+        body.axis = .vertical;body.spacing=14;body.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(body)
+        NSLayoutConstraint.activate([scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor),scroll.bottomAnchor.constraint(equalTo:view.bottomAnchor),scroll.leadingAnchor.constraint(equalTo:view.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:view.trailingAnchor),body.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),body.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor,constant:-24),body.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor,constant:20),body.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor,constant:-20),body.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor,constant:-40)])
+        header("Ánh sáng")
+        slider("Độ sáng bi",TableScene.tuneBall,0.6,1.3)
+        slider("Độ sáng mặt bàn (nỉ)",TableScene.tuneCloth,0.6,1.4)
+        slider("Đèn bàn",TableScene.tuneLight,0.5,1.6)
+        slider("Độ nổi kim cương / nút số",TableScene.tuneDiamond,0.8,2.0)
+        header("Lực đánh và vật lý")
+        slider("Lực đánh tối đa",  "tuneMaxPower036",0.6,1.3,format:{String(format:"%.1f m/s",8*$0)})
+        body.addArrangedSubview(UIButton.lab("Hiệu chỉnh vật lý chi tiết (ma sát, băng, xoáy…)"){[weak self] in
+            guard let self=self else{return};self.dismiss(animated:true){self.openPhysics?()}})
+        header("Bố cục phím trên màn hình")
+        body.addArrangedSubview(UIButton.lab("Sắp xếp phím · kéo từng phím tới vị trí muốn"){[weak self] in
+            guard let self=self else{return};self.dismiss(animated:true){self.arrangeHUD?()}})
+        body.addArrangedSubview(UIButton.lab("Đưa phím về vị trí mặc định"){[weak self] in self?.resetHUD?()})
+        header("Độ mượt")
+        segmented("Tần số khung hình khi bi chạy",["60 Hz","120 Hz (ProMotion, nóng hơn)"],Tuning.frameRate==120 ? 1:0){
+            UserDefaults.standard.set($0==1 ? 120:60,forKey:"tuneFPS036")}
+        let scales=[1.0,0.85,0.7]
+        segmented("Độ phân giải 3D",["100 %","85 %","70 % (mát máy)"],scales.firstIndex{abs($0-Tuning.renderScale)<0.01} ?? 0){
+            UserDefaults.standard.set(scales[$0],forKey:"tuneScale036")}
+        body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in
+            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,"tuneMaxPower036","tuneFPS036","tuneScale036"]{UserDefaults.standard.removeObject(forKey:k)}
+            self?.resetHUD?();self?.changed?();self?.dismiss(animated:true)})
+    }
+    private func header(_ text:String){
+        let l=UILabel();l.text=text.uppercased();l.textColor=UIColor.rgb(0xEAC583);l.font = .systemFont(ofSize:13,weight:.bold);body.addArrangedSubview(l)
+    }
+    private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,format:((Double)->String)?=nil){
+        let fmt=format ?? {String(format:"%d %%",Int(($0*100).rounded()))}
+        let label=UILabel();label.textColor = .white;label.font = .systemFont(ofSize:13,weight:.medium)
+        let current=Tuning.value(key,1);label.text="\(title)  ·  \(fmt(current))"
+        let s=UISlider();s.minimumValue=Float(lo);s.maximumValue=Float(hi);s.value=Float(current);s.tintColor = .mint;s.accessibilityLabel=title
+        s.addAction(UIAction{[weak s,weak label]_ in guard let s=s else{return};label?.text="\(title)  ·  \(fmt(Double(s.value)))"},for:.valueChanged)
+        // Apply on release: cloth/diamond changes rebuild the table geometry.
+        for event:UIControl.Event in [.touchUpInside,.touchUpOutside]{
+            s.addAction(UIAction{[weak self,weak s]_ in guard let s=s else{return};UserDefaults.standard.set(Double(s.value),forKey:key);self?.changed?()},for:event)
+        }
+        let g=UIStackView(arrangedSubviews:[label,s]);g.axis = .vertical;g.spacing=4;body.addArrangedSubview(g)
+    }
+    private func segmented(_ title:String,_ items:[String],_ selected:Int,_ set:@escaping(Int)->Void){
+        let label=UILabel();label.text=title;label.textColor = .white;label.font = .systemFont(ofSize:13,weight:.medium)
+        let c=UISegmentedControl(items:items);c.selectedSegmentIndex=selected
+        c.addAction(UIAction{[weak self,weak c]_ in guard let c=c else{return};set(c.selectedSegmentIndex);self?.changed?()},for:.valueChanged)
+        let g=UIStackView(arrangedSubviews:[label,c]);g.axis = .vertical;g.spacing=4;body.addArrangedSubview(g)
+    }
+    @objc private func done(){dismiss(animated:true)}
+}

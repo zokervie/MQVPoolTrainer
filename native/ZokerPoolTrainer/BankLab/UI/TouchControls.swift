@@ -171,11 +171,12 @@ final class HoldLockControl:UIControl {
     override func draw(_ rect:CGRect){
         guard let ctx=UIGraphicsGetCurrentContext() else{return}
         let held=finger != nil
-        let circle=bounds.insetBy(dx:5,dy:5)
-        ctx.setFillColor(UIColor(white:held ? 0.8:0.10,alpha:held ? 0.28:0.20).cgColor)
-        ctx.fillEllipse(in:circle)
-        ctx.setStrokeColor(UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? (held ? 0.65:0.24):0.1).cgColor)
-        ctx.setLineWidth(1);ctx.strokeEllipse(in:circle)
+        // 0.36 (owner): B is a square key next to the round effect ball.
+        let square=UIBezierPath(roundedRect:bounds.insetBy(dx:4,dy:4),cornerRadius:10)
+        ctx.setFillColor(UIColor(white:held ? 0.8:0.10,alpha:held ? 0.30:0.32).cgColor)
+        ctx.addPath(square.cgPath);ctx.fillPath()
+        ctx.setStrokeColor(UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? (held ? 0.75:0.40):0.1).cgColor)
+        ctx.setLineWidth(1.2);ctx.addPath(square.cgPath);ctx.strokePath()
         let ink=UIColor.rgb(0xEAC583).withAlphaComponent(isEnabled ? (held ? 1:0.80):0.18)
         let caption="B" as NSString
         let attributes:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:bounds.height*0.46,weight:.bold),.foregroundColor:ink]
