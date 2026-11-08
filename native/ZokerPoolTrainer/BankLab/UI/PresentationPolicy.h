@@ -145,9 +145,11 @@ static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, 
     f.rail = BLRectMake(x0 + w - edge - railW, bottom - railH, railW, railH);
     f.wheel = BLRectMake(f.rail.x - gap - wheelW, bottom - wheelH, wheelW, wheelH);
     f.elevation = BLRectMake(f.wheel.x + (wheelW - fanS) / 2, f.wheel.y - gap - fanS, fanS, fanS);
-    f.spin = BLRectMake(x0 + edge + 6, bottom - spinS, spinS, spinS);
-    const double cuesW = BL_CUE_ICONS * icon + (BL_CUE_ICONS - 1) * igap;
-    f.cues = BLRectMake(f.spin.x, f.spin.y - gap - icon, cuesW, icon);
+    // 0.33 (owner): the 4 cue icons sit AROUND the effect ball — Jump above, Đánh below, Massé left, Break right.
+    (void)igap;
+    const double clusterX = x0 + edge + 6, side = icon + gap;
+    f.spin = BLRectMake(clusterX + side, bottom - side - spinS, spinS, spinS);
+    f.cues = BLRectMake(clusterX, f.spin.y - side, spinS + 2 * side, spinS + 2 * side);
     if (expanded) {   // grows up/right from the bottom-left corner: big enough to aim, not hiding the table
         const double big = fmax(spinS, fmin(pad ? 200 : 150, bottom - (y0 + edge + 50)));
         f.spin = BLRectMake(f.spin.x, bottom - big, big, big);
@@ -163,10 +165,16 @@ static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, 
     return f;
 }
 
-// Cue icon k (0 Đánh, 1 Jump, 2 Massé, 3 Break) inside f.cues, left to right in both hands (reading order).
+// Cue icon k (0 Đánh, 1 Jump, 2 Massé, 3 Break) around the effect ball inside f.cues: Jump top, Đánh bottom,
+// Massé left, Break right (0.33) — same reading order in both hands; the cluster itself mirrors.
 static inline BLRect BLHUDCueIcon(BLHUDFrames f, int k) {
-    const double igap = (f.cues.w - BL_CUE_ICONS * f.cueIcon) / (BL_CUE_ICONS - 1);
-    return BLRectMake(f.cues.x + k * (f.cueIcon + igap), f.cues.y, f.cueIcon, f.cueIcon);
+    const double s = f.cueIcon, cx = f.cues.x + f.cues.w / 2, cy = f.cues.y + f.cues.h / 2;
+    switch (k) {
+        case 1: return BLRectMake(cx - s / 2, f.cues.y, s, s);                       // Jump: top
+        case 2: return BLRectMake(f.cues.x, cy - s / 2, s, s);                       // Massé: left
+        case 3: return BLRectMake(f.cues.x + f.cues.w - s, cy - s / 2, s, s);        // Break: right
+        default: return BLRectMake(cx - s / 2, f.cues.y + f.cues.h - s, s, s);       // Đánh: bottom
+    }
 }
 // Icon order -> shot kind (ShotKindPolicy: 0 play, 1 jump, 2 break, 3 massé) and its default elevation (deg).
 static inline int BLCueIconKind(int k) { return k == 1 ? 1 : (k == 2 ? 3 : (k == 3 ? 2 : 0)); }

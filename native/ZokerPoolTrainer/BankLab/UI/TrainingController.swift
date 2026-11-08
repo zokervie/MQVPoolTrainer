@@ -105,6 +105,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var shotBack:[ShotStep]=[],shotForward:[ShotStep]=[]
     /// 0.30: Đánh / Jump / Massé / Break above the effect ball (BLHUDCueIcon, BLCueIconKind).
     var cueIcons:[UIButton]=[]
+    /// 0.33: "Nút số" (diamond numbers, always offered) and "Chỉ dẫn" (aim/guide lines, shown when Coach is on),
+    /// next to Coach. Replay camera: 0 điện ảnh tự động, 1 người đánh 3D, 2 toàn bàn, 3 trên cao.
+    let numbersButton=UIButton(type:.system),guideToggle=UIButton(type:.system)
+    var numbersOn=UserDefaults.standard.object(forKey:"numbersOn033") as? Bool ?? true
+    var replayCamera=0
     func currentSetup()->ShotSetup{ShotSetup(angle:angle,side:side,top:top,kind:shotKind,elevation:table.cueElevation)}
     var sessionShots:[(shot:SavedShot,score:Int,label:String)]=[]
     var autoSaveEveryShot:Bool{UserDefaults.standard.bool(forKey:"autoSaveEveryShot025")}
@@ -376,6 +381,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         lockButton.isHidden=true   // 0.30: no B — holding the effect ball locks the aim
         for (k,icon) in cueIcons.enumerated(){place(icon,BLHUDCueIcon(f,Int32(k)))}
         elevationPad.leftHanded=leftHanded
+        let small=BLRectMake(0,f.coach.y,pad ? 84:70,44),guideW=pad ? 90:76
+        var n=small,g=small;g.w=Double(guideW)
+        if leftHanded{n.x=f.coach.x-8-n.w;g.x=n.x-8-g.w}else{n.x=f.coach.x+f.coach.w+8;g.x=n.x+n.w+8}
+        place(numbersButton,n);place(guideToggle,g)
         // Replay bar: top row between Coach and the shortcut column (never over Coach); mirrored for left hand.
         if (replayBarRight.first?.isActive ?? false) == leftHanded {   // only on a hand change (avoids a layout loop)
             NSLayoutConstraint.deactivate(leftHanded ? replayBarRight:replayBarLeft);NSLayoutConstraint.activate(leftHanded ? replayBarLeft:replayBarRight)
@@ -733,6 +742,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
         elevationPad.changed={[weak self] value in self?.setElevation(value)}
         buildCueIcons()
+        for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle")] {
+            var c=UIButton.Configuration.plain();c.title=title;c.background.backgroundColor=UIColor(white:0.03,alpha:0.42);c.background.cornerRadius=10
+            c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:12,weight:.semibold);return a}
+            b.configuration=c;b.accessibilityIdentifier=id;view.addSubview(b)
+        }
+        numbersButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.numbersOn.toggle()
+            UserDefaults.standard.set(self.numbersOn,forKey:"numbersOn033");self.applyCoachVisibility();self.syncOverlayButtons()},for:.touchUpInside)
+        guideToggle.addAction(UIAction{[weak self]_ in guard let self=self,self.coachOn else{return}
+            self.guideOn.toggle();self.guideDirty=true;self.guideButton?.configuration?.title=self.guideOn ? "Dự báo: bật":"Dự báo: tắt"
+            self.wakeRendering();self.syncOverlayButtons()},for:.touchUpInside)
         buildReplayBar();syncQuickRail();applyCoachVisibility()
     }
     func buildCueIcons(){
@@ -754,7 +773,18 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if kind != shotKind {chooseShotKind(kind)} else if kind==3 || kind==1 {setElevation(BLCueIconElevation(Int32(k)))}
         syncQuickRail()
     }
+    func syncOverlayButtons(){
+        let hidden=locked || menuOpen || replayIndex != nil || matchIsCompetitive || isPlacingBalls
+        numbersButton.isHidden=hidden;guideToggle.isHidden=hidden || !coachOn
+        let gold=UIColor.rgb(0xEAC583)
+        numbersButton.configuration?.baseForegroundColor=numbersOn ? .white:gold.withAlphaComponent(0.7)
+        numbersButton.configuration?.background.backgroundColor=numbersOn ? gold.withAlphaComponent(0.38):UIColor(white:0.03,alpha:0.42)
+        guideToggle.configuration?.baseForegroundColor=guideOn ? .white:gold.withAlphaComponent(0.7)
+        guideToggle.configuration?.background.backgroundColor=guideOn ? gold.withAlphaComponent(0.38):UIColor(white:0.03,alpha:0.42)
+        numbersButton.accessibilityValue=numbersOn ? "Bật":"Tắt";guideToggle.accessibilityValue=guideOn ? "Bật":"Tắt"
+    }
     func syncCueIcons(){
+        syncOverlayButtons()
         for (k,icon) in cueIcons.enumerated(){
             let on=Int(BLCueIconKind(Int32(k)))==shotKind
             icon.configuration?.baseForegroundColor=on ? .white:UIColor.rgb(0xEAC583).withAlphaComponent(0.8)
@@ -846,11 +876,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         coachButton.setTitle("Coach",for:.normal)
         coachButton.setTitleColor(coaching ? .white:.rgb(0xEAC583),for:.normal)
         coachButton.accessibilityValue=coaching ? "Bật":"Tắt"
-        table.showsDiamondNumbers=coaching
+        table.showsDiamondNumbers=numbersOn   // 0.33: own toggle (Nút số), not tied to Coach
         table.target(coaching ? Drill.all[drillIndex].goal:nil)
         table.setTrainingOverlaysHidden(!coaching || locked)
         if !coaching {hideCoach();table.showRailContacts([]);table.trails([:]);table.prediction([],visible:false);guideOn=false;lastGuideVisible=false;guideButton?.configuration?.title="Dự báo: tắt"}
         hintLabel.isHidden = !coaching;scoreLabel.isHidden = !coaching
+        syncOverlayButtons()
     }
 
     func setElevation(_ degrees:Double){
@@ -900,6 +931,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         quickScroll.isHidden=locked || menuOpen;elevationPad.isHidden=locked || menuOpen || spinExpanded
         for icon in cueIcons{icon.isHidden=locked || menuOpen || spinExpanded}
         coachButton.isHidden=locked || menuOpen
+        syncOverlayButtons()
         table.setTrainingOverlaysHidden(!coachOn || locked)
         if !locked{stroke.cancelStroke();pull=0;if matchIsCompetitive{table.setCompetitivePresentation(numbers:matchPlay.showNumbers)}}
     }
@@ -1139,7 +1171,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // Cold shader compilation can outlast the wake requested in viewDidLoad.
         // Always present the initial camera and accessibility state on first tick.
         if lastTime==0{startupRenderUntil=ProcessInfo.processInfo.systemUptime+8;wakeRendering()}
-        let dt=lastTime==0 ? 0:min(0.1,max(0,link.timestamp-lastTime));lastTime=link.timestamp
+        // 0.33: advance to the time this frame will be SHOWN (targetTimestamp), not when the callback ran — removes the
+        // judder of variable callback latency; on ProMotion the shot runs at up to 120 Hz.
+        let shownAt=link.targetTimestamp
+        let dt=lastTime==0 ? 0:min(0.1,max(0,shownAt-lastTime));lastTime=shownAt
         frameStateCache=nil;defer{frameStateCache=nil}
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let guestTick=matchGuestTick(dt)
@@ -1148,7 +1183,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let premiumPending = !premiumProbeWritten && ProcessInfo.processInfo.arguments.contains("--premium-qa")
         let active=premiumPending || ProcessInfo.processInfo.systemUptime<startupRenderUntil || (shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
         let guestMoving=guestTick && matchPlay.session.isConnected && matchPlay.session.latestSnapshot?.isMoving==true
-        displayLink?.preferredFramesPerSecond=active ? 60:15
+        let moving=(shotActive && !matchSimulationPaused) || replayIndex != nil
+        displayLink?.preferredFrameRateRange=moving ? CAFrameRateRange(minimum:60,maximum:120,preferred:120):(active ? CAFrameRateRange(minimum:30,maximum:60,preferred:60):CAFrameRateRange(minimum:10,maximum:15,preferred:15))
+        scn.preferredFramesPerSecond=moving ? 120:60
         scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
         if active || guestMoving{scn.setNeedsDisplay()}
         if !active && !guestMoving && !(coachOn && guideOn && guideDirty){return}
@@ -1415,6 +1452,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if replayIndex != nil{stopReplay();return}
         hideCoach();table.resetPocketPresentation();replayPlan=ReplayDirector.Plan(duration:frameTimes.last ?? 0,events:lastShotEvents,initialAngle:lastShot?.aimAngle ?? angle);replayOrigin=captureCamera();replayEquipment=(engine.settings["cueType"]?.intValue ?? 0,table.cueElevation);replayRenderedCueType=nil;replayPreparation=nil;replayStrikePlayed=false;replayIndex=0;replayClock = -preparationDuration;replayYaw=0;replayAudioIndex=0
         replayPaused=false;replayAuto=true;cameraManual=false;lastDirectorTime = -10
+        DispatchQueue.main.async{[weak self] in self?.syncOverlayButtons()}
+        if replayCamera != 0 {DispatchQueue.main.async{[weak self] in guard let self=self,self.replayIndex != nil else{return};self.chooseReplayCamera(self.replayCamera)}} else {replayAutoButton.setTitle("Điện ảnh",for:.normal)}
         if let pose=savedAimCamera{applyCamera(pose)}else{table.cameraMode=2}
         replaySlider.minimumValue=Float(-preparationDuration);replaySlider.maximumValue=Float(frameTimes.last ?? 1);replaySlider.value=Float(replayClock)
         replayBar.isHidden=false;menuButton.isHidden=true;replayPause.setTitle("Dừng",for:.normal)
@@ -1425,7 +1464,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func stopReplay(){
         replayPreparation=nil;replayRenderedCueType=nil
         if let equipment=replayEquipment{table.selectCue(equipment.0);table.cueElevation=equipment.1};replayEquipment=nil
-        replayIndex=nil;replayPlan=nil;replayBar.isHidden=true;menuButton.isHidden=false;table.resetPocketPresentation()
+        replayIndex=nil;replayPlan=nil;replayBar.isHidden=true;menuButton.isHidden=false;table.resetPocketPresentation();syncOverlayButtons()
         if let saved=archiveReturn {
             frames=saved.frames;frameTimes=saved.times;lastShotEvents=saved.events;lastShot=saved.shot;paths=saved.paths;coaching=saved.coach;lastPreparation=saved.preparation;archiveReturn=nil
         }
@@ -1439,15 +1478,21 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         replayBar.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(replayBar)
         replayPause.setTitle("Dừng",for:.normal);replayRate.setTitle("1×",for:.normal);replayAutoButton.setTitle("Auto",for:.normal)
         let close=UIButton(type:.system);close.setTitle("Xong",for:.normal);close.accessibilityIdentifier="ReplayDone";replayAutoButton.accessibilityIdentifier="ReplayAuto"
-        for item in [replayPause,replayRate,replayAutoButton,close]{item.titleLabel?.font = .systemFont(ofSize:13,weight:.semibold);item.widthAnchor.constraint(equalToConstant:52).isActive=true}
-        for item in [replayPause,replayRate,replaySlider,replayAutoButton,close] as [UIView]{replayBar.addArrangedSubview(item)}
+        // 0.33: "Lưu" saves the shot being replayed; the camera button picks 1 of 4 replay angles.
+        let save=UIButton(type:.system);save.setTitle("Lưu",for:.normal);save.accessibilityIdentifier="ReplaySave"
+        save.addAction(UIAction{[weak self]_ in self?.saveLastShot(fromReplay:true)},for:.touchUpInside)
+        for item in [replayPause,replayRate,save,close]{item.titleLabel?.font = .systemFont(ofSize:13,weight:.semibold);item.widthAnchor.constraint(equalToConstant:46).isActive=true}
+        replayAutoButton.titleLabel?.font = .systemFont(ofSize:13,weight:.semibold);replayAutoButton.widthAnchor.constraint(equalToConstant:86).isActive=true
+        for item in [replayPause,replayRate,replaySlider,replayAutoButton,save,close] as [UIView]{replayBar.addArrangedSubview(item)}
         replayBarRight=[replayBar.leadingAnchor.constraint(equalTo:coachButton.trailingAnchor,constant:8),replayBar.trailingAnchor.constraint(equalTo:quickScroll.leadingAnchor,constant:-8)]
         replayBarLeft=[replayBar.leadingAnchor.constraint(equalTo:quickScroll.trailingAnchor,constant:8),replayBar.trailingAnchor.constraint(equalTo:coachButton.leadingAnchor,constant:-8)]
         NSLayoutConstraint.activate(replayBarRight+[replayBar.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),replayBar.heightAnchor.constraint(equalToConstant:48)])
         replayPause.accessibilityIdentifier="ReplayPause";replaySlider.accessibilityIdentifier="ReplaySeek"
         replayPause.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.replayPaused.toggle();self.replayPause.setTitle(self.replayPaused ? "Tiếp":"Dừng",for:.normal)},for:.touchUpInside)
         replayRate.showsMenuAsPrimaryAction=true;replayRate.menu=UIMenu(children:[0.25,0.5,1.0].map{rate in UIAction(title:"\(rate)×"){[weak self]_ in self?.replaySpeed=rate;self?.replayRate.setTitle("\(rate)×",for:.normal)}})
-        replayAutoButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.replayAuto.toggle();self.cameraManual = !self.replayAuto;self.lastDirectorTime = -10;self.replayAutoButton.setTitle(self.replayAuto ? "Auto":"Tay",for:.normal)},for:.touchUpInside)
+        replayAutoButton.setTitle("Điện ảnh",for:.normal);replayAutoButton.showsMenuAsPrimaryAction=true
+        replayAutoButton.menu=UIMenu(title:"Góc máy xem lại",children:["Điện ảnh · tự chuyển, chậm khi va chạm","Người đánh 3D","Toàn bàn","Trên cao"].enumerated().map{item->UIMenuElement in
+            UIAction(title:item.element){[weak self]_ in self?.chooseReplayCamera(item.offset)}})
         close.addAction(UIAction{[weak self]_ in self?.stopReplay()},for:.touchUpInside)
         replaySlider.addAction(UIAction{[weak self]_ in
             guard let self=self,self.replayIndex != nil else{return};self.replayClock=Double(self.replaySlider.value);self.replayStrikePlayed=self.replayClock>=0
@@ -1456,6 +1501,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self.lastDirectorTime = -10;self.table.resetPocketPresentation();self.wakeRendering()
         },for:.valueChanged)
         replayBar.isHidden=true
+    }
+    /// 0.33 replay angles: 0 cinematic director (cuts + slow motion around collisions), 1 shooter 3D, 2 whole table, 3 top.
+    func chooseReplayCamera(_ k:Int){
+        replayCamera=k;replayAuto = k==0;cameraManual = k != 0;lastDirectorTime = -10
+        replayAutoButton.setTitle(["Điện ảnh","Người đánh","Toàn bàn","Trên cao"][k],for:.normal)
+        beginCameraTransition(0.45)
+        switch k {
+        case 1: table.cameraMode=2;table.zoom=1;table.focusBounds=nil
+        case 2: table.cameraMode=0;table.zoom=1;table.orbit=0;table.orbitPitch=0.85;table.focusBounds=nil
+        case 3: table.cameraMode=1;table.zoom=1;table.focusBounds=nil
+        default: break
+        }
+        wakeRendering()
     }
     func playReplayAudio(){
         while replayAudioIndex<lastShotEvents.count {
@@ -1786,8 +1844,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             UserDefaults.standard.set(!UserDefaults.standard.bool(forKey:"autoSaveEveryShot025"),forKey:"autoSaveEveryShot025")})
         return UIMenu(title:"Xem lại",children:items)
     }
-    func saveLastShot(){
-        guard matchAllowsEditing,!shotActive,replayIndex==nil,var shot=lastShot,!frames.isEmpty else{return}
+    func saveLastShot(fromReplay:Bool=false){
+        guard matchAllowsEditing,!shotActive,fromReplay || replayIndex==nil,var shot=lastShot,!frames.isEmpty else{return}
+        if fromReplay{replayPaused=true;replayPause.setTitle("Tiếp",for:.normal)}
         let alert=UIAlertController(title:"Lưu cú này",message:"Đặt tên để tìm lại trong Xem lại › Cú đã lưu.",preferredStyle:.alert)
         alert.addTextField{field in field.text=String(format:"Cú %@ · %.1f m/s",DateFormatter.localizedString(from:Date(),dateStyle:.none,timeStyle:.short),shot.speed)}
         alert.addAction(UIAlertAction(title:"Huỷ",style:.cancel))
@@ -1866,7 +1925,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func applyReplayCoach(){
         coachButton.setTitle("Coach",for:.normal);coachButton.setTitleColor(coaching ? .white:.rgb(0xEAC583),for:.normal);coachButton.accessibilityValue=coaching ? "Bật":"Tắt"
-        hideCoach();table.target(nil);table.setTrainingOverlaysHidden(!coaching);table.showsDiamondNumbers=coaching
+        hideCoach();table.target(nil);table.setTrainingOverlaysHidden(!coaching);table.showsDiamondNumbers=numbersOn
         table.prediction([],visible:false);table.trails(coaching ? paths:[:]);table.showRailContacts(coaching ? lastShotEvents.filter{$0["kind"]?.intValue==0}.compactMap{event in guard let x=event["x"]?.doubleValue,let y=event["y"]?.doubleValue else{return nil};return(x,y)}:[])
     }
     /// Xếp bi ngẫu nhiên theo seed (in ra để tái tạo): không chồng bi, cách miệng lỗ và băng.

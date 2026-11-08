@@ -130,6 +130,7 @@ final class InteractionTests: XCTestCase {
         }
         XCTAssertTrue(coach.isEnabled,"Coach enabled · \(scene.value ?? "")")
         tapCoach(app,scene,coach,expect:1)
+        XCTAssertTrue(app.buttons["GuideToggle"].waitForExistence(timeout:5 * slow) && app.buttons["GuideToggle"].isHittable,"Coach shows Chỉ dẫn")
         tapCoach(app,scene,coach,expect:0)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }
@@ -228,7 +229,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"moving"),0)
     }
 
-    /// 0.30: four cue icons above the effect ball; Jump 45°, Massé 70° (play cue raised), Break, back to Đánh.
+    /// 0.33: four cue icons around the effect ball; Jump 45°, Massé 70° (play cue raised), Break, back to Đánh.
     func testCueIconsSelectPlayJumpMasseBreak() {
         let (app,scene)=launch(["--ux017-qa"])
         for (id,kind) in [("CueIconJump",1.0),("CueIconMasse",3.0),("CueIconBreak",2.0),("CueIconPlay",0.0)] {
@@ -236,9 +237,15 @@ final class InteractionTests: XCTestCase {
             settle(scene,"kind",kind)
         }
         let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
-        for id in ["CueIconPlay","CueIconJump","CueIconMasse","CueIconBreak"] {
-            XCTAssertLessThan(app.buttons[id].frame.maxY,effect.frame.minY+1,"\(id) above the effect ball")
-        }
+        // 0.33: around the effect ball — Jump above, Đánh below, Massé left, Break right
+        let e=effect.frame
+        XCTAssertLessThanOrEqual(app.buttons["CueIconJump"].frame.maxY,e.minY+1,"Jump above")
+        XCTAssertGreaterThanOrEqual(app.buttons["CueIconPlay"].frame.minY,e.maxY-1,"Đánh below")
+        XCTAssertLessThanOrEqual(app.buttons["CueIconMasse"].frame.maxX,e.minX+1,"Massé left")
+        XCTAssertGreaterThanOrEqual(app.buttons["CueIconBreak"].frame.minX,e.maxX-1,"Break right")
+        // Coach shows "Chỉ dẫn" next to the always-present "Nút số"
+        XCTAssertTrue(app.buttons["NumbersToggle"].exists)
+        XCTAssertFalse(app.buttons["GuideToggle"].isHittable,"guide button only with Coach")
     }
 
     func testLiveShotKeepsAimViewAndManualZoomAfterBallsStop() {

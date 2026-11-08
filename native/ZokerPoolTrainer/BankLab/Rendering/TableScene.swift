@@ -139,6 +139,49 @@ final class TableScene {
     /// v .061-.939). 0.21: no more long painted streaks (they read as smears). New cloth: faint low-frequency mottling
     /// and cushion-side falloff only. Old cloth: whole cloth a little duller, burnished ball tracks from the break area
     /// to the six pockets and along the rails, burns on the head/foot spots, chalk dust at the pockets.
+    /// 0.33: close-up cloth fibres. A world-space fibre map (~11 mm tile, fibres ~0.3 mm) perturbs the normal and
+    /// albedo only when a pixel covers < ~0.9 mm of cloth, i.e. when the camera is near — from afar the cloth stays smooth
+    /// (no shimmering). Applied to the bed and the rail cloth.
+    static let fiberMap:UIImage={
+        let size=CGSize(width:512,height:512)
+        return UIGraphicsImageRenderer(size:size).image{ctx in
+            UIColor(white:0.5,alpha:1).setFill();ctx.fill(CGRect(origin:.zero,size:size))
+            var seed:UInt64=0x2545F4914F6CDD1D
+            func rnd()->CGFloat{seed^=seed<<13;seed^=seed>>7;seed^=seed<<17;return CGFloat(seed%10000)/10000}
+            ctx.cgContext.setLineCap(.round)
+            for _ in 0..<5200 {
+                let x=rnd()*size.width,y=rnd()*size.height,len=10+rnd()*36,a=(rnd()-0.5)*0.9   // mostly along the nap
+                let shade=rnd()<0.5 ? UIColor(white:0.30+rnd()*0.15,alpha:0.55):UIColor(white:0.62+rnd()*0.2,alpha:0.55)
+                ctx.cgContext.setStrokeColor(shade.cgColor);ctx.cgContext.setLineWidth(3+rnd()*5)
+                for dx in [-size.width,0,size.width]{for dy in [-size.height,0,size.height]{
+                    ctx.cgContext.move(to:CGPoint(x:x+dx,y:y+dy));ctx.cgContext.addLine(to:CGPoint(x:x+dx+sin(a)*len,y:y+dy+cos(a)*len));ctx.cgContext.strokePath()}}
+            }
+        }
+    }()
+    func applyFiberDetail(_ m:SCNMaterial){
+        let fibres=SCNMaterialProperty(contents:Self.fiberMap)
+        fibres.wrapS = .repeat;fibres.wrapT = .repeat;fibres.minificationFilter = .linear;fibres.magnificationFilter = .linear;fibres.mipFilter = .linear
+        m.setValue(fibres,forKey:"fiberMap");m.setValue(NSNumber(value:1.0),forKey:"fiberStrength")
+        m.shaderModifiers=[.surface:"""
+        #pragma arguments
+        float fiberStrength;
+        texture2d<float> fiberMap;
+        #pragma body
+        constexpr sampler fs(filter::linear, mip_filter::linear, address::repeat);
+        float3 wp = (scn_frame.inverseViewTransform * float4(_surface.position, 1.0)).xyz;
+        float2 uv = wp.xz * float2(90.0, 90.0);
+        float fw = length(fwidth(wp.xz));
+        float fiberW = fiberStrength * saturate(1.0 - fw / 0.0009);
+        if (fiberW > 0.001) {
+            float e = 1.5 / 512.0;
+            float h0 = fiberMap.sample(fs, uv).r;
+            float hx = fiberMap.sample(fs, uv + float2(e, 0.0)).r;
+            float hy = fiberMap.sample(fs, uv + float2(0.0, e)).r;
+            _surface.normal = normalize(_surface.normal + fiberW * 1.2 * ((h0 - hx) * _surface.tangent + (h0 - hy) * _surface.bitangent));
+            _surface.diffuse.rgb *= 1.0 + fiberW * 0.14 * (h0 - 0.5);
+        }
+        """]
+    }
     private func feltNap(old:Bool)->UIImage {
         texture(CGSize(width:1024,height:2048)){c in
             let ctx=c.cgContext,w:CGFloat=1024,h:CGFloat=2048
@@ -196,10 +239,12 @@ final class TableScene {
         for root in [targetRoot,tableRoot,cueShadow,ballRoot,guideRoot,trailRoot,cueRoot,numberRoot,camera]{scene.rootNode.addChildNode(root)}
         camera.camera=SCNCamera();camera.camera?.zNear=0.012;camera.camera?.zFar=24
         camera.camera?.fieldOfView=46;camera.camera?.wantsHDR=true
-        camera.camera?.wantsExposureAdaptation=false;camera.camera?.exposureOffset = -0.8
+        // 0.33 (owner: "quá sáng chói"): darker, filmic — lower exposure, gentle contrast, deeper vignette.
+        camera.camera?.wantsExposureAdaptation=false;camera.camera?.exposureOffset = -1.1
+        camera.camera?.contrast=0.10;camera.camera?.saturation=1.04
         camera.camera?.bloomIntensity=0;camera.camera?.bloomThreshold=1.8
-        camera.camera?.vignettingIntensity=0.18;camera.camera?.vignettingPower=0.8
-        scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=1.0
+        camera.camera?.vignettingIntensity=0.32;camera.camera?.vignettingPower=0.9
+        scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=0.72
         numberRoot.isHidden=true
         tableRails=rails;buildLights();frontFill(scene.rootNode);selectTable(look);buildRoom();buildCue();quality(false)
     }
@@ -240,7 +285,7 @@ final class TableScene {
     }
     private func buildLights(){
         let ambient=SCNNode();ambient.light=SCNLight();ambient.light?.type = .ambient
-        ambient.light?.color=UIColor(red:0.95,green:0.90,blue:0.82,alpha:1);ambient.light?.intensity=105
+        ambient.light?.color=UIColor(red:0.95,green:0.90,blue:0.82,alpha:1);ambient.light?.intensity=72
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
@@ -282,6 +327,7 @@ final class TableScene {
         let cloth=mat(clothColor,roughness:0.97)
         cloth.diffuse.contents=clothAlbedo(clothColor)
         cloth.normal.contents=normalImage;cloth.normal.intensity=0.5
+        applyFiberDetail(cloth)
         cloth.roughness.contents=materialMap("PC_FeltEmerald_roughness",fallback:{self.texture(CGSize(width:8,height:8)){c in UIColor(white:0.94,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:8,height:8))}});cloth.metalness.contents=0
         for channel in [cloth.diffuse,cloth.normal,cloth.roughness]{
             channel.wrapS = .repeat;channel.wrapT = .repeat
