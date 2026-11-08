@@ -141,7 +141,13 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
 enum Tuning {
     static func value(_ key:String,_ fallback:Double)->Double{UserDefaults.standard.object(forKey:key) as? Double ?? fallback}
     /// Active render cadence. 120 needs ProMotion (CADisableMinimumFrameDurationOnPhone is set); more heat.
-    static var frameRate:Int{UserDefaults.standard.integer(forKey:"tuneFPS036")==120 ? 120:60}
+    static var frameRate:Int{
+        #if targetEnvironment(simulator)
+        return 30   // CI Simulator: keep the runner responsive
+        #else
+        return UserDefaults.standard.integer(forKey:"tuneFPS036")==120 ? 120:60
+        #endif
+    }
     /// Fraction of the native pixel scale the 3D view renders at (1, 0.85, 0.7).
     static var renderScale:Double{value("tuneScale036",1)}
     /// Multiplier on the stroke speed (BLStrokeSpeed tops out at 8 m/s): 0.6 → 4.8 m/s, 1.3 → 10.4 m/s.

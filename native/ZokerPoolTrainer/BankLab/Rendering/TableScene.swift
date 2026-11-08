@@ -295,7 +295,11 @@ final class TableScene {
         camera.camera?.screenSpaceAmbientOcclusionBias=0.003
         let size:CGFloat=constrained ? 512:(highDetail && !warm ? 1536:1024)
         light.shadowMapSize=CGSize(width:size,height:size)
+        #if targetEnvironment(simulator)
+        light.shadowSampleCount=2   // CI Simulator GPU is very slow; 6–8 samples starved the runner (run 42514806011)
+        #else
         light.shadowSampleCount=constrained ? 1:(highDetail ? 8:6)
+        #endif
         light.castsShadow = !constrained
     }
     private func mat(_ color:UIColor,roughness:CGFloat=0.6,metal:CGFloat=0)->SCNMaterial {
