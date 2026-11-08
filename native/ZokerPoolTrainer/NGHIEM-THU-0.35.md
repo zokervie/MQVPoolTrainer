@@ -1,6 +1,6 @@
 # Nghiệm thu Z-Trainer 0.35 — theo "EXPOSE IQ200" (10 điểm) + hệ bài tập mới
 
-Nhánh `ci/native-0.35` · build (điền sau CI) · App hiện phiên bản **0.35**.
+Nhánh `ci/native-0.35` · build 122 (run 98) · CI xanh: Linux g++/clang++, Mac Simulator, 17/17 UI test, ảnh CI, IPA. App hiện phiên bản **0.35**.
 Cột **CI** = đã kiểm tra tự động. Cột **Máy thật** = anh tick khi thử; ghi chú ngắn nếu chưa đạt.
 
 ## 10 điểm IQ200
@@ -46,4 +46,6 @@ Cột **CI** = đã kiểm tra tự động. Cột **Máy thật** = anh tick kh
 
 - Video hướng dẫn kèm từng bài. Bản quyền thuộc tác giả YouTube nên app chỉ được mở link, không nhúng video.
 - Mô hình 3D dựng lại hoàn toàn phần mặt băng/bo góc theo từng thương hiệu. Hiện mới khác ở thân, chân và váy bàn, vì phần mặt băng dùng chung một lưới chuẩn WPA.
+- **Ảnh CI build 122:** nỉ xám Z-Max vẫn còn sáng hơn ảnh mẫu. Nguyên nhân: màu nỉ chỉ đổi sắc, độ sáng vẫn lấy từ ảnh vân gốc. Đang sửa ở 0.35b (độ sáng nỉ theo đúng màu đã chọn).
+- Mỗi bài có nút mở video / hướng dẫn công khai của tác giả. Thêm bài **Trick · Reverse bank zigzag** theo clip. Nẹp inox cạnh ngoài hết sọc (tách khỏi mặt tủ, bỏ vân gây răng cưa). Tủ bàn theo chất liệu từng hãng (bóng / mờ / kim loại chải / tông gỗ riêng).
 - **Chưa xác minh trên thiết bị:** độ mượt, nhiệt độ máy, độ chói và vân nỉ (cần anh xem trên máy).
