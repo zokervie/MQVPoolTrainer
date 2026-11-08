@@ -14,3 +14,8 @@ Nguồn gốc: repo private `ZokerPoolTrainer-0.11-Native-Jump-Masse…` tại `
 
 ## CI
 `.github/workflows/native-ci.yml`: cổng Linux (g++/clang++, check_suite_lists, Run-All-Checks) → `Tools/run_acceptance.py` trên macOS (Simulator, ảnh + đầu dò G1, XCTest cử chỉ, IPA) → Release `native-*` + nhánh `dist-zoker-native`; ảnh ở `shots/native`. Thêm bộ test C++ mới: đăng ký ở cả `CMakeLists.txt` (ZOKER_TEST_SUITES) và `Run-All-Checks.command`. Đọc thêm `AGENTS.md` (hợp đồng của nhánh council).
+
+## Chờ anh quyết trước build 0.37 (nhắc anh sau khi anh nghiệm thu 0.36, KHÔNG tự build)
+- Tuỳ chỉnh: độ đậm bóng bi; độ rõ vân nỉ; góc ngắm mặc định (cao/gần/FOV); kích thước + độ trong phím.
+- Phát kiến: dự đoán rồi mới hiện đường đúng (báo lệch °); mẫu ánh sáng (Câu lạc bộ / TV / Dịu mắt); nút số tự hiện khi đường ngắm chạm băng.
+- Khác: đường chỉ dẫn mờ dần theo trình độ; chấm độ đều tay (độ chụm điểm dừng); phím tự mờ khi ngắm; lưu nhiều bố cục; bộ thông số theo loại bàn; màu/độ dày đường ngắm.
