@@ -332,6 +332,10 @@ final class TableScene {
         }
         let edge=premiumMaterial("ChampagneGold")
         edge.multiply.contents=UIColor.rgb(look.trim)
+        // 0.35 (owner: dirty stripes on the outer steel trim while the camera moves): the brushed normal map on a thin,
+        // fully metallic strip aliased into crawling stripes. Smooth satin steel, mip-mapped and anisotropic.
+        edge.normal.intensity=0;edge.roughness.contents=0.32
+        for channel in [edge.diffuse,edge.roughness,edge.metalness,edge.multiply]{channel.mipFilter = .linear;channel.minificationFilter = .linear;channel.maxAnisotropy=16}
         let clothColor=clothTintIndex.map{Self.clothColors[$0].1} ?? .rgb(look.cloth)
         let cloth=mat(clothColor,roughness:0.97)
         cloth.diffuse.contents=clothAlbedo(clothColor)
@@ -360,8 +364,8 @@ final class TableScene {
             // previously appeared as wooden bars inside the pocket apertures.
             for z:Float in [-0.655,0.655]{_=box(0.10,0.21,1.01,SCNVector3(side*0.755,-0.16,z),graphite,chamfer:0.016)}
             _=box(1.03,0.21,0.10,SCNVector3(0,-0.16,side*1.3645),graphite,chamfer:0.016)
-            _=box(0.009,0.009,2.65,SCNVector3(side*0.803,-0.06,0),edge,chamfer:0.002)
-            _=box(1.43,0.009,0.009,SCNVector3(0,-0.06,side*1.443),edge,chamfer:0.002)
+            _=box(0.012,0.012,2.66,SCNVector3(side*0.8095,-0.062,0),edge,chamfer:0.004)
+            _=box(1.44,0.012,0.012,SCNVector3(0,-0.062,side*1.4465),edge,chamfer:0.004)
         }
         buildCushions(rails,material:cloth)
         for x:Float in [-0.67,0.67]{for z:Float in [-1.305,0,1.305]{
@@ -377,10 +381,10 @@ final class TableScene {
         let joint=mat(UIColor(white:0.025,alpha:1),roughness:0.7)
         for side:Float in [-1,1]{
             for z:Float in [-0.84,0.84]{
-                _=box(0.0015,0.17,0.002,SCNVector3(side*0.8053,-0.16,z),joint,chamfer:0)
+                _=box(0.0015,0.17,0.002,SCNVector3(side*0.8068,-0.16,z),joint,chamfer:0)
             }
-            _=box(0.002,0.003,2.48,SCNVector3(side*0.8055,-0.235,0),edge,chamfer:0.0005)
-            _=box(1.28,0.003,0.002,SCNVector3(0,-0.235,side*1.415),edge,chamfer:0.0005)
+            _=box(0.004,0.005,2.48,SCNVector3(side*0.8075,-0.235,0),edge,chamfer:0.0015)
+            _=box(1.28,0.005,0.004,SCNVector3(0,-0.235,side*1.4170),edge,chamfer:0.0015)
         }
         buildBase(shell:graphite,trim:edge)
         if ProcessInfo.processInfo.arguments.contains("--visual-qa") {
