@@ -30,7 +30,8 @@ trap capture_runtime EXIT
 for probe in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview default hud hud-expanded return spectator audio; do
  rm -f "$data_path/Documents/g1-qa/$probe.json"
 done
-for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation space-0 space-2 space-3 space-5 table-zmax; do
+launch_camera(){
+ local camera="$1"
  xcrun simctl terminate "$device_id" com.maiquocviet.BankLabS 2>/dev/null || true
  if [[ "$camera" = premium-* ]]; then
   mode="${camera##*-}"
@@ -70,6 +71,9 @@ for camera in premium-aim premium-top premium-overview premium-high-aim premium-
  else
   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa "--camera-$camera"
  fi
+}
+for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation space-0 space-2 space-3 space-5 table-zmax; do
+ launch_camera "$camera"
  # Cold-start shader compilation can outlast the first eight seconds.
  # Retry only first-scene readiness; retain the same final visibility gate.
  for attempt in $(seq 1 16); do   # 0.32: up to ~128 s — slow Intel runners missed premium-aim at 64 s
@@ -79,6 +83,11 @@ for camera in premium-aim premium-top premium-overview premium-high-aim premium-
   # Đầu dò G1: chờ tới khi controller thật ghi bản ghi PASS (máy Mac Intel biên dịch shader lâu hơn 8 giây,
   # đầu dò "return" còn phải đánh và chờ bi dừng). Cổng kiểm tra bản ghi phía dưới giữ nguyên.
   # Chưa có bản ghi → thử lại; có rồi thì vẫn phải qua kiểm tra "bàn đã hiện" như các ảnh khác.
+  # 0.36b: run 42525378366 — the app was gone (home screen) for premium-high-aim, so the probe never wrote. If the
+  # app is no longer running, relaunch it (once per 4 attempts) instead of waiting the full 128 s on a dead process.
+  if [ $((attempt % 4)) -eq 0 ] && ! xcrun simctl spawn "$device_id" launchctl list 2>/dev/null | grep -q com.maiquocviet.BankLabS; then
+   echo "$camera: app not running at attempt $attempt — relaunch"; launch_camera "$camera"; continue
+  fi
   if [[ "$camera" = premium-* ]] && [ ! -f "$data_path/Documents/g1-qa/$camera.json" ]; then continue; fi
   if [[ "$camera" = g1-* ]] && [ ! -f "$data_path/Documents/g1-qa/${camera#g1-}.json" ]; then continue; fi
   if [[ "$camera" = g1-* ]]; then
