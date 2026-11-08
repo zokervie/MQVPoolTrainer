@@ -293,7 +293,7 @@ final class TableScene {
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
-        light.intensity=70;light.temperature=4300;light.spotInnerAngle=42;light.spotOuterAngle=112
+        light.intensity=52;light.temperature=5000   // 0.35b: cooler LED like the reference club, less glare;light.spotInnerAngle=42;light.spotOuterAngle=112
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.4
         light.shadowColor=UIColor(white:0,alpha:0.55);light.shadowBias=0.001
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
@@ -314,7 +314,19 @@ final class TableScene {
         texture(CGSize(width:2048,height:2048)){c in
             let rect=CGRect(x:0,y:0,width:2048,height:2048)
             clothImage.draw(in:rect);color.setFill();c.cgContext.setBlendMode(.color);c.fill(rect)
+            // 0.35b: .color keeps the kit texture's LUMINANCE, so a silver-grey cloth came out near white. Scale the
+            // brightness to the chosen colour's luminance (the weave contrast stays).
+            var r:CGFloat=0,g:CGFloat=0,b:CGFloat=0,a:CGFloat=0;color.getRed(&r,green:&g,blue:&b,alpha:&a)
+            let target=0.2126*r+0.7152*g+0.0722*b,k=max(0.2,min(1,target/max(0.05,Self.luminance(clothImage))))*0.85
+            UIColor(white:k,alpha:1).setFill();c.cgContext.setBlendMode(.multiply);c.fill(rect)
         }
+    }
+    /// Average sRGB luminance of an image (1×1 resample).
+    static func luminance(_ image:UIImage)->CGFloat{
+        var px=[UInt8](repeating:0,count:4)
+        guard let cg=image.cgImage,let ctx=CGContext(data:&px,width:1,height:1,bitsPerComponent:8,bytesPerRow:4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue) else{return 0.5}
+        ctx.interpolationQuality = .medium;ctx.draw(cg,in:CGRect(x:0,y:0,width:1,height:1))
+        return (0.2126*CGFloat(px[0])+0.7152*CGFloat(px[1])+0.0722*CGFloat(px[2]))/255
     }
     private func buildTable(_ rails:[[String:NSNumber]]){
         // 0.35 (owner: rail geometry may be shared, but colour and MATERIAL follow each brand): finish per model family.
