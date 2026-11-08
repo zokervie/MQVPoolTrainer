@@ -338,12 +338,16 @@ final class TableScene {
     private func clothAlbedo(_ color:UIColor)->UIImage {
         texture(CGSize(width:2048,height:2048)){c in
             let rect=CGRect(x:0,y:0,width:2048,height:2048)
-            clothImage.draw(in:rect);color.setFill();c.cgContext.setBlendMode(.color);c.fill(rect)
-            // 0.35b: .color keeps the kit texture's LUMINANCE, so a silver-grey cloth came out near white. Scale the
-            // brightness to the chosen colour's luminance (the weave contrast stays).
+            // 0.36b ROOT CAUSE of "cloth near white / colour ignored" since 0.35b: UIGraphicsImageRendererContext.fill(_:)
+            // draws with .copy (UIRectFill), ignoring setBlendMode — the whole texture became one flat grey, no hue, no
+            // weave. Blend modes must be passed to fill(_:blendMode:). Albedo luminance = 0.80 × the chosen colour's.
+            clothImage.draw(in:rect)
             var r:CGFloat=0,g:CGFloat=0,b:CGFloat=0,a:CGFloat=0;color.getRed(&r,green:&g,blue:&b,alpha:&a)
-            let target=0.2126*r+0.7152*g+0.0722*b,k=max(0.15,min(1,max(0.2,min(1,target/max(0.05,Self.luminance(clothImage))))*0.50*Self.tune(Self.tuneCloth)))   // 0.36: darker, like the reference grey cloth
-            UIColor(white:k,alpha:1).setFill();c.cgContext.setBlendMode(.multiply);c.fill(rect)
+            let base=max(0.05,Self.luminance(clothImage))
+            let desired=max(0.04,min(0.9,(0.2126*r+0.7152*g+0.0722*b)*0.80*Self.tune(Self.tuneCloth)))
+            if desired>base {UIColor(white:1,alpha:(desired-base)/(1-base)).setFill();c.fill(rect,blendMode:.normal)}
+            color.setFill();c.fill(rect,blendMode:.color)
+            if desired<base {UIColor(white:desired/base,alpha:1).setFill();c.fill(rect,blendMode:.multiply)}
         }
     }
     /// Average sRGB luminance of an image (1×1 resample).
