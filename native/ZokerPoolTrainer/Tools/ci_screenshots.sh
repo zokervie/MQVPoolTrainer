@@ -30,7 +30,7 @@ trap capture_runtime EXIT
 for probe in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview default hud hud-expanded return spectator audio; do
  rm -f "$data_path/Documents/g1-qa/$probe.json"
 done
-for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation; do
+for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation space-0 space-2 space-3 space-5 table-zmax; do
  xcrun simctl terminate "$device_id" com.maiquocviet.BankLabS 2>/dev/null || true
  if [[ "$camera" = premium-* ]]; then
   mode="${camera##*-}"
@@ -97,6 +97,9 @@ name=os.environ["CAMERA"]
 with Image.open(f"build/screenshots/{name}.png") as image:
  pixels=list(image.convert("RGB").resize((256,256)).getdata())
  count=sum(1 for r,g,b in pixels if g>35 and g>r*1.25 and b>25)
+ if name.startswith("space-") or name=="table-zmax":
+  # 0.34: grey Z-Max cloth / varied rooms — require a rendered scene (not a black or blank frame)
+  count=sum(1 for r,g,b in pixels if 40<(r+g+b)/3<235)
  print(f"{name} readiness: {count} cloth-color pixels")
  raise SystemExit(0 if count>=(250 if name=="library" else 1500) else 1)
 READY
@@ -130,6 +133,7 @@ for path in sorted(Path("build/screenshots").glob("*.png")):
  with Image.open(path) as image:
   pixels=list(image.convert("RGB").resize((256,256)).getdata())
   cloth=sum(1 for r,g,b in pixels if g>35 and g>r*1.25 and b>25)
+  if path.stem.startswith("space-") or path.stem=="table-zmax":cloth=sum(1 for r,g,b in pixels if 40<(r+g+b)/3<235)
   print(f"{path.name}: table-color pixels={cloth}")
   # Full-screen drill catalog intentionally covers the 3D table; verify
   # table visibility only on scenes that are supposed to show the playing surface.

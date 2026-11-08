@@ -235,7 +235,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 tryShoot(120)
             }
             if args.contains("--premium-qa") {
-                table.setClothColor(nil);table.selectTable(TableLook.all[6]);table.camera.camera?.exposureOffset = -0.8
+                table.setClothColor(nil);table.selectTable(TableLook.all.first{$0.id=="allenton"}!);table.camera.camera?.exposureOffset = -0.8
                 if args.contains("--premium-high"){table.quality(true);scn.antialiasingMode = .multisampling4X}
             }
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}
@@ -292,8 +292,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if args.contains("--camera-top"){table.cameraMode=1;cameraButton.configuration?.title="Trên cao"}
             if args.contains("--camera-aim"){table.cameraMode=2;cameraButton.configuration?.title="Ngắm cơ"}
             if args.contains("--camera-orbit-qa"){table.cameraMode=0;table.orbit=0.62;table.zoom=1.35}
-            if args.contains("--table-arc"){table.selectTable(TableLook.all[1]);table.cameraMode=0}
-            if args.contains("--table-classic"){table.selectTable(TableLook.all[6]);table.cameraMode=0}
+            if args.contains("--table-arc"){table.selectTable(TableLook.all.first{$0.id=="arc"}!);table.cameraMode=0}
+            // 0.34: screenshot gates measure GREEN cloth pixels; keep the legacy green table + classic club for every QA
+            // shot except the explicit Z-Max / space shots (those use a brightness gate in ci_screenshots.sh).
+            let spaceShot=(0..<TableScene.spaces.count).first{args.contains("--camera-space-\($0)")}
+            if args.contains("--visual-qa") && !args.contains("--table-zmax") && spaceShot==nil {table.selectTable(TableLook.all.first{$0.id=="allenton"}!);table.selectSpace(6)}
+            if let k=spaceShot{table.selectSpace(k);table.cameraMode=0}
+            if args.contains("--table-zmax"){table.selectTable(TableLook.all[0]);table.selectSpace(0);table.cameraMode=0}
+            if args.contains("--table-classic"){table.selectTable(TableLook.all.first{$0.id=="allenton"}!);table.cameraMode=0}
             if args.contains("--jump-qa"){chooseRole(1)}
             if args.contains("--cue-library-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+1){[weak self]in self?.openLibrary(initialTab:1)}}
             if args.contains("--calibration-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+1){[weak self]in self?.settings()}}
@@ -622,7 +628,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             ("Nỉ: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setClothWear(old:!self.table.oldCloth);self.wakeRendering();self.notifyStatus(self.table.oldCloth ? "Nỉ cũ: vệt lăn, vết chấm, bụi phấn":"Nỉ mới")}),
             ("Bi: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setBallWear(old:!self.table.oldBalls);self.wakeRendering();self.notifyStatus(self.table.oldBalls ? "Bi cũ: mờ bóng":"Bi mới: bóng gương")}),
             ("Màu nỉ",{[weak self] in self?.chooseClothColor()}),
-            ("Thư viện 20 bàn · 12 cơ",{[weak self] in self?.openLibrary()}),
+            ("Thư viện 21 bàn · 12 cơ",{[weak self] in self?.openLibrary()}),
+            ("Không gian bàn (7 cảnh)",{[weak self] in self?.chooseSpace()}),
             ("Tay trái / tay phải (đổi bên phím)",{[weak self] in guard let self=self else{return};self.setLeftHanded(!self.leftHanded)}),
             ("Bao cơ / Gậy",{[weak self] in self?.equipment()}),
             ("Bàn & không gian · hình ảnh",{[weak self] in self?.graphics()}),
@@ -772,6 +779,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let kind=Int(BLCueIconKind(Int32(k)))
         if kind != shotKind {chooseShotKind(kind)} else if kind==3 || kind==1 {setElevation(BLCueIconElevation(Int32(k)))}
         syncQuickRail()
+    }
+    /// 0.34: Club (like the owner's photo) · Trong nhà · Ngoài trời · Cung điện · Hoàng gia · Thi đấu quốc tế · Club cổ điển
+    func chooseSpace(){
+        let sheet=UIAlertController(title:"Không gian bàn",message:nil,preferredStyle:.actionSheet)
+        for (k,name) in TableScene.spaces.enumerated(){
+            sheet.addAction(UIAlertAction(title:(k==table.space ? "✓ ":"")+name,style:.default){[weak self]_ in
+                self?.table.selectSpace(k);self?.wakeRendering();self?.notifyStatus("Không gian: "+name)})
+        }
+        sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));presentSheet(sheet,source:menuButton)
     }
     func syncOverlayButtons(){
         let hidden=locked || menuOpen || replayIndex != nil || matchIsCompetitive || isPlacingBalls

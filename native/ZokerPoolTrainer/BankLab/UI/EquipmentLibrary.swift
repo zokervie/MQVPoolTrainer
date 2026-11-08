@@ -7,29 +7,36 @@ struct TableLook {
     let wood:Bool
     let source:String
     var title:String {brand+" · "+name}
+    // 0.34: brands renamed Z-… (owner rule: no real trademarks until licensed); "Z-Max Pro" = the owner's reference
+    // club table (black cabinet, silver-grey cloth, brushed aluminium caps, white side logo) and the new default.
     static let all:[TableLook] = [
-        .init(id:"apex",brand:"Predator",name:"APEX Pro",base:0,cabinet:0x20252b,cloth:0x237f92,trim:0xb8bec3,wood:false,source:"https://predatorcues.com/pages/billiard-tables"),
-        .init(id:"arc",brand:"Predator",name:"ARC",base:4,cabinet:0xe2ddd2,cloth:0x377a8e,trim:0x41494d,wood:false,source:"https://predatorcues.com/pages/predator-arc-pool-table"),
-        .init(id:"gc7",brand:"Brunswick",name:"Gold Crown VII",base:1,cabinet:0x67513e,cloth:0x267e84,trim:0xc3c4c1,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"gc6",brand:"Brunswick",name:"Gold Crown VI",base:1,cabinet:0x71462c,cloth:0x287d67,trim:0xb4b8ba,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"blackwolf",brand:"Brunswick",name:"Black Wolf",base:0,cabinet:0x28282a,cloth:0x2e728d,trim:0x55595c,wood:false,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"blackwolfpro",brand:"Brunswick",name:"Black Wolf Pro",base:0,cabinet:0x181e24,cloth:0x277f91,trim:0x9dabb0,wood:false,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"allenton",brand:"Brunswick",name:"Allenton",base:2,cabinet:0x482615,cloth:0x12695D,trim:0xEAC583,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"glenwood",brand:"Brunswick",name:"Glenwood",base:5,cabinet:0x7b5032,cloth:0x80504b,trim:0xa88d60,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"oakland",brand:"Brunswick",name:"Oakland II",base:2,cabinet:0x503728,cloth:0x366c5a,trim:0x998b70,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"sanibel",brand:"Brunswick",name:"Sanibel",base:3,cabinet:0x9b8a71,cloth:0x67858b,trim:0x494744,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"canton",brand:"Brunswick",name:"Canton",base:3,cabinet:0x6e4933,cloth:0x3e6b75,trim:0x343231,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"botanic",brand:"Brunswick",name:"Botanic",base:5,cabinet:0x776951,cloth:0x526d57,trim:0x494940,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
-        .init(id:"proam",brand:"Diamond",name:"Pro-Am",base:0,cabinet:0x493127,cloth:0x267ca1,trim:0x8a6f49,wood:true,source:"https://diamondbilliards.com/pages/pro-am"),
-        .init(id:"professional",brand:"Diamond",name:"Professional",base:2,cabinet:0x604332,cloth:0x29864c,trim:0xa08c6c,wood:true,source:"https://diamondbilliards.com/"),
-        .init(id:"smart",brand:"Diamond",name:"Smart",base:0,cabinet:0x24282d,cloth:0x297e9c,trim:0x72777a,wood:false,source:"https://diamondbilliards.com/pages/smart"),
-        .init(id:"ox",brand:"Rasson",name:"OX",base:3,cabinet:0x25282e,cloth:0x287b94,trim:0x8b949a,wood:false,source:"https://www.rasson.cn/pool-tables"),
-        .init(id:"victory",brand:"Rasson",name:"Victory II Plus",base:4,cabinet:0xd4d7d5,cloth:0x33828e,trim:0x60686d,wood:false,source:"https://www.rasson.cn/pool-tables"),
-        .init(id:"acurra",brand:"Rasson",name:"Acurra",base:3,cabinet:0x33383d,cloth:0x377f99,trim:0xbdc2c6,wood:false,source:"https://www.rasson.cn/acurra-mr-sung"),
-        .init(id:"tournament",brand:"Olhausen",name:"Tournament Pro",base:4,cabinet:0x38332f,cloth:0x2d7d96,trim:0x94918a,wood:false,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament"),
-        .init(id:"champion",brand:"Olhausen",name:"Grand Champion III",base:1,cabinet:0x775136,cloth:0x31795b,trim:0xaaa49c,wood:true,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament")
+        .init(id:"zmax",brand:"Z-Max",name:"Pro 9 ft",base:0,cabinet:0x0e0f11,cloth:0x8f969b,trim:0xc4c9cd,wood:false,source:"owner reference photo 08/11/2026"),
+        .init(id:"apex",brand:"Z-Pr",name:"APEX Pro",base:0,cabinet:0x20252b,cloth:0x237f92,trim:0xb8bec3,wood:false,source:"https://predatorcues.com/pages/billiard-tables"),
+        .init(id:"arc",brand:"Z-Pr",name:"ARC",base:4,cabinet:0xe2ddd2,cloth:0x377a8e,trim:0x41494d,wood:false,source:"https://predatorcues.com/pages/predator-arc-pool-table"),
+        .init(id:"gc7",brand:"Z-Br",name:"Crown VII",base:1,cabinet:0x67513e,cloth:0x267e84,trim:0xc3c4c1,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"gc6",brand:"Z-Br",name:"Crown VI",base:1,cabinet:0x71462c,cloth:0x287d67,trim:0xb4b8ba,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"blackwolf",brand:"Z-Br",name:"Black Wolf",base:0,cabinet:0x28282a,cloth:0x2e728d,trim:0x55595c,wood:false,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"blackwolfpro",brand:"Z-Br",name:"Black Wolf Pro",base:0,cabinet:0x181e24,cloth:0x277f91,trim:0x9dabb0,wood:false,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"allenton",brand:"Z-Br",name:"Allenton",base:2,cabinet:0x482615,cloth:0x12695D,trim:0xEAC583,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"glenwood",brand:"Z-Br",name:"Glenwood",base:5,cabinet:0x7b5032,cloth:0x80504b,trim:0xa88d60,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"oakland",brand:"Z-Br",name:"Oakland II",base:2,cabinet:0x503728,cloth:0x366c5a,trim:0x998b70,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"sanibel",brand:"Z-Br",name:"Sanibel",base:3,cabinet:0x9b8a71,cloth:0x67858b,trim:0x494744,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"canton",brand:"Z-Br",name:"Canton",base:3,cabinet:0x6e4933,cloth:0x3e6b75,trim:0x343231,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"botanic",brand:"Z-Br",name:"Botanic",base:5,cabinet:0x776951,cloth:0x526d57,trim:0x494940,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
+        .init(id:"proam",brand:"Z-Di",name:"Pro-Am",base:0,cabinet:0x493127,cloth:0x267ca1,trim:0x8a6f49,wood:true,source:"https://diamondbilliards.com/pages/pro-am"),
+        .init(id:"professional",brand:"Z-Di",name:"Professional",base:2,cabinet:0x604332,cloth:0x29864c,trim:0xa08c6c,wood:true,source:"https://diamondbilliards.com/"),
+        .init(id:"smart",brand:"Z-Di",name:"Smart",base:0,cabinet:0x24282d,cloth:0x297e9c,trim:0x72777a,wood:false,source:"https://diamondbilliards.com/pages/smart"),
+        .init(id:"ox",brand:"Z-Ra",name:"OX",base:3,cabinet:0x25282e,cloth:0x287b94,trim:0x8b949a,wood:false,source:"https://www.rasson.cn/pool-tables"),
+        .init(id:"victory",brand:"Z-Ra",name:"Victory II Plus",base:4,cabinet:0xd4d7d5,cloth:0x33828e,trim:0x60686d,wood:false,source:"https://www.rasson.cn/pool-tables"),
+        .init(id:"acurra",brand:"Z-Ra",name:"Acurra",base:3,cabinet:0x33383d,cloth:0x377f99,trim:0xbdc2c6,wood:false,source:"https://www.rasson.cn/acurra-mr-sung"),
+        .init(id:"tournament",brand:"Z-Ol",name:"Tournament Pro",base:4,cabinet:0x38332f,cloth:0x2d7d96,trim:0x94918a,wood:false,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament"),
+        .init(id:"champion",brand:"Z-Ol",name:"Grand Champion III",base:1,cabinet:0x775136,cloth:0x31795b,trim:0xaaa49c,wood:true,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament")
     ]
-    static var selected:TableLook { all.first{$0.id==UserDefaults.standard.string(forKey:"tableLook015")} ?? all[6] }
+    static var selected:TableLook {
+        // 0.34: make the owner's reference table the default once, then respect later choices
+        if !UserDefaults.standard.bool(forKey:"tableDefault034"){UserDefaults.standard.set(true,forKey:"tableDefault034");UserDefaults.standard.set("zmax",forKey:"tableLook015")}
+        return all.first{$0.id==UserDefaults.standard.string(forKey:"tableLook015")} ?? all[0]
+    }
 }
 struct CueLook {
     let id:String,brand:String,name:String,role:Int
@@ -38,15 +45,15 @@ struct CueLook {
     var title:String {brand+" · "+name}
     static let roles=["Đánh","Jump","Phá"]
     static let all:[CueLook] = [
-        .init(id:"p3",brand:"Predator",name:"P3 Black",role:0,color:0x25272b,accent:0xc6bca0,carbon:true),
-        .init(id:"air",brand:"Predator",name:"Air Rush",role:1,color:0x155c65,accent:0xc5c8c9,carbon:true),
-        .init(id:"bk",brand:"Predator",name:"BK Rush",role:2,color:0x23262a,accent:0xc7ad43,carbon:true),
-        .init(id:"svb",brand:"Cuetec",name:"Cynergy SVB",role:0,color:0x66605c,accent:0xe0d7bb,carbon:true),
-        .init(id:"propel",brand:"Cuetec",name:"Propel",role:1,color:0x6c2529,accent:0xb7bbbd,carbon:true),
-        .init(id:"breach",brand:"Cuetec",name:"Breach",role:2,color:0x543826,accent:0xa7976b,carbon:true),
-        .init(id:"ec9",brand:"Mezz",name:"EC9",role:0,color:0x563b28,accent:0xd5d1bf,carbon:false),
-        .init(id:"ad3",brand:"Mezz",name:"Airdrive 3",role:1,color:0x242b2c,accent:0xbcc8c3,carbon:true),
-        .init(id:"pbg",brand:"Mezz",name:"Power Break G",role:2,color:0x252c29,accent:0x9ca68c,carbon:true),
+        .init(id:"p3",brand:"Z-Pr",name:"P3 Black",role:0,color:0x25272b,accent:0xc6bca0,carbon:true),
+        .init(id:"air",brand:"Z-Pr",name:"Air Rush",role:1,color:0x155c65,accent:0xc5c8c9,carbon:true),
+        .init(id:"bk",brand:"Z-Pr",name:"BK Rush",role:2,color:0x23262a,accent:0xc7ad43,carbon:true),
+        .init(id:"svb",brand:"Z-Cu",name:"Cynergy SVB",role:0,color:0x66605c,accent:0xe0d7bb,carbon:true),
+        .init(id:"propel",brand:"Z-Cu",name:"Propel",role:1,color:0x6c2529,accent:0xb7bbbd,carbon:true),
+        .init(id:"breach",brand:"Z-Cu",name:"Breach",role:2,color:0x543826,accent:0xa7976b,carbon:true),
+        .init(id:"ec9",brand:"Z-Me",name:"EC9",role:0,color:0x563b28,accent:0xd5d1bf,carbon:false),
+        .init(id:"ad3",brand:"Z-Me",name:"Airdrive 3",role:1,color:0x242b2c,accent:0xbcc8c3,carbon:true),
+        .init(id:"pbg",brand:"Z-Me",name:"Power Break G",role:2,color:0x252c29,accent:0x9ca68c,carbon:true),
         .init(id:"zplay",brand:"Zoker",name:"Maple",role:0,color:0x5d3224,accent:0xd7b676,carbon:false),
         .init(id:"zjump",brand:"Zoker",name:"Jump",role:1,color:0x18515a,accent:0xb5b9bc,carbon:false),
         .init(id:"zbreak",brand:"Zoker",name:"Break",role:2,color:0x322b26,accent:0xb29b70,carbon:false)

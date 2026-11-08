@@ -61,6 +61,8 @@ final class TableScene {
     private var clothTintIndex:Int?
     private var cueLookID=""
     private var cueShadowKey:[Float]=[]
+    private let roomRoot=SCNNode()
+    private(set) var space=UserDefaults.standard.object(forKey:"tableSpace034") as? Int ?? 0
     private let ballRoot=SCNNode(),guideRoot=SCNNode(),trailRoot=SCNNode(),cueRoot=SCNNode(),numberRoot=SCNNode()
     private var nodes:[Int:SCNNode]=[:],contactShadows:[Int:SCNNode]=[:]
     private var restOrientations:[Int:simd_quatf]=[:]
@@ -246,7 +248,7 @@ final class TableScene {
         camera.camera?.vignettingIntensity=0.32;camera.camera?.vignettingPower=0.9
         scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=0.72
         numberRoot.isHidden=true
-        tableRails=rails;buildLights();frontFill(scene.rootNode);selectTable(look);buildRoom();buildCue();quality(false)
+        tableRails=rails;buildLights();frontFill(scene.rootNode);selectTable(look);scene.rootNode.addChildNode(roomRoot);selectSpace(space);buildCue();quality(false)
     }
     func quality(_ high:Bool) {
         highDetail=high
@@ -363,6 +365,7 @@ final class TableScene {
             for site in layout.sites{diamond(SCNVector3(site.x_mm/1000,0.05615,site.z_mm/1000),shortRail:abs(site.z_mm)>1300)}
         }else{preconditionFailure("Missing Premium Classic diamond layout")}
         brandPlate(SCNVector3(0,-0.15,1.421))
+        for side:Float in [-1,1]{apronLogo(side)}
         // Cabinet panel joints and inset foot hardware: visual only, outside the bed.
         let joint=mat(UIColor(white:0.025,alpha:1),roughness:0.7)
         for side:Float in [-1,1]{
@@ -599,6 +602,143 @@ final class TableScene {
         let node=SCNNode(geometry:geometry);node.name="table-"+name;node.castsShadow=true
         scene.rootNode.addChildNode(node)
     }
+    // ---- 0.34 không gian bàn ----------------------------------------------------------------------------------------
+    static let spaces=["Club (mặc định)","Trong nhà","Ngoài trời","Cung điện","Hoàng gia","Thi đấu quốc tế","Club cổ điển"]
+    /// Rebuilds the surroundings only (table, balls and table lights stay). Every room node lives under roomRoot.
+    func selectSpace(_ k:Int){
+        space=max(0,min(Self.spaces.count-1,k));UserDefaults.standard.set(space,forKey:"tableSpace034")
+        roomRoot.childNodes.forEach{$0.removeFromParentNode()}
+        let before=Set(scene.rootNode.childNodes.map{ObjectIdentifier($0)})
+        switch space {
+        case 1: buildHome()
+        case 2: buildOutdoor()
+        case 3: buildPalace()
+        case 4: buildRoyal()
+        case 5: buildArena()
+        case 6: buildRoom()
+        default: buildClub()
+        }
+        for node in scene.rootNode.childNodes where !before.contains(ObjectIdentifier(node)) && node !== roomRoot {roomRoot.addChildNode(node)}
+    }
+    /// Rectangular lamp over the table (visual; the table light itself is in buildLights).
+    private func tableFixture(){
+        let frame=mat(UIColor(white:0.09,alpha:1),roughness:0.3,metal:0.7)
+        for x:Float in [-0.47,0.47]{_ = box(0.045,0.035,2.10,SCNVector3(x,2.45,0),frame)}
+        for z:Float in [-1.03,1.03]{_ = box(0.98,0.035,0.045,SCNVector3(0,2.45,z),frame)}
+        let diffuser=mat(UIColor(white:0.9,alpha:1));diffuser.emission.contents=UIColor(white:0.85,alpha:1)
+        for x:Float in [-0.25,0.25]{_ = box(0.13,0.015,1.88,SCNVector3(x,2.43,0),diffuser)}
+    }
+    private func roomLamp(_ p:SCNVector3,_ intensity:CGFloat,_ kelvin:CGFloat,end:CGFloat=5){
+        let lamp=SCNNode();lamp.light=SCNLight();lamp.light?.type = .omni;lamp.light?.intensity=intensity;lamp.light?.temperature=kelvin
+        lamp.light?.castsShadow=false;lamp.light?.attenuationStartDistance=0.3;lamp.light?.attenuationEndDistance=end;lamp.position=p;scene.rootNode.addChildNode(lamp)
+    }
+    private func emissive(_ c:UIColor,_ glow:UIColor)->SCNMaterial{let m=mat(c,roughness:0.6);m.emission.contents=glow;return m}
+    private func shell(floor:SCNMaterial,wall:SCNMaterial,height:Float=3.5){
+        _=box(9,0.08,10,SCNVector3(0,-0.79,0),floor,chamfer:0)
+        for side:Float in [-1,1]{
+            _=box(0.09,CGFloat(height),10,SCNVector3(side*4,height/2-0.8,0),wall,chamfer:0)
+            _=box(8,CGFloat(height),0.09,SCNVector3(0,height/2-0.8,side*4.7),wall,chamfer:0)
+        }
+    }
+    /// Club like the owner's reference photo: grey textured walls, a wood-slat feature wall with warm LED strip,
+    /// dark carpet, rectangular LED panels, neighbouring tables.
+    private func buildClub(){
+        tableFixture()
+        scene.background.contents=UIColor(red:0.02,green:0.022,blue:0.026,alpha:1)
+        let carpet=mat(UIColor(red:0.10,green:0.105,blue:0.115,alpha:1),roughness:0.98)
+        let wall=mat(UIColor(red:0.33,green:0.34,blue:0.37,alpha:1),roughness:0.95);wall.normal.contents=normalImage;wall.normal.intensity=0.35
+        wall.normal.wrapS = .repeat;wall.normal.wrapT = .repeat;wall.normal.contentsTransform=SCNMatrix4MakeScale(6,6,1)
+        shell(floor:carpet,wall:wall,height:3.2)
+        let ceiling=mat(UIColor(white:0.55,alpha:1),roughness:0.9);_=box(8,0.04,9.4,SCNVector3(0,2.42,0),ceiling,chamfer:0)
+        let slat=premiumMaterial("WalnutDark")
+        for i in 0..<28 {_=box(0.07,3.1,0.06,SCNVector3(-3.0+Float(i)*0.22,0.75,-4.62),slat,chamfer:0.004)}
+        _=box(0.03,3.1,0.03,SCNVector3(-3.25,0.75,-4.6),emissive(.rgb(0xF2A65A),.rgb(0xE0903F)),chamfer:0)
+        let panel=emissive(UIColor(white:0.95,alpha:1),UIColor(white:0.9,alpha:1))
+        for x:Float in [-2.6,2.6]{for z:Float in [-3,0,3]{_=box(0.6,0.02,0.6,SCNVector3(x,2.39,z),panel,chamfer:0)}}
+        for x:Float in [-2.6,2.6]{for z:Float in [-2.8,2.8]{neighbourTable(SCNVector3(x,0,z))}}
+        roomLamp(SCNVector3(-2.6,2.2,0),30,5200,end:6);roomLamp(SCNVector3(2.6,2.2,0),30,5200,end:6);roomLamp(SCNVector3(-3,1.4,-4.3),14,2900,end:3)
+    }
+    private func neighbourTable(_ p:SCNVector3){
+        let black=mat(UIColor(white:0.05,alpha:1),roughness:0.35),grey=mat(.rgb(0x8f969b),roughness:0.97),alu=mat(.rgb(0xc4c9cd),roughness:0.35,metal:0.8)
+        _=box(1.55,0.18,2.85,SCNVector3(p.x,-0.10,p.z),black,chamfer:0.02)
+        _=box(1.40,0.012,2.70,SCNVector3(p.x,0.0,p.z),grey,chamfer:0.004)
+        _=box(1.58,0.02,2.88,SCNVector3(p.x,-0.005,p.z),alu,chamfer:0.006)
+        for dx:Float in [-0.6,0.6]{for dz:Float in [-1.2,1.2]{_=box(0.14,0.6,0.14,SCNVector3(p.x+dx,-0.48,p.z+dz),black,chamfer:0.02)}}
+    }
+    /// Home: warm oak floor, cream walls, a sofa and a window of daylight.
+    private func buildHome(){
+        tableFixture()
+        scene.background.contents=UIColor(red:0.05,green:0.045,blue:0.04,alpha:1)
+        let floor=mat(.white,roughness:0.55);floor.diffuse.contents=woodTexture(light:true)
+        floor.diffuse.wrapS = .repeat;floor.diffuse.wrapT = .repeat;floor.diffuse.contentsTransform=SCNMatrix4MakeScale(5,6,1)
+        shell(floor:floor,wall:mat(.rgb(0xd9cfbf),roughness:0.9),height:2.9)
+        _=box(8,0.04,9.4,SCNVector3(0,2.08,0),mat(UIColor(white:0.92,alpha:1)),chamfer:0)
+        let sofa=mat(.rgb(0x5a4a3c),roughness:0.95)
+        _=box(2.4,0.45,0.85,SCNVector3(0,-0.52,3.9),sofa,chamfer:0.08);_=box(2.4,0.55,0.22,SCNVector3(0,-0.2,4.25),sofa,chamfer:0.08)
+        _=box(2.2,1.4,0.04,SCNVector3(3.95,0.7,0),emissive(UIColor(red:0.75,green:0.85,blue:0.95,alpha:1),UIColor(red:0.55,green:0.65,blue:0.75,alpha:1)),chamfer:0)
+        _=box(1.6,0.9,0.05,SCNVector3(0,0.9,-4.62),emissive(.rgb(0x2a2f36),.rgb(0x101418)),chamfer:0.01)   // TV / painting
+        roomLamp(SCNVector3(3.4,1.2,0),45,6500,end:5);roomLamp(SCNVector3(-2.5,1.8,2.5),20,3000,end:4)
+    }
+    /// Outdoors: wooden deck, low glass rail, sky and sun.
+    private func buildOutdoor(){
+        scene.background.contents=UIColor(red:0.42,green:0.62,blue:0.86,alpha:1)
+        let deck=mat(.white,roughness:0.7);deck.diffuse.contents=woodTexture(light:true)
+        deck.diffuse.wrapS = .repeat;deck.diffuse.wrapT = .repeat;deck.diffuse.contentsTransform=SCNMatrix4MakeScale(6,8,1)
+        _=box(9,0.08,10,SCNVector3(0,-0.79,0),deck,chamfer:0)
+        _=box(40,0.02,40,SCNVector3(0,-0.9,0),mat(.rgb(0x4f7a3a),roughness:1),chamfer:0)   // lawn beyond the deck
+        let glass=mat(UIColor(white:0.9,alpha:0.25),roughness:0.05);glass.transparency=0.25
+        for side:Float in [-1,1]{_=box(0.03,0.9,10,SCNVector3(side*4.4,-0.3,0),glass,chamfer:0);_=box(8.8,0.9,0.03,SCNVector3(0,-0.3,side*5),glass,chamfer:0)}
+        for z:Float in [-4,4]{for x:Float in [-3.8,3.8]{let pot=mat(.rgb(0x3c5f2c),roughness:0.95);let n=SCNNode(geometry:SCNSphere(radius:0.45));n.geometry?.materials=[pot];n.position=SCNVector3(x,-0.3,z);scene.rootNode.addChildNode(n)}}
+        let sun=SCNNode();sun.light=SCNLight();sun.light?.type = .directional;sun.light?.intensity=500;sun.light?.temperature=5600
+        sun.eulerAngles=SCNVector3(-1.0,0.6,0);scene.rootNode.addChildNode(sun)
+    }
+    /// Palace: white marble floor, columns, gold mouldings, chandeliers.
+    private func buildPalace(){
+        tableFixture()
+        scene.background.contents=UIColor(red:0.08,green:0.07,blue:0.06,alpha:1)
+        let marble=mat(UIColor(white:0.88,alpha:1),roughness:0.18);marble.normal.contents=normalImage;marble.normal.intensity=0.05
+        shell(floor:marble,wall:mat(.rgb(0xe8dcc4),roughness:0.6),height:4.5)
+        let gold=premiumMaterial("ChampagneGold")
+        for side:Float in [-1,1]{
+            for z:Float in [-3.6,-1.2,1.2,3.6]{let c=SCNCylinder(radius:0.18,height:4.4);c.radialSegmentCount=48;c.materials=[mat(UIColor(white:0.93,alpha:1),roughness:0.3)]
+                let n=SCNNode(geometry:c);n.position=SCNVector3(side*3.5,1.4,z);scene.rootNode.addChildNode(n)
+                _=box(0.5,0.12,0.5,SCNVector3(side*3.5,3.55,z),gold,chamfer:0.02);_=box(0.5,0.12,0.5,SCNVector3(side*3.5,-0.7,z),gold,chamfer:0.02)}
+            _=box(8,0.08,0.06,SCNVector3(0,2.6,side*4.62),gold,chamfer:0.01)
+        }
+        for z:Float in [-2.2,2.2]{
+            let crystal=emissive(UIColor(white:1,alpha:1),.rgb(0xfff2d0))
+            for k in 0..<10 {let a=Float(k)/10*Float.pi*2;let n=SCNNode(geometry:SCNSphere(radius:0.04));n.geometry?.materials=[crystal];n.position=SCNVector3(cos(a)*0.35,2.9,z+sin(a)*0.35);scene.rootNode.addChildNode(n)}
+            _=box(0.8,0.04,0.8,SCNVector3(0,3.05,z),gold,chamfer:0.02);roomLamp(SCNVector3(0,2.9,z),45,3400,end:6)
+        }
+    }
+    /// Royal: deep red carpet, dark carved panels, gold trims, crest, warm sconces.
+    private func buildRoyal(){
+        tableFixture()
+        scene.background.contents=UIColor(red:0.03,green:0.015,blue:0.012,alpha:1)
+        let carpet=mat(.rgb(0x5a0f14),roughness:0.97),panel=premiumMaterial("WalnutDark"),gold=premiumMaterial("ChampagneGold")
+        shell(floor:carpet,wall:panel,height:3.8)
+        for side:Float in [-1,1]{
+            for x:Float in [-3,-1.5,0,1.5,3]{_=box(1.2,1.6,0.03,SCNVector3(x,0.4,side*4.62),panel,chamfer:0.02);_=box(1.24,0.03,0.04,SCNVector3(x,1.22,side*4.6),gold,chamfer:0.003);_=box(1.24,0.03,0.04,SCNVector3(x,-0.42,side*4.6),gold,chamfer:0.003)}
+            for z:Float in [-3,0,3]{_=box(0.04,0.4,0.2,SCNVector3(side*3.93,1.3,z),gold,chamfer:0.01);roomLamp(SCNVector3(side*3.7,1.4,z),12,2600,end:3)}
+        }
+        let crest=SCNNode(geometry:SCNCylinder(radius:0.4,height:0.03));crest.geometry?.materials=[gold];crest.eulerAngles.x = .pi/2;crest.position=SCNVector3(0,1.8,-4.6);scene.rootNode.addChildNode(crest)
+        _=box(2.4,0.02,5.6,SCNVector3(0,-0.745,0),mat(.rgb(0x7a1a1f),roughness:0.95),chamfer:0)   // runner under the table
+    }
+    /// International arena: dark venue, spotlight on the table, LED boards, tiered seating, scoreboard screen.
+    private func buildArena(){
+        tableFixture()
+        scene.background.contents=UIColor(red:0.005,green:0.006,blue:0.01,alpha:1)
+        let floor=mat(.rgb(0x15233a),roughness:0.8)
+        _=box(14,0.08,16,SCNVector3(0,-0.79,0),floor,chamfer:0)
+        let seat=mat(.rgb(0x1a1d24),roughness:0.9)
+        for tier in 0..<5 {let t=Float(tier)
+            for side:Float in [-1,1]{_=box(0.9,0.35,12,SCNVector3(side*(4.2+t*0.9),-0.6+t*0.35,0),seat,chamfer:0.01);_=box(10,0.35,0.9,SCNVector3(0,-0.6+t*0.35,side*(5.4+t*0.9)),seat,chamfer:0.01)}}
+        let led=emissive(.rgb(0x0b1f3a),.rgb(0x1d6fd6))
+        for side:Float in [-1,1]{_=box(0.05,0.35,6,SCNVector3(side*3.3,-0.55,0),led,chamfer:0);_=box(5,0.35,0.05,SCNVector3(0,-0.55,side*4.3),led,chamfer:0)}
+        _=box(3.2,1.2,0.08,SCNVector3(0,3.0,-6.5),emissive(.rgb(0x101010),.rgb(0x2a2a2a)),chamfer:0.02)
+        let spot=SCNNode();spot.light=SCNLight();spot.light?.type = .spot;spot.light?.intensity=900;spot.light?.temperature=5000
+        spot.light?.spotInnerAngle=30;spot.light?.spotOuterAngle=55;spot.position=SCNVector3(0,4.2,0);spot.eulerAngles.x = -.pi/2;scene.rootNode.addChildNode(spot)
+    }
     private func buildRoom(){
         let charcoal=mat(UIColor(red:0.045,green:0.052,blue:0.064,alpha:1),roughness:0.9)
         let floor=mat(.white,roughness:0.65)
@@ -813,6 +953,20 @@ final class TableScene {
         let inlay=SCNNode(geometry:g.copy() as? SCNGeometry);inlay.geometry?.materials=[mat(.rgb(0x1A0E07),roughness:0.5)]
         inlay.scale=SCNVector3(1.45,1,1.45);inlay.position.y = -0.0004;inlay.castsShadow=false;n.addChildNode(inlay)
         n.position.y += 0.0008
+    }
+    /// 0.34: brand wordmark on each long apron, toward the foot end, as on the owner's reference table.
+    private func apronLogo(_ side:Float){
+        let g=SCNPlane(width:0.34,height:0.11),m=SCNMaterial();m.lightingModel = .physicallyBased;m.roughness.contents=0.5
+        m.diffuse.contents=texture(CGSize(width:1024,height:330)){c in
+            UIColor.clear.setFill();c.fill(CGRect(x:0,y:0,width:1024,height:330))
+            let style=NSMutableParagraphStyle();style.alignment = .center
+            let base=UIFont.systemFont(ofSize:178,weight:.black);let font=base.fontDescriptor.withSymbolicTraits(.traitItalic).map{UIFont(descriptor:$0,size:178)} ?? base
+            (self.look.brand.uppercased() as NSString).draw(in:CGRect(x:0,y:0,width:1024,height:230),withAttributes:[.font:font,.foregroundColor:UIColor(white:0.96,alpha:1),.paragraphStyle:style,.kern:6])
+            ("B I L L I A R D S" as NSString).draw(in:CGRect(x:0,y:236,width:1024,height:80),withAttributes:[.font:UIFont.systemFont(ofSize:54,weight:.semibold),.foregroundColor:UIColor(white:0.9,alpha:1),.paragraphStyle:style])
+        }
+        m.transparencyMode = .aOne;m.isDoubleSided=false
+        g.materials=[m];let n=SCNNode(geometry:g);n.name="apron-logo";n.castsShadow=false
+        n.position=SCNVector3(side*0.8115,-0.165,0.62);n.eulerAngles.y = side>0 ? .pi/2 : -.pi/2;scene.rootNode.addChildNode(n)
     }
     private func brandPlate(_ p:SCNVector3){
         let g=SCNPlane(width:0.22,height:0.038),m=SCNMaterial();m.lightingModel = .constant
