@@ -97,10 +97,9 @@ name=os.environ["CAMERA"]
 with Image.open(f"build/screenshots/{name}.png") as image:
  pixels=list(image.convert("RGB").resize((256,256)).getdata())
  # 0.36: cloth is darker now (owner: "nỉ quá sáng"); green-dominant pixels at any brightness above black
- count=sum(1 for r,g,b in pixels if g>16 and g>r*1.2 and b>8)
- if name.startswith("space-") or name=="table-zmax":
-  # 0.34: grey Z-Max cloth / varied rooms — require a rendered scene (not a black or blank frame)
-  count=sum(1 for r,g,b in pixels if 40<(r+g+b)/3<235)
+ # 0.36: the default table is the grey Z-Max (owner reference), so "green cloth" is no longer a valid gate for any
+ # shot — require a rendered scene (not a black, white or blank frame) everywhere.
+ count=sum(1 for r,g,b in pixels if 40<(r+g+b)/3<235)
  print(f"{name} readiness: {count} cloth-color pixels")
  raise SystemExit(0 if count>=(250 if name=="library" else 1500) else 1)
 READY
@@ -133,8 +132,7 @@ if "MTLDebugValidateMTLPixelFormat" in log:failed.append("Metal pixel format ass
 for path in sorted(Path("build/screenshots").glob("*.png")):
  with Image.open(path) as image:
   pixels=list(image.convert("RGB").resize((256,256)).getdata())
-  cloth=sum(1 for r,g,b in pixels if g>35 and g>r*1.25 and b>25)
-  if path.stem.startswith("space-") or path.stem=="table-zmax":cloth=sum(1 for r,g,b in pixels if 40<(r+g+b)/3<235)
+  cloth=sum(1 for r,g,b in pixels if 40<(r+g+b)/3<235)   # 0.36: colour-agnostic (default cloth is grey)
   print(f"{path.name}: table-color pixels={cloth}")
   # Full-screen drill catalog intentionally covers the 3D table; verify
   # table visibility only on scenes that are supposed to show the playing surface.

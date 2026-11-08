@@ -265,7 +265,7 @@ final class TableScene {
         camera.camera=SCNCamera();camera.camera?.zNear=0.012;camera.camera?.zFar=24
         camera.camera?.fieldOfView=46;camera.camera?.wantsHDR=true
         // 0.33 (owner: "quá sáng chói"): darker, filmic — lower exposure, gentle contrast, deeper vignette.
-        camera.camera?.wantsExposureAdaptation=false;camera.camera?.exposureOffset = -1.45
+        camera.camera?.wantsExposureAdaptation=false;camera.camera?.exposureOffset = -2.0   // 0.36: CI shot of Z-Max cloth read 198/255 (reference ~125)
         camera.camera?.contrast=0.10;camera.camera?.saturation=1.04
         camera.camera?.bloomIntensity=0;camera.camera?.bloomThreshold=1.8
         camera.camera?.vignettingIntensity=0.32;camera.camera?.vignettingPower=0.9
@@ -338,7 +338,7 @@ final class TableScene {
             // 0.35b: .color keeps the kit texture's LUMINANCE, so a silver-grey cloth came out near white. Scale the
             // brightness to the chosen colour's luminance (the weave contrast stays).
             var r:CGFloat=0,g:CGFloat=0,b:CGFloat=0,a:CGFloat=0;color.getRed(&r,green:&g,blue:&b,alpha:&a)
-            let target=0.2126*r+0.7152*g+0.0722*b,k=max(0.15,min(1,max(0.2,min(1,target/max(0.05,Self.luminance(clothImage))))*0.68*Self.tune(Self.tuneCloth)))   // 0.36: darker, like the reference grey cloth
+            let target=0.2126*r+0.7152*g+0.0722*b,k=max(0.15,min(1,max(0.2,min(1,target/max(0.05,Self.luminance(clothImage))))*0.50*Self.tune(Self.tuneCloth)))   // 0.36: darker, like the reference grey cloth
             UIColor(white:k,alpha:1).setFill();c.cgContext.setBlendMode(.multiply);c.fill(rect)
         }
     }
