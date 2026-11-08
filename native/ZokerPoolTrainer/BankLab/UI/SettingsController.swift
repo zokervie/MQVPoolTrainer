@@ -188,7 +188,7 @@ final class CustomizeController:UIViewController {
     private func header(_ text:String){
         let l=UILabel();l.text=text.uppercased();l.textColor=UIColor.rgb(0xEAC583);l.font = .systemFont(ofSize:13,weight:.bold);body.addArrangedSubview(l)
     }
-    private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,format:((Double)->String)?=nil){
+    private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,format:((Double)->String)? = nil){
         let fmt=format ?? {String(format:"%d %%",Int(($0*100).rounded()))}
         let label=UILabel();label.textColor = .white;label.font = .systemFont(ofSize:13,weight:.medium)
         let current=Tuning.value(key,1);label.text="\(title)  ·  \(fmt(current))"

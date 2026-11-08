@@ -1620,7 +1620,7 @@ final class TableScene {
         n.isHidden=false;n.position=SCNVector3((a.x+b.x)/2,0.0035,(a.y+b.y)/2);n.scale=SCNVector3(l,1,1);n.eulerAngles=SCNVector3(0,atan2(-d.y,d.x),0)
     }
     /// Planar table coordinates (x across, y along). nil hides the guide.
-    func aimGuide(cue:SIMD2<Float>?,ghost:SIMD2<Float>=.zero,object:SIMD2<Float>?=nil,objectEnd:SIMD2<Float>?=nil,tangentEnd:SIMD2<Float>?=nil,ringVisible:Bool=false){
+    func aimGuide(cue:SIMD2<Float>?,ghost:SIMD2<Float> = .zero,object:SIMD2<Float>? = nil,objectEnd:SIMD2<Float>? = nil,tangentEnd:SIMD2<Float>? = nil,ringVisible:Bool = false){
         SCNTransaction.begin();SCNTransaction.disableActions=true;defer{SCNTransaction.commit()}
         let n=aimGuideNodes
         guard let cue=cue else{for x in n{x.isHidden=true};return}

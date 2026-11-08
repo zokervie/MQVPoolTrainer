@@ -2384,7 +2384,7 @@ extension TrainingController {
             if v.y>1e-9{t=min(t,(hy-o.y)/v.y)}else if v.y < -1e-9{t=min(t,(-hy-o.y)/v.y)}
             return t.isFinite ? max(0,t):0
         }
-        var best=wall(p,d),hit:BallState?=nil
+        var best=wall(p,d),hit:BallState? = nil
         for b in balls where b.id != 0 && !b.sunk {
             let m=p-SIMD2<Double>(b.x,b.y),bq=simd_dot(m,d),cc=simd_dot(m,m)-4*R*R,disc=bq*bq-cc
             guard disc>=0 else{continue}
@@ -2453,7 +2453,7 @@ extension TrainingController {
                 dragging=self.hudItems.reversed().first{!$0.1.isHidden && $0.1.frame.insetBy(dx:-10,dy:-10).contains(p)}.map{($0.0,$0.1,$0.1.center)}
                 if let d=dragging{d.1.alpha=0.6;self.view.bringSubviewToFront(d.1);self.view.bringSubviewToFront(overlay)}
             case .changed:
-                guard let d=dragging else{return};let t=g.translation(in:self.view)
+                guard let d=dragging,let pg=g as? UIPanGestureRecognizer else{return};let t=pg.translation(in:self.view)
                 var c=CGPoint(x:d.2.x+t.x,y:d.2.y+t.y);let b=self.view.bounds,h=d.1.bounds
                 c.x=min(max(c.x,h.width/2),b.width-h.width/2);c.y=min(max(c.y,h.height/2),b.height-h.height/2);d.1.center=c
             default:
