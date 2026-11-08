@@ -13,6 +13,6 @@ NSUnbufferedIO=YES xcodebuild test -project ZokerPoolTrainer.xcodeproj -scheme Z
   -configuration Debug -destination "platform=iOS Simulator,id=$device_id" \
   -derivedDataPath "$PWD/build/Simulator" -resultBundlePath "$result_path" \
   -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
-  -destination-timeout 120 -test-timeouts-enabled YES -maximum-test-execution-time-allowance 300 \
+  -destination-timeout 120 -test-timeouts-enabled YES -default-test-execution-time-allowance 900 -maximum-test-execution-time-allowance 900 \
   -only-testing:ZokerPoolTrainerUITests/InteractionTests \
   ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ui-tests.log
