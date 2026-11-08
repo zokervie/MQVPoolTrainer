@@ -293,7 +293,7 @@ final class TableScene {
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
-        light.intensity=52;light.temperature=5000   // 0.35b: cooler LED like the reference club, less glare;light.spotInnerAngle=42;light.spotOuterAngle=112
+        light.intensity=52;light.temperature=5000;light.spotInnerAngle=42;light.spotOuterAngle=112   // 0.35b: cooler LED like the reference club, less glare
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.4
         light.shadowColor=UIColor(white:0,alpha:0.55);light.shadowBias=0.001
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
