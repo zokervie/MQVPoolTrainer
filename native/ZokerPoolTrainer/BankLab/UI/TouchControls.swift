@@ -42,6 +42,8 @@ extension UIButton {
 final class SpinPad:UIControl {
     var side=0.0,top=0.0
     var maximumOffset=0.7 {didSet{select(side:side,top:top)}}
+    /// 0.35 (owner): jump cue — the upper half is locked (a jump needs a centre/low hit with the elevated cue).
+    var maxTop=1.0 {didSet{if top>maxTop{select(side:side,top:maxTop)}else{setNeedsDisplay()}}}
     var changed:((Double,Double)->Void)?
     /// Điểm chạm có với tới được không (cơ phải qua được băng khi bi cái gần băng). nil = mọi điểm.
     var reachable:((Double,Double)->Bool)? {didSet{setNeedsDisplay()}}
@@ -105,6 +107,12 @@ final class SpinPad:UIControl {
             label("25",CGPoint(x:c.x+r*0.25,y:c.y-r*0.10),7,.darkGray)
             label("50",CGPoint(x:c.x+r*0.5,y:c.y-r*0.10),7,.darkGray)
         }
+        if maxTop<1 {
+            ctx.saveGState();ctx.addEllipse(in:circle);ctx.clip()
+            UIColor(white:0.05,alpha:0.55).setFill();ctx.fill(CGRect(x:circle.minX,y:circle.minY,width:circle.width,height:circle.height/2-CGFloat(maxTop)*r))
+            ctx.restoreGState()
+            if detailed {label("JUMP · KHOÁ NỬA TRÊN",CGPoint(x:c.x,y:c.y-r*0.5),8,.white)}
+        }
         let p=CGPoint(x:c.x+CGFloat(side)*r,y:c.y-CGFloat(top)*r)
         ctx.setStrokeColor(UIColor.systemRed.cgColor);ctx.setLineWidth(1.5)
         ctx.strokeEllipse(in:CGRect(x:p.x-7,y:p.y-7,width:14,height:14))
@@ -119,7 +127,8 @@ final class SpinPad:UIControl {
         var x=initialSide+Double(p.x-origin.x)/r,y=initialTop-Double(p.y-origin.y)/r
         let length=hypot(x,y);if length>maximumOffset{x*=maximumOffset/length;y*=maximumOffset/length}
         if hypot(x,y)<0.045{x=0;y=0}
-        if let reachable=reachable,!reachable(x,y),let clampTop=clampTop {y=clampTop(x,y)}
+        y=min(y,maxTop)
+        if let reachable=reachable,!reachable(x,y),let clampTop=clampTop {y=min(maxTop,clampTop(x,y))}
         side=x;top=y;accessibilityValue=String(format:"Ngang %.0f%%, dọc %.0f%%",x*100,y*100)
         changed?(x,y);setNeedsDisplay()
     }
@@ -142,8 +151,8 @@ final class SpinPad:UIControl {
     func reset(){side=0;top=0;accessibilityValue="Ngang 0%, dọc 0%";changed?(0,0);setNeedsDisplay()}
     func select(side:Double,top:Double){
         let length=hypot(side,top),scale=length>maximumOffset ? maximumOffset/length:1
-        self.side=side*scale;self.top=top*scale
-        if let reachable=reachable,!reachable(self.side,self.top),let clampTop=clampTop {self.top=clampTop(self.side,self.top)}
+        self.side=side*scale;self.top=min(top*scale,maxTop)
+        if let reachable=reachable,!reachable(self.side,self.top),let clampTop=clampTop {self.top=min(maxTop,clampTop(self.side,self.top))}
         accessibilityValue=String(format:"Ngang %.0f%% bán kính, dọc %.0f%% bán kính",self.side*100,self.top*100);changed?(self.side,self.top);setNeedsDisplay()
     }
 }

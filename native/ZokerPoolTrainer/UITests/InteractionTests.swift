@@ -131,6 +131,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(coach.isEnabled,"Coach enabled · \(scene.value ?? "")")
         tapCoach(app,scene,coach,expect:1)
         XCTAssertTrue(app.buttons["GuideToggle"].waitForExistence(timeout:5 * slow) && app.buttons["GuideToggle"].isHittable,"Coach shows Chỉ dẫn")
+        XCTAssertTrue(app.buttons["NumbersToggle"].isHittable && app.buttons["CoachCardToggle"].isHittable,"Coach shows Nút số and Bảng")
         tapCoach(app,scene,coach,expect:0)
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }
@@ -243,8 +244,8 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(app.buttons["CueIconPlay"].frame.minY,e.maxY-1,"Đánh below")
         XCTAssertLessThanOrEqual(app.buttons["CueIconMasse"].frame.maxX,e.minX+1,"Massé left")
         XCTAssertGreaterThanOrEqual(app.buttons["CueIconBreak"].frame.minX,e.maxX-1,"Break right")
-        // Coach shows "Chỉ dẫn" next to the always-present "Nút số"
-        XCTAssertTrue(app.buttons["NumbersToggle"].exists)
+        // 0.35: Nút số / Chỉ dẫn / Bảng only with Coach
+        XCTAssertFalse(app.buttons["NumbersToggle"].isHittable,"numbers only with Coach")
         XCTAssertFalse(app.buttons["GuideToggle"].isHittable,"guide button only with Coach")
     }
 

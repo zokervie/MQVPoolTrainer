@@ -10,7 +10,7 @@ struct TableLook {
     // 0.34: brands renamed Z-… (owner rule: no real trademarks until licensed); "Z-Max Pro" = the owner's reference
     // club table (black cabinet, silver-grey cloth, brushed aluminium caps, white side logo) and the new default.
     static let all:[TableLook] = [
-        .init(id:"zmax",brand:"Z-Max",name:"Pro 9 ft",base:0,cabinet:0x0e0f11,cloth:0x8f969b,trim:0xc4c9cd,wood:false,source:"owner reference photo 08/11/2026"),
+        .init(id:"zmax",brand:"Z-Max",name:"Pro 9 ft",base:0,cabinet:0x0e0f11,cloth:0x6e767d,trim:0xc4c9cd,wood:false,source:"owner reference photo 08/11/2026"),
         .init(id:"apex",brand:"Z-Pr",name:"APEX Pro",base:0,cabinet:0x20252b,cloth:0x237f92,trim:0xb8bec3,wood:false,source:"https://predatorcues.com/pages/billiard-tables"),
         .init(id:"arc",brand:"Z-Pr",name:"ARC",base:4,cabinet:0xe2ddd2,cloth:0x377a8e,trim:0x41494d,wood:false,source:"https://predatorcues.com/pages/predator-arc-pool-table"),
         .init(id:"gc7",brand:"Z-Br",name:"Crown VII",base:1,cabinet:0x67513e,cloth:0x267e84,trim:0xc3c4c1,wood:true,source:"https://www.brunswickbilliards.com/collections/billiard-tables"),
@@ -31,6 +31,10 @@ struct TableLook {
         .init(id:"acurra",brand:"Z-Ra",name:"Acurra",base:3,cabinet:0x33383d,cloth:0x377f99,trim:0xbdc2c6,wood:false,source:"https://www.rasson.cn/acurra-mr-sung"),
         .init(id:"tournament",brand:"Z-Ol",name:"Tournament Pro",base:4,cabinet:0x38332f,cloth:0x2d7d96,trim:0x94918a,wood:false,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament"),
         .init(id:"champion",brand:"Z-Ol",name:"Grand Champion III",base:1,cabinet:0x775136,cloth:0x31795b,trim:0xaaa49c,wood:true,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament")
+        // 0.35: bar-box bodies (solid cabinet to the floor, coin door) — Zoker designs; the bed stays the 9 ft physics bed.
+        .init(id:"zbar",brand:"Z-Va",name:"Bar Box Classic",base:6,cabinet:0x1b1d20,cloth:0x7a2529,trim:0xb9bdc1,wood:false,source:"Zoker design (bar-box style)"),
+        .init(id:"zbaroak",brand:"Z-Va",name:"Bar Box Oak",base:6,cabinet:0x6a4a30,cloth:0x2f6e4a,trim:0xc8b27a,wood:true,source:"Zoker design (bar-box style)"),
+        .init(id:"zbarpro",brand:"Z-Di",name:"Bar Box Pro",base:6,cabinet:0x26292e,cloth:0x2a6fa8,trim:0x9aa3aa,wood:false,source:"Zoker design (bar-box style)"),
     ]
     static var selected:TableLook {
         // 0.34: make the owner's reference table the default once, then respect later choices
@@ -80,7 +84,7 @@ final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UI
     var initialTab=0
     private let table:TableScene
     private let list=UITableView(frame:.zero,style:.insetGrouped),preview=SCNView(),note=UILabel()
-    private let tabs=UISegmentedControl(items:["20 bàn","12 cơ","3 bao cơ"])
+    private let tabs=UISegmentedControl(items:["\(TableLook.all.count) bàn","12 cơ","3 bao cơ"])
     private var chosenCue=CueBag.cue(0)
     init(table:TableScene){self.table=table;super.init(nibName:nil,bundle:nil)}
     required init?(coder:NSCoder){fatalError()}

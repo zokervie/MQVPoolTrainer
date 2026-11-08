@@ -36,7 +36,7 @@ final class TableScene {
         let elements=mesh.elements.map{SCNGeometryElement(indices:$0,primitiveType:.triangles)}
         let geometry=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:elements)
         geometry.materials=mesh.names.map{name in
-            switch name {
+            let made:SCNMaterial={switch name {
             case "Carbon":return lacquer(premiumMaterial("CueCarbon"),0.30)
             case "Maple":return lacquer(premiumMaterial("CueMaple"),0.26)
             case "Ebony":return lacquer(premiumMaterial("CueEbony"),0.22)
@@ -44,7 +44,7 @@ final class TableScene {
             case "Gold":let m=premiumMaterial("ChampagneGold");m.roughness.contents=0.22;m.metalness.contents=1.0;return m
             case "Ferrule":return mat(.rgb(0xE8DFCB),roughness:0.28)
             default:return mat(.rgb(0x163D57),roughness:0.88)
-            }
+            }}();made.name=name;return made
         }
         premiumCueCache[id]=geometry;return geometry
     }
@@ -132,7 +132,7 @@ final class TableScene {
     private func applyBallFinish(_ m:SCNMaterial){
         m.emission.contents=UIColor.black;m.emission.intensity=0
         if oldBalls{m.roughness.contents=0.55;m.clearCoat.contents=0.45;m.clearCoatRoughness.contents=0.22;m.multiply.contents=UIColor(red:0.97,green:0.95,blue:0.88,alpha:1)}
-        else{m.roughness.contents=0.45;m.clearCoat.contents=1.0;m.clearCoatRoughness.contents=0.035;m.multiply.contents=UIColor.white}
+        else{m.roughness.contents=0.52;m.clearCoat.contents=0.72;m.clearCoatRoughness.contents=0.05;m.multiply.contents=UIColor(white:0.93,alpha:1)}
     }
     /// Large-scale worsted nap streaks, soft mottling and cushion-side falloff.
     /// UV covers the 1.615 x 2.895 m footprint once (generate_table_mesh.py), so
@@ -171,16 +171,18 @@ final class TableScene {
         #pragma body
         constexpr sampler fs(filter::linear, mip_filter::linear, address::repeat);
         float3 wp = (scn_frame.inverseViewTransform * float4(_surface.position, 1.0)).xyz;
-        float2 uv = wp.xz * float2(90.0, 90.0);
-        float fw = length(fwidth(wp.xz));
-        float fiberW = fiberStrength * saturate(1.0 - fw / 0.0009);
+        float3 nw = (scn_frame.inverseViewTransform * float4(_surface.normal, 0.0)).xyz;
+        float2 plane = abs(nw.y) > 0.6 ? wp.xz : float2(wp.x + wp.z, wp.y);
+        float2 uv = plane * float2(34.0, 34.0);
+        float fw = length(fwidth(plane));
+        float fiberW = fiberStrength * saturate(1.0 - fw / 0.0022);
         if (fiberW > 0.001) {
             float e = 1.5 / 512.0;
             float h0 = fiberMap.sample(fs, uv).r;
             float hx = fiberMap.sample(fs, uv + float2(e, 0.0)).r;
             float hy = fiberMap.sample(fs, uv + float2(0.0, e)).r;
-            _surface.normal = normalize(_surface.normal + fiberW * 1.2 * ((h0 - hx) * _surface.tangent + (h0 - hy) * _surface.bitangent));
-            _surface.diffuse.rgb *= 1.0 + fiberW * 0.14 * (h0 - 0.5);
+            _surface.normal = normalize(_surface.normal + fiberW * 2.0 * ((h0 - hx) * _surface.tangent + (h0 - hy) * _surface.bitangent));
+            _surface.diffuse.rgb *= 1.0 + fiberW * 0.38 * (h0 - 0.5);
         }
         """]
     }
@@ -242,11 +244,11 @@ final class TableScene {
         camera.camera=SCNCamera();camera.camera?.zNear=0.012;camera.camera?.zFar=24
         camera.camera?.fieldOfView=46;camera.camera?.wantsHDR=true
         // 0.33 (owner: "quá sáng chói"): darker, filmic — lower exposure, gentle contrast, deeper vignette.
-        camera.camera?.wantsExposureAdaptation=false;camera.camera?.exposureOffset = -1.1
+        camera.camera?.wantsExposureAdaptation=false;camera.camera?.exposureOffset = -1.45
         camera.camera?.contrast=0.10;camera.camera?.saturation=1.04
         camera.camera?.bloomIntensity=0;camera.camera?.bloomThreshold=1.8
         camera.camera?.vignettingIntensity=0.32;camera.camera?.vignettingPower=0.9
-        scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=0.72
+        scene.lightingEnvironment.contents=environment;scene.lightingEnvironment.intensity=0.5
         numberRoot.isHidden=true
         tableRails=rails;buildLights();frontFill(scene.rootNode);selectTable(look);scene.rootNode.addChildNode(roomRoot);selectSpace(space);buildCue();quality(false)
     }
@@ -267,12 +269,12 @@ final class TableScene {
         ballSegmentCount=constrained ? 24:(highDetail && !warm ? 64:48)
         for geometry in cachedBallGeometry.values{geometry.segmentCount=ballSegmentCount}
         for node in nodes.values{node.castsShadow=highDetail && !constrained && !warm}
-        camera.camera?.screenSpaceAmbientOcclusionIntensity=highDetail && !constrained && !warm ? 0.12:0
+        camera.camera?.screenSpaceAmbientOcclusionIntensity=0   // 0.35: full-screen SSAO pass removed (heat); contact shadows do the grounding
         camera.camera?.screenSpaceAmbientOcclusionRadius=0.035
         camera.camera?.screenSpaceAmbientOcclusionBias=0.003
         let size:CGFloat=constrained ? 512:(highDetail && !warm ? 1536:1024)
         light.shadowMapSize=CGSize(width:size,height:size)
-        light.shadowSampleCount=constrained ? 1:(highDetail && !warm ? 8:4)
+        light.shadowSampleCount=constrained ? 1:4
         light.castsShadow = !constrained
     }
     private func mat(_ color:UIColor,roughness:CGFloat=0.6,metal:CGFloat=0)->SCNMaterial {
@@ -293,7 +295,7 @@ final class TableScene {
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
         light.intensity=70;light.temperature=4300;light.spotInnerAngle=42;light.spotOuterAngle=112
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.4
-        light.shadowColor=UIColor(white:0,alpha:0.32);light.shadowBias=0.001
+        light.shadowColor=UIColor(white:0,alpha:0.55);light.shadowBias=0.001
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
         for x:Float in [-2.2,2.2]{
             let fill=SCNNode();fill.position=SCNVector3(x,1.7,0.8);fill.light=SCNLight();fill.light?.type = .omni
@@ -400,6 +402,24 @@ final class TableScene {
             let av=SIMD3<Float>(a.x,a.y,a.z),bv=SIMD3<Float>(b.x,b.y,b.z),d=bv-av
             let n=box(width,CGFloat(simd_length(d)),depth,SCNVector3((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2),material,chamfer:0.016)
             n.simdOrientation=simd_quatf(from:SIMD3(0,1,0),to:simd_normalize(d))
+        }
+        // 0.35 (owner: tables differ only by colour): three cabinet families, visible from the aim view and overview.
+        if look.base==6 { // Bar-box: one solid body down to a plinth, coin door on the foot end.
+            _=box(1.50,0.485,2.70,SCNVector3(0,-0.5075,0),shell,chamfer:0.03)
+            _=box(1.58,0.05,2.78,SCNVector3(0,-0.735,0),dark,chamfer:0.012)
+            _=box(0.34,0.17,0.014,SCNVector3(0,-0.43,1.357),trim,chamfer:0.01)
+            _=box(0.16,0.022,0.006,SCNVector3(0,-0.40,1.366),dark,chamfer:0.003)
+            for side:Float in [-1,1]{_=box(0.006,0.012,2.6,SCNVector3(side*0.753,-0.30,0),trim,chamfer:0.002)}
+            return
+        }
+        if look.wood && [1,2,5].contains(look.base) { // Classic: skirt with a bead moulding and corner posts.
+            for side:Float in [-1,1]{
+                _=box(0.06,0.07,2.5,SCNVector3(side*0.79,-0.30,0),shell,chamfer:0.02)
+                _=box(0.012,0.012,2.5,SCNVector3(side*0.822,-0.268,0),trim,chamfer:0.004)
+                _=box(1.3,0.07,0.06,SCNVector3(0,-0.30,side*1.40),shell,chamfer:0.02)
+                _=box(1.3,0.012,0.012,SCNVector3(0,-0.268,side*1.432),trim,chamfer:0.004)
+            }
+            for x:Float in [-0.80,0.80]{for z:Float in [-1.41,1.41]{_=box(0.13,0.30,0.13,SCNVector3(x,-0.21,z),shell,chamfer:0.03)}}
         }
         if look.base==1 { // Two broad pedestal columns.
             for z:Float in [-0.87,0.87]{
@@ -659,7 +679,7 @@ final class TableScene {
         roomLamp(SCNVector3(-2.6,2.2,0),30,5200,end:6);roomLamp(SCNVector3(2.6,2.2,0),30,5200,end:6);roomLamp(SCNVector3(-3,1.4,-4.3),14,2900,end:3)
     }
     private func neighbourTable(_ p:SCNVector3){
-        let black=mat(UIColor(white:0.05,alpha:1),roughness:0.35),grey=mat(.rgb(0x8f969b),roughness:0.97),alu=mat(.rgb(0xc4c9cd),roughness:0.35,metal:0.8)
+        let black=mat(UIColor(white:0.05,alpha:1),roughness:0.35),grey=mat(.rgb(0x6e767d),roughness:0.97),alu=mat(.rgb(0xc4c9cd),roughness:0.35,metal:0.8)
         _=box(1.55,0.18,2.85,SCNVector3(p.x,-0.10,p.z),black,chamfer:0.02)
         _=box(1.40,0.012,2.70,SCNVector3(p.x,0.0,p.z),grey,chamfer:0.004)
         _=box(1.58,0.02,2.88,SCNVector3(p.x,-0.005,p.z),alu,chamfer:0.006)
@@ -689,18 +709,18 @@ final class TableScene {
         let glass=mat(UIColor(white:0.9,alpha:0.25),roughness:0.05);glass.transparency=0.25
         for side:Float in [-1,1]{_=box(0.03,0.9,10,SCNVector3(side*4.4,-0.3,0),glass,chamfer:0);_=box(8.8,0.9,0.03,SCNVector3(0,-0.3,side*5),glass,chamfer:0)}
         for z:Float in [-4,4]{for x:Float in [-3.8,3.8]{let pot=mat(.rgb(0x3c5f2c),roughness:0.95);let n=SCNNode(geometry:SCNSphere(radius:0.45));n.geometry?.materials=[pot];n.position=SCNVector3(x,-0.3,z);scene.rootNode.addChildNode(n)}}
-        let sun=SCNNode();sun.light=SCNLight();sun.light?.type = .directional;sun.light?.intensity=500;sun.light?.temperature=5600
+        let sun=SCNNode();sun.light=SCNLight();sun.light?.type = .directional;sun.light?.intensity=170;sun.light?.temperature=5600
         sun.eulerAngles=SCNVector3(-1.0,0.6,0);scene.rootNode.addChildNode(sun)
     }
     /// Palace: white marble floor, columns, gold mouldings, chandeliers.
     private func buildPalace(){
         tableFixture()
         scene.background.contents=UIColor(red:0.08,green:0.07,blue:0.06,alpha:1)
-        let marble=mat(UIColor(white:0.88,alpha:1),roughness:0.18);marble.normal.contents=normalImage;marble.normal.intensity=0.05
-        shell(floor:marble,wall:mat(.rgb(0xe8dcc4),roughness:0.6),height:4.5)
+        let marble=mat(UIColor(white:0.58,alpha:1),roughness:0.25);marble.normal.contents=normalImage;marble.normal.intensity=0.05
+        shell(floor:marble,wall:mat(.rgb(0x8f826c),roughness:0.7),height:4.5)
         let gold=premiumMaterial("ChampagneGold")
         for side:Float in [-1,1]{
-            for z:Float in [-3.6,-1.2,1.2,3.6]{let c=SCNCylinder(radius:0.18,height:4.4);c.radialSegmentCount=48;c.materials=[mat(UIColor(white:0.93,alpha:1),roughness:0.3)]
+            for z:Float in [-3.6,-1.2,1.2,3.6]{let c=SCNCylinder(radius:0.18,height:4.4);c.radialSegmentCount=48;c.materials=[mat(UIColor(white:0.70,alpha:1),roughness:0.35)]
                 let n=SCNNode(geometry:c);n.position=SCNVector3(side*3.5,1.4,z);scene.rootNode.addChildNode(n)
                 _=box(0.5,0.12,0.5,SCNVector3(side*3.5,3.55,z),gold,chamfer:0.02);_=box(0.5,0.12,0.5,SCNVector3(side*3.5,-0.7,z),gold,chamfer:0.02)}
             _=box(8,0.08,0.06,SCNVector3(0,2.6,side*4.62),gold,chamfer:0.01)
@@ -708,7 +728,7 @@ final class TableScene {
         for z:Float in [-2.2,2.2]{
             let crystal=emissive(UIColor(white:1,alpha:1),.rgb(0xfff2d0))
             for k in 0..<10 {let a=Float(k)/10*Float.pi*2;let n=SCNNode(geometry:SCNSphere(radius:0.04));n.geometry?.materials=[crystal];n.position=SCNVector3(cos(a)*0.35,2.9,z+sin(a)*0.35);scene.rootNode.addChildNode(n)}
-            _=box(0.8,0.04,0.8,SCNVector3(0,3.05,z),gold,chamfer:0.02);roomLamp(SCNVector3(0,2.9,z),45,3400,end:6)
+            _=box(0.8,0.04,0.8,SCNVector3(0,3.05,z),gold,chamfer:0.02);roomLamp(SCNVector3(0,2.9,z),20,3400,end:6)
         }
     }
     /// Royal: deep red carpet, dark carved panels, gold trims, crest, warm sconces.
@@ -736,7 +756,7 @@ final class TableScene {
         let led=emissive(.rgb(0x0b1f3a),.rgb(0x1d6fd6))
         for side:Float in [-1,1]{_=box(0.05,0.35,6,SCNVector3(side*3.3,-0.55,0),led,chamfer:0);_=box(5,0.35,0.05,SCNVector3(0,-0.55,side*4.3),led,chamfer:0)}
         _=box(3.2,1.2,0.08,SCNVector3(0,3.0,-6.5),emissive(.rgb(0x101010),.rgb(0x2a2a2a)),chamfer:0.02)
-        let spot=SCNNode();spot.light=SCNLight();spot.light?.type = .spot;spot.light?.intensity=900;spot.light?.temperature=5000
+        let spot=SCNNode();spot.light=SCNLight();spot.light?.type = .spot;spot.light?.intensity=320;spot.light?.temperature=5000
         spot.light?.spotInnerAngle=30;spot.light?.spotOuterAngle=55;spot.position=SCNVector3(0,4.2,0);spot.eulerAngles.x = -.pi/2;scene.rootNode.addChildNode(spot)
     }
     private func buildRoom(){
@@ -789,10 +809,12 @@ final class TableScene {
         let diffuser=mat(UIColor(white:0.9,alpha:1));diffuser.emission.contents=UIColor(white:0.85,alpha:1)
         for x:Float in [-0.25,0.25]{_ = box(0.13,0.015,1.88,SCNVector3(x,2.43,0),diffuser)}
     }
+    /// 0.35: Massé uses the playing cue but is drawn in its own colours, so each of the four cue icons looks different.
+    var masseLook=false
     func selectCue(_ type:Int){
-        let next=max(0,min(2,type)),appearance=CueBag.cue(type)
-        if cueType==next && cueLookID==appearance.id && !cueRoot.childNodes.isEmpty{return}
-        cueLookID=appearance.id;cueType=next;cueRoot.childNodes.forEach{$0.removeFromParentNode()};buildCue()
+        let next=max(0,min(2,type)),appearance=CueBag.cue(type),key=appearance.id+(masseLook && next==0 ? "-masse":"")
+        if cueType==next && cueLookID==key && !cueRoot.childNodes.isEmpty{return}
+        cueType=next;cueRoot.childNodes.forEach{$0.removeFromParentNode()};buildCue();cueLookID=key
     }
     func cuePreviewScene()->SCNScene {
         let preview=SCNScene();preview.background.contents=UIColor(red:0.04,green:0.06,blue:0.07,alpha:1)
@@ -807,8 +829,24 @@ final class TableScene {
     }
     private func buildCue(){
         let appearance=CueBag.cue(cueType);cueLookID=appearance.id
-        if let geometry=premiumCue(appearance.id){
-            let node=SCNNode(geometry:geometry);node.name="premium-cue-"+appearance.id;node.castsShadow=true;cueRoot.addChildNode(node)
+        if let base=premiumCue(appearance.id),let geometry=base.copy() as? SCNGeometry{
+            // 0.35 (owner: the cue must change look with the cue chosen): the kit meshes share one set of wood/carbon
+            // maps, so every cue looked the same. Tint butt/forearm with the cue's colour and the rings with its accent.
+            let masse=masseLook && cueType==0
+            let body=UIColor.rgb(masse ? 0x6a1820:appearance.color),trim=UIColor.rgb(masse ? 0xd0d4d8:appearance.accent)
+            geometry.materials=base.materials.map{source in
+                let m=(source.copy() as? SCNMaterial) ?? source
+                switch source.name {
+                case "Ebony","Carbon":m.multiply.contents=body
+                case "Wrap":m.multiply.contents=body.withAlphaComponent(1).blended(0.35)
+                case "Gold":m.multiply.contents=trim
+                default:break
+                }
+                return m
+            }
+            let node=SCNNode(geometry:geometry);node.name="premium-cue-"+appearance.id;node.castsShadow=true
+            if cueType==1 {node.scale=SCNVector3(1,0.72,1)}   // jump cue is short (1.044 m), as the clearance model assumes
+            cueRoot.addChildNode(node)
             let cap=SCNCylinder(radius:0.006,height:0.0008);cap.materials=[mat(.rgb(0x163D57),roughness:0.9)]
             let tip=SCNNode(geometry:cap);tip.position.y=0;cueRoot.addChildNode(tip)
             return
@@ -821,7 +859,7 @@ final class TableScene {
         }
         let maple=mat(appearance.carbon ? UIColor(white:0.12,alpha:1):UIColor.white,roughness:0.42)
         if !appearance.carbon {maple.diffuse.contents=woodTexture(light:true)}
-        let ebony=mat(.rgb(appearance.color),roughness:0.30)
+        let ebony=mat(.rgb(masseLook && cueType==0 ? 0x6a1820:appearance.color),roughness:0.30)
         let ring=mat(.rgb(appearance.accent),roughness:0.3,metal:0.5)
         section(0,0.004,0.0059,0.0059,mat(UIColor(red:0.07,green:0.23,blue:0.29,alpha:1),roughness:0.88))
         section(0.004,0.017,0.0059,0.0060,mat(UIColor(red:0.93,green:0.91,blue:0.81,alpha:1),roughness:0.23))
@@ -936,7 +974,7 @@ final class TableScene {
     }
     private func contactShadowTexture()->UIImage{
         texture(CGSize(width:512,height:512),opaque:false){c in
-            let colors=[UIColor.black.withAlphaComponent(0.70).cgColor,UIColor.black.withAlphaComponent(0.24).cgColor,UIColor.clear.cgColor] as CFArray
+            let colors=[UIColor.black.withAlphaComponent(0.88).cgColor,UIColor.black.withAlphaComponent(0.40).cgColor,UIColor.clear.cgColor] as CFArray
             if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0,0.42,1]){
                 c.cgContext.drawRadialGradient(g,startCenter:CGPoint(x:256,y:256),startRadius:0,endCenter:CGPoint(x:256,y:256),endRadius:256,options:[])
             }
@@ -1230,7 +1268,7 @@ final class TableScene {
             if state.time>=Self.pocketFallDuration{settledPocketNodes.insert(id)}
         }
     }
-    func replay(_ from:[BallState],to:[BallState],fraction:Double){
+    func replay(_ from:[BallState],to:[BallState],fraction:Double,span:Double=0){
         let t=max(0,min(1,fraction))
         let next=Dictionary(uniqueKeysWithValues:to.map{($0.id,$0)})
         let states=from.map{ a -> BallState in
@@ -1247,7 +1285,17 @@ final class TableScene {
                let bx=b.qx,let by=b.qy,let bz=b.qz,let bw=b.qw {
                 let qa=simd_quatf(ix:Float(ax),iy:Float(ay),iz:Float(az),r:Float(aw))
                 let qb=simd_quatf(ix:Float(bx),iy:Float(by),iz:Float(bz),r:Float(bw))
-                let q=simd_slerp(qa,qb,Float(t))
+                var q=simd_slerp(qa,qb,Float(t))
+                // 0.35: a fast ball turns > 180° between 30 Hz samples, so a shortest-path slerp spun it backwards in
+                // slow motion. Integrate the recorded angular velocity (same left-multiplied world-frame convention
+                // as Physics.cpp rotate) and spread the small end-point residual over the interval.
+                let w=SIMD3<Float>(Float((a.wx+b.wx)/2),Float((a.wy+b.wy)/2),Float((a.spin+b.spin)/2)),mag=simd_length(w)
+                if span>0 && mag*Float(span)>0.2 {
+                    let axis=w/mag,full=Float(span)*mag
+                    let end=simd_quatf(angle:full,axis:axis)*qa
+                    let residual=qb*end.inverse
+                    q=simd_normalize(simd_slerp(simd_quatf(angle:0,axis:SIMD3<Float>(0,0,1)),residual,Float(t))*simd_quatf(angle:full*Float(t),axis:axis)*qa)
+                }
                 state.qx=Double(q.imag.x);state.qy=Double(q.imag.y)
                 state.qz=Double(q.imag.z);state.qw=Double(q.real)
             }
@@ -1338,7 +1386,7 @@ final class TableScene {
         lastCameraTarget=target
         camera.simdPosition=eye;camera.look(at:SCNVector3(target.x,target.y,target.z),up:up,localFront:SCNVector3(0,0,-1))
     }
-    private func cuePose(_ c:BallState,angle:Double,side:Double,top:Double)->(contact:SIMD3<Float>,axis:SIMD3<Float>){
+    private func cuePose(_ c:BallState,angle:Double,side:Double,top:Double)->(contact:SIMD3<Float>,axis:SIMD3<Float>,tipBack:Float){
         let d=SIMD3<Float>(Float(cos(angle)),0,Float(sin(angle)))
         let elevation=Float(max(cueElevation,min(clearanceElevation,85))*Double.pi/180)
         let axis=d*cos(elevation)-SIMD3<Float>(0,1,0)*sin(elevation)
@@ -1354,9 +1402,20 @@ final class TableScene {
         let rearOffset: SIMD3<Float> = axis*radial
         let surfaceOffset: SIMD3<Float> = (lateralOffset+verticalOffset-rearOffset)*Float(radius)
         let contact: SIMD3<Float> = center+surfaceOffset
-        // Rear-hand point remains fixed while the selected tip point moves.
+        // Rear-hand point remains fixed while the selected tip point moves: it sets the HORIZONTAL stroke direction.
         let pivot=center-axis*(cueType==1 ? 0.80:1.12)
-        return (contact,simd_normalize(contact-pivot))
+        let raw=contact-pivot,flatLength=sqrt(raw.x*raw.x+raw.z*raw.z)
+        let flat=flatLength>1e-6 ? SIMD3<Float>(raw.x/flatLength,0,raw.z/flatLength):d
+        // 0.35 (owner: the cue still goes through the ball and the table). The pitch is the selected elevation, not the
+        // pivot→tip line: a high tip no longer tilts the butt down into the rail, and a low tip on a level cue gets the
+        // tiny lift that keeps the 14.7 mm butt above the cloth.
+        let length:Float=cueType==1 ? 1.044:1.45
+        let lift=asin(max(0,min(0.5,(0.0150-contact.y)/length)))
+        let pitch=max(elevation,lift)
+        // A flat tip of radius 5.9 mm meeting an off-centre point on the sphere would sink its edge into the ball:
+        // stand it off by r·tanθ (θ = angle between the cue and the surface normal).
+        let s2=min(Float(0.95),x*x+y*y),tipBack=Float(0.0059)*sqrt(s2)/sqrt(1-s2)
+        return (contact,simd_normalize(flat*cos(pitch)-SIMD3<Float>(0,1,0)*sin(pitch)),tipBack)
     }
     func shotAngle(_ c:BallState?,angle:Double,side:Double,top:Double)->Double{
         guard let c=c else{return angle}
@@ -1368,10 +1427,10 @@ final class TableScene {
         cueShadow.isHidden=cueRoot.isHidden
         guard visible,let c=c,!c.sunk else{return}
         let pose=cuePose(c,angle:angle,side:side,top:top)
-        cueRoot.simdPosition=pose.contact-pose.axis*Float(0.003+pull*0.16)
+        cueRoot.simdPosition=pose.contact-pose.axis*(Float(0.003+pull*0.16)+pose.tipBack)
         cueRoot.simdOrientation=simd_quatf(from:SIMD3(0,1,0),to:pose.axis)
         if ProcessInfo.processInfo.arguments.contains("--visual-qa"){
-            let tip=cueRoot.convertPosition(SCNVector3(0,Float(0.003+pull*0.16),0),to:nil)
+            let tip=cueRoot.convertPosition(SCNVector3(0,Float(0.003+pull*0.16)+pose.tipBack,0),to:nil)
             precondition(simd_distance(SIMD3(tip.x,tip.y,tip.z),pose.contact)<0.00001,"Cue geometry must reach selected surface contact")
         }
         updateCueShadow()
@@ -1555,5 +1614,13 @@ final class TableScene {
             let m=SCNMaterial();m.lightingModel = .constant;m.diffuse.contents=id==0 ? UIColor(white:0.94,alpha:0.65):UIColor(red:0.95,green:0.66,blue:0.25,alpha:0.8)
             g.materials=[m];let n=SCNNode(geometry:g);n.castsShadow=false;trailRoot.addChildNode(n)
         }
+    }
+}
+
+private extension UIColor {
+    /// Mix toward white: 0 = white, 1 = the colour itself (keeps a tint subtle on the wrap).
+    func blended(_ amount:CGFloat)->UIColor{
+        var r:CGFloat=0,g:CGFloat=0,b:CGFloat=0,a:CGFloat=0;getRed(&r,green:&g,blue:&b,alpha:&a)
+        return UIColor(red:1-(1-r)*amount,green:1-(1-g)*amount,blue:1-(1-b)*amount,alpha:1)
     }
 }
