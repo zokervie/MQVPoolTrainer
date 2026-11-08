@@ -96,7 +96,8 @@ from PIL import Image
 name=os.environ["CAMERA"]
 with Image.open(f"build/screenshots/{name}.png") as image:
  pixels=list(image.convert("RGB").resize((256,256)).getdata())
- count=sum(1 for r,g,b in pixels if g>35 and g>r*1.25 and b>25)
+ # 0.36: cloth is darker now (owner: "nỉ quá sáng"); green-dominant pixels at any brightness above black
+ count=sum(1 for r,g,b in pixels if g>16 and g>r*1.2 and b>8)
  if name.startswith("space-") or name=="table-zmax":
   # 0.34: grey Z-Max cloth / varied rooms — require a rendered scene (not a black or blank frame)
   count=sum(1 for r,g,b in pixels if 40<(r+g+b)/3<235)
