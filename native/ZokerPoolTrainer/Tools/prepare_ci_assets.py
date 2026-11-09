@@ -20,12 +20,12 @@ branding=root/'Tools/Branding'
 brand=json.loads((branding/'manifest.json').read_text())['master']
 data=base64.b64decode((branding/brand['encoded_file']).read_text(),validate=False)
 if len(data)!=brand['bytes'] or hashlib.sha256(data).hexdigest()!=brand['sha256']:
- raise SystemExit('Z-Trainer logo master checksum mismatch')
+ raise SystemExit('Zoker Pool logo master checksum mismatch')
 icons=assets/'AppIcon.appiconset'
 entries=json.loads((icons/'Contents.json').read_text())['images']
 with Image.open(io.BytesIO(data)) as image:
  if image.size!=(brand['width'],brand['height']) or image.mode!='RGB':
-  raise SystemExit('Z-Trainer logo master dimensions/mode mismatch')
+  raise SystemExit('Zoker Pool logo master dimensions/mode mismatch')
  for entry in entries:
   size=round(float(entry['size'].split('x')[0])*float(entry['scale'][:-1]))
   image.resize((size,size),Image.Resampling.LANCZOS).save(icons/entry['filename'])

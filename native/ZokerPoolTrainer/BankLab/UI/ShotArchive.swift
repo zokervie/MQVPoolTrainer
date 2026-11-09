@@ -55,7 +55,7 @@ struct ShotRecording: Codable {
     /// Keeping every recorded frame under one limit avoids archive decode spikes.
     func validate() throws {
         guard schemaVersion == Self.currentVersion else { throw ShotArchiveError.unsupportedVersion }
-        guard !frames.isEmpty, frames.count <= 7_201,
+        guard !frames.isEmpty, frames.count <= 40_001,   // 0.37: up to 240 Hz while balls are fast
               frames.count == frameTimes.count,
               let firstTime = frameTimes.first, firstTime.isFinite, firstTime >= 0,
               firstTime <= 0.05, duration.isFinite, duration <= 120 else {

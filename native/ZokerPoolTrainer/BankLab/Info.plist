@@ -9,7 +9,7 @@
 		<string>vi</string>
 	</array>
 	<key>CFBundleDisplayName</key>
-	<string>Z-Trainer</string>
+	<string>Zoker Pool</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

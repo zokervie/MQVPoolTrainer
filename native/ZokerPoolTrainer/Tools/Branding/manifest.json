@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "brand_text": "Z-Trainer",
-  "description": "Opaque dark-teal app icon with a yellow-striped white 9-ball, subtle Z accent and large white Z-Trainer lettering.",
+  "brand_text": "Zoker Pool / Trainer",
+  "description": "0.37: same 9-ball art, lettering changed to \"Zoker Pool\" + gold \"TRAINER\" (owner request 09/11/2026).",
   "generation": {
     "tool": "image_gen.imagegen",
     "type": "new artwork",
@@ -13,8 +13,8 @@
   "master": {
     "file": "ZTrainerIcon.master.png",
     "encoded_file": "ZTrainerIcon.master.png.b64",
-    "sha256": "15d79f87f010656670172a1e94044c65bd4b8ed50005286155218cf2803f29a4",
-    "bytes": 1337806,
+    "sha256": "13caeac6f34a9ad467cb54ae9cca47b21b870f3444eaf5768b9da88403dc38de",
+    "bytes": 612394,
     "width": 1254,
     "height": 1254,
     "mode": "RGB",

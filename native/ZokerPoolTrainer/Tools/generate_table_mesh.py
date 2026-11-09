@@ -9,6 +9,7 @@ from scipy.spatial import Delaunay
 ROOT=Path(__file__).resolve().parents[1]
 POCKETS=[(-.67,-1.305),(.67,-1.305),(-.706,0),(.706,0),(-.67,1.305),(.67,1.305)]
 N=192
+FILLET=.009
 RADII=[.074,.074,.066,.066,.074,.074]
 
 def mesh():return dict(vertices=[],normals=[],uv=[],indices=[])
@@ -129,7 +130,10 @@ def deck_region():
   if end==first:break
   piece=starts[end]
  assert end==first and len(inner)>100
- outer=[(rounded_radius(a)*math.cos(a),rounded_radius(a)*math.sin(a)) for a in np.linspace(0,2*math.pi,768,endpoint=False)]
+ # 0.37 (owner: square wood edge looked fake): the top stops FILLET short of the outline and a quarter-round
+ # bullnose (radius FILLET, 6 segments) rolls down to the vertical side.
+ angles=np.linspace(0,2*math.pi,768,endpoint=False)
+ outer=[(rounded_radius(a,FILLET)*math.cos(a),rounded_radius(a,FILLET)*math.sin(a)) for a in angles]
  points=np.array(outer+inner);triangles=Delaunay(points).simplices
  centres=points[triangles].mean(axis=1)
  keep=PolygonPath(outer).contains_points(centres)&~PolygonPath(inner).contains_points(centres)
@@ -158,14 +162,29 @@ def deck_region():
   tri=points[ids];u,v=tri[1]-tri[0],tri[2]-tri[0];total+=abs(float(u[0]*v[1]-u[1]*v[0]))/2
   face(m,[(x,.056,z) for x,z in tri],[[0,1,0]]*3)
  assert abs(total-(area(outer)-area(inner)))<1e-8
- for ring,inward in [(outer,False),(inner,True)]:
-  for p,q in zip(ring,ring[1:]+ring[:1]):
-   dx,dz=q[0]-p[0],q[1]-p[1];length=math.hypot(dx,dz);n=[dz/length,0,-dx/length]
-   if inward:n=[-n[0],0,-n[2]]
-   face(m,[(p[0],.056,p[1]),(q[0],.056,q[1]),(q[0],-.025,q[1]),(p[0],-.025,p[1])],[n]*4)
+ for p,q in zip(inner,inner[1:]+inner[:1]):
+  dx,dz=q[0]-p[0],q[1]-p[1];length=math.hypot(dx,dz);n=[-dz/length,0,dx/length]
+  face(m,[(p[0],.056,p[1]),(q[0],.056,q[1]),(q[0],-.025,q[1]),(p[0],-.025,p[1])],[n]*4)
+ # bullnose: ring k at angle phi_k (0 = top, pi/2 = side); radial offset FILLET*sin, drop FILLET*(1-cos)
+ steps=6;rings=[]
+ for k in range(steps+1):
+  phi=math.pi/2*k/steps
+  rings.append([(rounded_radius(a,FILLET-FILLET*math.sin(phi)),.056-FILLET*(1-math.cos(phi)),a,phi) for a in angles])
+ rings.append([(rounded_radius(a),-.025,a,math.pi/2) for a in angles])
+ count=len(angles)
+ for r0,r1 in zip(rings,rings[1:]):
+  for i in range(count):
+   j=(i+1)%count;pts=[];nrm=[]
+   for (rad,y,a,phi) in (r0[i],r0[j],r1[j],r1[i]):
+    pts.append((rad*math.cos(a),y,rad*math.sin(a)))
+    # outward normal ~ radial direction of the outline blended with up by the fillet angle
+    nrm.append([math.cos(a)*math.sin(phi),math.cos(phi),math.sin(a)*math.sin(phi)])
+   face(m,pts,nrm)
  return m
 meshes={'bed':bed(),'deck':deck_region(),
-        'trim':annulus(lambda a:rounded_radius(a,.005),rounded_radius,.058,.054)}
+        # 0.37: the 5 mm gold strip on the top edge was sub-pixel from the aim view (jagged, flickering). Now a 14 mm
+        # inlay band on the vertical side, standing 2 mm proud of the cabinet.
+        'trim':annulus(lambda a:rounded_radius(a,-.0005),lambda a:rounded_radius(a,-.002),.040,.026)}
 p=ROOT/'BankLab/Assets.xcassets/TableMesh.dataset'
 (p/'mesh.json').write_text(json.dumps(meshes,separators=(',',':')))
 print('PASS: six regular apertures, exact bed/deck area, constrained boundary edges, no deck triangle bridges a pocket')

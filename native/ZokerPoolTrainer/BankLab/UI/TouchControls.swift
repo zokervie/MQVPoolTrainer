@@ -249,6 +249,10 @@ final class ElevationPad:UIControl {
     static let maximum=90.0
     var degrees:Double=0 {didSet{accessibilityValue="\(Int(degrees)) độ";setNeedsDisplay()}}
     var leftHanded=false {didSet{if leftHanded != oldValue{setNeedsDisplay()}}}
+    /// 0.37 (owner): the least elevation that keeps the cue above the rail / balls behind, updated live while aiming.
+    /// The needle shows max(degrees, minimum) — the cue really is raised — and the forced zone is shaded red.
+    var minimum:Double=0 {didSet{if abs(minimum-oldValue)>0.05{accessibilityValue="\(Int(shown)) độ";setNeedsDisplay()}}}
+    var shown:Double{max(degrees,minimum)}
     var changed:((Double)->Void)?
     override init(frame:CGRect){super.init(frame:frame);backgroundColor = .clear;isAccessibilityElement=true;accessibilityLabel="Độ dốc cơ";accessibilityIdentifier="ElevationFan";accessibilityTraits = .adjustable;contentMode = .redraw}
     required init?(coder:NSCoder){fatalError()}
@@ -269,6 +273,11 @@ final class ElevationPad:UIControl {
             on.addArc(withCenter:p,radius:r,startAngle:leftHanded ? .pi:0,endAngle:leftHanded ? .pi+CGFloat(degrees*Double.pi/180):-CGFloat(degrees*Double.pi/180),clockwise:leftHanded);on.close()
             UIColor.rgb(0xEAC583).withAlphaComponent(0.22).setFill();on.fill()
         }
+        if minimum>degrees+0.5 {   // forced by the rail / a ball behind
+            let f=UIBezierPath();f.move(to:p);f.addLine(to:point(degrees,r))
+            f.addArc(withCenter:p,radius:r,startAngle:leftHanded ? .pi+CGFloat(degrees*Double.pi/180):-CGFloat(degrees*Double.pi/180),endAngle:leftHanded ? .pi+CGFloat(minimum*Double.pi/180):-CGFloat(minimum*Double.pi/180),clockwise:leftHanded);f.close()
+            UIColor(red:0.95,green:0.35,blue:0.25,alpha:0.30).setFill();f.fill()
+        }
         // ticks every 15°, longer at 0/45/90 (jump 45, massé 60+)
         ctx.setLineWidth(1)
         for tick in stride(from:0,through:90,by:15){
@@ -277,13 +286,13 @@ final class ElevationPad:UIControl {
         }
         // needle = small cue
         let alpha:CGFloat=isTracking ? 0.98:0.78
-        let tip=point(degrees,r*0.18),butt=point(degrees,r*0.92),mid=CGPoint(x:(tip.x+butt.x)/2,y:(tip.y+butt.y)/2)
+        let tip=point(shown,r*0.18),butt=point(shown,r*0.92),mid=CGPoint(x:(tip.x+butt.x)/2,y:(tip.y+butt.y)/2)
         ctx.setLineCap(.round)
         ctx.setStrokeColor(UIColor(red:0.86,green:0.70,blue:0.45,alpha:alpha).cgColor);ctx.setLineWidth(3.0);ctx.move(to:butt);ctx.addLine(to:mid);ctx.strokePath()
         ctx.setStrokeColor(UIColor(white:0.95,alpha:alpha).cgColor);ctx.setLineWidth(2.0);ctx.move(to:mid);ctx.addLine(to:tip);ctx.strokePath()
         UIColor.white.withAlphaComponent(alpha).setFill();ctx.fillEllipse(in:CGRect(x:p.x-3,y:p.y-3,width:6,height:6))
         let attrs:[NSAttributedString.Key:Any]=[.font:UIFont.monospacedDigitSystemFont(ofSize:11,weight:.semibold),.foregroundColor:UIColor.white.withAlphaComponent(0.85)]
-        let text="\(Int(degrees))°" as NSString,sz=text.size(withAttributes:attrs)
+        let text=(minimum>degrees+0.5 ? "↑\(Int(shown.rounded()))°":"\(Int(degrees))°") as NSString,sz=text.size(withAttributes:attrs)
         text.draw(at:CGPoint(x:leftHanded ? bounds.minX+3:bounds.maxX-sz.width-3,y:bounds.minY+2),withAttributes:attrs)
     }
     private func set(_ q:CGPoint){

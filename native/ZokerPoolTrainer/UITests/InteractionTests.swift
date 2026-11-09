@@ -226,7 +226,7 @@ final class InteractionTests: XCTestCase {
     /// 0.30b: no B button; touching the effect ball LATCHES the lock. A non-firing touch on the table unlocks
     /// without shooting, after which aiming works again.
     func testEffectBallLatchesLockAndNonFiringTouchUnlocks() {
-        let (app,scene)=launch(["--ux017-qa"])
+        let (app,scene)=launch(["--ux017-qa","-tuneEffectLock037","YES"])   // 0.37: latch is opt-in (Tuỳ chỉnh)
         XCTAssertTrue(app.descendants(matching:.any)["Giữ để khóa hướng"].firstMatch.isHittable, "0.36: B is back beside the effect ball")
         let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
         XCTAssertTrue(effect.isHittable)
@@ -243,6 +243,17 @@ final class InteractionTests: XCTestCase {
         start.press(forDuration:0.05,thenDragTo:end)
         wait(scene,timeout:5 * slow){abs(self.angle(scene)-before)>0.01}
         XCTAssertEqual(field(scene,"moving"),0)
+    }
+
+    /// 0.37 (owner): by default touching the effect ball does NOT lock the aim; only B does.
+    func testEffectBallDoesNotLockByDefault() {
+        let (app,scene)=launch(["--ux017-qa","-tuneEffectLock037","NO"])
+        let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
+        XCTAssertTrue(effect.waitForExistence(timeout:5 * slow))
+        effect.press(forDuration:0.5)
+        let settled=Date().addingTimeInterval(1.5)
+        wait(scene,timeout:5 * slow){Date()>=settled}
+        XCTAssertEqual(field(scene,"locked"),0,"effect ball must not latch the lock by default")
     }
 
     /// 0.36: four cue icons in a row above the effect ball; Jump 45°, Massé 70° (play cue raised), Break, back to Đánh.

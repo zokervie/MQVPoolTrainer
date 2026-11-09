@@ -31,9 +31,28 @@ static inline double BLCueRailDistance(double x, double y, double angle,
     return fmax(0, best);
 }
 
-// Mép dưới của cơ tại khoảng cách ngang d (tính từ điểm chạm) với góc θ (rad).
+// Mép dưới của cơ tại khoảng cách ngang d (tính từ điểm chạm) với góc θ (rad). 0.37: bán kính thân cơ to dần theo d.
+static inline double BLCueShaftRadius(double d) { return 0.0065 + 0.0035 * fmin(1.0, fmax(0.0, d) / 0.7); }
 static inline double BLCueUnderside(double contactHeight, double d, double theta) {
-    return contactHeight + d * tan(theta) - BL_CUE_TIP_RADIUS / cos(theta);
+    return contactHeight + d * tan(theta) - BLCueShaftRadius(d) / cos(theta);
+}
+
+// 0.37 (owner screenshot: cue through the rail): the obstacle is the RENDERED rail, not two guessed points.
+// (setback behind the nose line, height above the bed) for a 57.15 mm ball — the cushion profile in
+// TableScene.cushionPath and the deck (top 56 mm, generate_table_mesh.py) out to the outer edge 172 mm back.
+// Heights scale with the ball radius. First point is replaced by the actual nose height R(1+nose).
+#define BL_RAIL_PROFILE_COUNT 8
+static const double BLRailProfile[BL_RAIL_PROFILE_COUNT][2] = {
+    {0.0, 0.03629025}, {0.006, 0.0435}, {0.014, 0.0475}, {0.030, 0.052},
+    {0.050, 0.055}, {0.053, 0.056}, {0.110, 0.056}, {0.1725, 0.056}};
+
+static inline int BLCueClearsRail(double contactHeight, double d1, double radius, double noseRatio, double theta) {
+    const double k = radius / 0.028575;
+    for (int i = 0; i < BL_RAIL_PROFILE_COUNT; ++i) {
+        const double h = i == 0 ? radius * (1.0 + noseRatio) : BLRailProfile[i][1] * k;
+        if (BLCueUnderside(contactHeight, d1 + BLRailProfile[i][0] * k, theta) < h) return 0;
+    }
+    return 1;
 }
 
 // Góc nghiêng tối thiểu (độ) để cơ qua được băng; 0 khi bi ở xa băng.
@@ -47,13 +66,19 @@ static inline double BLCueMinimumElevation(double x, double y, double angle,
     const double contactHeight = radius * (1.0 + top);
     const double rail = BLCueRailDistance(x, y, angle, width, length);
     // Khe tối thiểu 1,5 mm giữa điểm chạm và mũi băng (đầu cơ không lách được xuống dưới mũi băng).
-    const double d1 = fmax(0.0015, rail - back), d2 = d1 + BL_RAIL_WOOD_SETBACK;
-    const double h1 = radius * (1.0 + noseRatio), h2 = h1 + BL_RAIL_WOOD_RISE;
-    double lo = 0, hi = 89.5 * M_PI / 180;
-    if (BLCueUnderside(contactHeight, d1, 0) >= h1 && BLCueUnderside(contactHeight, d2, 0) >= h2) return 0;
-    for (int i = 0; i < 60; ++i) {
+    const double d1 = fmax(0.0015, rail - back);
+    if (BLCueClearsRail(contactHeight, d1, radius, noseRatio, 0)) return 0;
+    // Not monotone near vertical (the shaft's horizontal section r/cos θ grows): scan up, then refine.
+    double lo = 0, hi = -1;
+    for (int k = 1; k <= 340; ++k) {
+        const double th = k * 0.25 * M_PI / 180;
+        if (BLCueClearsRail(contactHeight, d1, radius, noseRatio, th)) { hi = th; break; }
+        lo = th;
+    }
+    if (hi < 0) return 90;
+    for (int i = 0; i < 40; ++i) {
         const double mid = (lo + hi) / 2;
-        if (BLCueUnderside(contactHeight, d1, mid) >= h1 && BLCueUnderside(contactHeight, d2, mid) >= h2) hi = mid;
+        if (BLCueClearsRail(contactHeight, d1, radius, noseRatio, mid)) hi = mid;
         else lo = mid;
     }
     return hi * 180 / M_PI;
@@ -89,7 +114,7 @@ static inline double BLCueClampTop(double x, double y, double angle, double side
 //   z(a_j - back) >= R + rho / cos(theta)   (line-circle distance, exact in that plane).
 // Shaft radius grows from the tip 6.5 mm to 10 mm at 0.7 m [assumed, typical taper]; cue length 1.45 m.
 #define BL_CUE_LENGTH 1.45
-static inline double BLCueRadiusAt(double d) { return BL_CUE_TIP_RADIUS + 0.0035 * fmin(1.0, fmax(0.0, d) / 0.7); }
+static inline double BLCueRadiusAt(double d) { return BLCueShaftRadius(d); }
 
 static inline int BLCueClearsBall(double contactHeight, double back, double along, double lateral, double radius, double theta) {
     const double d = along - back;

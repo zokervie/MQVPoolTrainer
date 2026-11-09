@@ -23,7 +23,7 @@ enum ReplayDirector {
     }
 
     private enum ViewStyle {
-        case intro, overhead, oblique, rail, pocket
+        case intro, overhead, oblique, rail, pocket, wide, follow
     }
 
     private struct Moment {
@@ -108,54 +108,34 @@ enum ReplayDirector {
         return result
     }
 
+    /// 0.37 (owner: cinematic replay for future promo cuts): at most THREE shots, smooth 0.9 s dissolves —
+    /// 1 wide establishing view of the whole table, 2 a low view along the cue ball's path framing the first contact,
+    /// 3 the pocket the ball drops in (or a high three-quarter view following the moving balls).
     private static func makeSegments(_ moments: [Moment], duration: Double) -> [Segment] {
-        let pots = moments.filter { $0.kind == 2 && $0.actor > 0 }
-        // A very early pot starts in a wide pocket approach view. This avoids a
-        // sub-two-second cut from the cue view just as the ball reaches the hole.
-        let earlyPot = pots.first.flatMap { $0.time < minimumCutInterval + 0.82 ? $0 : nil }
-        let firstStyle: ViewStyle = earlyPot == nil ? .intro : .pocket
-        var segments = [Segment(start: 0, style: firstStyle, moment: earlyPot)]
-
-        // Reserve pocket approaches first; contacts and fallback views may not
-        // force a second cut close to a selected hero shot.
-        for pot in pots where pot.index != earlyPot?.index {
-            let start = max(minimumCutInterval, pot.time - 0.82)
-            append(Segment(start: start, style: .pocket, moment: pot),
-                   to: &segments, duration: duration)
+        var segments = [Segment(start: 0, style: .wide, moment: nil)]
+        let contact = moments.first { $0.kind == 1 && ($0.actor == 0 || $0.other == 0) }
+        let pot = moments.first { $0.kind == 2 && $0.actor > 0 }
+        if let contact = contact, contact.time > 0.5 {
+            append(Segment(start: max(0.6, contact.time - 0.55), style: .follow, moment: contact),
+                   to: &segments, duration: duration, gap: 1.0)
+        } else if duration > 1.6 {
+            append(Segment(start: 0.8, style: .follow, moment: nil), to: &segments, duration: duration, gap: 0.8)
         }
-        for moment in moments where moment.kind == 1 && moment.time > 0.75 {
-            let start = max(minimumCutInterval, moment.time - 0.45)
-            append(Segment(start: start, style: .overhead, moment: moment),
-                   to: &segments, duration: duration)
-        }
-        for moment in moments where moment.kind == 0 && moment.time > 0.75 {
-            let start = max(minimumCutInterval, moment.time - 0.35)
-            append(Segment(start: start, style: .rail, moment: moment),
-                   to: &segments, duration: duration)
-        }
-        // Long, quiet rolls still get a readable establishing view and a low
-        // angle. The bounded loop also handles malformed archive durations.
-        for slot in 0..<64 {
-            let start = 2.8 + Double(slot) * 3.4
-            if start >= duration - 0.35 { break }
-            let style: ViewStyle
-            switch slot % 3 {
-            case 0: style = .overhead
-            case 1: style = .oblique
-            default: style = .rail
-            }
-            append(Segment(start: start, style: style, moment: nil),
-                   to: &segments, duration: duration)
+        if let pot = pot {
+            append(Segment(start: max(1.2, pot.time - 1.0), style: .pocket, moment: pot),
+                   to: &segments, duration: duration, gap: 1.0)
+        } else if let last = segments.last, duration - last.start > 3.0 {
+            append(Segment(start: last.start + 2.2, style: .oblique, moment: nil), to: &segments, duration: duration, gap: 1.0)
         }
         segments.sort { $0.start < $1.start }
-        return segments
+        return Array(segments.prefix(3))
     }
 
     private static func append(_ candidate: Segment, to segments: inout [Segment],
-                               duration: Double) {
+                               duration: Double, gap: Double = minimumCutInterval) {
         guard candidate.start > 0, candidate.start < duration - 0.35 else { return }
         let clear = segments.allSatisfy {
-            abs($0.start - candidate.start) >= minimumCutInterval - 1e-8
+            abs($0.start - candidate.start) >= gap - 1e-8
         }
         if clear { segments.append(candidate) }
     }
@@ -168,6 +148,25 @@ enum ReplayDirector {
         var pitch: Float = 0.68
         var focus: SIMD4<Float>?
         switch segment.style {
+        case .wide:
+            // establishing: whole table from a high three-quarter angle on the shooter's side
+            mode = 0
+            zoom = 0.94
+            yaw = angle + 0.55 - 0.20
+            pitch = 0.72
+            focus = nil
+        case .follow:
+            // low, behind the cue ball's line of travel, framing the cue ball and what it is about to hit
+            pitch = 0.30
+            zoom = 1.02
+            yaw = angle - 0.20
+            if let moment = segment.moment {
+                var points = [moment.point]
+                if let cue = balls.first(where: { $0.id == 0 }), let p = finitePoint(x: cue.x, y: cue.y) { points.append(p) }
+                focus = boundedFocus(points, margin: 0.22, minWidth: 0.90, minLength: 1.10)
+            } else {
+                focus = movingFocus(balls)
+            }
         case .intro:
             mode = 2
             pitch = 0.57

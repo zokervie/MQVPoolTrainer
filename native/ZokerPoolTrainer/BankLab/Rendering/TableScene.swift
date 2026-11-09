@@ -132,7 +132,13 @@ final class TableScene {
     private func applyBallFinish(_ m:SCNMaterial){
         m.emission.contents=UIColor.black;m.emission.intensity=0
         if oldBalls{m.roughness.contents=0.55;m.clearCoat.contents=0.45;m.clearCoatRoughness.contents=0.22;m.multiply.contents=UIColor(red:0.97,green:0.95,blue:0.88,alpha:1)}
-        else{m.roughness.contents=0.50;m.clearCoat.contents=0.42;m.clearCoatRoughness.contents=0.14;m.multiply.contents=UIColor(white:min(1,0.80*Self.tune(Self.tuneBall)),alpha:1)}   // 0.36: owner "bi quá sáng, chói" — dimmer albedo, softer smaller lacquer highlight
+        else{
+            // 0.37 (owner, 3rd time "bi chói"): the lit top clipped to white. Lower albedo, a thinner and softer lacquer so the
+            // numbers/stripes keep detail; "Độ chói bi" (Tuỳ chỉnh) scales albedo AND lacquer together.
+            let t=Self.tune(Self.tuneBall)
+            m.roughness.contents=0.55;m.clearCoat.contents=min(1,0.28*t);m.clearCoatRoughness.contents=0.20
+            m.multiply.contents=UIColor(white:min(1,0.68*t),alpha:1)
+        }
     }
     /// Large-scale worsted nap streaks, soft mottling and cushion-side falloff.
     /// UV covers the 1.615 x 2.895 m footprint once (generate_table_mesh.py), so
@@ -175,7 +181,7 @@ final class TableScene {
         float2 plane = abs(nw.y) > 0.6 ? wp.xz : float2(wp.x + wp.z, wp.y);
         float2 uv = plane * float2(34.0, 34.0);
         float fw = length(fwidth(plane));
-        float fiberW = fiberStrength * saturate(1.0 - fw / 0.0022);
+        float fiberW = fiberStrength * saturate(1.0 - fw / 0.0014);
         if (fiberW > 0.001) {
             float e = 1.5 / 512.0;
             float h0 = fiberMap.sample(fs, uv).r;
@@ -187,7 +193,7 @@ final class TableScene {
         // 0.36 (owner reference: Dragon Gold grey worsted): plain weave, ~2.2 mm thread pitch, fades when a pixel
         // covers more than about half a thread, so it never shimmers at distance.
         float2 wv = plane / 0.0022;
-        float weaveW = fiberStrength * saturate(1.8 - length(fwidth(wv)) * 1.8);
+        float weaveW = fiberStrength * saturate((0.33 - length(fwidth(wv))) / 0.13);   // 0.37: full at >=5 px/thread, 0 at 3 px (no moire)
         if (weaveW > 0.001) {
             float2 cell = floor(wv), f = fract(wv);
             float odd = fmod(abs(cell.x + cell.y), 2.0);
@@ -197,13 +203,23 @@ final class TableScene {
             float gx = (1.0 - odd) * cos(3.14159 * f.x), gy = odd * cos(3.14159 * f.y);
             _surface.normal = normalize(_surface.normal + weaveW * 0.45 * (gx * _surface.tangent + gy * _surface.bitangent));
         }
+        _surface.roughness = 1.0;   // 0.37: worsted cloth has no sheen; a sliding highlight made the bands move/flicker
+        """,.fragment:"""
+        // 0.37: the dark cloth under one spot light is a very slow gradient: 8-bit output shows ~28 red levels across
+        // the table -> concentric bands. Triangular sub-step noise (< 1 output level) turns steps into a smooth ramp.
+        float3 dp = floor(_surface.position * 2600.0);
+        float n1 = fract(sin(dot(dp, float3(12.9898, 78.233, 37.719))) * 43758.5453);
+        float n2 = fract(sin(dot(dp, float3(39.346, 11.135, 83.155))) * 24634.6345);
+        _output.color.rgb *= 1.0 + (n1 + n2 - 1.0) * 0.018;
         """]
     }
     // 0.36 Tuỳ chỉnh (menu): user multipliers, 1 = default.
-    static let tuneBall="tuneBall036",tuneCloth="tuneCloth036",tuneLight="tuneLight036",tuneDiamond="tuneDiamond036"
+    static let tuneBall="tuneBall036",tuneCloth="tuneCloth036",tuneLight="tuneLight036",tuneDiamond="tuneDiamond036",tuneShadow="tuneShadow037"
     static func tune(_ key:String)->CGFloat{CGFloat(UserDefaults.standard.object(forKey:key) as? Double ?? 1)}
     func applyTuning(){
         light.intensity=52*Self.tune(Self.tuneLight)
+        light.shadowColor=UIColor(white:0,alpha:min(0.95,0.72*Self.tune(Self.tuneShadow)))
+        contactShadows.values.forEach{$0.opacity=min(1,Self.tune(Self.tuneShadow))}
         for g in cachedBallGeometry.values{if let m=g.firstMaterial{applyBallFinish(m)}}
         selectTable(look)
     }
@@ -279,17 +295,22 @@ final class TableScene {
     }
     /// Render cost only. The controller keeps the authoritative physics step and
     /// interpolation independent of thermal quality changes.
+    /// 0.37: 0 full, 1 fewer shadow samples, 2 minimum — raised by the controller when frames are missed.
+    private(set) var performanceLevel=0
+    func setPerformanceLevel(_ level:Int){let l=max(0,min(2,level));guard l != performanceLevel else{return};performanceLevel=l;applyQuality()}
     func setThermalState(_ state:ProcessInfo.ThermalState){
         guard state != thermalState else{return};thermalState=state;applyQuality()
     }
     private func applyQuality(){
         let constrained=thermalState == .serious || thermalState == .critical
         let warm=thermalState == .fair
-        let key="\(highDetail)-\(thermalState.rawValue)"
+        let key="\(highDetail)-\(thermalState.rawValue)-\(performanceLevel)"
         guard qualityKey != key else{return};qualityKey=key
         ballSegmentCount=constrained ? 24:(highDetail && !warm ? 64:48)
         for geometry in cachedBallGeometry.values{geometry.segmentCount=ballSegmentCount}
         for node in nodes.values{node.castsShadow = !constrained}   // 0.36: real soft ball shadow at default quality
+        tableRoot.enumerateHierarchy{node,_ in node.castsShadow=false}   // 0.37: table self-shadow = acne stripes on rail/apron + GPU cost
+        roomRoot.enumerateHierarchy{node,_ in node.castsShadow=false}
         camera.camera?.screenSpaceAmbientOcclusionIntensity=0   // 0.35: full-screen SSAO pass removed (heat); contact shadows do the grounding
         camera.camera?.screenSpaceAmbientOcclusionRadius=0.035
         camera.camera?.screenSpaceAmbientOcclusionBias=0.003
@@ -298,7 +319,7 @@ final class TableScene {
         #if targetEnvironment(simulator)
         light.shadowSampleCount=2   // CI Simulator GPU is very slow; 6–8 samples starved the runner (run 42514806011)
         #else
-        light.shadowSampleCount=constrained ? 1:(highDetail ? 8:6)
+        light.shadowSampleCount=constrained || performanceLevel>=2 ? 1:(highDetail && performanceLevel==0 ? 6:4)   // 0.37: radius gives the softness; 8 samples halved FPS
         #endif
         light.castsShadow = !constrained
     }
@@ -320,7 +341,7 @@ final class TableScene {
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
         light.intensity=52*Self.tune(Self.tuneLight);light.temperature=5000;light.spotInnerAngle=42;light.spotOuterAngle=112   // 0.35b: cooler LED like the reference club, less glare
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=5.5   // 0.36: softer penumbra like the reference
-        light.shadowColor=UIColor(white:0,alpha:0.72);light.shadowBias=0.001
+        light.shadowColor=UIColor(white:0,alpha:min(0.95,0.72*Self.tune(Self.tuneShadow)));light.shadowBias=0.002
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
         for x:Float in [-2.2,2.2]{
             let fill=SCNNode();fill.position=SCNVector3(x,1.7,0.8);fill.light=SCNLight();fill.light?.type = .omni
@@ -416,13 +437,7 @@ final class TableScene {
         }else{preconditionFailure("Missing Premium Classic diamond layout")}
         brandPlate(SCNVector3(0,-0.15,1.421))
         for side:Float in [-1,1]{apronLogo(side)}
-        // Cabinet panel joints and inset foot hardware: visual only, outside the bed.
-        let joint=mat(UIColor(white:0.025,alpha:1),roughness:0.7)
-        for side:Float in [-1,1]{
-            for z:Float in [-0.84,0.84]{
-                _=box(0.0015,0.17,0.002,SCNVector3(side*0.8068,-0.16,z),joint,chamfer:0)
-            }
-        }
+        // 0.37: the 1.5 mm cabinet joint strips were sub-pixel (vertical flicker bands on the apron) — removed.
         buildBase(shell:graphite,trim:edge)
         if ProcessInfo.processInfo.arguments.contains("--visual-qa") {
             let sights=scene.rootNode.childNodes.filter{$0.name=="rail-sight"}
@@ -440,6 +455,7 @@ final class TableScene {
         let old=Set(scene.rootNode.childNodes.map{ObjectIdentifier($0)})
         buildTable(tableRails)
         for node in scene.rootNode.childNodes where !old.contains(ObjectIdentifier(node)){tableRoot.addChildNode(node)}
+        tableRoot.enumerateHierarchy{node,_ in node.castsShadow=false}   // 0.37: only balls/cue cast (acne stripes)
     }
     func setClothColor(_ index:Int?){clothTintIndex=index.map{max(0,min(Self.clothColors.count-1,$0))};selectTable(look)}
     private func buildBase(shell:SCNMaterial,trim:SCNMaterial){
@@ -1020,8 +1036,11 @@ final class TableScene {
     }
     private func contactShadowTexture()->UIImage{
         texture(CGSize(width:512,height:512),opaque:false){c in
-            let colors=[UIColor.black.withAlphaComponent(0.95).cgColor,UIColor.black.withAlphaComponent(0.70).cgColor,UIColor.black.withAlphaComponent(0.30).cgColor,UIColor.black.withAlphaComponent(0.08).cgColor,UIColor.clear.cgColor] as CFArray
-            if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0,0.22,0.48,0.75,1]){
+            // 0.37 (owner: shadow should be dark but SMOOTH): Gaussian-like falloff, 12 stops, no visible ring.
+            var stops:[CGFloat]=[],colours:[CGColor]=[]
+            for k in 0...11 {let x=CGFloat(k)/11;stops.append(x);colours.append(UIColor.black.withAlphaComponent(0.92*exp(-x*x*4.2)*(1-x*x*x)).cgColor)}
+            let colors=colours as CFArray
+            if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:stops){
                 c.cgContext.drawRadialGradient(g,startCenter:CGPoint(x:256,y:256),startRadius:0,endCenter:CGPoint(x:256,y:256),endRadius:256,options:[])
             }
         }
@@ -1238,7 +1257,7 @@ final class TableScene {
                 if shadow.isHidden{shadow.isHidden=false}
                 setPosition(SCNVector3(planar.x,0.001,planar.y),on:shadow)
                 let height=Float(b.height ?? 0)
-                let shade=CGFloat(max(0.05,1.0/(1+height*13)))
+                let shade=CGFloat(max(0.05,1.0/(1+height*13)))*min(1,Self.tune(Self.tuneShadow))
                 if shadow.opacity != shade{shadow.opacity=shade}
                 let spread:Float=0.92+height*1.6
                 if shadow.scale.x != spread{shadow.scale=SCNVector3(spread,spread,spread)}

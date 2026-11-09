@@ -146,5 +146,22 @@ for path in sorted(Path("build/screenshots").glob("*.png")):
   # Full-screen drill catalog intentionally covers the 3D table; verify
   # table visibility only on scenes that are supposed to show the playing surface.
   if path.stem not in ("cue-library","calibration","drill-list") and cloth<(250 if path.stem=="library" else 1500):failed.append(path.name)
-if failed:raise SystemExit("Visual QA failed: table not visible in "+", ".join(failed))
+# 0.37 (owner 0.36 video: concentric bands on the cloth = 8-bit banding). With dithering a flat-looking cloth area has
+# short runs of identical values; long identical runs mean visible contour bands. Gate on the top views.
+for name in ("premium-top","top"):
+ path=Path("build/screenshots")/(name+".png")
+ if not path.exists():continue
+ with Image.open(path) as image:
+  g=image.convert("L");w,h=g.size;box=g.crop((int(w*0.30),int(h*0.35),int(w*0.70),int(h*0.65)));bw,bh=box.size;px=box.load()
+  runs=[];
+  for y in range(0,bh,max(1,bh//24)):
+   n=1
+   for x in range(1,bw):
+    if px[x,y]==px[x-1,y]:n+=1
+    else:runs.append(n);n=1
+   runs.append(n)
+  mean=sum(runs)/len(runs);longest=max(runs)
+  print(f"{name}: cloth banding mean run {mean:.1f} px, longest {longest} px")
+  if mean>40:failed.append(name+" (cloth banding)")
+if failed:raise SystemExit("Visual QA failed: "+", ".join(failed))
 PY

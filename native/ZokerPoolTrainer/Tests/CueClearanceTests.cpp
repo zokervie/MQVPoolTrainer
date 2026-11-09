@@ -9,18 +9,18 @@ int main() {
         return BLCueMinimumElevation(x, y, a, s, t, W, L, R, nose);
     };
     // Giữa bàn: cơ nằm ngang được với mọi điểm chạm trong vùng 0,7R.
-    for (double s : {-0.6, 0.0, 0.6}) for (double t : {-0.6, 0.0, 0.6}) assert(minE(0, 0, 0, s, t) < 4); // giữa bàn: chỉ cần nghiêng vài độ (cơ thật luôn nghiêng 3–10°)
+    for (double s : {-0.6, 0.0, 0.6}) for (double t : {-0.6, 0.0, 0.6}) assert(minE(0, 0, 0, s, t) < 5); // giữa bàn: chỉ cần nghiêng vài độ (cơ thật luôn nghiêng 3–10°); 0.37: băng thật trên màn hình (gỗ 56 mm) → ≤ 4,3°
     // Bi sát băng phải (x = +), đánh về bên trái (a = π): cơ phải đi qua băng phải.
     const double a = M_PI;
     const double centre = minE(frozen, 0, a, 0, 0), high = minE(frozen, 0, a, 0, 0.55), low = minE(frozen, 0, a, 0, -0.5);
     std::cout << "REPORT cue-clearance frozen: top+0.55=" << high << "deg centre=" << centre << "deg draw-0.5=" << low << "deg\n";
-    assert(high < 20);                 // phần trên bi: chỉ cần nghiêng nhẹ trên băng
+    assert(high > 25 && high < 45);    // 0.37: profile băng thật trên màn hình (mũi bo tròn + gỗ 56 mm) → ~38°; ngoài đời bi sát băng phải dựng cơ 30–45°
     // Tâm/dưới tâm bi sát băng: điểm chạm nằm dưới mũi băng, đầu cơ (Ø13 mm) không lách vào được → không với tới.
     assert(centre > 89 && low > 89);
-    assert(!BLCueReachable(frozen, 0, a, 0, -0.5, W, L, R, nose, 35));
+    assert(!BLCueReachable(frozen, 0, a, 0, -0.5, W, L, R, nose, 45));
     // Kẹp: điểm dưới tâm bị đẩy lên vùng với tới được, giữ nguyên ngang.
-    const double clamped = BLCueClampTop(frozen, 0, a, 0.2, -0.5, W, L, R, nose, 35, 0.7);
-    assert(clamped > 0.3 && BLCueReachable(frozen, 0, a, 0.2, clamped, W, L, R, nose, 35));
+    const double clamped = BLCueClampTop(frozen, 0, a, 0.2, -0.5, W, L, R, nose, 45, 0.7);   // 0.37: normal-stroke limit 45°
+    assert(clamped > 0.3 && BLCueReachable(frozen, 0, a, 0.2, clamped, W, L, R, nose, 45));
     // Càng xa băng càng ít phải nghiêng; đối xứng trái/phải.
     double previous = 90;
     for (double gap : {0.0, 0.01, 0.03, 0.08, 0.2, 0.4}) {

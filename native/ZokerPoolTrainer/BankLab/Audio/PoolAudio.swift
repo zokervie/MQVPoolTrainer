@@ -153,7 +153,10 @@ final class PoolAudio {
             let sample = samples[self.variation % samples.count]
             self.variation = (self.variation + 1) % 1_000_000
             let kindGain = type == 0 ? 0.82 : (type == 2 ? 0.78 : (type == 3 ? 0.86 : 1.0))
-            let level = Float(min(0.88, pow(max(0.005, min(1, impact / 3.2)), 0.65) * kindGain))
+            // 0.37 Tuỳ chỉnh · Âm thanh: master volume (0 = mute)
+            let master = UserDefaults.standard.object(forKey: "tuneVolume037") as? Double ?? 1
+            guard master > 0.001 else { return }
+            let level = Float(min(0.88, pow(max(0.005, min(1, impact / 3.2)), 0.65) * kindGain * master))
             let index: Int
             if let free = self.voices.firstIndex(where: { !$0.busy }) {
                 index = free

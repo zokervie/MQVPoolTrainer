@@ -30,11 +30,28 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         contactSwitch.addAction(UIAction{[weak self,weak contactSwitch]_ in self?.values["coupledCushions"]=NSNumber(value:contactSwitch?.isOn ?? false)},for:.valueChanged)
         let contactLabel=UILabel();contactLabel.text="A1 · tiếp xúc 3D băng + mặt đá";contactLabel.textColor = .white
         body.addArrangedSubview(UIStackView(arrangedSubviews:[contactLabel,contactSwitch]))
-        slider("Cản lăn — thấp: bi chạy xa","rolling",0.003,0.04,0.012)
-        slider("Ma sát trượt — thời gian chuyển sang lăn","sliding",0.08,0.35,0.20)
-        slider("Đàn hồi băng — cao: giữ lực nhiều","railRestitution",0.4,0.98,0.82)
+        // 0.37: table presets (owner chose). Values sit inside the published ranges [design assumption, not measured].
+        let presetTitle=UILabel();presetTitle.text="Mẫu loại bàn";presetTitle.textColor = .white;presetTitle.font = .systemFont(ofSize:15,weight:.semibold)
+        body.addArrangedSubview(presetTitle)
+        let presets:[(String,[String:Double])]=[
+            ("Nỉ mới · nhanh",["rolling":0.007,"sliding":0.17,"railRestitution":0.86,"spinDecay":12]),
+            ("Tiêu chuẩn",["rolling":0.012,"sliding":0.20,"railRestitution":0.82,"spinDecay":15]),
+            ("Nỉ cũ, ẩm · chậm",["rolling":0.015,"sliding":0.28,"railRestitution":0.76,"spinDecay":15])]
+        let row=UIStackView();row.axis = .horizontal;row.spacing=10;row.distribution = .fillEqually
+        for (name,set) in presets {
+            let b=UIButton.lab(name){[weak self]in
+                guard let self=self else{return};for (k,v) in set{self.values[k]=NSNumber(value:v)}
+                self.apply?(self.values,self.sensitivity);self.dismiss(animated:true)
+            };b.accessibilityIdentifier="TablePreset-"+name;row.addArrangedSubview(b)
+        }
+        body.addArrangedSubview(row)
+        let realNote=UILabel();realNote.numberOfLines=0;realNote.textColor=UIColor(white:0.7,alpha:1);realNote.font = .systemFont(ofSize:12)
+        realNote.text="Vạch xanh dưới thanh trượt = vùng thực tế (giá trị đã công bố). Kéo ra ngoài vẫn được, nhưng bàn sẽ khác bàn thật.";body.addArrangedSubview(realNote)
+        slider("Cản lăn — thấp: bi chạy xa","rolling",0.003,0.04,0.012,real:(0.005,0.015))
+        slider("Ma sát trượt — thời gian chuyển sang lăn","sliding",0.08,0.35,0.20,real:(0.15,0.35))
+        slider("Đàn hồi băng — cao: giữ lực nhiều","railRestitution",0.4,0.98,0.82,real:(0.6,0.9))
         slider("ZUPE: giảm độ nảy theo lực — 0 là bản gốc","railSpeedSensitivity",0,0.08,0)
-        slider("Ma sát băng — ảnh hưởng ép phê (0.31: 0,20 theo Mathavan 2010; 0,45 = cảm nhận bàn anh)","railFriction",0,0.6,0.20)
+        slider("Ma sát băng — ảnh hưởng ép phê (0.31: 0,20 theo Mathavan 2010; 0,45 = cảm nhận bàn anh)","railFriction",0,0.6,0.20,real:(0.14,0.2))
         let railSwitch=UISwitch();railSwitch.isOn=values["individualRails"]?.boolValue ?? false
         railSwitch.addAction(UIAction{[weak self,weak railSwitch]_ in self?.values["individualRails"]=NSNumber(value:railSwitch?.isOn ?? false)},for:.valueChanged)
         let railLabel=UILabel();railLabel.text="Dùng thông số riêng từng băng";railLabel.textColor = .white
@@ -43,10 +60,10 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             slider("Băng \(name) · độ nảy","railBounce\(i)",0.4,0.98,0.82)
             slider("Băng \(name) · ma sát","railGrip\(i)",0,0.35,0.16)
         }
-        slider("Đàn hồi bi–bi","ballRestitution",0.80,1,0.94)
+        slider("Đàn hồi bi–bi","ballRestitution",0.80,1,0.94,real:(0.92,0.98))
         slider("Ma sát bi–bi khi trượt chậm μ₀ (giảm theo tốc độ, TP A.14)","ballFriction",0,0.12,0.118)
         slider("Truyền xoáy bi–bi (bánh răng) — ma sát khi trượt nhanh, 0.30: 0,05","ballFrictionMin",0,0.1,0.05)
-        slider("Giảm ép phê ngang (rad/s²) — 0.31: 15 (công bố 5–15)","spinDecay",1,40,15)
+        slider("Giảm ép phê ngang (rad/s²) — 0.31: 15 (công bố 5–15)","spinDecay",1,40,15,real:(5,15))
         slider("Băng nảy ngược tiếp tuyến β (grip-slip) — 0.21: 0,30, fit clip zigzag","railTangentialRestitution",0,0.9,0.30)
         slider("Squirt đủ ở độ nâng cơ (°) — 0: luôn có squirt","squirtRampDegrees",0,60,15)
         slider("Gậy phá · hệ số lực","breakSpeedGain",1,1.8,1.4)
@@ -61,18 +78,34 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         limits.text="0.21: β băng và giảm xoáy fit theo clip zigzag; squirt chỉ khi nâng cơ; gậy phá ×1,4; đầu tẩy mềm/cứng (giả định). Hiệu chuẩn: va chạm băng dạng xung lực gần đúng, lòng lỗ dùng vùng bắt 2D. A1 dùng xung lực 3D, ma sát Coulomb hai chiều và ràng buộc mặt đá khi bi tiếp xúc. Đây chưa phải mô hình băng biến dạng Mathavan/Stronge. Thông số fit của mô hình cũ cần đo lại. Bản 0.14: throw theo ma sát phụ thuộc tốc độ (TP A.14), squirt (TP A.31, khối lượng đầu cơ giả định) và tốc độ bi theo điểm chạm (TP A.30). Chưa hiệu chuẩn băng biến dạng, độ ẩm, swerve hoặc Jump/Massé. Hãy đối chiếu bằng bài đo trước khi dùng để suy ra đường thi đấu."
         body.addArrangedSubview(limits)
     }
-    private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,_ fallback:Double){
-        let label=UILabel();label.textColor = .white;label.font = .systemFont(ofSize:12,weight:.medium)
+    private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,_ fallback:Double,real:(Double,Double)?=nil){
+        let label=UILabel();label.textColor = .white;label.font = .systemFont(ofSize:12,weight:.medium);label.numberOfLines=0
         let current=key=="sensitivity" ? sensitivity:(values[key]?.doubleValue ?? fallback)
-        label.text=String(format:"%@  ·  %.3f",title,current)
+        func caption(_ v:Double)->String{
+            guard let r=real else{return String(format:"%@  ·  %.3f",title,v)}
+            return String(format:"%@  ·  %.3f  %@",title,v,(v>=r.0-1e-9 && v<=r.1+1e-9) ? "✓ thực tế":"⚠︎ ngoài vùng thực tế")
+        }
+        label.text=caption(current)
         let s=UISlider();s.minimumValue=Float(lo);s.maximumValue=Float(hi);s.value=Float(current);s.tintColor = .mint
         s.accessibilityLabel=title
         s.addAction(UIAction{[weak self,weak s,weak label]_ in
             guard let self=self,let s=s else{return};let v=Double(s.value)
             if key=="sensitivity" {self.sensitivity=v}else{self.values[key]=NSNumber(value:v)}
-            label?.text=String(format:"%@  ·  %.3f",title,v)
+            label?.text=caption(v)
         },for:.valueChanged)
-        let group=UIStackView(arrangedSubviews:[label,s]);group.axis = .vertical;group.spacing=5;body.addArrangedSubview(group)
+        var parts:[UIView]=[label,s]
+        if let r=real {
+            // realistic band drawn to scale under the track
+            let track=UIView();track.backgroundColor=UIColor(white:1,alpha:0.10);track.layer.cornerRadius=2
+            track.heightAnchor.constraint(equalToConstant:4).isActive=true
+            let band=UIView();band.backgroundColor = .mint;band.layer.cornerRadius=2;band.translatesAutoresizingMaskIntoConstraints=false;track.addSubview(band)
+            let a=CGFloat((r.0-lo)/(hi-lo)),b=CGFloat((min(r.1,hi)-lo)/(hi-lo))
+            NSLayoutConstraint.activate([band.topAnchor.constraint(equalTo:track.topAnchor),band.bottomAnchor.constraint(equalTo:track.bottomAnchor),
+                NSLayoutConstraint(item:band,attribute:.leading,relatedBy:.equal,toItem:track,attribute:.trailing,multiplier:max(0.001,a),constant:0),
+                NSLayoutConstraint(item:band,attribute:.trailing,relatedBy:.equal,toItem:track,attribute:.trailing,multiplier:max(0.002,b),constant:0)])
+            parts.append(track)
+        }
+        let group=UIStackView(arrangedSubviews:parts);group.axis = .vertical;group.spacing=5;body.addArrangedSubview(group)
     }
     private func exportMarkdown(){
         var lines=["# Z-Trainer — hiệu chỉnh bàn", "", "Ngày: "+ISO8601DateFormatter().string(from:Date()), "", "Thông số do người dùng chỉnh tay; chưa xác nhận bằng đo đạc độc lập.", "", "| Thông số | Khi mở | Hiện tại |", "| --- | ---: | ---: |"]
@@ -152,6 +185,10 @@ enum Tuning {
     static var renderScale:Double{value("tuneScale036",1)}
     /// Multiplier on the stroke speed (BLStrokeSpeed tops out at 8 m/s): 0.6 → 4.8 m/s, 1.3 → 10.4 m/s.
     static var maxPower:Double{value("tuneMaxPower036",1)}
+    /// 0.37: HUD fades while the player aims; effect ball lock (off = only B locks); predict-first eye training.
+    static var hudFade:Bool{UserDefaults.standard.object(forKey:"tuneHUDFade037") as? Bool ?? true}
+    static var effectLock:Bool{UserDefaults.standard.object(forKey:"tuneEffectLock037") as? Bool ?? false}
+    static var predictFirst:Bool{UserDefaults.standard.object(forKey:"tunePredictFirst037") as? Bool ?? false}
 }
 
 final class CustomizeController:UIViewController {
@@ -168,31 +205,76 @@ final class CustomizeController:UIViewController {
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
         body.axis = .vertical;body.spacing=14;body.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(body)
         NSLayoutConstraint.activate([scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor),scroll.bottomAnchor.constraint(equalTo:view.bottomAnchor),scroll.leadingAnchor.constraint(equalTo:view.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:view.trailingAnchor),body.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),body.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor,constant:-24),body.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor,constant:20),body.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor,constant:-20),body.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor,constant:-40)])
+        // 0.37 (owner: menu easy to find): four tabs — Hình ảnh · Điều khiển · Vật lý · Âm thanh.
+        let tabs=UISegmentedControl(items:["Hình ảnh","Điều khiển","Vật lý","Âm thanh"]);tabs.selectedSegmentIndex=0
+        tabs.selectedSegmentTintColor=UIColor.rgb(0xEAC583);tabs.setTitleTextAttributes([.foregroundColor:UIColor.black,.font:UIFont.systemFont(ofSize:14,weight:.semibold)],for:.selected)
+        tabs.setTitleTextAttributes([.foregroundColor:UIColor.white,.font:UIFont.systemFont(ofSize:14,weight:.medium)],for:.normal)
+        tabs.accessibilityIdentifier="CustomizeTabs";body.addArrangedSubview(tabs)
+        var pages:[UIStackView]=[]
+        for _ in 0..<4 {let page=UIStackView();page.axis = .vertical;page.spacing=14;pages.append(page);body.addArrangedSubview(page)}
+        func show(_ i:Int){for (k,p) in pages.enumerated(){p.isHidden = k != i}}
+        tabs.addAction(UIAction{[weak tabs]_ in show(tabs?.selectedSegmentIndex ?? 0)},for:.valueChanged)
+        // Hình ảnh
+        target=pages[0]
+        header("Mẫu ánh sáng")
+        let looks:[(String,[String:Double])]=[
+            ("Câu lạc bộ",[TableScene.tuneLight:1.0,TableScene.tuneBall:1.0,TableScene.tuneShadow:1.0,TableScene.tuneCloth:1.0]),
+            ("TV · sáng rõ",[TableScene.tuneLight:1.35,TableScene.tuneBall:0.92,TableScene.tuneShadow:0.8,TableScene.tuneCloth:1.15]),
+            ("Dịu mắt",[TableScene.tuneLight:0.8,TableScene.tuneBall:0.85,TableScene.tuneShadow:1.1,TableScene.tuneCloth:0.9])]
+        let row=UIStackView();row.axis = .horizontal;row.spacing=10;row.distribution = .fillEqually
+        for (name,set) in looks {let b=UIButton.lab(name){[weak self] in
+            for (k,v) in set{UserDefaults.standard.set(v,forKey:k)};self?.changed?();self?.dismiss(animated:true)}
+            b.accessibilityIdentifier="LightLook-"+name;row.addArrangedSubview(b)}
+        target.addArrangedSubview(row)
         header("Ánh sáng")
-        slider("Độ sáng bi",TableScene.tuneBall,0.6,1.3)
+        slider("Độ chói bi",TableScene.tuneBall,0.6,1.3)
+        slider("Độ đậm bóng bi",TableScene.tuneShadow,0.4,1.3)
         slider("Độ sáng mặt bàn (nỉ)",TableScene.tuneCloth,0.6,1.4)
         slider("Đèn bàn",TableScene.tuneLight,0.5,1.6)
         slider("Độ nổi kim cương / nút số",TableScene.tuneDiamond,0.8,2.0)
-        header("Lực đánh và vật lý")
-        slider("Lực đánh tối đa",  "tuneMaxPower036",0.6,1.3,format:{String(format:"%.1f m/s",8*$0)})
-        body.addArrangedSubview(UIButton.lab("Hiệu chỉnh vật lý chi tiết (ma sát, băng, xoáy…)"){[weak self] in
-            guard let self=self else{return};self.dismiss(animated:true){self.openPhysics?()}})
-        header("Bố cục phím trên màn hình")
-        body.addArrangedSubview(UIButton.lab("Sắp xếp phím · kéo từng phím tới vị trí muốn"){[weak self] in
-            guard let self=self else{return};self.dismiss(animated:true){self.arrangeHUD?()}})
-        body.addArrangedSubview(UIButton.lab("Đưa phím về vị trí mặc định"){[weak self] in self?.resetHUD?()})
         header("Độ mượt")
         segmented("Tần số khung hình khi bi chạy",["60 Hz","120 Hz (ProMotion, nóng hơn)"],Tuning.frameRate==120 ? 1:0){
             UserDefaults.standard.set($0==1 ? 120:60,forKey:"tuneFPS036")}
         let scales=[1.0,0.85,0.7]
         segmented("Độ phân giải 3D",["100 %","85 %","70 % (mát máy)"],scales.firstIndex{abs($0-Tuning.renderScale)<0.01} ?? 0){
             UserDefaults.standard.set(scales[$0],forKey:"tuneScale036")}
+        // Điều khiển
+        target=pages[1]
+        header("Bố cục phím trên màn hình")
+        target.addArrangedSubview(UIButton.lab("Sắp xếp phím · kéo từng phím tới vị trí muốn"){[weak self] in
+            guard let self=self else{return};self.dismiss(animated:true){self.arrangeHUD?()}})
+        target.addArrangedSubview(UIButton.lab("Đưa phím về vị trí mặc định"){[weak self] in self?.resetHUD?()})
+        toggle("Phím tự mờ khi đang ngắm","tuneHUDFade037",true)
+        header("Khoá hướng cơ")
+        toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
+        header("Luyện mắt")
+        toggle("Dự đoán trước: đánh xong mới hiện đường đúng và báo lệch bao nhiêu độ","tunePredictFirst037",false)
+        // Vật lý
+        target=pages[2]
+        header("Lực đánh")
+        slider("Lực đánh tối đa",  "tuneMaxPower036",0.6,1.3,format:{String(format:"%.1f m/s",8*$0)})
+        header("Bàn và vật lý")
+        target.addArrangedSubview(UIButton.lab("Mẫu loại bàn (nhanh / chuẩn / chậm) và thông số chi tiết"){[weak self] in
+            guard let self=self else{return};self.dismiss(animated:true){self.openPhysics?()}})
+        // Âm thanh
+        target=pages[3]
+        header("Âm thanh")
+        slider("Âm lượng tiếng bi","tuneVolume037",0,1)
+        target=body
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in
-            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,"tuneMaxPower036","tuneFPS036","tuneScale036"]{UserDefaults.standard.removeObject(forKey:k)}
+            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037"]{UserDefaults.standard.removeObject(forKey:k)}
             self?.resetHUD?();self?.changed?();self?.dismiss(animated:true)})
+        show(0)
+    }
+    private lazy var target:UIStackView=body
+    private func toggle(_ title:String,_ key:String,_ fallback:Bool){
+        let l=UILabel();l.text=title;l.textColor = .white;l.font = .systemFont(ofSize:13,weight:.medium);l.numberOfLines=0
+        let sw=UISwitch();sw.isOn=UserDefaults.standard.object(forKey:key) as? Bool ?? fallback;sw.onTintColor = .mint;sw.accessibilityIdentifier=key
+        sw.addAction(UIAction{[weak self,weak sw]_ in UserDefaults.standard.set(sw?.isOn ?? fallback,forKey:key);self?.changed?()},for:.valueChanged)
+        let r=UIStackView(arrangedSubviews:[l,sw]);r.spacing=12;r.alignment = .center;target.addArrangedSubview(r)
     }
     private func header(_ text:String){
-        let l=UILabel();l.text=text.uppercased();l.textColor=UIColor.rgb(0xEAC583);l.font = .systemFont(ofSize:13,weight:.bold);body.addArrangedSubview(l)
+        let l=UILabel();l.text=text.uppercased();l.textColor=UIColor.rgb(0xEAC583);l.font = .systemFont(ofSize:13,weight:.bold);target.addArrangedSubview(l)
     }
     private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,format:((Double)->String)? = nil){
         let fmt=format ?? {String(format:"%d %%",Int(($0*100).rounded()))}
@@ -204,13 +286,75 @@ final class CustomizeController:UIViewController {
         for event:UIControl.Event in [.touchUpInside,.touchUpOutside]{
             s.addAction(UIAction{[weak self,weak s]_ in guard let s=s else{return};UserDefaults.standard.set(Double(s.value),forKey:key);self?.changed?()},for:event)
         }
-        let g=UIStackView(arrangedSubviews:[label,s]);g.axis = .vertical;g.spacing=4;body.addArrangedSubview(g)
+        let g=UIStackView(arrangedSubviews:[label,s]);g.axis = .vertical;g.spacing=4;target.addArrangedSubview(g)
     }
     private func segmented(_ title:String,_ items:[String],_ selected:Int,_ set:@escaping(Int)->Void){
         let label=UILabel();label.text=title;label.textColor = .white;label.font = .systemFont(ofSize:13,weight:.medium)
         let c=UISegmentedControl(items:items);c.selectedSegmentIndex=selected
         c.addAction(UIAction{[weak self,weak c]_ in guard let c=c else{return};set(c.selectedSegmentIndex);self?.changed?()},for:.valueChanged)
-        let g=UIStackView(arrangedSubviews:[label,c]);g.axis = .vertical;g.spacing=4;body.addArrangedSubview(g)
+        let g=UIStackView(arrangedSubviews:[label,c]);g.axis = .vertical;g.spacing=4;target.addArrangedSubview(g)
     }
     @objc private func done(){dismiss(animated:true)}
+}
+
+// MARK: - 0.37 Sảnh chính (owner: "dễ tìm, dễ nhìn, dễ nắm bắt")
+/// Three colour-coded cards; every feature is at most two taps away. Colour = mode, gold = primary action only.
+final class LobbyController:UIViewController {
+    struct Action {let title:String;let icon:String;let id:String;let run:()->Void}
+    struct Card {let title:String;let subtitle:String;let icon:String;let color:UIColor;let actions:[Action]}
+    var cards:[Card]=[]
+    var footer:[Action]=[]
+    static let practice=UIColor.rgb(0x2FA36E),match=UIColor.rgb(0xE8833A),profile=UIColor.rgb(0x3D86DA),gold=UIColor.rgb(0xEAC583)
+    override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
+    override var prefersStatusBarHidden:Bool{true}
+    override func viewDidLoad(){
+        super.viewDidLoad();view.backgroundColor=UIColor.rgb(0x0E1114);view.accessibilityIdentifier="Lobby"
+        let glow=CAGradientLayer();glow.type = .radial;glow.colors=[UIColor.rgb(0x16473A).withAlphaComponent(0.55).cgColor,UIColor.clear.cgColor]
+        glow.startPoint=CGPoint(x:0.5,y:0.0);glow.endPoint=CGPoint(x:1.1,y:1.0);glow.frame=UIScreen.main.bounds;view.layer.insertSublayer(glow,at:0)
+        let title=UILabel();title.attributedText={
+            let t=NSMutableAttributedString(string:"ZOKER POOL",attributes:[.font:UIFont.systemFont(ofSize:30,weight:.heavy),.foregroundColor:UIColor.white,.kern:2])
+            t.append(NSAttributedString(string:"  TRAINER",attributes:[.font:UIFont.systemFont(ofSize:16,weight:.bold),.foregroundColor:Self.gold,.kern:5]))
+            return t}()
+        let row=UIStackView();row.axis = .horizontal;row.spacing=14;row.distribution = .fillEqually;row.alignment = .fill
+        for card in cards{row.addArrangedSubview(makeCard(card))}
+        let foot=UIStackView();foot.axis = .horizontal;foot.spacing=10;foot.distribution = .fillEqually
+        for a in footer{foot.addArrangedSubview(chip(a))}
+        let main=UIStackView(arrangedSubviews:[title,row,foot]);main.axis = .vertical;main.spacing=14;main.translatesAutoresizingMaskIntoConstraints=false
+        view.addSubview(main)
+        let g=view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([main.leadingAnchor.constraint(equalTo:g.leadingAnchor,constant:20),main.trailingAnchor.constraint(equalTo:g.trailingAnchor,constant:-20),
+            main.topAnchor.constraint(equalTo:g.topAnchor,constant:12),main.bottomAnchor.constraint(lessThanOrEqualTo:g.bottomAnchor,constant:-10),
+            foot.heightAnchor.constraint(equalToConstant:40)])
+    }
+    private func makeCard(_ c:Card)->UIView{
+        let v=UIView();v.backgroundColor=UIColor.rgb(0x171B20);v.layer.cornerRadius=18;v.layer.borderWidth=1;v.layer.borderColor=c.color.withAlphaComponent(0.55).cgColor
+        v.accessibilityIdentifier="LobbyCard-"+c.title
+        let bar=UIView();bar.backgroundColor=c.color;bar.layer.cornerRadius=2
+        let icon=UIImageView(image:UIImage(systemName:c.icon,withConfiguration:UIImage.SymbolConfiguration(pointSize:22,weight:.bold)));icon.tintColor=c.color
+        let t=UILabel();t.text=c.title;t.font = .systemFont(ofSize:20,weight:.bold);t.textColor = .white
+        let s=UILabel();s.text=c.subtitle;s.font = .systemFont(ofSize:12,weight:.medium);s.textColor=UIColor(white:0.72,alpha:1);s.numberOfLines=2
+        let head=UIStackView(arrangedSubviews:[icon,t]);head.spacing=8;head.alignment = .center
+        let list=UIStackView(arrangedSubviews:c.actions.map{action(button:$0,color:c.color)});list.axis = .vertical;list.spacing=8
+        let stack=UIStackView(arrangedSubviews:[bar,head,s,list]);stack.axis = .vertical;stack.spacing=8;stack.translatesAutoresizingMaskIntoConstraints=false
+        v.addSubview(stack)
+        NSLayoutConstraint.activate([bar.heightAnchor.constraint(equalToConstant:4),stack.leadingAnchor.constraint(equalTo:v.leadingAnchor,constant:14),stack.trailingAnchor.constraint(equalTo:v.trailingAnchor,constant:-14),
+            stack.topAnchor.constraint(equalTo:v.topAnchor,constant:12),stack.bottomAnchor.constraint(lessThanOrEqualTo:v.bottomAnchor,constant:-12)])
+        return v
+    }
+    private func action(button a:Action,color:UIColor)->UIButton{
+        var cfg=UIButton.Configuration.filled();cfg.title=a.title;cfg.image=UIImage(systemName:a.icon);cfg.imagePadding=8;cfg.imagePlacement = .leading
+        cfg.baseBackgroundColor=color.withAlphaComponent(0.16);cfg.baseForegroundColor = .white;cfg.cornerStyle = .large
+        cfg.contentInsets=NSDirectionalEdgeInsets(top:9,leading:10,bottom:9,trailing:10)
+        cfg.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{x in var x=x;x.font=UIFont.systemFont(ofSize:14,weight:.semibold);return x}
+        let b=UIButton(configuration:cfg);b.contentHorizontalAlignment = .leading;b.accessibilityIdentifier=a.id
+        b.addAction(UIAction{[weak self]_ in self?.dismiss(animated:true){a.run()}},for:.touchUpInside)
+        return b
+    }
+    private func chip(_ a:Action)->UIButton{
+        var cfg=UIButton.Configuration.gray();cfg.title=a.title;cfg.image=UIImage(systemName:a.icon);cfg.imagePadding=6;cfg.baseForegroundColor=UIColor(white:0.9,alpha:1);cfg.cornerStyle = .capsule
+        cfg.background.backgroundColor=UIColor(white:1,alpha:0.08)
+        let b=UIButton(configuration:cfg);b.accessibilityIdentifier=a.id
+        b.addAction(UIAction{[weak self]_ in self?.dismiss(animated:true){a.run()}},for:.touchUpInside)
+        return b
+    }
 }

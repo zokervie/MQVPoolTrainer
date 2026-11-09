@@ -42,6 +42,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var replayEquipment:(Int,Double)?
     var replayStrikePlayed=false
     var preparationDuration:Double{lastPreparation.last?.time ?? 0}
+    /// 0.37 (owner): replay starts 1.5 s before the strike and ends 1.5 s after the balls stop.
+    var replayLead:Double{min(1.5,preparationDuration)}
+    static let replayTail=1.5
     func capturePreparation(time:Double){
         guard localTurn,!presentationBusy,!menuOpen,!isPlacingBalls,cue?.sunk==false else{aimBuffer.removeAll();return}
         if let last=aimBuffer.last {
@@ -65,6 +68,17 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var lastShotSpeed=0.0
     var testSpeed=2.0
     var highGraphics=false
+    var missWindow=0.0,missCount=0
+    var hudFaded=false
+    var forcedElevationRestore:[String:NSNumber]?
+    func applyHUDFade(){
+        let a:CGFloat=hudFaded ? 0.22:1
+        UIView.animate(withDuration:hudFaded ? 0.18:0.25,delay:0,options:[.beginFromCurrentState,.allowUserInteraction]){
+            for v in self.cueIcons{v.alpha=a}
+            for v in [self.quickScroll,self.lockButton,self.elevationPad,self.menuButton,self.coachButton] as [UIView]{v.alpha=a}
+            self.spin.alpha=self.hudFaded ? 0.25:(self.spinExpanded ? 0.97:0.60)
+        }
+    }
     var focusMode=true
     var menuOpen=false
     var trailsOn=false
@@ -133,7 +147,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var replayYaw=0.0
     var quickCamera:UIButton!,quickTools:UIButton!,quickRole:UIButton!,quickCue:UIButton!,quickBag:UIButton!
     var lastGuideAngle=Double.infinity,lastGuideVisible=false
-    var guideDirty=true,aimGuideShown=false
+    var guideDirty=true,aimGuideShown=false,predictionRevealAngle:Double?
     var lastPredictionTime:TimeInterval=0
     let feedback=UIImpactFeedbackGenerator(style:.light)
     let poolAudio=PoolAudio()
@@ -414,6 +428,40 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         applyHUDOffsets()
     }
     /// 0.27 account management: Game Center profile, friends, sign-in. No password is stored by the app.
+    /// 0.37 Sảnh chính: Luyện tập (green) · Thi đấu (orange) · Hồ sơ (blue). Shown at launch and from Menu → Về sảnh.
+    func openLobby(){
+        guard presentedViewController==nil else{return}
+        let lobby=LobbyController()
+        typealias A=LobbyController.Action
+        lobby.cards=[
+            .init(title:"Luyện tập",subtitle:"Tập tự do, bài tập chấm sao, tìm góc kick",icon:"target",color:LobbyController.practice,actions:[
+                A(title:"Tập tự do",icon:"circle.dashed",id:"LobbyFree",run:{[weak self] in self?.setMenu(false)}),
+                A(title:"Bài tập · 5 cấp",icon:"star.circle",id:"LobbyDrills",run:{[weak self] in self?.chooseDrill()}),
+                A(title:"Thử thách kick 1–3 băng",icon:"arrow.triangle.turn.up.right.diamond",id:"LobbyKick",run:{[weak self] in self?.chooseKick()})]),
+            .init(title:"Thi đấu",subtitle:"8 · 9 · 10 Ball luật WPA, 15 Ball Rotation",icon:"trophy",color:LobbyController.match,actions:[
+                A(title:"Hai người · một máy",icon:"person.2",id:"LobbyLocal",run:{[weak self] in self?.openMatchMenu(scope:0)}),
+                A(title:"Wi‑Fi gần nhau",icon:"wifi",id:"LobbyWifi",run:{[weak self] in self?.openMatchMenu(scope:1)}),
+                A(title:"Online · Game Center",icon:"globe",id:"LobbyOnline",run:{[weak self] in self?.openMatchMenu(scope:2)})]),
+            .init(title:"Hồ sơ",subtitle:"Nhật ký tập, cú đánh đã lưu, tài khoản",icon:"person.crop.circle",color:LobbyController.profile,actions:[
+                A(title:"Nhật ký tập luyện",icon:"chart.line.uptrend.xyaxis",id:"LobbyJournal",run:{[weak self] in self?.layouts()}),
+                A(title:"Cú đánh / Highlight",icon:"film.stack",id:"LobbyShots",run:{[weak self] in guard let self=self else{return}
+                    let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
+                    for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
+                    sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)}),
+                A(title:"Tài khoản · Game Center",icon:"gamecontroller",id:"LobbyAccount",run:{[weak self] in self?.openAccount()})])]
+        lobby.footer=[A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()}),
+                      A(title:"Tuỳ chỉnh",icon:"slider.horizontal.3",id:"LobbyCustomize",run:{[weak self] in self?.openCustomize()}),
+                      A(title:"ZUPE Lab",icon:"flask",id:"LobbyLab",run:{[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})]
+        lobby.modalPresentationStyle = .fullScreen;lobby.modalTransitionStyle = .crossDissolve
+        present(lobby,animated:true)
+    }
+    var lobbyShown=false
+    override func viewDidAppear(_ animated:Bool){
+        super.viewDidAppear(animated)
+        // QA/CI launches go straight to the table so probes and gestures are unchanged.
+        let qa=ProcessInfo.processInfo.arguments.contains{$0.hasPrefix("--") && $0.hasSuffix("qa")} || ProcessInfo.processInfo.arguments.contains("--visual-qa")
+        if !lobbyShown && !qa {lobbyShown=true;openLobby()}
+    }
     func openAccount(){
         let hub=GameCenterHub.shared
         let sheet=UIAlertController(title:"Tài khoản",message:hub.isSignedIn ? "Đăng nhập Game Center: \(hub.displayName)":(hub.unavailableReason ?? "Đăng nhập Game Center để chơi online với bạn bè. Wi‑Fi mã phòng không cần tài khoản."),preferredStyle:.actionSheet)
@@ -505,7 +553,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             // 0.30b (owner): touching the effect ball (hold or tap) LATCHES the aim lock. Lifting the finger keeps it;
             // the next stroke on the empty table fires, then everything resets. A non-firing touch on the table unlocks.
             self.spinExpanded=expanded
-            if expanded{self.hideCoach();if !self.locked{self.setHold(!self.presentationBusy && self.localTurn && !self.isPlacingBalls)}}
+            // 0.37 (owner): by default only B locks; the effect ball just chooses the tip contact. Old latch in Tuỳ chỉnh.
+            if expanded{self.hideCoach();if !self.locked && Tuning.effectLock{self.setHold(!self.presentationBusy && self.localTurn && !self.isPlacingBalls)}}
             self.spin.alpha=expanded ? 0.97:0.60
             self.layoutRightHUD();self.updateControls()
             self.fineWheel.isHidden=self.menuOpen
@@ -559,7 +608,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             panel.widthAnchor.constraint(equalToConstant:318),
             scroll.leadingAnchor.constraint(equalTo:panel.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:panel.trailingAnchor),
             scroll.topAnchor.constraint(equalTo:panel.topAnchor),scroll.bottomAnchor.constraint(equalTo:panel.bottomAnchor)])
-        let brand=UILabel();text(brand,17,.white,.bold);brand.text="Z-Trainer · 0.21 · Luyện tập";brand.textColor=MenuSkin.gold
+        let brand=UILabel();text(brand,17,.white,.bold);brand.text="ZOKER POOL · Trainer";brand.textColor=MenuSkin.gold
         text(titleLabel,14,.white,.bold);text(statusLabel,12,.mint);text(scoreLabel,12,.white);text(hintLabel,12,.mint)
         for label in [titleLabel,statusLabel,scoreLabel,hintLabel]{label.numberOfLines=0}
         hintLabel.text=strokeHint
@@ -663,8 +712,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let customize=UIButton.lab("Tuỳ chỉnh · ánh sáng, lực, bố cục phím, độ mượt"){[weak self] in self?.openCustomize()}
         customize.accessibilityIdentifier="MenuCustomize"
         _=(center,trails,fine,felt,sound,coachToggle,cameraOptions,kick,advanced,physicsTuning,equipment,lessons,help,matches,guideButton,resetButton,graphicsButton,layoutButton,drillButton)
+        // 0.37 (owner chose): in-game menu = 5 items. Modes, drills, journal and guide live in the Lobby (Về sảnh);
+        // physics tuning in Tuỳ chỉnh → Vật lý.
+        let resume=UIButton.lab("Tiếp tục"){[weak self]in self?.setMenu(false)}
+        resume.accessibilityIdentifier="MenuResume"
+        if var c=resume.configuration{c.baseBackgroundColor=LobbyController.gold;c.baseForegroundColor = .black;c.background.backgroundColor=LobbyController.gold;resume.configuration=c}
+        library.configuration?.title="Đổi bàn · bi · gậy · không gian"
+        customize.configuration?.title="Tuỳ chỉnh · hình ảnh, điều khiển, vật lý, âm thanh"
+        recordings.configuration?.title="Lưu và xem lại · cú đánh / highlight"
+        let lobby=UIButton.lab("Về sảnh · chế độ chơi, bài tập, hồ sơ"){[weak self]in self?.setMenu(false);self?.openLobby()}
+        lobby.accessibilityIdentifier="MenuLobby"
+        _=(modes,guide,drills,journal,tuning,close)
         let controls=stack(.vertical,10,[brand,titleLabel,statusLabel,scoreLabel,hintLabel,
-            modes,guide,drills,recordings,library,journal,customize,tuning,close])
+            resume,library,customize,recordings,lobby])
         controls.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(controls)
         NSLayoutConstraint.activate([
             controls.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),
@@ -901,6 +961,26 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         statusToast.layer.cornerRadius=10;statusToast.clipsToBounds=true;statusToast.isHidden=true
         NSLayoutConstraint.activate([statusToast.centerXAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerXAnchor),statusToast.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:56),statusToast.widthAnchor.constraint(lessThanOrEqualToConstant:390),statusToast.widthAnchor.constraint(lessThanOrEqualTo:view.safeAreaLayoutGuide.widthAnchor,multiplier:0.7),statusToast.heightAnchor.constraint(greaterThanOrEqualToConstant:44)])
     }
+    /// 0.37 "Dự đoán trước": after the shot, draw the line the first object ball needed (contact → pocket centre it
+    /// was heading for) and say how many degrees the real line was off.
+    func revealPrediction(_ events:[[String:NSNumber]]){
+        guard let hit=events.first(where:{$0["kind"]?.intValue==1 && ($0["a"]?.intValue==0 || $0["b"]?.intValue==0)}),
+              let t=hit["time"]?.doubleValue else{notifyStatus("Dự đoán: bi cái chưa chạm bi nào");return}
+        let target=(hit["a"]?.intValue==0 ? hit["b"]:hit["a"])?.intValue ?? -1
+        guard let i=frameTimes.firstIndex(where:{$0>=t}),let j=frameTimes.firstIndex(where:{$0>=t+0.12}),
+              let p0=frames[i].first(where:{$0.id==target}),let p1=frames[j].first(where:{$0.id==target}),
+              let c0=frames[i].first(where:{$0.id==0}) else{return}
+        let dx=p1.x-p0.x,dy=p1.y-p0.y;guard hypot(dx,dy)>1e-4 else{return}
+        let travel=atan2(dy,dx)
+        let pockets:[(String,Double,Double)]=[("góc dưới trái",-0.670,-1.305),("góc dưới phải",0.670,-1.305),("giữa trái",-0.706,0),("giữa phải",0.706,0),("góc trên trái",-0.670,1.305),("góc trên phải",0.670,1.305)]
+        func wrap(_ a:Double)->Double{var x=a;while x>Double.pi{x-=2*Double.pi};while x < -Double.pi{x+=2*Double.pi};return x}
+        let best=pockets.min{abs(wrap(atan2($0.2-p0.y,$0.1-p0.x)-travel))<abs(wrap(atan2($1.2-p0.y,$1.1-p0.x)-travel))}!
+        let need=atan2(best.2-p0.y,best.1-p0.x),off=wrap(travel-need)*180/Double.pi
+        let potted=events.contains{$0["kind"]?.intValue==2 && $0["a"]?.intValue==target}
+        table.aimGuide(cue:SIMD2(Float(c0.x),Float(c0.y)),ghost:SIMD2(Float(c0.x),Float(c0.y)),object:SIMD2(Float(p0.x),Float(p0.y)),objectEnd:SIMD2(Float(best.1),Float(best.2)))
+        aimGuideShown=true;predictionRevealAngle=angle
+        notifyStatus(String(format:"Dự đoán · bi %d %@ lỗ %@: lệch %.1f°",target,potted ? "vào":"tới",best.0,abs(off)))
+    }
     func notifyStatus(_ text:String){
         statusLabel.text=text;statusToast.text="  "+text+"  ";statusToast.isHidden=false;view.bringSubviewToFront(statusToast)
         toastGeneration+=1;let generation=toastGeneration
@@ -1005,7 +1085,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         table.showsDiamondNumbers=numbersOn && coaching
         if coachOn && (drill.goal != nil || drill.rails>0) {showCoach(drillBrief(drill))}else{hideCoach()}
     }
-    func clearShot(){
+    func clearShot(){if let restore=forcedElevationRestore{engine.settings=restore;forcedElevationRestore=nil};
         coachGeneration+=1;predictionGeneration+=1
         if replayIndex != nil{stopReplay()};releasePeek();replayBar.isHidden=true
         aimBuffer=[];lastPreparation=[];replayPreparation=nil
@@ -1017,7 +1097,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     struct TableGeometry {var width=1.27,length=2.54,radius=0.028575,nose=0.27}
     var geometry=TableGeometry()
     /// Góc nghiêng tối đa cho cú thường (không bật cơ nâng 3D): 35° — giả định, cần đối chiếu trên bàn thật.
-    var maxStrokeElevation:Double{(engine.settings["experimental3D"]?.boolValue ?? false) ? 80:35}
+    var maxStrokeElevation:Double{(engine.settings["experimental3D"]?.boolValue ?? false) ? 80:45}   // 0.37: 45° — frozen-to-rail top shots need ~38° over the rendered rail
     func cueClearance(side s:Double,top t:Double)->Double{
         guard let c=cue,!c.sunk else{return 0}
         // 0.30: balls behind the cue ball count too — the cue is never drawn through a ball.
@@ -1042,6 +1122,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         if cueClearance(side:side,top:top)>limit {spin.select(side:side,top:top)} // select() kẹp lên vùng với tới
         table.clearanceElevation=cueClearance(side:side,top:top)
+        elevationPad.minimum=min(table.clearanceElevation,85)   // 0.37: the fan follows the real (auto-raised) cue live
         spin.setNeedsDisplay()
     }
     func refresh(){wakeRendering();updateCueClearance();table.update(balls,dt:0);guideDirty=true;scoreLabel.text="\(successes) / \(attempts) đạt · góc \(String(format:"%.1f",angle*180/Double.pi))°"}
@@ -1120,7 +1201,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func directCamera(time:Double,state:[BallState],replay:Bool){
         guard replay,replayAuto,!cameraManual else{return}
         guard let frame=replayPlan?.frame(time:time,balls:state) else{return}
-        if lastDirectorTime != Double(frame.segmentID){beginCameraTransition(0.5);lastDirectorTime=Double(frame.segmentID)}
+        if lastDirectorTime != Double(frame.segmentID){beginCameraTransition(lastDirectorTime < -5 ? 0.0:0.9);lastDirectorTime=Double(frame.segmentID)}   // 0.37: slow cinematic glide
         table.cameraMode=frame.mode;table.zoom=frame.zoom;table.orbit=frame.yaw;table.focusBounds=frame.focus
         if frame.mode==2{table.aimPitch=frame.pitch}else{table.orbitPitch=frame.pitch}
     }
@@ -1203,9 +1284,18 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         cameraManual=false;lastDirectorTime = -10;peekPose=nil;lastShotEvents=[]
         if !matchIsCompetitive{shotBack.append(ShotStep(balls:balls,setup:currentSetup()));shotForward.removeAll()}
         before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0
+        // 0.37 (owner): a cue raised over the rail / a ball behind is a REAL elevated stroke — squirt fades in with the
+        // elevation (squirtRampDegrees) and the 3D strike adds swerve/hop by speed. Restored when the shot ends.
+        var strikeElevation=table.cueElevation
+        let forced=min(table.clearanceElevation,85)
+        if forced>table.cueElevation+0.25 {
+            forcedElevationRestore=engine.settings
+            var values=engine.settings;values["cueElevationDegrees"]=NSNumber(value:forced);values["experimental3D"]=true
+            engine.settings=values;strikeElevation=forced
+        }
         let strikeAngle=table.shotAngle(cue,angle:angle,side:side,top:top)
         lastShot=SavedShot(name:"",date:Date(),balls:balls,aimAngle:angle,speed:speed,side:side,top:top,
-                           elevation:table.cueElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle,shotKind:shotKind,physicsSettings:engine.settings.mapValues{$0.doubleValue})
+                           elevation:strikeElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle,shotKind:shotKind,physicsSettings:engine.settings.mapValues{$0.doubleValue})
         hideCoach()
         engine.strike(angle:strikeAngle,speed:speed,side:side,top:top)
         if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
@@ -1226,14 +1316,30 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // Keep rendering until a Premium QA probe has recorded its result; slow
         // Simulator GPUs can need longer than the startup window.
         let premiumPending = !premiumProbeWritten && ProcessInfo.processInfo.arguments.contains("--premium-qa")
-        let active=premiumPending || ProcessInfo.processInfo.systemUptime<startupRenderUntil || (shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
+        // 0.37 (owner video: 30 fps while dragging the aim/camera): any live touch gesture keeps the full rate.
+        let touching=aimRecognizers.contains{$0.state == .began || $0.state == .changed}
+        if touching {renderUntil=max(renderUntil,ProcessInfo.processInfo.systemUptime+0.25)}
+        // 0.37 (owner chose): keys fade while the player aims so the table is fully visible; back on release.
+        let fade=touching && Tuning.hudFade && !locked && !menuOpen
+        if fade != hudFaded {hudFaded=fade;applyHUDFade()}
+        let active=premiumPending || touching || ProcessInfo.processInfo.systemUptime<startupRenderUntil || (shotActive && !matchSimulationPaused) || replayIndex != nil || table.hasActivePocketAnimations || (BLShotCameraBusy(shotCameraState) && !matchSimulationPaused) || locked || ProcessInfo.processInfo.systemUptime<renderUntil || cameraTransition>0
         let guestMoving=guestTick && matchPlay.session.isConnected && matchPlay.session.latestSnapshot?.isMoving==true
         // 0.35 (owner: still judders and the phone gets hot): 120 Hz doubled GPU work and heat without curing the judder.
         // One fixed 60 Hz cadence for simulation and rendering; idle drops to 15 Hz.
         displayLink?.preferredFramesPerSecond=active ? Tuning.frameRate:30   // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh
         scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
         if active || guestMoving{scn.setNeedsDisplay()}
-        if !active && !guestMoving && !(coachOn && guideOn && guideDirty){return}
+        if !active && !guestMoving && !(coachOn && guideOn && guideDirty){missWindow=0;missCount=0;return}
+        // 0.37: adaptive quality — if more than 25 % of active frames over 2 s miss their slot, drop one render level
+        // (shadow samples / map size). Physics and interpolation are unaffected (render cost only).
+        if dt>0 {
+            missWindow+=dt;if dt>1.5/Double(Tuning.frameRate){missCount+=1}
+            if missWindow>=2 {
+                let frames=missWindow*Double(Tuning.frameRate)
+                if Double(missCount)>0.25*frames && table.performanceLevel<2 {table.setPerformanceLevel(table.performanceLevel+1)}
+                missWindow=0;missCount=0
+            }
+        }
         let wasSimulating=shotActive,wasReplaying=replayIndex != nil
         if let index=replayIndex {
             let direction=replayPlan?.frame(time:replayClock,balls:frames[index])
@@ -1242,8 +1348,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             replayClock += replayPaused ? 0:dt*replaySpeed*rate
             var i=index
             while i+1<frames.count && replayClock>=frameTimes[i+1] {i+=1}
-            if replayClock>=(frameTimes.last ?? 0)+0.25 && qaReplayHold {replayClock=(frameTimes.last ?? 0)+0.25;replayPaused=true}   // QA: hold the last frame until Done
-            if replayClock>=(frameTimes.last ?? 0)+0.25 && !qaReplayHold {stopReplay()}
+            if replayClock>=(frameTimes.last ?? 0)+Self.replayTail && qaReplayHold {replayClock=(frameTimes.last ?? 0)+Self.replayTail;replayPaused=true}   // QA: hold the last frame until Done
+            if replayClock>=(frameTimes.last ?? 0)+Self.replayTail && !qaReplayHold {stopReplay()}
             else{
                 replayIndex=i
                 let j=min(i+1,frames.count-1)
@@ -1251,12 +1357,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 table.replay(frames[i],to:frames[j],fraction:span>0 ? (replayClock-frameTimes[i])/span:0,span:span)
                 replayPreparation=nil
                 if replayClock<0 {
-                    let clock=replayClock+preparationDuration
+                    let clock=replayClock+preparationDuration   // sample time in the recorded preparation (lead may be shorter)
                     replayPreparation=lastPreparation.last(where:{$0.time<=clock}) ?? lastPreparation.first
-                    if let sample=replayPreparation,replayAuto,!cameraManual {
-                        table.cameraMode=sample.mode;table.zoom=sample.zoom;table.orbit=sample.orbit
-                        table.orbitPitch=sample.pitch;table.aimPitch=sample.aimPitch;table.focusBounds=nil
-                    }
+                    // 0.37 (owner): the replay opens on the wide establishing shot, also during the 1.5 s lead-in.
+                    if replayAuto,!cameraManual {directCamera(time:0,state:frames[0],replay:true)}
                 }else{
                     directCamera(time:replayClock,state:frames[i],replay:true)
                     if !replayStrikePlayed {
@@ -1269,7 +1373,21 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
         }else if shotActive && !guestTick && !matchSimulationPaused {
             if dt>0 {displayDurations.append(dt);if displayDurations.count>3600{displayDurations.removeFirst(displayDurations.count-3600)}}
-            engine.advance(dt)
+            // 0.37 (owner replay: object ball moving before the cue ball arrives): frames were sampled at 30 Hz, so a
+            // 6 m/s jump shot moved 20 cm between samples and slow-motion interpolation started the object ball early.
+            // Advance in 1/240 s chunks and sample by speed: 240 Hz while anything is fast, 60 Hz medium, 30 Hz slow.
+            var remaining=dt
+            while remaining>1e-9 {
+                let h=min(1.0/240.0,remaining);engine.advance(h);remaining-=h;sampleClock+=h
+                let chunk=engine.states.map{BallState($0)}
+                let fastest=chunk.reduce(0.0){max($0,$1.sunk ? 0:hypot($1.vx ?? 0,$1.vy ?? 0)+abs($1.vertical ?? 0))}
+                let interval=fastest>0.8 ? 1.0/240.0:(fastest>0.25 ? 1.0/60.0:1.0/30.0)
+                if sampleClock>=interval-1e-9 {
+                    sampleClock=0
+                    frames.append(chunk);frameTimes.append(engine.elapsed)
+                    if frames.count%4==0{for b in chunk where !b.sunk {paths[b.id,default:[]].append(SIMD3<Float>(Float(b.x),Float((b.height ?? 0)+0.004),Float(b.y)))}}
+                }
+            }
             // Dispatch impacts before rendering, labels or archive sampling.
             let events=engine.events
             if events.count>lastEventCount {
@@ -1285,12 +1403,6 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if link.timestamp-lastStatusTime>0.2,let cb=state.first(where:{$0.id==0}),!cb.sunk {
                 lastStatusTime=link.timestamp
                 statusLabel.text=String(format:"Đang chạy · %.2f m/s · %.1f s",hypot(cb.vx ?? 0,cb.vy ?? 0),engine.elapsed)
-            }
-            sampleClock+=dt
-            if sampleClock>=1.0/30.0 {
-                sampleClock.formTruncatingRemainder(dividingBy:1.0/30.0)
-                frames.append(state);frameTimes.append(engine.elapsed)
-                for b in state where !b.sunk {paths[b.id,default:[]].append(SIMD3<Float>(Float(b.x),Float((b.height ?? 0)+0.004),Float(b.y)))}
             }
             if !engine.moving || engine.elapsed>60 {finishShot(timedOut:engine.moving);frameStateCache=nil}
         }
@@ -1360,9 +1472,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }else{
             table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
         }
-        let guideAllowed=coachOn && guideOn && !presentationBusy && localTurn && !isPlacingBalls && !locked
+        // 0.37 "Dự đoán trước": no guide while aiming — the player commits by eye, the truth is shown after the shot.
+        let guideAllowed=coachOn && guideOn && !presentationBusy && localTurn && !isPlacingBalls && !locked && !Tuning.predictFirst
         // 0.36: "Điểm ngắm" = analytic line to the ghost ball, every frame (realtime); "Cả đường" = full simulated roll.
-        if guideAllowed && guideMode==1 {updateAimGuide();aimGuideShown=true} else if aimGuideShown {table.aimGuide(cue:nil);aimGuideShown=false}
+        if let a=predictionRevealAngle,abs(a-angle)>0.0005 || shotActive || replayIndex != nil {predictionRevealAngle=nil}   // kept until the player aims again
+        if guideAllowed && guideMode==1 {updateAimGuide();aimGuideShown=true} else if aimGuideShown && predictionRevealAngle==nil {table.aimGuide(cue:nil);aimGuideShown=false}
         let show=guideAllowed && guideMode==2
         if !show && lastGuideVisible {
             table.prediction([],visible:false);lastGuideVisible=false
@@ -1396,6 +1510,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         return samples.filter{s in let t=s["time"]?.doubleValue ?? 0;return (s["id"]?.intValue ?? 0)==0 ? t<=contact:t<=contact+0.25}
     }
     func finishShot(timedOut:Bool){
+        if let restore=forcedElevationRestore{engine.settings=restore;forcedElevationRestore=nil}
         let d=Drill.all[drillIndex],events=engine.events
         lastShotEvents=events
         recordSessionShot(events)
@@ -1443,6 +1558,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         else {statusLabel.text="\(passed ? "ĐẠT":"Chưa đạt") · \(railCount) băng / yêu cầu \(d.rails)"}
         hintLabel.text="Tập lại: trở về trước cú · Xem lại: phân tích đường bi"
         refresh();updateControls()
+        if Tuning.predictFirst && !timedOut {revealPrediction(events)}
         if coachOn && !timedOut && (d.goal != nil || d.rails>0) {
             let tracked=d.kick || d.goal != nil ? 0:1
             table.showRailContacts(railContacts(events,ball:tracked,untilFirstHit:d.kick).map{($0.x,$0.y)})
@@ -1512,12 +1628,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         guard localTurn,!shotActive,!frames.isEmpty,!isPlacingBalls else{return}
         lockButton.releaseHold();setHold(false)
         if replayIndex != nil{stopReplay();return}
-        hideCoach();table.resetPocketPresentation();replayPlan=ReplayDirector.Plan(duration:frameTimes.last ?? 0,events:lastShotEvents,initialAngle:lastShot?.aimAngle ?? angle);replayOrigin=captureCamera();replayEquipment=(engine.settings["cueType"]?.intValue ?? 0,table.cueElevation);replayRenderedCueType=nil;replayPreparation=nil;replayStrikePlayed=false;replayIndex=0;replayClock = -preparationDuration;replayYaw=0;replayAudioIndex=0
+        hideCoach();table.resetPocketPresentation();replayPlan=ReplayDirector.Plan(duration:frameTimes.last ?? 0,events:lastShotEvents,initialAngle:lastShot?.aimAngle ?? angle);replayOrigin=captureCamera();replayEquipment=(engine.settings["cueType"]?.intValue ?? 0,table.cueElevation);replayRenderedCueType=nil;replayPreparation=nil;replayStrikePlayed=false;replayIndex=0;replayClock = -replayLead;replayYaw=0;replayAudioIndex=0
         replayPaused=false;replayAuto=true;cameraManual=false;lastDirectorTime = -10
         DispatchQueue.main.async{[weak self] in self?.syncOverlayButtons()}
         if replayCamera != 0 {DispatchQueue.main.async{[weak self] in guard let self=self,self.replayIndex != nil else{return};self.chooseReplayCamera(self.replayCamera)}} else {replayAutoButton.setTitle("Điện ảnh",for:.normal)}
         if let pose=savedAimCamera{applyCamera(pose)}else{table.cameraMode=2}
-        replaySlider.minimumValue=Float(-preparationDuration);replaySlider.maximumValue=Float(frameTimes.last ?? 1);replaySlider.value=Float(replayClock)
+        replaySlider.minimumValue=Float(-replayLead);replaySlider.maximumValue=Float(frameTimes.last ?? 1);replaySlider.value=Float(replayClock)
         replayBar.isHidden=false;menuButton.isHidden=true;replayPause.setTitle("Dừng",for:.normal)
         statusLabel.text="Xem lại · kéo để đổi góc · tua để xem điểm chạm"
         applyReplayCoach();wakeRendering()
