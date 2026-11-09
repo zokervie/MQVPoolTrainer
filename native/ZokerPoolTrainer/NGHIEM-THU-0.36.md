@@ -1,6 +1,8 @@
 # Nghiệm thu Z-Trainer 0.36 — IQ200 vòng 2 (5 điểm) + Menu → Tuỳ chỉnh
 
-Nhánh `ci/native-0.36` · run 42528711173 (lần 2) · CI: Linux g++/clang++, Mac Simulator, ảnh CI, IPA. App hiện phiên bản **0.36**.
+Nhánh `ci/native-0.36` · **build 112** · run 42556252282 ✅ xanh toàn bộ (Linux g++/clang++, Mac Simulator, ảnh + đầu dò, XCTest cử chỉ, IPA). App hiện phiên bản **0.36**.
+
+IPA: https://github.com/zokervie/MQVPoolTrainer/actions/runs/42556252282/artifacts/13647836742 (đăng nhập GitHub để tải)
 Cột **CI** = đã kiểm tra tự động. Cột **Máy thật** = anh tick khi thử, ghi chú ngắn nếu chưa đạt.
 
 ## Lỗi gốc tìm ra trong lúc làm (quan trọng)
