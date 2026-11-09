@@ -314,10 +314,13 @@ final class InteractionTests: XCTestCase {
         for count in [1,14] {
           // relative to what is on the table (Mặc định keeps existing balls; ids cap the total at 15)
           let want=min(field(scene,"ballCount")+Double(count),15)
-          for _ in 0..<2 where field(scene,"ballCount") != want {   // retry the whole menu if a tap was dropped
+          for _ in 0..<4 where field(scene,"ballCount") != want {   // retry the whole menu if a tap was dropped
             if app.alerts["Thêm bi"].exists {app.alerts["Thêm bi"].buttons["Mặc định"].tap()}
             quick(app,"QuickAdd").tap()
-            app.buttons["Thêm bi · số lượng / bố trí"].firstMatch.tap()
+            // slow runner: the menu tap can be dropped — only tap the item once the menu is really up
+            let item=app.buttons["Thêm bi · số lượng / bố trí"].firstMatch
+            if !item.waitForExistence(timeout:5 * slow) {continue}
+            item.tap()
             let alert=app.alerts["Thêm bi"]
             if !alert.waitForExistence(timeout:5 * slow) {continue}
             // Intel CI: keystrokes sent before the field has focus are lost — retype until the field shows the count.
