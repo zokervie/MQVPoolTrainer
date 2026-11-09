@@ -67,6 +67,14 @@ final class InteractionTests: XCTestCase {
         return button
     }
 
+    /// CI log lines are cut at 300 chars: lead failures with the fields that explain a stall.
+    private func brief(_ scene: XCUIElement) -> String {
+        let v = scene.value as? String ?? ""
+        let keys = ["busy","locked","editing","replay","ballCount","preRoll","kind","status","lastTouch"]
+        let parts = v.split(separator: ";").filter { kv in keys.contains { kv.hasPrefix($0 + "=") } }
+        return parts.joined(separator: ";")
+    }
+
     /// Polls without failing; true when `condition` holds before `timeout` (used to retry taps the loaded CI Simulator drops).
     private func poll(_ timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         let end = Date().addingTimeInterval(timeout)
@@ -82,7 +90,7 @@ final class InteractionTests: XCTestCase {
             if field(scene, key) == value { return }
             Thread.sleep(forTimeInterval: 0.5)
         }
-        XCTFail("\(key) != \(value) · probe: \(scene.value ?? "")", file: file, line: line)
+        XCTFail("\(key) != \(value) · \(brief(scene)) · probe: \(scene.value ?? "")", file: file, line: line)
     }
 
     /// Polls `condition`; on timeout fails with the whole app probe so CI logs show the state (0.30).
@@ -94,7 +102,7 @@ final class InteractionTests: XCTestCase {
             if condition() { return }
             Thread.sleep(forTimeInterval: 0.5)
         }
-        XCTFail("timed out after \(Int(timeout)) s · probe: \(scene.value ?? "")", file: file, line: line)
+        XCTFail("timed out after \(Int(timeout)) s · \(brief(scene)) · probe: \(scene.value ?? "")", file: file, line: line)
     }
 
     /// B1: kéo một ngón theo chiều dọc chỉ đổi độ cao camera ngắm, không làm lệch hướng đánh.
