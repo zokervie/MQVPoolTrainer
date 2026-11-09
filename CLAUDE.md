@@ -15,6 +15,9 @@ Nguồn gốc: repo private `ZokerPoolTrainer-0.11-Native-Jump-Masse…` tại `
 ## CI
 `.github/workflows/native-ci.yml`: cổng Linux (g++/clang++, check_suite_lists, Run-All-Checks) → `Tools/run_acceptance.py` trên macOS (Simulator, ảnh + đầu dò G1, XCTest cử chỉ, IPA) → Release `native-*` + nhánh `dist-zoker-native`; ảnh ở `shots/native`. Thêm bộ test C++ mới: đăng ký ở cả `CMakeLists.txt` (ZOKER_TEST_SUITES) và `Run-All-Checks.command`. Đọc thêm `AGENTS.md` (hợp đồng của nhánh council).
 
+## Quy ước "chấp thuận" (anh dặn 09/11/2026 22:54)
+Khi anh nói "chấp thuận" = duyệt TOÀN BỘ đề xuất/phát kiến/sửa đổi em vừa nêu, làm luôn. Nếu cần thêm/bớt, anh nói sau chữ "chấp thuận".
+
 ## Cách làm việc (anh dặn 09/11/2026 22:23)
 Anh muốn ÍT đợt nghiệm thu: gom thành một bản hoàn chỉnh rồi mới nghiệm thu; sau đó tách tính năng để bán trong app (In-App Purchase). Viết tính năng theo cờ/khối độc lập để sau này khoá/mở theo gói được.
 
