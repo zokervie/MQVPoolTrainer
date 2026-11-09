@@ -110,7 +110,9 @@ with Image.open(f"build/screenshots/{name}.png") as image:
  # shot — require a rendered scene (not a black, white or blank frame) everywhere.
  count=sum(1 for r,g,b in pixels if 40<(r+g+b)/3<235)
  print(f"{name} readiness: {count} cloth-color pixels")
- raise SystemExit(0 if count>=(250 if name=="library" else 1500) else 1)
+ # 0.38: run 42678922728 accepted top/jump/space-5/table-zmax at ~1800-2000 px = HUD only, 3D scene not drawn yet
+ # (slow runner, shaders still compiling). A drawn table is >=6000 px in every scene; wait for it.
+ raise SystemExit(0 if count>=(250 if name=="library" else 4000) else 1)
 READY
   then break; fi
  done
@@ -145,7 +147,7 @@ for path in sorted(Path("build/screenshots").glob("*.png")):
   print(f"{path.name}: table-color pixels={cloth}")
   # Full-screen drill catalog intentionally covers the 3D table; verify
   # table visibility only on scenes that are supposed to show the playing surface.
-  if path.stem not in ("cue-library","calibration","drill-list") and cloth<(250 if path.stem=="library" else 1500):failed.append(path.name)
+  if path.stem not in ("cue-library","calibration","drill-list") and cloth<(250 if path.stem=="library" else 4000):failed.append(path.name)
 # 0.37 (owner 0.36 video: concentric bands on the cloth = 8-bit banding). With dithering a flat-looking cloth area has
 # short runs of identical values; long identical runs mean visible contour bands. Gate on the top views.
 for name in ("premium-top","top"):
