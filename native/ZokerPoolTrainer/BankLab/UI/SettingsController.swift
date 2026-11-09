@@ -173,6 +173,8 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
 // MARK: - 0.36 Tuỳ chỉnh (owner IQ200 #4): lighting, diamond prominence, max power + physics, HUD arrangement, smoothness.
 enum Tuning {
     static func value(_ key:String,_ fallback:Double)->Double{UserDefaults.standard.object(forKey:key) as? Double ?? fallback}
+    /// Bool preference that also accepts launch-argument strings ("-key YES" in UI tests).
+    static func flag(_ key:String,_ fallback:Bool)->Bool{UserDefaults.standard.object(forKey:key)==nil ? fallback:UserDefaults.standard.bool(forKey:key)}
     /// Active render cadence. 120 needs ProMotion (CADisableMinimumFrameDurationOnPhone is set); more heat.
     static var frameRate:Int{
         #if targetEnvironment(simulator)
@@ -186,14 +188,14 @@ enum Tuning {
     /// Multiplier on the stroke speed (BLStrokeSpeed tops out at 8 m/s): 0.6 → 4.8 m/s, 1.3 → 10.4 m/s.
     static var maxPower:Double{value("tuneMaxPower036",1)}
     /// 0.37: HUD fades while the player aims; effect ball lock (off = only B locks); predict-first eye training.
-    static var hudFade:Bool{UserDefaults.standard.object(forKey:"tuneHUDFade037") as? Bool ?? true}
-    static var effectLock:Bool{UserDefaults.standard.object(forKey:"tuneEffectLock037") as? Bool ?? false}
-    static var predictFirst:Bool{UserDefaults.standard.object(forKey:"tunePredictFirst037") as? Bool ?? false}
+    static var hudFade:Bool{flag("tuneHUDFade037",true)}
+    static var effectLock:Bool{flag("tuneEffectLock037",false)}
+    static var predictFirst:Bool{flag("tunePredictFirst037",false)}
     // 0.38 (owner approved all proposals)
     static var hudScale:Double{value("tuneHUDScale038",1)}
     static var hudAlpha:Double{value("tuneHUDAlpha038",1)}
-    static var autoNumbers:Bool{UserDefaults.standard.object(forKey:"tuneAutoNumbers038") as? Bool ?? true}
-    static var guideBySkill:Bool{UserDefaults.standard.object(forKey:"tuneGuideSkill038") as? Bool ?? true}
+    static var autoNumbers:Bool{flag("tuneAutoNumbers038",true)}
+    static var guideBySkill:Bool{flag("tuneGuideSkill038",true)}
     static var aimPitch:Double{value("tuneAimPitch038",0.57)}
     static var aimZoom:Double{value("tuneAimZoom038",1)}
 }

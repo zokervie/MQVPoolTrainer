@@ -295,9 +295,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 self.loadDrill(Drill.free);self.table.cameraMode=2;self.table.zoom=1.18
                 if args.contains("--ux018-jump-qa"){self.chooseShotKind(1)}
                 self.spin.select(side:0.2,top:0.3)
-                DispatchQueue.main.asyncAfter(deadline:.now()+(args.contains("--ux018-jump-qa") ? 2:0.8)){[weak self] in
-                    guard let self=self else{return};self.locked=true;self.shoot(args.contains("--ux018-jump-qa") ? 1:2)
+                // 0.38: retry until the stroke really starts (a rack intro or busy gate on a slow CI start swallowed it).
+                func fire(_ left:Int){
+                    DispatchQueue.main.asyncAfter(deadline:.now()+(left==40 ? (args.contains("--ux018-jump-qa") ? 2:0.8):0.5)){[weak self] in
+                        guard let self=self,!self.shotActive,self.frames.isEmpty else{return}
+                        self.locked=true;self.shoot(args.contains("--ux018-jump-qa") ? 1:2)
+                        if !self.shotActive && left>0 {fire(left-1)}
+                    }
                 }
+                fire(40)
             }
             if args.contains("--g1-default-qa") {
                 precondition(startupCameraMode==2,"G1: startup must use Aim3D")
