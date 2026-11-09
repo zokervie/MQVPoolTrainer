@@ -70,7 +70,7 @@ final class InteractionTests: XCTestCase {
     /// CI log lines are cut at 300 chars: lead failures with the fields that explain a stall.
     private func brief(_ scene: XCUIElement) -> String {
         let v = scene.value as? String ?? ""
-        let keys = ["status","busy","locked","editing","replay","ballCount","preRoll","kind","lastTouch"]
+        let keys = ["ballCount","busy","locked","editing","replay","preRoll","kind","status","lastTouch"]
         let parts = v.split(separator: ";")
         return keys.compactMap { k in parts.first { $0.hasPrefix(k + "=") }.map(String.init) }.joined(separator: ";")
     }
@@ -301,7 +301,8 @@ final class InteractionTests: XCTestCase {
     func testRandomLayoutMenuSupportsOneThroughFifteenObjectBalls() {
         let (app,scene)=launch(["--ux017-qa"])
         for count in [1,14] {
-          let want=Double(count==1 ? 2:15)
+          // relative to what is on the table (Mặc định keeps existing balls; ids cap the total at 15)
+          let want=min(field(scene,"ballCount")+Double(count),15)
           for _ in 0..<2 where field(scene,"ballCount") != want {   // retry the whole menu if a tap was dropped
             if app.alerts["Thêm bi"].exists {app.alerts["Thêm bi"].buttons["Mặc định"].tap()}
             quick(app,"QuickAdd").tap()
