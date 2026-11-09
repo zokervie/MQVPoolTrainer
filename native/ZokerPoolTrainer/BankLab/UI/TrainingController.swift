@@ -233,7 +233,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     DispatchQueue.main.asyncAfter(deadline:.now()+0.5){[weak self] in
                         guard let self=self else{return};self.wakeRendering()
                         let span=(self.aimBuffer.last?.time ?? 0)-(self.aimBuffer.first?.time ?? 0)
-                        if span>=5.5 || left<=0 {self.locked=true;self.shoot(0.5)} else {tryShoot(left-1)}
+                        if span>=5.5 || left<=0 {
+                            self.locked=true;self.shoot(0.5)
+                            // 0.36: a skipped rack intro or a busy gate swallows the stroke — say why, then retry.
+                            if !self.shotActive && left>0 {
+                                self.statusLabel.text="qa-shot-blocked rack:\(self.table.rackIntroPlaying ? 1:0) allowed:\(self.strokeAllowed ? 1:0) busy:\(self.presentationBusy ? 1:0) menu:\(self.menuOpen ? 1:0) spin:\(self.spinExpanded ? 1:0) turn:\(self.localTurn ? 1:0) can:\(self.matchCanStroke ? 1:0)"
+                                tryShoot(left-1)
+                            }
+                        } else {tryShoot(left-1)}
                     }
                 }
                 tryShoot(120)
