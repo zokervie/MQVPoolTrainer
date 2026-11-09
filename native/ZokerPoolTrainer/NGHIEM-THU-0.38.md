@@ -1,6 +1,6 @@
 # Nghiệm thu Zoker Pool / Trainer 0.38 — bản gộp (0.37 + toàn bộ đề xuất)
 
-Nhánh `ci/native-0.38` · build: (điền khi CI xanh) · App hiện phiên bản **0.38**, tên trên màn hình chính **Zoker Pool**.
+Nhánh `ci/native-0.38` · build **118** (CI xanh, run 42685018610) · IPA: [zoker-ipa-candidate-118](https://github.com/zokervie/MQVPoolTrainer/actions/runs/42685018610/artifacts/13705231390) · App hiện phiên bản **0.38**, tên trên màn hình chính **Zoker Pool**.
 Cột **CI** = đã kiểm tra tự động. Cột **Máy thật** = anh tick khi thử.
 
 ## Nguyên nhân gốc đã tìm ra
