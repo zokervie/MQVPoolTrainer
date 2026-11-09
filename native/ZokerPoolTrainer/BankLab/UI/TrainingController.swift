@@ -2703,3 +2703,46 @@ extension UIGestureRecognizer {
         addTarget(target,action:#selector(GestureAction.fire(_:)))
     }
 }
+
+// MARK: - 0.38 Highlight video (owner: replay cuts for promotion)
+
+/// Writes the cinematic replay (3 cuts) to an H.264 .mp4 at 30 fps, 1280 px wide, from SCNView snapshots.
+/// Render-side only: frames come from the replay clock, so the file has the same timing as the on-screen replay.
+final class HighlightRecorder {
+    private let writer:AVAssetWriter
+    private let input:AVAssetWriterInput
+    private let adaptor:AVAssetWriterInputPixelBufferAdaptor
+    private let size:CGSize
+    private var frame=0
+    private var lastCapture=0.0
+    let url:URL
+    init?(aspect:CGFloat){
+        let w:CGFloat=1280,h=(w/max(0.5,aspect)/2).rounded()*2
+        size=CGSize(width:w,height:h)
+        url=FileManager.default.temporaryDirectory.appendingPathComponent("ZokerPool-highlight-\(Int(Date().timeIntervalSince1970)).mp4")
+        guard let w=try? AVAssetWriter(outputURL:url,fileType:.mp4) else{return nil}
+        writer=w
+        input=AVAssetWriterInput(mediaType:.video,outputSettings:[AVVideoCodecKey:AVVideoCodecType.h264,AVVideoWidthKey:Int(size.width),AVVideoHeightKey:Int(size.height),
+            AVVideoCompressionPropertiesKey:[AVVideoAverageBitRateKey:8_000_000,AVVideoProfileLevelKey:AVVideoProfileLevelH264HighAutoLevel]])
+        input.expectsMediaDataInRealTime=true
+        adaptor=AVAssetWriterInputPixelBufferAdaptor(assetWriterInput:input,sourcePixelBufferAttributes:[kCVPixelBufferPixelFormatTypeKey as String:kCVPixelFormatType_32BGRA,kCVPixelBufferWidthKey as String:Int(size.width),kCVPixelBufferHeightKey as String:Int(size.height)])
+        guard writer.canAdd(input) else{return nil}
+        writer.add(input);guard writer.startWriting() else{return nil}
+        writer.startSession(atSourceTime:.zero)
+    }
+    /// Call every display tick with the wall-clock time; keeps 30 fps.
+    func capture(_ image:UIImage,now:Double){
+        guard now-lastCapture>=1.0/30.0-0.002,input.isReadyForMoreMediaData,let pool=adaptor.pixelBufferPool else{return}
+        lastCapture=now
+        var buffer:CVPixelBuffer?;CVPixelBufferPoolCreatePixelBuffer(nil,pool,&buffer);guard let pb=buffer else{return}
+        CVPixelBufferLockBaseAddress(pb,[]);defer{CVPixelBufferUnlockBaseAddress(pb,[])}
+        guard let ctx=CGContext(data:CVPixelBufferGetBaseAddress(pb),width:Int(size.width),height:Int(size.height),bitsPerComponent:8,bytesPerRow:CVPixelBufferGetBytesPerRow(pb),
+                                space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.premultipliedFirst.rawValue|CGBitmapInfo.byteOrder32Little.rawValue),let cg=image.cgImage else{return}
+        ctx.draw(cg,in:CGRect(origin:.zero,size:size))
+        adaptor.append(pb,withPresentationTime:CMTime(value:CMTimeValue(frame),timescale:30));frame+=1
+    }
+    func finish(_ done:@escaping(URL?)->Void){
+        input.markAsFinished()
+        let ok=frame>0;writer.finishWriting{[url] in DispatchQueue.main.async{done(ok ? url:nil)}}
+    }
+}
