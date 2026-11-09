@@ -68,15 +68,38 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var lastShotSpeed=0.0
     var testSpeed=2.0
     var highGraphics=false
-    var missWindow=0.0,missCount=0
+    var missWindow=0.0,missCount=0,cleanSeconds=0.0
+    /// Pass rate of the last 20 graded drill shots (0…1) — drives the skill fade of the guide.
+    var recentPassRate:Double{
+        if let c=passRateCache,Date().timeIntervalSince(c.1)<5{return c.0}
+        let r=practiceRecords().suffix(20);let v=r.isEmpty ? 0:Double(r.filter{$0.passed}.count)/Double(r.count)
+        passRateCache=(v,Date());return v
+    }
+    var passRateCache:(Double,Date)?=nil
+    /// True when the straight aim line from the cue ball reaches a cushion before any ball.
+    func aimHitsRail()->Bool{
+        guard let c=cue,!c.sunk else{return false}
+        let R=geometry.radius,d=SIMD2<Double>(cos(angle),sin(angle)),p=SIMD2<Double>(c.x,c.y)
+        let hx=geometry.width/2-R,hy=geometry.length/2-R
+        var wall=Double.infinity
+        if d.x>1e-9{wall=min(wall,(hx-p.x)/d.x)}else if d.x < -1e-9{wall=min(wall,(-hx-p.x)/d.x)}
+        if d.y>1e-9{wall=min(wall,(hy-p.y)/d.y)}else if d.y < -1e-9{wall=min(wall,(-hy-p.y)/d.y)}
+        for b in balls where b.id != 0 && !b.sunk {
+            let m=p-SIMD2<Double>(b.x,b.y),bq=simd_dot(m,d),cc=simd_dot(m,m)-4*R*R,disc=bq*bq-cc
+            if disc>=0 && -bq-disc.squareRoot()>0 && -bq-disc.squareRoot()<wall{return false}
+        }
+        return wall.isFinite
+    }
     var hudFaded=false
     var forcedElevationRestore:[String:NSNumber]?
+    var highlightRecorder:HighlightRecorder?
+    var consistencyKey="",consistencyStops:[SIMD2<Double>]=[]
     func applyHUDFade(){
-        let a:CGFloat=hudFaded ? 0.22:1
+        let a:CGFloat=hudFaded ? 0.22:CGFloat(Tuning.hudAlpha)
         UIView.animate(withDuration:hudFaded ? 0.18:0.25,delay:0,options:[.beginFromCurrentState,.allowUserInteraction]){
             for v in self.cueIcons{v.alpha=a}
             for v in [self.quickScroll,self.lockButton,self.elevationPad,self.menuButton,self.coachButton] as [UIView]{v.alpha=a}
-            self.spin.alpha=self.hudFaded ? 0.25:(self.spinExpanded ? 0.97:0.60)
+            self.spin.alpha=self.hudFaded ? 0.25:(self.spinExpanded ? 0.97:0.60*CGFloat(Tuning.hudAlpha))
         }
     }
     var focusMode=true
@@ -655,6 +678,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             guard let self=self else{return}
             let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
             sheet.addAction(UIAlertAction(title:"Lưu cú vừa đánh",style:.default){[weak self]_ in self?.saveLastShot()})
+            sheet.addAction(UIAlertAction(title:"Xuất video highlight (3 cảnh điện ảnh)",style:.default){[weak self]_ in self?.setMenu(false);self?.exportHighlight()})
             for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
             sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)
         }
@@ -981,6 +1005,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         aimGuideShown=true;predictionRevealAngle=angle
         notifyStatus(String(format:"Dự đoán · bi %d %@ lỗ %@: lệch %.1f°",target,potted ? "vào":"tới",best.0,abs(off)))
     }
+    /// 0.38 "Chấm độ đều tay": the same layout shot again and again (Tập lại) — how tightly do the cue ball's stopping
+    /// points cluster? RMS radius from their centre, in cm; 5 stars under 3 cm (coach standard for a repeatable stroke).
+    func scoreConsistency(){
+        guard let start=lastShot?.balls,let cb=balls.first(where:{$0.id==0}),!cb.sunk else{return}
+        let key=start.sorted{$0.id<$1.id}.map{String(format:"%d:%.3f,%.3f",$0.id,$0.x,$0.y)}.joined(separator:"|")
+        if key != consistencyKey {consistencyKey=key;consistencyStops=[]}
+        consistencyStops.append(SIMD2(cb.x,cb.y));if consistencyStops.count>10{consistencyStops.removeFirst()}
+        let n=consistencyStops.count;guard n>=2 else{return}
+        let c=consistencyStops.reduce(SIMD2<Double>(0,0),+)/Double(n)
+        let rms=(consistencyStops.map{simd_length_squared($0-c)}.reduce(0,+)/Double(n)).squareRoot()*100
+        let stars=rms<3 ? 5:(rms<6 ? 4:(rms<10 ? 3:(rms<16 ? 2:1)))
+        notifyStatus(String(format:"Độ đều tay · %d cú cùng thế: điểm dừng chụm ±%.1f cm · %@",n,rms,String(repeating:"★",count:stars)+String(repeating:"☆",count:5-stars)))
+    }
     func notifyStatus(_ text:String){
         statusLabel.text=text;statusToast.text="  "+text+"  ";statusToast.isHidden=false;view.bringSubviewToFront(statusToast)
         toastGeneration+=1;let generation=toastGeneration
@@ -1169,7 +1206,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func restoreAimCamera(transition:Double=0.45){
         guard localTurn,replayIndex==nil else{return}
         releasePeek()
-        let saved=savedAimCamera ?? cameraMemory[2] ?? CameraPose(mode:2,zoom:1,yaw:0,pitch:0.57,aimPitch:table.aimPitch)
+        var saved=savedAimCamera ?? cameraMemory[2] ?? CameraPose(mode:2,zoom:1,yaw:0,pitch:0.57,aimPitch:table.aimPitch)
+        // 0.38 Tuỳ chỉnh · góc ngắm mặc định: once set, the camera always comes back to it after a shot.
+        if UserDefaults.standard.object(forKey:"tuneAimPitch038") != nil{saved.aimPitch=Float(Tuning.aimPitch)}
+        if UserDefaults.standard.object(forKey:"tuneAimZoom038") != nil{saved.zoom=Float(Tuning.aimZoom)}
         aimCameraYaw=0;shotCameraAnchor=nil;applyCamera(saved);table.cameraMode=2;observationCamera=false;table.focusBounds=nil
         beginCameraTransition(transition);cameraButton.configuration?.title="Ngắm cơ";syncQuickRail()
     }
@@ -1336,7 +1376,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             missWindow+=dt;if dt>1.5/Double(Tuning.frameRate){missCount+=1}
             if missWindow>=2 {
                 let frames=missWindow*Double(Tuning.frameRate)
-                if Double(missCount)>0.25*frames && table.performanceLevel<2 {table.setPerformanceLevel(table.performanceLevel+1)}
+                if Double(missCount)>0.25*frames && table.performanceLevel<2 {table.setPerformanceLevel(table.performanceLevel+1);cleanSeconds=0}
+                // 0.38: climb back when the device keeps up for 20 s and is not warm.
+                else if Double(missCount)<0.03*frames && table.performanceLevel>0 && ProcessInfo.processInfo.thermalState.rawValue<=ProcessInfo.ThermalState.fair.rawValue {
+                    cleanSeconds+=missWindow;if cleanSeconds>=20{table.setPerformanceLevel(table.performanceLevel-1);cleanSeconds=0}
+                }
                 missWindow=0;missCount=0
             }
         }
@@ -1369,6 +1413,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     }
                 }
                 replaySlider.value=Float(replayClock)
+                if let recorder=highlightRecorder{recorder.capture(scn.snapshot(),now:ProcessInfo.processInfo.systemUptime)}
                 if !replayPaused {playReplayAudio()}
             }
         }else if shotActive && !guestTick && !matchSimulationPaused {
@@ -1477,6 +1522,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // 0.36: "Điểm ngắm" = analytic line to the ghost ball, every frame (realtime); "Cả đường" = full simulated roll.
         if let a=predictionRevealAngle,abs(a-angle)>0.0005 || shotActive || replayIndex != nil {predictionRevealAngle=nil}   // kept until the player aims again
         if guideAllowed && guideMode==1 {updateAimGuide();aimGuideShown=true} else if aimGuideShown && predictionRevealAngle==nil {table.aimGuide(cue:nil);aimGuideShown=false}
+        // 0.38: Nút số appears on its own while the aim line runs into a cushion (practice only).
+        let autoNumbers=Tuning.autoNumbers && !matchIsCompetitive && localTurn && !shotActive && replayIndex==nil && aimHitsRail()
+        let wantNumbers=(numbersOn && coaching) || autoNumbers
+        if !matchIsCompetitive && table.showsDiamondNumbers != wantNumbers {table.showsDiamondNumbers=wantNumbers}
+        // 0.38: the guide fades as the player's recent pass rate rises (eye training).
+        let skillFade=Tuning.guideBySkill ? CGFloat(1-0.65*recentPassRate):1
+        if abs(table.guideOpacity-skillFade)>0.01 {table.guideOpacity=skillFade}
         let show=guideAllowed && guideMode==2
         if !show && lastGuideVisible {
             table.prediction([],visible:false);lastGuideVisible=false
@@ -1485,10 +1537,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if !show{predictionGeneration+=1}
         if show && changed && !predictionPending && link.timestamp-lastPredictionTime>=0.08 {
             predictionPending=true;predictionGeneration+=1;let generation=predictionGeneration
-            let layout=engine.states,settings=engine.settings,a=table.shotAngle(cue,angle:angle,side:side,top:top),v=referenceSpeed,x=side,y=top,aim=angle
+            var settings=engine.settings
+            // 0.38: the predicted path uses the elevation the cue really has (auto-raised over a rail / ball).
+            let forced=min(table.clearanceElevation,85)
+            if forced>table.cueElevation+0.25 {settings["cueElevationDegrees"]=NSNumber(value:forced);settings["experimental3D"]=true}
+            let layout=engine.states,a=table.shotAngle(cue,angle:angle,side:side,top:top),v=referenceSpeed,x=side,y=top,aim=angle
             lastPredictionTime=link.timestamp;guideDirty=false;lastGuideAngle=aim
+            let simSettings=settings
             predictionQueue.async{[weak self] in
-                let world=BLWorld();world.settings=settings;world.loadLayout(layout)
+                let world=BLWorld();world.settings=simSettings;world.loadLayout(layout)
                 let samples=world.prediction(angle:a,speed:v,side:x,top:y)
                 DispatchQueue.main.async{
                     guard let self=self else{return};self.predictionPending=false
@@ -1559,6 +1616,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         hintLabel.text="Tập lại: trở về trước cú · Xem lại: phân tích đường bi"
         refresh();updateControls()
         if Tuning.predictFirst && !timedOut {revealPrediction(events)}
+        else if !timedOut && !scratch {scoreConsistency()}
         if coachOn && !timedOut && (d.goal != nil || d.rails>0) {
             let tracked=d.kick || d.goal != nil ? 0:1
             table.showRailContacts(railContacts(events,ball:tracked,untilFirstHit:d.kick).map{($0.x,$0.y)})
@@ -1639,7 +1697,25 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         applyReplayCoach();wakeRendering()
         updateControls()
     }
+    /// 0.38: export the cinematic replay of the last shot as a video (share sheet: save to Photos, send…).
+    func exportHighlight(){
+        guard !shotActive,!frames.isEmpty,replayIndex==nil else{notifyStatus("Chưa có cú đánh để xuất video");return}
+        guard let recorder=HighlightRecorder(aspect:scn.bounds.width/max(1,scn.bounds.height)) else{notifyStatus("Không tạo được video");return}
+        highlightRecorder=recorder;replay()
+        replayBar.isHidden=true;menuButton.isHidden=true
+        notifyStatus("Đang quay video highlight…")
+    }
     func stopReplay(){
+        if let recorder=highlightRecorder{
+            highlightRecorder=nil
+            recorder.finish{[weak self] url in
+                guard let self=self else{return}
+                guard let url=url else{self.notifyStatus("Video trống");return}
+                let share=UIActivityViewController(activityItems:[url],applicationActivities:nil)
+                share.popoverPresentationController?.sourceView=self.menuButton
+                self.present(share,animated:true)
+            }
+        }
         replayPreparation=nil;replayRenderedCueType=nil
         if let equipment=replayEquipment{table.selectCue(equipment.0);table.cueElevation=equipment.1};replayEquipment=nil
         replayIndex=nil;replayPlan=nil;replayBar.isHidden=true;menuButton.isHidden=false;table.resetPocketPresentation();syncOverlayButtons()
@@ -2534,13 +2610,36 @@ extension TrainingController {
     }
     func hudOffsetKey(_ name:String)->String{"hudOffset036-"+(leftHanded ? "L":"R")+"-"+name}
     func applyHUDOffsets(){
+        // 0.38 Tuỳ chỉnh · kích thước phím: scale the key bounds about their centre (not a transform: the elevation fan
+        // and wheel carry their own zoom transform while touched).
+        let k=CGFloat(Tuning.hudScale)
+        if abs(k-1)>0.01 {
+            var scaled:[UIView]=[lockButton,menuButton,coachButton]+cueIcons
+            if !spinExpanded{scaled.append(spin)}
+            for v in scaled{let c=v.center;v.bounds.size=CGSize(width:v.bounds.width*k,height:v.bounds.height*k);v.center=c;v.setNeedsDisplay()}
+            if !spinExpanded{spinWidth.constant=spin.bounds.width;spinHeight.constant=spin.bounds.height}
+        }
         for (name,v) in hudItems{
             guard let o=UserDefaults.standard.array(forKey:hudOffsetKey(name)) as? [Double],o.count==2 else{continue}
             v.center=CGPoint(x:v.center.x+o[0],y:v.center.y+o[1])
         }
+        applyHUDFade()
+    }
+    /// 0.38: three saved key layouts (per hand), copied from/to the live offsets.
+    func hudSlotKey(_ n:Int,_ name:String)->String{"hudSlot038-\(n)-"+hudOffsetKey(name)}
+    func saveHUDLayout(_ n:Int){
+        for (name,_) in hudItems{UserDefaults.standard.set(UserDefaults.standard.array(forKey:hudOffsetKey(name)) ?? [0.0,0.0],forKey:hudSlotKey(n,name))}
+        notifyStatus("Đã lưu bố cục phím \(n)")
+    }
+    func loadHUDLayout(_ n:Int){
+        var found=false
+        for (name,_) in hudItems{if let o=UserDefaults.standard.array(forKey:hudSlotKey(n,name)){found=true;UserDefaults.standard.set(o,forKey:hudOffsetKey(name))}}
+        view.setNeedsLayout();layoutRightHUD()
+        notifyStatus(found ? "Đang dùng bố cục phím \(n)":"Bố cục \(n) chưa lưu")
     }
     func applyTuning(){
-        table.applyTuning()
+        table.applyTuning();layoutRightHUD()
+        if table.cameraMode==2 && !shotActive && replayIndex==nil {restoreAimCamera(transition:0.3)}   // preview the default aim view
         scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
         displayLink?.preferredFramesPerSecond=Tuning.frameRate
         guideDirty=true;wakeRendering()
@@ -2551,6 +2650,8 @@ extension TrainingController {
         vc.changed={[weak self] in self?.applyTuning()}
         vc.openPhysics={[weak self] in self?.settings()}
         vc.arrangeHUD={[weak self] in self?.beginHUDArrange()}
+        vc.saveLayout={[weak self] n in self?.saveHUDLayout(n)}
+        vc.loadLayout={[weak self] n in self?.loadHUDLayout(n)}
         vc.resetHUD={[weak self] in guard let self=self else{return}
             for (name,_) in self.hudItems{UserDefaults.standard.removeObject(forKey:self.hudOffsetKey(name))}
             self.view.setNeedsLayout();self.layoutRightHUD()}

@@ -1,6 +1,6 @@
-# Nghiệm thu Zoker Pool / Trainer 0.37
+# Nghiệm thu Zoker Pool / Trainer 0.38 — bản gộp (0.37 + toàn bộ đề xuất)
 
-Nhánh `ci/native-0.37` · build: (điền khi CI xanh) · App hiện phiên bản **0.37**, tên trên màn hình chính **Zoker Pool**.
+Nhánh `ci/native-0.38` · build: (điền khi CI xanh) · App hiện phiên bản **0.38**, tên trên màn hình chính **Zoker Pool**.
 Cột **CI** = đã kiểm tra tự động. Cột **Máy thật** = anh tick khi thử.
 
 ## Nguyên nhân gốc đã tìm ra
@@ -53,8 +53,26 @@ Cột **CI** = đã kiểm tra tự động. Cột **Máy thật** = anh tick kh
 - Độ mượt thực tế, độ chói bi, độ mịn của bóng, sọc nỉ (ảnh CI chụp trên máy ảo không có GPU thật).
 - Cảm giác cú đánh có cơ tự nâng: độ lệch và độ cong theo dốc.
 
-## Đề xuất cho 0.38 (anh quyết)
+## Thêm trong 0.38 (anh duyệt hết)
 
-- Tự tăng chất lượng trở lại khi máy mát và đủ hình, thay vì chỉ hạ.
-- Đường chỉ dẫn khi ngắm cũng tính theo độ dốc tự nâng.
-- Video highlight xuất thẳng ra file từ 3 cảnh xem lại, để làm quảng cáo.
+| # | Hạng mục | Ở đâu | Máy thật |
+| --- | --- | --- | --- |
+| 10 | **Nút số tự hiện** khi đường ngắm chạm băng (luyện tập) | Tuỳ chỉnh → Điều khiển (mặc định bật) | [ ] |
+| 11 | **Chấm độ đều tay**: bấm Tập lại cùng một thế, app báo điểm dừng bi cái chụm ±x cm và chấm 1–5 sao (dưới 3 cm được 5 sao) | Tự hiện sau cú thứ 2 | [ ] |
+| 12 | **Đường chỉ dẫn mờ dần** theo tỉ lệ đạt 20 cú bài tập gần nhất (đạt hết thì đường còn khoảng 35 % độ đậm) | Tuỳ chỉnh → Điều khiển | [ ] |
+| 13 | **Góc ngắm mặc định**: độ cao, độ gần, FOV; sau mỗi cú camera quay về đúng góc này | Tuỳ chỉnh → Điều khiển | [ ] |
+| 14 | **Kích thước và độ đậm của phím** | Tuỳ chỉnh → Điều khiển | [ ] |
+| 15 | **Lưu 3 bố cục phím**: nút Lưu 1/2/3 và Dùng 1/2/3 | Tuỳ chỉnh → Điều khiển | [ ] |
+| 16 | **Màu đường ngắm** (5 màu) và **độ dày** | Tuỳ chỉnh → Điều khiển | [ ] |
+| 17 | **Độ rõ vân nỉ** (0 = mịn hoàn toàn) | Tuỳ chỉnh → Hình ảnh | [ ] |
+| 18 | Đường dự đoán "Cả đường" tính theo **độ dốc cơ tự nâng** | Tự động | [ ] |
+| 19 | Chất lượng hình **tự tăng lại** sau 20 s máy chạy đủ hình và không nóng | Tự động | [ ] |
+| 20 | **Xuất video highlight**: 3 cảnh điện ảnh, 1280 px, 30 hình/giây; quay xong mở bảng chia sẻ (lưu vào Ảnh, gửi…) | Menu → Lưu và xem lại | [ ] |
+
+## Hướng tách bán trong app (sau khi nghiệm thu)
+
+Mỗi tính năng trên là một khối độc lập có công tắc riêng, nên sau này khoá hoặc mở theo gói In-App Purchase được mà không phải viết lại. Gợi ý chia gói để anh quyết sau:
+- **Miễn phí**: luyện tự do, 2 người một máy, các bài tập cấp 1–2.
+- **Gói Luyện mắt**: Dự đoán trước, Chấm độ đều tay, đường chỉ dẫn theo trình độ, bài tập cấp 3–5.
+- **Gói Thi đấu**: Wi‑Fi, Online, Game Center.
+- **Gói Studio**: xuất video highlight, mẫu ánh sáng, thư viện bàn/cơ/không gian.

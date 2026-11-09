@@ -15,6 +15,12 @@ Nguồn gốc: repo private `ZokerPoolTrainer-0.11-Native-Jump-Masse…` tại `
 ## CI
 `.github/workflows/native-ci.yml`: cổng Linux (g++/clang++, check_suite_lists, Run-All-Checks) → `Tools/run_acceptance.py` trên macOS (Simulator, ảnh + đầu dò G1, XCTest cử chỉ, IPA) → Release `native-*` + nhánh `dist-zoker-native`; ảnh ở `shots/native`. Thêm bộ test C++ mới: đăng ký ở cả `CMakeLists.txt` (ZOKER_TEST_SUITES) và `Run-All-Checks.command`. Đọc thêm `AGENTS.md` (hợp đồng của nhánh council).
 
+## Cách làm việc (anh dặn 09/11/2026 22:23)
+Anh muốn ÍT đợt nghiệm thu: gom thành một bản hoàn chỉnh rồi mới nghiệm thu; sau đó tách tính năng để bán trong app (In-App Purchase). Viết tính năng theo cờ/khối độc lập để sau này khoá/mở theo gói được.
+
+## 0.38 = 0.37 + toàn bộ đề xuất còn lại (anh duyệt hết 09/11/2026 22:21)
+Nút số tự hiện khi ngắm chạm băng; chấm độ đều tay; đường chỉ dẫn mờ theo trình độ; góc ngắm mặc định; kích thước/độ trong phím; lưu 3 bố cục; màu/độ dày đường ngắm; độ rõ vân nỉ; đường dự đoán theo độ dốc tự nâng; tự tăng lại chất lượng; xuất video highlight.
+
 ## 0.37 (anh duyệt 09/11/2026 21:34 — gộp tất cả)
 Sửa: lag (chỉ bi đổ bóng, tự hạ chất lượng), sọc nỉ = phân tầng màu (dithering, nỉ không bóng, vân mờ sớm), sọc viền/yếm (bóng tự đổ), bo góc gỗ; bi bớt chói + bóng mềm; cơ không xuyên băng/bi, dốc tự nâng đồng bộ thanh dốc; kiểm tra va chạm khi bi bay; xem lại 1,5 s trước/sau + 3 cảnh điện ảnh; logo "Zoker Pool / Trainer"; khoá chỉ bằng B (công tắc bi effect khoá trong Tuỳ chỉnh, mặc định tắt).
 Thêm: Tuỳ chỉnh độ chói bi + độ đậm bóng; mẫu loại bàn (nhanh/chuẩn/chậm); vạch vùng thực tế trên thanh vật lý; phím tự mờ khi ngắm; dự đoán rồi hiện đường đúng (lệch °); mẫu ánh sáng (Câu lạc bộ/TV/Dịu mắt); Sảnh chính (Luyện tập/Thi đấu/Hồ sơ) + menu trong trận 5 mục + Tuỳ chỉnh 4 thẻ + màu theo chế độ.

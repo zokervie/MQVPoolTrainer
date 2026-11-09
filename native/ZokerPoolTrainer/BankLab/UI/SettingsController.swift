@@ -189,6 +189,13 @@ enum Tuning {
     static var hudFade:Bool{UserDefaults.standard.object(forKey:"tuneHUDFade037") as? Bool ?? true}
     static var effectLock:Bool{UserDefaults.standard.object(forKey:"tuneEffectLock037") as? Bool ?? false}
     static var predictFirst:Bool{UserDefaults.standard.object(forKey:"tunePredictFirst037") as? Bool ?? false}
+    // 0.38 (owner approved all proposals)
+    static var hudScale:Double{value("tuneHUDScale038",1)}
+    static var hudAlpha:Double{value("tuneHUDAlpha038",1)}
+    static var autoNumbers:Bool{UserDefaults.standard.object(forKey:"tuneAutoNumbers038") as? Bool ?? true}
+    static var guideBySkill:Bool{UserDefaults.standard.object(forKey:"tuneGuideSkill038") as? Bool ?? true}
+    static var aimPitch:Double{value("tuneAimPitch038",0.57)}
+    static var aimZoom:Double{value("tuneAimZoom038",1)}
 }
 
 final class CustomizeController:UIViewController {
@@ -196,6 +203,8 @@ final class CustomizeController:UIViewController {
     var openPhysics:(()->Void)?
     var arrangeHUD:(()->Void)?
     var resetHUD:(()->Void)?
+    var saveLayout:((Int)->Void)?
+    var loadLayout:((Int)->Void)?
     private let body=UIStackView()
     override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
     override func viewDidLoad(){
@@ -232,6 +241,7 @@ final class CustomizeController:UIViewController {
         slider("Độ sáng mặt bàn (nỉ)",TableScene.tuneCloth,0.6,1.4)
         slider("Đèn bàn",TableScene.tuneLight,0.5,1.6)
         slider("Độ nổi kim cương / nút số",TableScene.tuneDiamond,0.8,2.0)
+        slider("Độ rõ vân nỉ",TableScene.tuneWeave,0,1.5)
         header("Độ mượt")
         segmented("Tần số khung hình khi bi chạy",["60 Hz","120 Hz (ProMotion, nóng hơn)"],Tuning.frameRate==120 ? 1:0){
             UserDefaults.standard.set($0==1 ? 120:60,forKey:"tuneFPS036")}
@@ -245,10 +255,29 @@ final class CustomizeController:UIViewController {
             guard let self=self else{return};self.dismiss(animated:true){self.arrangeHUD?()}})
         target.addArrangedSubview(UIButton.lab("Đưa phím về vị trí mặc định"){[weak self] in self?.resetHUD?()})
         toggle("Phím tự mờ khi đang ngắm","tuneHUDFade037",true)
+        slider("Kích thước phím","tuneHUDScale038",0.8,1.3)
+        slider("Độ đậm của phím (thấp = trong hơn)","tuneHUDAlpha038",0.4,1)
+        header("Lưu nhiều bố cục")
+        let slots=UIStackView();slots.axis = .horizontal;slots.spacing=8;slots.distribution = .fillEqually
+        for n in 1...3 {
+            slots.addArrangedSubview(UIButton.lab("Lưu \(n)"){[weak self] in self?.saveLayout?(n)})
+            slots.addArrangedSubview(UIButton.lab("Dùng \(n)"){[weak self] in self?.loadLayout?(n);self?.dismiss(animated:true)})
+        }
+        target.addArrangedSubview(slots)
+        header("Góc ngắm mặc định (camera quay về sau mỗi cú)")
+        slider("Độ cao camera",  "tuneAimPitch038",0.35,0.95,fallback:0.57,format:{String(format:"%.0f°",$0*57.3)})
+        slider("Độ gần (zoom)","tuneAimZoom038",0.8,1.4)
+        slider("Góc nhìn (FOV)","tuneAimFOV038",30,52,fallback:38,format:{String(format:"%.0f°",$0)})
         header("Khoá hướng cơ")
         toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
         header("Luyện mắt")
         toggle("Dự đoán trước: đánh xong mới hiện đường đúng và báo lệch bao nhiêu độ","tunePredictFirst037",false)
+        toggle("Nút số tự hiện khi đường ngắm chạm băng","tuneAutoNumbers038",true)
+        toggle("Đường chỉ dẫn mờ dần khi anh đánh đúng nhiều","tuneGuideSkill038",true)
+        header("Đường ngắm")
+        let colours=TableScene.guideColors.map{$0.0}
+        segmented("Màu đường ngắm",colours,UserDefaults.standard.integer(forKey:TableScene.tuneGuideColor)){UserDefaults.standard.set($0,forKey:TableScene.tuneGuideColor)}
+        slider("Độ dày đường ngắm",TableScene.tuneGuideWidth,0.6,2.2)
         // Vật lý
         target=pages[2]
         header("Lực đánh")
@@ -262,7 +291,7 @@ final class CustomizeController:UIViewController {
         slider("Âm lượng tiếng bi","tuneVolume037",0,1)
         target=body
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in
-            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037"]{UserDefaults.standard.removeObject(forKey:k)}
+            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037",TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,"tuneHUDScale038","tuneHUDAlpha038","tuneAutoNumbers038","tuneGuideSkill038","tuneAimPitch038","tuneAimZoom038","tuneAimFOV038"]{UserDefaults.standard.removeObject(forKey:k)}
             self?.resetHUD?();self?.changed?();self?.dismiss(animated:true)})
         show(0)
     }
@@ -276,10 +305,10 @@ final class CustomizeController:UIViewController {
     private func header(_ text:String){
         let l=UILabel();l.text=text.uppercased();l.textColor=UIColor.rgb(0xEAC583);l.font = .systemFont(ofSize:13,weight:.bold);target.addArrangedSubview(l)
     }
-    private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,format:((Double)->String)? = nil){
+    private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,fallback:Double=1,format:((Double)->String)? = nil){
         let fmt=format ?? {String(format:"%d %%",Int(($0*100).rounded()))}
         let label=UILabel();label.textColor = .white;label.font = .systemFont(ofSize:13,weight:.medium)
-        let current=Tuning.value(key,1);label.text="\(title)  ·  \(fmt(current))"
+        let current=Tuning.value(key,fallback);label.text="\(title)  ·  \(fmt(current))"
         let s=UISlider();s.minimumValue=Float(lo);s.maximumValue=Float(hi);s.value=Float(current);s.tintColor = .mint;s.accessibilityLabel=title
         s.addAction(UIAction{[weak s,weak label]_ in guard let s=s else{return};label?.text="\(title)  ·  \(fmt(Double(s.value)))"},for:.valueChanged)
         // Apply on release: cloth/diamond changes rebuild the table geometry.

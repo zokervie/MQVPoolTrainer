@@ -169,7 +169,7 @@ final class TableScene {
     func applyFiberDetail(_ m:SCNMaterial){
         let fibres=SCNMaterialProperty(contents:Self.fiberMap)
         fibres.wrapS = .repeat;fibres.wrapT = .repeat;fibres.minificationFilter = .linear;fibres.magnificationFilter = .linear;fibres.mipFilter = .linear
-        m.setValue(fibres,forKey:"fiberMap");m.setValue(NSNumber(value:1.0),forKey:"fiberStrength")
+        m.setValue(fibres,forKey:"fiberMap");m.setValue(NSNumber(value:Double(Self.tune(Self.tuneWeave))),forKey:"fiberStrength")   // 0.38: Tuỳ chỉnh · độ rõ vân nỉ
         m.shaderModifiers=[.surface:"""
         #pragma arguments
         float fiberStrength;
@@ -215,11 +215,20 @@ final class TableScene {
     }
     // 0.36 Tuỳ chỉnh (menu): user multipliers, 1 = default.
     static let tuneBall="tuneBall036",tuneCloth="tuneCloth036",tuneLight="tuneLight036",tuneDiamond="tuneDiamond036",tuneShadow="tuneShadow037"
+    // 0.38 Tuỳ chỉnh: weave clarity, aim-line colour (index) and thickness.
+    static let tuneWeave="tuneWeave038",tuneGuideColor="tuneGuideColor038",tuneGuideWidth="tuneGuideWidth038"
+    static let guideColors:[(String,UIColor)]=[("Trắng",UIColor(white:1,alpha:0.88)),("Vàng",UIColor.rgb(0xF2D06B)),("Xanh lá",UIColor.rgb(0x5BE3A0)),("Đỏ",UIColor.rgb(0xFF6B5B)),("Xanh dương",UIColor.rgb(0x6BB8FF))]
+    static var guideColor:UIColor{let i=UserDefaults.standard.integer(forKey:tuneGuideColor);return guideColors[max(0,min(guideColors.count-1,i))].1}
+    /// 0.38: guide fades with skill (controller sets it from the recent pass rate).
+    var guideOpacity:CGFloat=1{didSet{guideRoot.opacity=guideOpacity;for n in aimGuideNodes{n.opacity=guideOpacity}}}
     static func tune(_ key:String)->CGFloat{CGFloat(UserDefaults.standard.object(forKey:key) as? Double ?? 1)}
     func applyTuning(){
         light.intensity=52*Self.tune(Self.tuneLight)
         light.shadowColor=UIColor(white:0,alpha:min(0.95,0.72*Self.tune(Self.tuneShadow)))
         contactShadows.values.forEach{$0.opacity=min(1,Self.tune(Self.tuneShadow))}
+        // 0.38: aim line colour / thickness live
+        let w=Float(Self.tune(Self.tuneGuideWidth))
+        for (k,n) in aimGuideNodes.enumerated(){if k<3{n.geometry?.firstMaterial?.diffuse.contents = k==0 ? Self.guideColor:(k==1 ? UIColor.rgb(0xEAC583).withAlphaComponent(0.9):UIColor(white:1,alpha:0.38));(n.geometry as? SCNBox)?.length=CGFloat(0.0024*w)}}
         for g in cachedBallGeometry.values{if let m=g.firstMaterial{applyBallFinish(m)}}
         selectTable(look)
     }
@@ -1371,7 +1380,7 @@ final class TableScene {
     func placeCamera(cue:BallState?,angle:Double,aspect:CGFloat,blend:Float=1){
         guard let c=cue else{return}
         let d=SIMD3<Float>(Float(cos(angle)),0,Float(sin(angle)))
-        let fieldOfView:Float = cameraMode==2 ? 38:46
+        let fieldOfView:Float = cameraMode==2 ? Float(UserDefaults.standard.object(forKey:"tuneAimFOV038") as? Double ?? 38):46   // 0.38: Tuỳ chỉnh · góc nhìn ngắm
         let fov:Float=fieldOfView*Float.pi/180
         let safeAspect:Float = max(0.5,Float(aspect))
         camera.camera?.usesOrthographicProjection=cameraMode==1
@@ -1637,7 +1646,9 @@ final class TableScene {
         let object=line.copy() as! SCNMaterial;object.diffuse.contents=UIColor.rgb(0xEAC583).withAlphaComponent(0.9)
         let tangent=line.copy() as! SCNMaterial;tangent.diffuse.contents=UIColor(white:1,alpha:0.38)
         var made:[SCNNode]=[]
-        for m in [line,object,tangent]{let g=SCNBox(width:1,height:0.0005,length:0.0024,chamferRadius:0);g.materials=[m];let n=SCNNode(geometry:g);n.isHidden=true;n.renderingOrder=5;scene.rootNode.addChildNode(n);made.append(n)}
+        line.diffuse.contents=Self.guideColor
+        let w=0.0024*Self.tune(Self.tuneGuideWidth)
+        for m in [line,object,tangent]{let g=SCNBox(width:1,height:0.0005,length:w,chamferRadius:0);g.materials=[m];let n=SCNNode(geometry:g);n.isHidden=true;n.renderingOrder=5;scene.rootNode.addChildNode(n);made.append(n)}
         let ring=SCNTorus(ringRadius:radius,pipeRadius:0.0011);ring.materials=[line];ring.ringSegmentCount=48
         let r=SCNNode(geometry:ring);r.isHidden=true;r.renderingOrder=5;scene.rootNode.addChildNode(r);made.append(r)
         return made
@@ -1678,7 +1689,7 @@ final class TableScene {
                 guard length>0.001 else{continue}
                 let perpendicular=SIMD3<Float>(-delta.z,0,delta.x)
                 let unit:SIMD3<Float> = perpendicular/length
-                let width:SIMD3<Float> = unit*Float(0.0011)
+                let width:SIMD3<Float> = unit*Float(0.0011*Self.tune(Self.tuneGuideWidth))
                 let corners:[SIMD3<Float>] = [a-width,a+width,b+width,b-width]
                 let base=Int32(vertices.count)
                 for q in corners{vertices.append(SCNVector3(q.x,q.y,q.z))}
@@ -1689,7 +1700,7 @@ final class TableScene {
             let element=SCNGeometryElement(indices:indices,primitiveType:.triangles)
             let geometry=SCNGeometry(sources:[source],elements:[element])
             let material=SCNMaterial();material.lightingModel = .constant
-            material.diffuse.contents=id==0 ? UIColor(white:0.90,alpha:0.55):UIColor(red:0.95,green:0.60,blue:0.10,alpha:0.65)
+            material.diffuse.contents=id==0 ? Self.guideColor.withAlphaComponent(0.6):UIColor(red:0.95,green:0.60,blue:0.10,alpha:0.65)
             material.isDoubleSided=true;material.writesToDepthBuffer=false
             geometry.materials=[material]
             let node=SCNNode(geometry:geometry);node.castsShadow=false;guideRoot.addChildNode(node)
