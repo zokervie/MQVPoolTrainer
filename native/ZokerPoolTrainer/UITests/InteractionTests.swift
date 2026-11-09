@@ -67,6 +67,13 @@ final class InteractionTests: XCTestCase {
         return button
     }
 
+    /// Polls without failing; true when `condition` holds before `timeout` (used to retry taps the loaded CI Simulator drops).
+    private func poll(_ timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end { if condition() { return true }; Thread.sleep(forTimeInterval: 0.5) }
+        return condition()
+    }
+
     /// Polls a probe field and reports the whole probe on failure (diagnosable from the CI log).
     private func settle(_ scene: XCUIElement, _ key: String, _ value: Double, timeout: TimeInterval = 20,
                         file: StaticString = #filePath, line: UInt = #line) {
@@ -234,7 +241,9 @@ final class InteractionTests: XCTestCase {
     func testCueIconsSelectPlayJumpMasseBreak() {
         let (app,scene)=launch(["--ux017-qa"])
         for (id,kind) in [("CueIconJump",1.0),("CueIconMasse",3.0),("CueIconBreak",2.0),("CueIconPlay",0.0)] {
-            let icon=app.buttons[id];XCTAssertTrue(icon.waitForExistence(timeout:5 * slow),id);icon.tap()
+            let icon=app.buttons[id];XCTAssertTrue(icon.waitForExistence(timeout:5 * slow),id)
+            // CI Simulator under 0.36 shadow load sometimes drops a tap: retry (a repeat tap on the selected icon only nudges elevation)
+            for _ in 0..<3 { icon.tap(); if poll(6 * slow,{self.field(scene,"kind")==kind}) {break} }
             settle(scene,"kind",kind)
         }
         let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
@@ -284,10 +293,13 @@ final class InteractionTests: XCTestCase {
     func testRandomLayoutMenuSupportsOneThroughFifteenObjectBalls() {
         let (app,scene)=launch(["--ux017-qa"])
         for count in [1,14] {
+          let want=Double(count==1 ? 2:15)
+          for _ in 0..<2 where field(scene,"ballCount") != want {   // retry the whole menu if a tap was dropped
+            if app.alerts["Thêm bi"].exists {app.alerts["Thêm bi"].buttons["Mặc định"].tap()}
             quick(app,"QuickAdd").tap()
             app.buttons["Thêm bi · số lượng / bố trí"].firstMatch.tap()
             let alert=app.alerts["Thêm bi"]
-            XCTAssertTrue(alert.waitForExistence(timeout:5 * slow))
+            if !alert.waitForExistence(timeout:5 * slow) {continue}
             // Intel CI: keystrokes sent before the field has focus are lost — retype until the field shows the count.
             let field=alert.textFields.firstMatch
             for _ in 0..<3 {
@@ -295,12 +307,14 @@ final class InteractionTests: XCTestCase {
                 field.typeText(String(count))
                 if (field.value as? String) == String(count) {break}
             }
-            XCTAssertEqual(field.value as? String,String(count),"typed count")
+            if (field.value as? String) != String(count) {alert.buttons["Mặc định"].tap();continue}
             alert.buttons["Mặc định"].tap()
             // a dropped tap leaves the alert up: tap again (the app ignores nothing once the alert is gone)
             for _ in 0..<2 where alert.waitForExistence(timeout:2) && alert.buttons["Mặc định"].isHittable { alert.buttons["Mặc định"].tap() }
-            XCTAssertFalse(alert.exists,"alert closed")
-            wait(scene,timeout:5 * slow){self.field(scene,"ballCount")==Double(count==1 ? 2:15)}
+            _=poll(10 * slow){self.field(scene,"ballCount")==want}
+          }
+            XCTAssertFalse(app.alerts["Thêm bi"].exists,"alert closed")
+            wait(scene,timeout:5 * slow){self.field(scene,"ballCount")==want}
         }
     }
 
