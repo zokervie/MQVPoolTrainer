@@ -1497,7 +1497,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             didAdvanceMatchShot()
             let state=engine.states.map{BallState($0)};frameStateCache=state
             table.update(engine.presentationStates.map{BallState($0)},dt:dt)
-            if link.timestamp-lastStatusTime>0.2,let cb=state.first(where:{$0.id==0}),!cb.sunk {
+            // The multiline status label lives inside the menu's Auto Layout stack.
+            // Updating it while that menu is hidden can invalidate layout at 5 Hz;
+            // viewDidLayoutSubviews then lays out the whole HUD and wakes rendering.
+            // Keep live status work tied to visibility. finishShot supplies the result.
+            if menuOpen,link.timestamp-lastStatusTime>0.2,let cb=state.first(where:{$0.id==0}),!cb.sunk {
                 lastStatusTime=link.timestamp
                 statusLabel.text=String(format:"Đang chạy · %.2f m/s · %.1f s",hypot(cb.vx ?? 0,cb.vy ?? 0),engine.elapsed)
             }
