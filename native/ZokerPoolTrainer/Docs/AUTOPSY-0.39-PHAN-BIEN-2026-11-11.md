@@ -29,6 +29,12 @@ Quy ước: **Bằng chứng** = đọc được trong mã/đo được · **Gi�
 ## 5. A/B — đã chuẩn bị công cụ, chờ anh chạy
 - Trong Chẩn đoán độ mượt: "A/B: bật lại trạng thái 5 Hz cũ" và "A/B: xem lại 1× không quay chậm". Cùng build, cùng cú, cùng góc máy.
 
+## 6. (23:20) Gốc rễ thứ hai tìm thêm — chỉ có khi chơi, không có khi xem lại
+- Bằng chứng (TableScene.update): mọi lần cập nhật cảnh NGOÀI nhịp vẽ (refresh() khi chạm phím/xoay camera/đổi bi effect, bảng điểm, lượt) đều gọi `pacer.clear()` giữa lúc bi lăn → khung sau nhảy tới mẫu mới nhất rồi đứng chờ đủ lịch sử = một cú nhảy + một khung lặp. Xem lại không gọi refresh() giữa chừng nên không bị.
+- Sửa: khi bi đang chạy (cú thật, xem lại, máy khách mạng), bộ đồng bộ "sở hữu" vị trí/hướng bi; cập nhật ngoài nhịp chỉ đổi bóng/độ mờ, không xoá lịch sử, không ghi đè vị trí.
+- Độ trễ hiển thị 1,5 khung (25 ms ở 60 Hz) thay vì 1 khung: luồng chính trễ tới nửa khung vẫn không lặp hình.
+- Chẩn đoán thêm: chênh lệch đồng hồ SceneKit so với hiện tại (Apple không công bố `time` là gì).
+
 ## Không đổi
 Ma sát, độ nảy, bước 1/960 s, kết quả cú, chất lượng hình ảnh. Một nguồn trạng thái vật lý duy nhất (vẫn ở luồng chính).
 

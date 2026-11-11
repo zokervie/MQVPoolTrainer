@@ -537,6 +537,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     override func viewDidAppear(_ animated:Bool){
         super.viewDidAppear(animated)
         if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders()}
+        table.pacingOwner={[weak self] in
+            guard let self=self else{return false}
+            return self.shotActive || self.replayIndex != nil || (self.matchPlay.session.latestSnapshot?.isMoving==true && self.matchPlay.session.role == .guest)
+        }
         // QA/CI launches go straight to the table so probes and gestures are unchanged.
         let qa=ProcessInfo.processInfo.arguments.contains{$0.hasPrefix("--") && $0.hasSuffix("qa")} || ProcessInfo.processInfo.arguments.contains("--visual-qa")
         if !lobbyShown && !qa {lobbyShown=true;openLobby()}
@@ -1373,7 +1377,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         lastShotSpeed=speed
         displayDurations=[]
         table.pacer.clear()
-        table.pacer.interval=1.0/Double(Tuning.frameRate)
+        table.pacer.interval=1.5/Double(Tuning.frameRate)   // 0.39d: half a frame of slack for main-thread jitter
         table.pacer.resetDiagnostics();shotProfile=ShotProfile()
         // Seed the pre-strike pose, so the first interpolated frame includes
         // the start of the stroke rather than jumping to the first sample.
@@ -1445,7 +1449,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // Keep the presentation delay fixed through a motion segment. Changing
         // it on a missed refresh would move the sampling clock backwards.
         // 0.39c: the idle link runs at 30 Hz, so its duration is NOT the active refresh; use the chosen rate.
-        if !table.pacer.isActive {table.pacer.interval=1.0/Double(Tuning.frameRate)}
+        if !table.pacer.isActive {table.pacer.interval=1.5/Double(Tuning.frameRate)}
         // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh. 0.39c: set only on change.
         let wantRate=active ? Tuning.frameRate:30,playing=active || guestMoving
         if displayLink?.preferredFramesPerSecond != wantRate {displayLink?.preferredFramesPerSecond=wantRate}

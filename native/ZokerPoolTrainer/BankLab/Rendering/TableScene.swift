@@ -1306,11 +1306,19 @@ final class TableScene {
         let done=introDone;introDone=nil;done?()
     }
 
+    /// True while balls are in motion under pacing (live shot, replay, guest playout). Set by the controller.
+    var pacingOwner:(()->Bool)?
     func update(_ balls:[BallState],dt:Double){
         SCNTransaction.begin();SCNTransaction.animationDuration=0;SCNTransaction.disableActions=true
         defer{SCNTransaction.commit()}
         let pacedAt:Double? = FramePacer.enabled ? presentAt:nil
-        if pacedAt==nil {pacer.clear()}
+        // 0.39d ROOT CAUSE (live only): any update outside the display tick during motion — refresh() from a key,
+        // the spin pad, a score/turn change — used to CLEAR the pacer. The next frame then snapped to the newest sample
+        // (jump) and held it while history refilled (repeat): a visible hitch exactly when the player touches anything.
+        // Replay never calls refresh mid-motion, so it stayed smooth. While balls move the pacer owns them; an off-tick
+        // update may change shadows/opacity but never their transforms.
+        let pacerOwns = pacedAt==nil && pacer.isActive && (pacingOwner?() ?? false)
+        if pacedAt==nil && !pacerOwns {pacer.clear()}
         let ids=Set(balls.map{$0.id})
         for id in Array(nodes.keys) where !ids.contains(id){
             pacer.remove(id)
@@ -1373,12 +1381,12 @@ final class TableScene {
             falling.removeValue(forKey:b.id);settledPocketNodes.remove(b.id)
             if node.isHidden{node.isHidden=false}
             if dt.isFinite,dt>0,let previous=lastPlanar[b.id]{planarVelocity[b.id]=(planar-previous)/Float(dt)}
-            lastPlanar[b.id]=planar
+            if !pacerOwns {lastPlanar[b.id]=planar}
             let ballAt=SIMD3<Float>(planar.x,Float(radius)+Float(b.height ?? 0),planar.y)
-            if pacedAt==nil {setPosition(SCNVector3(ballAt),on:node)}
+            if pacedAt==nil && !pacerOwns {setPosition(SCNVector3(ballAt),on:node)}
             if let shadow=contactShadows[b.id]{
                 if shadow.isHidden{shadow.isHidden=false}
-                if pacedAt==nil {setPosition(SCNVector3(shadowCenter(planar,b.height)),on:shadow)}
+                if pacedAt==nil && !pacerOwns {setPosition(SCNVector3(shadowCenter(planar,b.height)),on:shadow)}
                 let height=Float(b.height ?? 0)
                 let shade=CGFloat(max(0.05,1.0/(1+height*13)))*min(1,Self.tune(Self.tuneShadow))*(Self.realShadows ? 0.75:1)   // 0.39: map shadow adds the penumbra
                 if shadow.opacity != shade{shadow.opacity=shade}
@@ -1392,7 +1400,7 @@ final class TableScene {
                 let orientation=physical*rest
                 if let t=pacedAt {
                     pacer.push(id:b.id,node:node,shadow:contactShadows[b.id],time:t,position:ballAt,orientation:orientation,shadowAt:shadowCenter(planar,b.height),spin:SIMD3<Float>(Float(-b.wx),Float(-b.spin),Float(-b.wy)))   // same axis map as the quaternion
-                }else if node.simdOrientation.vector != orientation.vector{node.simdOrientation=orientation}
+                }else if !pacerOwns && node.simdOrientation.vector != orientation.vector{node.simdOrientation=orientation}
             }else if let t=pacedAt {
                 pacer.push(id:b.id,node:node,shadow:contactShadows[b.id],time:t,position:ballAt,orientation:node.simdOrientation,shadowAt:shadowCenter(planar,b.height))
             }
