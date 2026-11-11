@@ -1,18 +1,17 @@
-# Điểm dừng để tiếp tục (lưu 11/11/2026 23:12, hết hạn mức tới 03:40)
+# Điểm dừng để tiếp tục (cập nhật 12/11/2026 04:15)
 
-Nhánh làm việc: `fix/0.39-judder-candidate` (PR #5 + PR #6 của Shadow + sửa của em). Chưa build native.
+Nhánh làm việc: `fix/0.39-judder-candidate` → đẩy lên `ci/native-0.40` (run 43099934072) để build một lần.
 
-## Đã xong trên nhánh
-- Chống giật: HUD chỉ dựng lại khi bố cục đổi; bỏ gán lặp tần số/isPlaying mỗi khung; pacer đệm 8 mẫu, trễ 1 khung theo tần số đã chọn; xoay bi theo vận tốc góc (test trong Tests/FramePacerTests.swift).
-- Chẩn đoán độ mượt (Tuỳ chỉnh → Máy · Âm thanh): CPU từng khâu, số lượt bố cục/dựng lại phím giữa cú, đồng hồ SceneKit − hiện tại, 2 công tắc A/B, sao chép số đo.
-- `BankLab/Core/Opponent.hpp` (đấu với máy 6 cấp) — BẢN NHÁP, CHƯA có test, CHƯA nối vào app/Xcode.
+## Trạng thái
+- 0.39d chống giật: CI 128 (`ci/native-0.39d@8d2dea0`) **PASSED_SIMULATOR_UNSIGNED**; bước cuối chỉ hỏng vì GitHub lỗi tải artifact (404), IPA ứng viên 128 có. Chưa thử máy thật.
+- Rà mã live/replay xong (`/home/claude/research_notes/Bi giật live so với replay/code_audit.md`); báo cáo `/home/claude/reports/Bi giật live so với replay.md`.
+- Sửa thêm theo rà mã (trong 0.40): bi rơi lỗ bắt đầu từ vị trí đang hiện; máy khách Wi‑Fi không dựng lại phím khi xem cú của chủ.
+- Đấu với máy: `Core/Opponent.hpp` + `Tests/OpponentTests.cpp` (đăng ký CMake + Run-All-Checks, ~80 s). Tỉ lệ vào trên 16 thế 1 bi: 2/4/6/6/12/13 (Beginner→AI). Hệ số tay là GIẢ ĐỊNH, chỉnh theo người thật.
+- Cầu `BLOpponent` (.h/.mm, pbxproj, bridging header); Swift: `MatchPlayController.swift` cuối file (openComputerMatch → cấp → luật → race; driveComputerTurn mỗi tick; máy đi lượt bằng applyMatchCommand player 1). Sảnh → Thi đấu → "Đấu với máy · 6 cấp".
 
-## Việc còn lại theo thứ tự (anh dặn "gom luôn để build" 23:08)
-1. Tests/OpponentTests.cpp (đăng ký CMakeLists.txt + Run-All-Checks.command): luôn ra cú hợp lệ; tỉ lệ vào theo cấp tăng dần; cấp cao thắng cấp thấp; tất định theo seed. Sửa Opponent.hpp tới khi xanh (`python3 Tools/run_acceptance.py --portable`).
-2. Cầu ObjC `BLOpponent` (Core/BLOpponent.h/.mm, thêm vào project.pbxproj + bridging header) → Swift: chế độ "Đấu với máy" trong Thi đấu (chọn cấp, luật, race), máy đi lượt ở luồng nền, dùng chung đường `routeMatchShot`/Rules.
-3. Sảnh: thêm "Đấu với máy"; Menu trong trận 4 mục.
-4. Báo cáo nghiên cứu "Bi giật live so với replay": ghi chú ở /home/claude/research_notes/Bi giật live so với replay/ (2/3 xong; phần rà mã dừng giữa chừng vì hết hạn mức) → viết báo cáo.
-5. Âm thanh mới, bàn WPA, bi văng xuống sàn, khung IAP: phần lớn, làm sau khi bản này xanh (cần mẫu âm/ảnh tham khảo).
-6. Đẩy nhánh lên `ci/native-0.40` để CI build một lần; điền phiếu NGHIEM-THU-0.40.md; gửi IPA.
+## Còn lại
+1. Nếu CI 0.40 đỏ: đọc log job macOS (`gh api .../jobs/<id>/logs | grep "error:"`), sửa, đẩy lại `ci/native-0.40`.
+2. Xanh: điền NGHIEM-THU-0.40.md, gửi anh IPA + cách thử (giật: Chẩn đoán độ mượt → Sao chép số đo; Đấu với máy: thử 2 cấp đầu và cuối).
+3. Chưa làm: Menu trong trận 4 mục; host bỏ dựng snapshot/JSON mỗi tick trước throttle 0,1 s (rà mã mục 7); âm thanh mới; bàn WPA; bi văng xuống sàn; khung IAP/StoreKit 2; bài mỗi ngày; Z-Exam.
 
-## Tiêu chí nghiệm thu giật (xem Docs/AUTOPSY-0.39-PHAN-BIEN-2026-11-11.md)
+## Tiêu chí nghiệm thu giật: Docs/AUTOPSY-0.39-PHAN-BIEN-2026-11-11.md
