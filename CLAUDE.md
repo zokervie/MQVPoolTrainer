@@ -21,6 +21,15 @@ Khi anh nói "chấp thuận" = duyệt TOÀN BỘ đề xuất/phát kiến/s�
 ## Cách làm việc (anh dặn 09/11/2026 22:23)
 Anh muốn ÍT đợt nghiệm thu: gom thành một bản hoàn chỉnh rồi mới nghiệm thu; sau đó tách tính năng để bán trong app (In-App Purchase). Viết tính năng theo cờ/khối độc lập để sau này khoá/mở theo gói được.
 
+## 0.40 (anh "chấp thuận" toàn bộ đề xuất từ 0.38 tới nay, 11/11/2026 18:02)
+- Bàn: kích thước chuẩn WPA + họ kiểu dáng phổ biến 2026, chi tiết trang trí riêng, tên Z- (không chép 100% thương hiệu).
+- Âm thanh: ~40 mẫu CC0/CC-BY (Freesound) + Sonniss GDC + mẫu anh tự thu (em soạn kịch bản thu); 3 mức lực × 3–4 biến thể, tiếng lăn liên tục theo tốc độ, lỗ theo loại bàn, break/nhảy/massé/trượt típ, không gian âm theo phòng, giới hạn số tiếng. KHÔNG lấy tiếng YouTube.
+- Vật lý mới (test C++ trước): bi văng khỏi bàn, đập mép gỗ, nảy trên sàn theo vật liệu phòng.
+- Kỹ thuật: vật lý chạy luồng riêng, bỏ cấp phát mỗi khung; CI đo tỉ lệ khung trễ; bộ so sánh 20 cú mẫu với video thật; "phòng chuẩn" chụp ảnh so trước/sau mỗi bản; cờ tính năng cho gói IAP.
+- Trải nghiệm: mẫu đèn "Thi đấu" 520 lux; hướng dẫn tương tác 3 bước lần đầu; bảng tiến bộ hằng tuần; thử thách hằng ngày + bảng xếp hạng Game Center.
+- Đo bàn thật: anh quay 5 cú 240 fps ở CLB để hiệu chỉnh hệ số (chờ anh).
+- Nghiên cứu tính năng mới 2026 (deep research) → đề xuất bổ sung.
+
 ## 0.39 (anh nghiệm thu 0.38 ngày 11/11 + 7 phát hiện)
 Đồng bộ khung hình (bi trôi), chỉ bi đổ bóng (kiểu 0.19) + gậy không đổ bóng bản đồ, gậy mờ khi che hướng ngắm, sợi nỉ 0,6 mm, típ vòm 4,5 mm, nỉ cũ chấm li ti/bi cũ đục, sàn hết sọc, bỏ viền kim loại, Wi‑Fi break được, bảng điểm kiểu TV, cảnh đầu xem lại thấp hơn, Tuỳ chỉnh 5 thẻ, sảnh gọn. Bàn theo thương hiệu thật: KHÔNG chép 100% kiểu dáng/tên (rủi ro kiểu dáng công nghiệp khi bán app) — dùng kích thước chuẩn WPA + họ kiểu dáng phổ biến, tên Z-.
 
