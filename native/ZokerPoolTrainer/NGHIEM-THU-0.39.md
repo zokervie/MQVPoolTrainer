@@ -1,6 +1,6 @@
 # Nghiệm thu Zoker Pool / Trainer 0.39
 
-Nhánh `ci/native-0.39` · build: (điền khi CI xanh). Cột **Máy thật** = anh tick khi thử.
+Nhánh `ci/native-0.39` · build **120** (CI xanh, run 43007731406) · IPA: [zoker-ipa-candidate-120](https://github.com/zokervie/MQVPoolTrainer/actions/runs/43007731406/artifacts/13850120025). Cột **Máy thật** = anh tick khi thử.
 
 ## Đã đạt ở 0.38 (anh xác nhận 11/11)
 Mượt khi kéo ngắm · nỉ hết sọc · cơ tự nâng không xuyên băng/bi.
