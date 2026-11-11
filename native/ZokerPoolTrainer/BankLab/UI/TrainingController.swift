@@ -66,7 +66,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         var layoutPasses=0,hudRelayouts=0,recordedSamples=0
     }
     var shotProfile=ShotProfile()
-    var hudLayoutKey=""
+    var hudLayoutKey="",hudLayoutDeferred=false
     var shotTickStart:Double?
     /// A/B switches for the same build (Chẩn đoán độ mượt): bring back the 0.39 behaviours to prove or refute a cause.
     static var legacyStatusAB:Bool{UserDefaults.standard.bool(forKey:"diagLegacyStatus039")}
@@ -458,8 +458,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if shotActive {shotProfile.layoutPasses+=1}
         let safe=hudSafeFrame
         let key="\(view.bounds.size)|\(safe)|\(leftHanded)|\(spinExpanded)|\(menuOpen)|\(matchIsCompetitive)|\(matchIsCompetitive && matchBool("requiresCall"))|\(Tuning.hudScale)|\(replayIndex != nil)"
-        if key==hudLayoutKey && !Self.legacyStatusAB {return}
-        hudLayoutKey=key
+        // 0.39d (CI 125): skip ONLY while balls are moving (live shot / replay) and nothing that places keys changed.
+        // At rest every pass lays the HUD out exactly like 0.39 (shot kind, coach, ball editing… all rely on it);
+        // a pass skipped mid-motion is replayed once the table is still.
+        let moving=shotActive || replayIndex != nil
+        if moving && key==hudLayoutKey && !Self.legacyStatusAB {hudLayoutDeferred=true;return}
+        hudLayoutKey=key;hudLayoutDeferred=false
         if shotActive {shotProfile.hudRelayouts+=1}
         layoutRightHUD();wakeRendering()
     }
@@ -1455,6 +1459,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if displayLink?.preferredFramesPerSecond != wantRate {displayLink?.preferredFramesPerSecond=wantRate}
         if scn.isPlaying != playing {scn.isPlaying=playing}
         if scn.rendersContinuously != playing {scn.rendersContinuously=playing}
+        if hudLayoutDeferred && !shotActive && replayIndex == nil {hudLayoutDeferred=false;view.setNeedsLayout()}
 
         if !active && !guestMoving && !(coachOn && guideOn && guideDirty){missWindow=0;missCount=0;return}
         // 0.37: adaptive quality — if more than 25 % of active frames over 2 s miss their slot, drop one render level
