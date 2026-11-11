@@ -37,15 +37,28 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
     static func fraction(render: Double, previous: Double, current: Double) -> Float {
         let span = current - previous
         guard span > 1e-6 else { return 1 }
-        // ≤ 1 frame of extrapolation when the tick is late; never rewinds before the previous sample.
-        return Float(max(0, min(2, (render - previous) / span)))
+        let raw = (render - previous) / span
+        // 0.39b: samples are stamped with the vsync they are meant for (targetTimestamp); the render callback knows its
+        // vsync only up to its own wake-up latency (±1–2 ms). Snap to the vsync grid when close, so every displayed
+        // frame advances by exactly one sample — the newest one, or one frame of extrapolation when the main-thread
+        // tick is late (that late tick was the "two steps / no step" judder). Off-grid (frame-rate change): continuous.
+        let snapped = raw.rounded()
+        let value = abs(raw - snapped) < 0.35 ? snapped : raw
+        return Float(max(0, min(2, value)))
+    }
+    /// Seconds from the render callback to the vsync it renders for (one frame at the active rate). Main thread sets it.
+    private var leadValue: Double = 1.0 / 60.0
+    var lead: Double {
+        get { lock.lock(); defer { lock.unlock() }; return leadValue }
+        set { lock.lock(); leadValue = newValue; lock.unlock() }
     }
 
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         lock.lock(); defer { lock.unlock() }
         guard !tracks.isEmpty else { return }
+        let target = time + leadValue
         for (_, track) in tracks {
-            let f = Self.fraction(render: time, previous: track.previous.time, current: track.current.time)
+            let f = Self.fraction(render: target, previous: track.previous.time, current: track.current.time)
             let a = track.previous, b = track.current
             let p = a.position + (b.position - a.position) * f
             // A paced ball never leaves the cloth plane by extrapolation (jumps keep their recorded height curve).

@@ -103,6 +103,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     var hudFaded=false
     var lastTurnCheck:Double=0
+    var pendingLevelCheck=false,pendingThermal=false,shadersPrewarmed=false
     var forcedElevationRestore:[String:NSNumber]?
     var highlightRecorder:HighlightRecorder?
     var consistencyKey="",consistencyStops:[SIMD2<Double>]=[]
@@ -202,7 +203,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var predictionPending=false,predictionGeneration=0,coachGeneration=0
     let coachQueue=DispatchQueue(label:"ZTrainer.coach",qos:.utility)
     func wakeRendering(){renderUntil=ProcessInfo.processInfo.systemUptime+0.4;displayLink?.preferredFramesPerSecond=Tuning.frameRate;scn?.setNeedsDisplay()}
-    @objc func thermalChanged(){table.setThermalState(ProcessInfo.processInfo.thermalState);wakeRendering()}
+    /// 0.39b: a thermal change rebuilds shader variants (shadow taps, ball segments) = a visible stall; never mid-shot.
+    @objc func thermalChanged(){
+        if shotActive || replayIndex != nil {pendingThermal=true;return}
+        table.setThermalState(ProcessInfo.processInfo.thermalState);wakeRendering();prewarmShaders()
+    }
+    /// 0.39b: compile every material/shader variant in the scene in the background before it is first drawn, so the
+    /// first shot (contact shadows, pockets, trails) does not stall on shader compilation.
+    func prewarmShaders(){scn?.prepare([table.scene],completionHandler:nil)}
     override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
     override var prefersStatusBarHidden:Bool{true}
     override var prefersHomeIndicatorAutoHidden:Bool{true}
@@ -500,6 +508,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var lobbyShown=false
     override func viewDidAppear(_ animated:Bool){
         super.viewDidAppear(animated)
+        if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders()}
         // QA/CI launches go straight to the table so probes and gestures are unchanged.
         let qa=ProcessInfo.processInfo.arguments.contains{$0.hasPrefix("--") && $0.hasSuffix("qa")} || ProcessInfo.processInfo.arguments.contains("--visual-qa")
         if !lobbyShown && !qa {lobbyShown=true;openLobby()}
@@ -1392,6 +1401,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // 0.39: SceneKit's own loop must run at the same rate as the tick, or paced frames repeat (120 Hz tick, 60 Hz view).
         if scn.preferredFramesPerSecond != Tuning.frameRate {scn.preferredFramesPerSecond=Tuning.frameRate}
         table.presentAt=link.targetTimestamp;defer{table.presentAt=nil}
+        let frameLead=1.0/Double(Tuning.frameRate);if abs(table.pacer.lead-frameLead)>1e-6 {table.pacer.lead=frameLead}
         displayLink?.preferredFramesPerSecond=active ? Tuning.frameRate:30   // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh
         scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
         if active || guestMoving{scn.setNeedsDisplay()}
@@ -1402,14 +1412,20 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             missWindow+=dt;if dt>1.5/Double(Tuning.frameRate){missCount+=1}
             if missWindow>=2 {
                 let frames=missWindow*Double(Tuning.frameRate)
-                if Double(missCount)>0.25*frames && table.performanceLevel<2 {table.setPerformanceLevel(table.performanceLevel+1);cleanSeconds=0}
+                // 0.39b ROOT CAUSE of mid-shot freezes: a level change alters the shadow sample count = a new shader
+                // variant, compiled on the spot (100–300 ms stall) — right while balls roll, which caused more missed
+                // frames and another drop. Level changes now wait until the table is still (no shot, no replay).
+                let still = !shotActive && replayIndex==nil && !table.hasActivePocketAnimations
+                if !still {if Double(missCount)>0.25*frames {pendingLevelCheck=true}}
+                else if (pendingLevelCheck || Double(missCount)>0.25*frames) && table.performanceLevel<2 {table.setPerformanceLevel(table.performanceLevel+1);cleanSeconds=0;pendingLevelCheck=false}
                 // 0.38: climb back when the device keeps up for 20 s and is not warm.
-                else if Double(missCount)<0.03*frames && table.performanceLevel>0 && ProcessInfo.processInfo.thermalState.rawValue<=ProcessInfo.ThermalState.fair.rawValue {
+                else if still && Double(missCount)<0.03*frames && table.performanceLevel>0 && ProcessInfo.processInfo.thermalState.rawValue<=ProcessInfo.ThermalState.fair.rawValue {
                     cleanSeconds+=missWindow;if cleanSeconds>=20{table.setPerformanceLevel(table.performanceLevel-1);cleanSeconds=0}
                 }
                 missWindow=0;missCount=0
             }
         }
+        if pendingThermal && !shotActive && replayIndex==nil {pendingThermal=false;thermalChanged()}
         let wasSimulating=shotActive,wasReplaying=replayIndex != nil
         if let index=replayIndex {
             let direction=replayPlan?.frame(time:replayClock,balls:frames[index])

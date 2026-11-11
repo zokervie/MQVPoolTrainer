@@ -10,6 +10,7 @@ Mượt khi kéo ngắm · nỉ hết sọc · cơ tự nâng không xuyên băn
 | # | Anh thấy | Nguyên nhân thật | Cách sửa | Máy thật |
 |---|---|---|---|---|
 | 1 | Bi chạy giật, không trôi | Vật lý chạy theo đồng hồ của app, SceneKit vẽ theo đồng hồ riêng; hai nhịp lệch nhau nên có khung vẽ 2 bước, có khung 0 bước | Bộ đồng bộ khung hình: SceneKit tự đặt bi đúng thời điểm vẽ (nội suy giữa 2 mẫu). Công tắc trong Tuỳ chỉnh → Máy | ☐ |
+| 1b | (gốc rễ thêm) Khựng 0,1–0,3 s giữa cú | Khi máy tụt khung, app tự hạ chất lượng **ngay giữa cú** → đổi số mẫu bóng = biên dịch lại shader tại chỗ → khựng → tụt tiếp → hạ tiếp. Máy ấm lên cũng vậy. Lần đầu bi rơi lỗ/hiện vệt cũng biên dịch shader lần đầu | Mọi thay đổi chất lượng/nhiệt chỉ áp dụng khi bàn đứng yên; biên dịch sẵn toàn bộ shader khi mở app; nhịp vẽ khớp đúng lưới khung hình (vsync) | ☐ |
 | 2a | Bóng cơ răng cưa | Cây cơ mảnh nằm trong bản đồ bóng → răng cưa | Cơ không đổ bóng vào bản đồ; chỉ còn bóng chiếu mềm (Gauss) | ☐ |
 | 2b | Bóng bi không tròn, không mềm | Bóng bản đồ ít mẫu, cả bàn/sàn cùng đổ bóng | Học bản 0.19 (anh khen): chỉ bi đổ bóng, bản đồ 2048, bán kính 4, 8 mẫu + lõi bóng tròn 2 lớp Gauss dưới bi | ☐ |
 | 2c | Bi chủ sát băng, gậy che hướng ngắm | — | Gậy mờ còn ~28 % khi trên màn hình nó che đường ngắm/bi mục tiêu; góc nhìn thấy rõ thì giữ nguyên | ☐ |
