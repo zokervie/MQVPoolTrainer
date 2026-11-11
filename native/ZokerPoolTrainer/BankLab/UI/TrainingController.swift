@@ -1487,7 +1487,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 }
             }
             // Dispatch impacts before rendering, labels or archive sampling.
-            let fresh=engine.events(since:lastEventCount)
+            let fresh=engine.events(since:UInt(lastEventCount))
             if !fresh.isEmpty {
                 if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {
                     for event in fresh {poolAudio.play(kind:event["kind"]?.intValue ?? 1,impact:event["impact"]?.doubleValue ?? 0.3,pan:audioPan(event["x"]?.doubleValue ?? 0,event["y"]?.doubleValue ?? 0),eventAge:max(0,engine.elapsed-(event["time"]?.doubleValue ?? engine.elapsed)))}
