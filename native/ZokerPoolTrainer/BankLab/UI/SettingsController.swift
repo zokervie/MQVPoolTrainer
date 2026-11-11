@@ -216,18 +216,20 @@ final class CustomizeController:UIViewController {
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
         body.axis = .vertical;body.spacing=14;body.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(body)
         NSLayoutConstraint.activate([scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor),scroll.bottomAnchor.constraint(equalTo:view.bottomAnchor),scroll.leadingAnchor.constraint(equalTo:view.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:view.trailingAnchor),body.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),body.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor,constant:-24),body.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor,constant:20),body.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor,constant:-20),body.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor,constant:-40)])
-        // 0.37 (owner: menu easy to find): four tabs — Hình ảnh · Điều khiển · Vật lý · Âm thanh.
-        let tabs=UISegmentedControl(items:["Hình ảnh","Điều khiển","Vật lý","Âm thanh"]);tabs.selectedSegmentIndex=0
+        // 0.39 (owner: "4 thẻ hơi rối, sắp xếp lại logic hơn"). Grouped by what the player is thinking about, not by
+        // implementation: what I SEE (ball / table / lamp) · how I AIM · the KEYS on screen · how the table PLAYS ·
+        // the DEVICE (smoothness, heat, sound). Every item lives in exactly one place.
+        let tabs=UISegmentedControl(items:["Hình ảnh","Ngắm","Phím","Vật lý","Máy · Âm thanh"]);tabs.selectedSegmentIndex=0
         tabs.selectedSegmentTintColor=UIColor.rgb(0xEAC583);tabs.setTitleTextAttributes([.foregroundColor:UIColor.black,.font:UIFont.systemFont(ofSize:14,weight:.semibold)],for:.selected)
         tabs.setTitleTextAttributes([.foregroundColor:UIColor.white,.font:UIFont.systemFont(ofSize:14,weight:.medium)],for:.normal)
         tabs.accessibilityIdentifier="CustomizeTabs";body.addArrangedSubview(tabs)
         var pages:[UIStackView]=[]
-        for _ in 0..<4 {let page=UIStackView();page.axis = .vertical;page.spacing=14;pages.append(page);body.addArrangedSubview(page)}
+        for _ in 0..<5 {let page=UIStackView();page.axis = .vertical;page.spacing=14;pages.append(page);body.addArrangedSubview(page)}
         func show(_ i:Int){for (k,p) in pages.enumerated(){p.isHidden = k != i}}
         tabs.addAction(UIAction{[weak tabs]_ in show(tabs?.selectedSegmentIndex ?? 0)},for:.valueChanged)
-        // Hình ảnh
+        // 1 · Hình ảnh: preset first, then Bi → Bàn → Đèn
         target=pages[0]
-        header("Mẫu ánh sáng")
+        header("Mẫu nhanh")
         let looks:[(String,[String:Double])]=[
             ("Câu lạc bộ",[TableScene.tuneLight:1.0,TableScene.tuneBall:1.0,TableScene.tuneShadow:1.0,TableScene.tuneCloth:1.0]),
             ("TV · sáng rõ",[TableScene.tuneLight:1.35,TableScene.tuneBall:0.92,TableScene.tuneShadow:0.8,TableScene.tuneCloth:1.15]),
@@ -237,28 +239,39 @@ final class CustomizeController:UIViewController {
             for (k,v) in set{UserDefaults.standard.set(v,forKey:k)};self?.changed?();self?.dismiss(animated:true)}
             b.accessibilityIdentifier="LightLook-"+name;row.addArrangedSubview(b)}
         target.addArrangedSubview(row)
-        header("Ánh sáng")
+        header("Bi")
         slider("Độ chói bi",TableScene.tuneBall,0.6,1.3)
         slider("Độ đậm bóng bi",TableScene.tuneShadow,0.4,1.3)
+        toggle("Bóng bi thật, tròn mềm (tắt nếu máy nóng/yếu)","tuneRealShadow039",true)
+        header("Bàn")
         slider("Độ sáng mặt bàn (nỉ)",TableScene.tuneCloth,0.6,1.4)
-        slider("Đèn bàn",TableScene.tuneLight,0.5,1.6)
-        slider("Độ nổi kim cương / nút số",TableScene.tuneDiamond,0.8,2.0)
         slider("Độ rõ vân nỉ",TableScene.tuneWeave,0,1.5)
-        header("Độ mượt")
-        segmented("Tần số khung hình khi bi chạy",["60 Hz","120 Hz (ProMotion, nóng hơn)"],Tuning.frameRate==120 ? 1:0){
-            UserDefaults.standard.set($0==1 ? 120:60,forKey:"tuneFPS036")}
-        let scales=[1.0,0.85,0.7]
-        segmented("Độ phân giải 3D",["100 %","85 %","70 % (mát máy)"],scales.firstIndex{abs($0-Tuning.renderScale)<0.01} ?? 0){
-            UserDefaults.standard.set(scales[$0],forKey:"tuneScale036")}
-        // Điều khiển
+        slider("Độ nổi kim cương / nút số",TableScene.tuneDiamond,0.8,2.0)
+        header("Đèn")
+        slider("Đèn bàn",TableScene.tuneLight,0.5,1.6)
+        // 2 · Ngắm
         target=pages[1]
-        header("Bố cục phím trên màn hình")
+        header("Góc ngắm mặc định (camera quay về sau mỗi cú)")
+        slider("Độ cao camera",  "tuneAimPitch038",0.35,0.95,fallback:0.57,format:{String(format:"%.0f°",$0*57.3)})
+        slider("Độ gần (zoom)","tuneAimZoom038",0.8,1.4)
+        slider("Góc nhìn (FOV)","tuneAimFOV038",30,52,fallback:38,format:{String(format:"%.0f°",$0)})
+        header("Đường ngắm")
+        let colours=TableScene.guideColors.map{$0.0}
+        segmented("Màu đường ngắm",colours,UserDefaults.standard.integer(forKey:TableScene.tuneGuideColor)){UserDefaults.standard.set($0,forKey:TableScene.tuneGuideColor)}
+        slider("Độ dày đường ngắm",TableScene.tuneGuideWidth,0.6,2.2)
+        toggle("Gậy mờ đi khi che hướng ngắm / bi mục tiêu","tuneCueFade039",true)
+        header("Khoá hướng cơ")
+        toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
+        header("Luyện mắt")
+        toggle("Dự đoán trước: đánh xong mới hiện đường đúng và báo lệch bao nhiêu độ","tunePredictFirst037",false)
+        toggle("Nút số tự hiện khi đường ngắm chạm băng","tuneAutoNumbers038",true)
+        toggle("Đường chỉ dẫn mờ dần khi anh đánh đúng nhiều","tuneGuideSkill038",true)
+        // 3 · Phím
+        target=pages[2]
+        header("Sắp xếp")
         target.addArrangedSubview(UIButton.lab("Sắp xếp phím · kéo từng phím tới vị trí muốn"){[weak self] in
             guard let self=self else{return};self.dismiss(animated:true){self.arrangeHUD?()}})
         target.addArrangedSubview(UIButton.lab("Đưa phím về vị trí mặc định"){[weak self] in self?.resetHUD?()})
-        toggle("Phím tự mờ khi đang ngắm","tuneHUDFade037",true)
-        slider("Kích thước phím","tuneHUDScale038",0.8,1.3)
-        slider("Độ đậm của phím (thấp = trong hơn)","tuneHUDAlpha038",0.4,1)
         header("Lưu nhiều bố cục")
         let slots=UIStackView();slots.axis = .horizontal;slots.spacing=8;slots.distribution = .fillEqually
         for n in 1...3 {
@@ -266,34 +279,31 @@ final class CustomizeController:UIViewController {
             slots.addArrangedSubview(UIButton.lab("Dùng \(n)"){[weak self] in self?.loadLayout?(n);self?.dismiss(animated:true)})
         }
         target.addArrangedSubview(slots)
-        header("Góc ngắm mặc định (camera quay về sau mỗi cú)")
-        slider("Độ cao camera",  "tuneAimPitch038",0.35,0.95,fallback:0.57,format:{String(format:"%.0f°",$0*57.3)})
-        slider("Độ gần (zoom)","tuneAimZoom038",0.8,1.4)
-        slider("Góc nhìn (FOV)","tuneAimFOV038",30,52,fallback:38,format:{String(format:"%.0f°",$0)})
-        header("Khoá hướng cơ")
-        toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
-        header("Luyện mắt")
-        toggle("Dự đoán trước: đánh xong mới hiện đường đúng và báo lệch bao nhiêu độ","tunePredictFirst037",false)
-        toggle("Nút số tự hiện khi đường ngắm chạm băng","tuneAutoNumbers038",true)
-        toggle("Đường chỉ dẫn mờ dần khi anh đánh đúng nhiều","tuneGuideSkill038",true)
-        header("Đường ngắm")
-        let colours=TableScene.guideColors.map{$0.0}
-        segmented("Màu đường ngắm",colours,UserDefaults.standard.integer(forKey:TableScene.tuneGuideColor)){UserDefaults.standard.set($0,forKey:TableScene.tuneGuideColor)}
-        slider("Độ dày đường ngắm",TableScene.tuneGuideWidth,0.6,2.2)
-        // Vật lý
-        target=pages[2]
+        header("Hiển thị")
+        slider("Kích thước phím","tuneHUDScale038",0.8,1.3)
+        slider("Độ đậm của phím (thấp = trong hơn)","tuneHUDAlpha038",0.4,1)
+        toggle("Phím tự mờ khi đang ngắm","tuneHUDFade037",true)
+        // 4 · Vật lý
+        target=pages[3]
         header("Lực đánh")
         slider("Lực đánh tối đa",  "tuneMaxPower036",0.6,1.3,format:{String(format:"%.1f m/s",8*$0)})
         header("Bàn và vật lý")
         target.addArrangedSubview(UIButton.lab("Mẫu loại bàn (nhanh / chuẩn / chậm) và thông số chi tiết"){[weak self] in
             guard let self=self else{return};self.dismiss(animated:true){self.openPhysics?()}})
-        // Âm thanh
-        target=pages[3]
+        // 5 · Máy · Âm thanh
+        target=pages[4]
+        header("Độ mượt")
+        segmented("Tần số khung hình khi bi chạy",["60 Hz","120 Hz (ProMotion, nóng hơn)"],Tuning.frameRate==120 ? 1:0){
+            UserDefaults.standard.set($0==1 ? 120:60,forKey:"tuneFPS036")}
+        let scales=[1.0,0.85,0.7]
+        segmented("Độ phân giải 3D",["100 %","85 %","70 % (mát máy)"],scales.firstIndex{abs($0-Tuning.renderScale)<0.01} ?? 0){
+            UserDefaults.standard.set(scales[$0],forKey:"tuneScale036")}
+        toggle("Đồng bộ khung hình (bi trôi mượt, không giật)","tuneFramePacing039",true)
         header("Âm thanh")
         slider("Âm lượng tiếng bi","tuneVolume037",0,1)
         target=body
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in
-            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037",TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,"tuneHUDScale038","tuneHUDAlpha038","tuneAutoNumbers038","tuneGuideSkill038","tuneAimPitch038","tuneAimZoom038","tuneAimFOV038"]{UserDefaults.standard.removeObject(forKey:k)}
+            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037",TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,"tuneHUDScale038","tuneHUDAlpha038","tuneAutoNumbers038","tuneGuideSkill038","tuneAimPitch038","tuneAimZoom038","tuneAimFOV038","tuneRealShadow039","tuneCueFade039","tuneFramePacing039"]{UserDefaults.standard.removeObject(forKey:k)}
             self?.resetHUD?();self?.changed?();self?.dismiss(animated:true)})
         show(0)
     }

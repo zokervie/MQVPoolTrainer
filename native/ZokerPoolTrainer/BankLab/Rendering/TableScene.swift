@@ -31,11 +31,18 @@ final class TableScene {
         if let cached=premiumCueCache[id]{return cached}
         guard let asset=NSDataAsset(name:"PC_Cue_"+id),let mesh=try? JSONDecoder().decode(KitCueMesh.self,from:asset.data) else{return nil}
         var vertices:[SCNVector3]=[],normals:[SCNVector3]=[],uv:[CGPoint]=[]
-        for i in stride(from:0,to:mesh.vertices.count,by:3){vertices.append(SCNVector3(mesh.vertices[i],mesh.vertices[i+1],mesh.vertices[i+2]));normals.append(SCNVector3(mesh.normals[i],mesh.normals[i+1],mesh.normals[i+2]))}
+        // 0.39 (owner: tip too thick, no dome). The kit's leather tip is an 8 mm flat cylinder; real installed tips are
+        // ~4.5 mm with a dime/nickel dome (radius ~9.5 mm). The kit tip is dropped (domeTip() replaces it) and the
+        // ferrule is stretched up to meet the shorter tip: y -0.024…-0.008 → -0.024…-0.0045.
+        for i in stride(from:0,to:mesh.vertices.count,by:3){
+            var y=mesh.vertices[i+1];let r=(mesh.vertices[i]*mesh.vertices[i]+mesh.vertices[i+2]*mesh.vertices[i+2]).squareRoot()
+            if r<0.0065 && y > -0.0241 && y <= -0.0079 {y = -0.024+(y+0.024)*(0.0195/0.016)}
+            vertices.append(SCNVector3(mesh.vertices[i],y,mesh.vertices[i+2]));normals.append(SCNVector3(mesh.normals[i],mesh.normals[i+1],mesh.normals[i+2]))}
         for i in stride(from:0,to:mesh.uv.count,by:2){uv.append(CGPoint(x:CGFloat(mesh.uv[i]),y:CGFloat(mesh.uv[i+1])))}
-        let elements=mesh.elements.map{SCNGeometryElement(indices:$0,primitiveType:.triangles)}
+        let kept=mesh.names.indices.filter{mesh.names[$0] != "Tip"}
+        let elements=kept.map{SCNGeometryElement(indices:mesh.elements[$0],primitiveType:.triangles)}
         let geometry=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:elements)
-        geometry.materials=mesh.names.map{name in
+        geometry.materials=kept.map{mesh.names[$0]}.map{name in
             let made:SCNMaterial={switch name {
             case "Carbon":return lacquer(premiumMaterial("CueCarbon"),0.30)
             case "Maple":return lacquer(premiumMaterial("CueMaple"),0.26)
@@ -65,6 +72,10 @@ final class TableScene {
     private(set) var space=UserDefaults.standard.object(forKey:"tableSpace034") as? Int ?? 0
     private let ballRoot=SCNNode(),guideRoot=SCNNode(),trailRoot=SCNNode(),cueRoot=SCNNode(),numberRoot=SCNNode()
     private var nodes:[Int:SCNNode]=[:],contactShadows:[Int:SCNNode]=[:]
+    /// 0.39: render-clock interpolation of moving balls (see FramePacer). Set `presentAt` (CADisplayLink.targetTimestamp)
+    /// before update/replay from the frame tick; nil = place nodes directly (editing, placement, idle).
+    let pacer=FramePacer()
+    var presentAt:Double?
     private var restOrientations:[Int:simd_quatf]=[:]
     private struct PocketState {
         var time:Double
@@ -131,7 +142,12 @@ final class TableScene {
     /// glare over the top half (0.20 used roughness .27 + 8% emission). Old balls: worn lacquer, slight yellowing.
     private func applyBallFinish(_ m:SCNMaterial){
         m.emission.contents=UIColor.black;m.emission.intensity=0
-        if oldBalls{m.roughness.contents=0.55;m.clearCoat.contents=0.45;m.clearCoatRoughness.contents=0.22;m.multiply.contents=UIColor(red:0.97,green:0.95,blue:0.88,alpha:1)}
+        if oldBalls{
+            // 0.39 (owner: old balls should be dull, cloudy, with chalk marks). Worn lacquer = almost no clear coat and a
+            // rough body; a cloudy, slightly yellowed multiply with blue chalk smudges and fine scuffs.
+            m.roughness.contents=0.74;m.clearCoat.contents=0.06;m.clearCoatRoughness.contents=0.55
+            m.multiply.contents=Self.oldBallWear;m.multiply.wrapS = .repeat;m.multiply.wrapT = .repeat
+        }
         else{
             // 0.37 (owner, 3rd time "bi chói"): the lit top clipped to white. Lower albedo, a thinner and softer lacquer so the
             // numbers/stripes keep detail; "Độ chói bi" (Tuỳ chỉnh) scales albedo AND lacquer together.
@@ -179,7 +195,7 @@ final class TableScene {
         float3 wp = (scn_frame.inverseViewTransform * float4(_surface.position, 1.0)).xyz;
         float3 nw = (scn_frame.inverseViewTransform * float4(_surface.normal, 0.0)).xyz;
         float2 plane = abs(nw.y) > 0.6 ? wp.xz : float2(wp.x + wp.z, wp.y);
-        float2 uv = plane * float2(34.0, 34.0);
+        float2 uv = plane * float2(62.0, 62.0);   // 0.39: finer fibre tile (16 mm), fibres ~0.1-0.25 mm
         float fw = length(fwidth(plane));
         float fiberW = fiberStrength * saturate(1.0 - fw / 0.0014);
         if (fiberW > 0.001) {
@@ -190,18 +206,25 @@ final class TableScene {
             _surface.normal = normalize(_surface.normal + fiberW * 2.0 * ((h0 - hx) * _surface.tangent + (h0 - hy) * _surface.bitangent));
             _surface.diffuse.rgb *= 1.0 + fiberW * 0.38 * (h0 - 0.5);
         }
-        // 0.36 (owner reference: Dragon Gold grey worsted): plain weave, ~2.2 mm thread pitch, fades when a pixel
-        // covers more than about half a thread, so it never shimmers at distance.
-        float2 wv = plane / 0.0022;
-        float weaveW = fiberStrength * saturate((0.33 - length(fwidth(wv))) / 0.13);   // 0.37: full at >=5 px/thread, 0 at 3 px (no moire)
+        // 0.39 (owner: threads too big and flat -> fake). Real worsted tournament cloth has ~0.55 mm thread pitch; 2.2 mm
+        // read as a printed zig-zag. Now 0.6 mm plain weave, every thread with its own thickness/brightness (hash per
+        // crossing) so rows never line up, a twisted-yarn striation along each thread, and dark gaps between threads
+        // (ambient occlusion) for depth. Still fades before 3 px/thread, so no moire at distance.
+        float2 wv = plane / 0.0006;
+        float weaveW = fiberStrength * saturate((0.33 - length(fwidth(wv))) / 0.13);
         if (weaveW > 0.001) {
             float2 cell = floor(wv), f = fract(wv);
             float odd = fmod(abs(cell.x + cell.y), 2.0);
-            float warp = sin(3.14159 * f.x), weft = sin(3.14159 * f.y);
-            float hw = mix(warp * (0.70 + 0.30 * weft), weft * (0.70 + 0.30 * warp), odd);
-            _surface.diffuse.rgb *= 1.0 + weaveW * 0.42 * (hw - 0.55);
-            float gx = (1.0 - odd) * cos(3.14159 * f.x), gy = odd * cos(3.14159 * f.y);
-            _surface.normal = normalize(_surface.normal + weaveW * 0.45 * (gx * _surface.tangent + gy * _surface.bitangent));
+            float hcell = fract(sin(dot(cell, float2(127.1, 311.7))) * 43758.5453);
+            float hrow = fract(sin(cell.y * 91.7 + 13.1) * 24634.63), hcol = fract(sin(cell.x * 57.3 + 7.7) * 13758.37);
+            float warp = pow(sin(3.14159 * f.x), 0.55 + 0.45 * hcol), weft = pow(sin(3.14159 * f.y), 0.55 + 0.45 * hrow);
+            float hw = mix(warp * (0.65 + 0.35 * weft), weft * (0.65 + 0.35 * warp), odd);
+            float twist = 0.5 + 0.5 * sin(6.2832 * (mix(f.y, f.x, odd) * 3.0 + mix(f.x, f.y, odd) * 1.2 + hcell));
+            float gap = saturate(min(sin(3.14159 * f.x), sin(3.14159 * f.y)) * 3.0);
+            _surface.diffuse.rgb *= 1.0 + weaveW * (0.34 * (hw - 0.55) + 0.10 * (hcell - 0.5) + 0.06 * (twist - 0.5));
+            _surface.diffuse.rgb *= mix(1.0, 0.80 + 0.20 * gap, weaveW);
+            float gx = (1.0 - odd) * cos(3.14159 * f.x) + odd * 0.25 * (twist - 0.5), gy = odd * cos(3.14159 * f.y) + (1.0 - odd) * 0.25 * (twist - 0.5);
+            _surface.normal = normalize(_surface.normal + weaveW * 0.85 * (gx * _surface.tangent + gy * _surface.bitangent));
         }
         _surface.roughness = 1.0;   // 0.37: worsted cloth has no sheen; a sliding highlight made the bands move/flicker
         """,.fragment:"""
@@ -224,8 +247,9 @@ final class TableScene {
     static func tune(_ key:String)->CGFloat{CGFloat(UserDefaults.standard.object(forKey:key) as? Double ?? 1)}
     func applyTuning(){
         light.intensity=52*Self.tune(Self.tuneLight)
-        light.shadowColor=UIColor(white:0,alpha:min(0.95,0.72*Self.tune(Self.tuneShadow)))
-        contactShadows.values.forEach{$0.opacity=min(1,Self.tune(Self.tuneShadow))}
+        light.shadowColor=UIColor(white:0,alpha:min(0.9,0.50*Self.tune(Self.tuneShadow)))
+        contactShadows.values.forEach{$0.opacity=min(1,Self.tune(Self.tuneShadow))*(Self.realShadows ? 0.75:1)}
+        applyQuality()   // 0.39: "Bóng bi thật" switch takes effect at once (quality key includes it)
         // 0.38: aim line colour / thickness live
         let w=Float(Self.tune(Self.tuneGuideWidth))
         for (k,n) in aimGuideNodes.enumerated(){if k<3{n.geometry?.firstMaterial?.diffuse.contents = k==0 ? Self.guideColor:(k==1 ? UIColor.rgb(0xEAC583).withAlphaComponent(0.9):UIColor(white:1,alpha:0.38));(n.geometry as? SCNBox)?.length=CGFloat(0.0024*w)}}
@@ -245,27 +269,48 @@ final class TableScene {
             }
             func P(_ u:CGFloat,_ v:CGFloat)->CGPoint{CGPoint(x:u*w,y:v*h)}
             if old {
+                // 0.39 (owner: old cloth looked machine-drawn — straight streaks to the pockets). Real wear, from photos of
+                // club cloth: (1) dense tiny pale specks where the break is played and the rack sits — jump/massé tip and
+                // ball impacts lift the nap there most; (2) a broad, wandering, faint burnish along the head-to-foot
+                // spot line and a softer one close to each long rail; (3) sparse random specks everywhere; (4) a rack
+                // triangle ghost and small darker spot burns; (5) a little chalk-blue dust near the jaws. 1 px ≈ 1.4 mm.
                 let pockets=[P(0.107,0.061),P(0.893,0.061),P(0.107,0.5),P(0.893,0.5),P(0.107,0.939),P(0.893,0.939)]
-                let breakArea=P(0.5,0.30),rack=P(0.5,0.719)
-                ctx.setLineCap(.round)
-                for from in [breakArea,rack,P(0.5,0.5)] { for pocket in pockets {
-                    for k in 0..<3 {
-                        let jitter=(random()-0.5)*26
-                        UIColor(white:1,alpha:0.10+0.05*CGFloat(k%2)).setStroke();ctx.setLineWidth(14+random()*12)
-                        ctx.move(to:CGPoint(x:from.x+jitter,y:from.y+jitter));ctx.addLine(to:CGPoint(x:pocket.x-jitter*0.3,y:pocket.y+jitter*0.3));ctx.strokePath()
+                func gauss()->CGFloat{(random()+random()+random()+random()-2)*0.87}
+                func speck(_ x:CGFloat,_ y:CGFloat,_ r:CGFloat,_ alpha:CGFloat){
+                    UIColor(white:1,alpha:alpha).setFill()
+                    let a=random()*CGFloat.pi,e=1+random()*1.4   // slightly elongated, random direction
+                    ctx.saveGState();ctx.translateBy(x:x,y:y);ctx.rotate(by:a);ctx.fillEllipse(in:CGRect(x:-r*e,y:-r,width:2*r*e,height:2*r));ctx.restoreGState()
+                }
+                // (2) wandering burnish: many low-alpha soft dabs along a noisy path, never a ruled line.
+                func lane(_ from:CGPoint,_ to:CGPoint,width:CGFloat,alpha:CGFloat){
+                    var wobble:CGFloat=0
+                    for k in 0..<160 {
+                        let t=CGFloat(k)/159;wobble=wobble*0.92+gauss()*3
+                        let x=from.x+(to.x-from.x)*t+wobble,y=from.y+(to.y-from.y)*t
+                        let r=width*(0.6+random()*0.5)
+                        UIColor(white:1,alpha:alpha*(0.5+random())).setFill();ctx.fillEllipse(in:CGRect(x:x-r,y:y-r*1.6,width:2*r,height:3.2*r))
                     }
-                }}
-                for u in [CGFloat(0.135),0.865] {   // rail tracks: balls rolling along the long cushions
-                    UIColor(white:1,alpha:0.12).setStroke();ctx.setLineWidth(22)
-                    ctx.move(to:P(u,0.09));ctx.addLine(to:P(u,0.91));ctx.strokePath()
                 }
-                for spot in [P(0.5,0.281),P(0.5,0.719)] {   // spot burns: darker, slightly glossy ring
-                    UIColor(white:0.80,alpha:0.55).setFill();ctx.fillEllipse(in:CGRect(x:spot.x-15,y:spot.y-15,width:30,height:30))
-                    UIColor(white:0.88,alpha:0.4).setFill();ctx.fillEllipse(in:CGRect(x:spot.x-34,y:spot.y-34,width:68,height:68))
+                lane(P(0.5,0.20),P(0.5,0.80),width:34,alpha:0.018)
+                for u in [CGFloat(0.13),0.87] {lane(P(u,0.10),P(u,0.47),width:16,alpha:0.014);lane(P(u,0.53),P(u,0.90),width:16,alpha:0.014)}
+                // (1) break / rack clusters: cue-ball zone behind the head string spread across the width, rack zone at the foot spot.
+                for _ in 0..<1400 {speck(w*0.5+gauss()*w*0.16,P(0,0.255).y+gauss()*h*0.035,0.6+random()*1.3,0.18+random()*0.30)}
+                for _ in 0..<1700 {speck(w*0.5+gauss()*w*0.09,P(0,0.735).y+gauss()*h*0.045,0.6+random()*1.4,0.18+random()*0.32)}
+                // (3) sparse random specks over the whole bed, a few larger "jump" marks.
+                for _ in 0..<1100 {speck(P(0.11+random()*0.78,0).x,P(0,0.065+random()*0.87).y,0.5+random()*1.0,0.10+random()*0.22)}
+                for _ in 0..<40 {speck(P(0.15+random()*0.70,0).x,P(0,0.12+random()*0.76).y,2+random()*2.5,0.16+random()*0.14)}
+                // (4) rack ghost: the triangle's apex and edges press the nap; spot burns are small and darker.
+                let apex=P(0.5,0.719),side:CGFloat=230
+                UIColor(white:1,alpha:0.06).setStroke();ctx.setLineWidth(5)
+                ctx.move(to:apex);ctx.addLine(to:CGPoint(x:apex.x-side/2,y:apex.y+side*0.866));ctx.addLine(to:CGPoint(x:apex.x+side/2,y:apex.y+side*0.866));ctx.closePath();ctx.strokePath()
+                for spot in [P(0.5,0.281),P(0.5,0.719)] {
+                    UIColor(white:0.70,alpha:0.45).setFill();ctx.fillEllipse(in:CGRect(x:spot.x-6,y:spot.y-6,width:12,height:12))
+                    for _ in 0..<30 {let r=1+random()*2;UIColor(white:0.82,alpha:0.25).setFill();ctx.fillEllipse(in:CGRect(x:spot.x+gauss()*9-r,y:spot.y+gauss()*9-r,width:2*r,height:2*r))}
                 }
-                for pocket in pockets { for _ in 0..<26 {   // chalk dust: blue-grey specks around the jaws
-                    let a=random()*CGFloat.pi*2,d=20+random()*90,r=2+random()*6
-                    UIColor(red:0.80,green:0.86,blue:0.95,alpha:0.35).setFill()
+                // (5) chalk dust near the jaws only, faint and irregular.
+                for pocket in pockets { for _ in 0..<18 {
+                    let a=random()*CGFloat.pi*2,d=25+random()*70,r=1+random()*3
+                    UIColor(red:0.80,green:0.86,blue:0.96,alpha:0.12+random()*0.16).setFill()
                     ctx.fillEllipse(in:CGRect(x:pocket.x+cos(a)*d-r,y:pocket.y+sin(a)*d-r,width:r*2,height:r*2))
                 }}
             }
@@ -277,6 +322,18 @@ final class TableScene {
             }
         }
     }
+    static let oldBallWear:UIImage={
+        UIGraphicsImageRenderer(size:CGSize(width:256,height:128)).image{c in
+            let ctx=c.cgContext
+            UIColor(red:0.86,green:0.84,blue:0.78,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:256,height:128))
+            var seed:UInt64=0xB411_01D0
+            func rnd()->CGFloat{seed=seed &* 6364136223846793005 &+ 1442695040888963407;return CGFloat((seed>>33)%10_000)/10_000}
+            for _ in 0..<26 {let r=4+rnd()*14;UIColor(white:0.80+rnd()*0.12,alpha:0.35).setFill();ctx.fillEllipse(in:CGRect(x:rnd()*256-r,y:rnd()*128-r,width:2*r,height:2*r))}   // cloudy
+            for _ in 0..<7 {let r=3+rnd()*7;UIColor(red:0.62,green:0.74,blue:0.98,alpha:0.55).setFill();ctx.fillEllipse(in:CGRect(x:rnd()*256-r,y:rnd()*128-r*0.6,width:2*r,height:1.2*r))}   // chalk smudges
+            ctx.setLineCap(.round)
+            for _ in 0..<60 {UIColor(white:0.72,alpha:0.35).setStroke();ctx.setLineWidth(0.6);let x=rnd()*256,y=rnd()*128,a=rnd()*6.28,l=3+rnd()*10;ctx.move(to:CGPoint(x:x,y:y));ctx.addLine(to:CGPoint(x:x+cos(a)*l,y:y+sin(a)*l));ctx.strokePath()}   // scuffs
+        }
+    }()
     static let colors:[UIColor] = [UIColor(white:0.96,alpha:1),UIColor(red:0.98,green:0.65,blue:0.025,alpha:1),UIColor(red:0.025,green:0.14,blue:0.62,alpha:1),UIColor(red:0.74,green:0.025,blue:0.045,alpha:1),UIColor(red:0.26,green:0.045,blue:0.42,alpha:1),UIColor(red:0.96,green:0.24,blue:0.025,alpha:1),UIColor(red:0.015,green:0.30,blue:0.14,alpha:1),UIColor(red:0.36,green:0.025,blue:0.055,alpha:1),UIColor(white:0.012,alpha:1)]
     static let clothColors:[(String,UIColor)]=[("Xanh tournament",.rgb(0x17685F)),("Xanh navy",.rgb(0x143F78)),("Xanh sáng",.rgb(0x2387A5)),("Đỏ burgundy",.rgb(0x783B42)),("Tím mận",.rgb(0x49354F))]
     init(rails:[[String:NSNumber]]) {
@@ -313,28 +370,37 @@ final class TableScene {
     private func applyQuality(){
         let constrained=thermalState == .serious || thermalState == .critical
         let warm=thermalState == .fair
-        let key="\(highDetail)-\(thermalState.rawValue)-\(performanceLevel)"
+        let key="\(highDetail)-\(thermalState.rawValue)-\(performanceLevel)-\(Self.realShadows)"
         guard qualityKey != key else{return};qualityKey=key
         ballSegmentCount=constrained ? 24:(highDetail && !warm ? 64:48)
         for geometry in cachedBallGeometry.values{geometry.segmentCount=ballSegmentCount}
-        for node in nodes.values{node.castsShadow = !constrained}   // 0.36: real soft ball shadow at default quality
+        // 0.39 (owner: cue shadow jagged, ball shadow not round/soft; floor streaks flicker; "the 0.19 build's ball
+        // shadows were clear and beautiful"). 0.19 = balls only in the shadow map, wide radius, light shadow colour, 8 taps.
+        // Now: ONLY balls cast (the thin cue aliased into a saw-tooth — it has its own soft projected shadow; floor/walls/
+        // table never cast, so no acne stripes), 2048 map, radius 4, 8 taps on capable devices. Tuỳ chỉnh → Hình ảnh →
+        // "Bóng bi thật" turns it off on weak/hot phones (the round contact shadow under each ball stays either way).
+        let real=Self.realShadows && !constrained
+        for node in nodes.values{node.castsShadow=real}
+        scene.rootNode.enumerateHierarchy{node,_ in if node.parent !== ballRoot && node !== ballRoot {node.castsShadow=false}}
         tableRoot.enumerateHierarchy{node,_ in node.castsShadow=false}   // 0.37: table self-shadow = acne stripes on rail/apron + GPU cost
         roomRoot.enumerateHierarchy{node,_ in node.castsShadow=false}
         camera.camera?.screenSpaceAmbientOcclusionIntensity=0   // 0.35: full-screen SSAO pass removed (heat); contact shadows do the grounding
         camera.camera?.screenSpaceAmbientOcclusionRadius=0.035
         camera.camera?.screenSpaceAmbientOcclusionBias=0.003
-        let size:CGFloat=constrained ? 512:(highDetail && !warm ? 1536:1024)
+        let size:CGFloat=constrained ? 512:(warm || performanceLevel>=2 ? 1024:2048)
         light.shadowMapSize=CGSize(width:size,height:size)
         #if targetEnvironment(simulator)
         light.shadowSampleCount=2   // CI Simulator GPU is very slow; 6–8 samples starved the runner (run 42514806011)
         #else
-        light.shadowSampleCount=constrained || performanceLevel>=2 ? 1:(highDetail && performanceLevel==0 ? 6:4)   // 0.37: radius gives the softness; 8 samples halved FPS
+        light.shadowSampleCount=constrained || performanceLevel>=2 ? 2:(performanceLevel==0 && !warm ? 8:4)   // 0.39: only balls cast now, 8 taps are cheap again
         #endif
-        light.castsShadow = !constrained
+        light.castsShadow=real
     }
+    static var realShadows:Bool{UserDefaults.standard.object(forKey:"tuneRealShadow039") as? Bool ?? true}
     private func mat(_ color:UIColor,roughness:CGFloat=0.6,metal:CGFloat=0)->SCNMaterial {
         let m=SCNMaterial();m.lightingModel = .physicallyBased;m.diffuse.contents=color
         m.roughness.contents=roughness;m.metalness.contents=metal
+        m.shaderModifiers=[.fragment:Self.ditherModifier]   // 0.39: no 8-bit bands on any large flat surface (floors, runner, walls)
         return m
     }
     private func box(_ w:CGFloat,_ h:CGFloat,_ l:CGFloat,_ p:SCNVector3,_ material:SCNMaterial,chamfer:CGFloat=0.004,parent:SCNNode?=nil)->SCNNode {
@@ -349,8 +415,8 @@ final class TableScene {
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
         light.intensity=52*Self.tune(Self.tuneLight);light.temperature=5000;light.spotInnerAngle=42;light.spotOuterAngle=112   // 0.35b: cooler LED like the reference club, less glare
-        light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=5.5   // 0.36: softer penumbra like the reference
-        light.shadowColor=UIColor(white:0,alpha:min(0.95,0.72*Self.tune(Self.tuneShadow)));light.shadowBias=0.002
+        light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=4.0   // 0.39: 0.19-style soft round penumbra
+        light.shadowColor=UIColor(white:0,alpha:min(0.9,0.50*Self.tune(Self.tuneShadow)));light.shadowBias=0.002
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
         for x:Float in [-2.2,2.2]{
             let fill=SCNNode();fill.position=SCNVector3(x,1.7,0.8);fill.light=SCNLight();fill.light?.type = .omni
@@ -401,12 +467,12 @@ final class TableScene {
             for channel in [graphite.diffuse,graphite.normal,graphite.roughness]{channel.minificationFilter = .linear;channel.mipFilter = .linear;channel.maxAnisotropy=16}
             graphite.clearCoat.contents=0.6;graphite.clearCoatRoughness.contents=0.12
         }
-        let edge=premiumMaterial("ChampagneGold")
-        edge.multiply.contents=UIColor.rgb(look.trim)
-        // 0.35 (owner: dirty stripes on the outer steel trim while the camera moves): the brushed normal map on a thin,
-        // fully metallic strip aliased into crawling stripes. Smooth satin steel, mip-mapped and anisotropic.
-        edge.normal.intensity=0;edge.roughness.contents=0.58;edge.metalness.contents=0.25   // 0.36: still striped — thin bright metal aliases at any finish; dull satin
-        for channel in [edge.diffuse,edge.roughness,edge.metalness,edge.multiply]{channel.mipFilter = .linear;channel.minificationFilter = .linear;channel.maxAnisotropy=16}
+        // 0.39 (owner: the metal band around the table looks alien — real tables do not have it). The deck-edge band and
+        // every base accent now use the cabinet finish itself, a touch darker and satin: the shape stays (shadow line,
+        // foot plates) but there is no bright metal anywhere on the table body.
+        let edge=(graphite.copy() as? SCNMaterial) ?? graphite
+        edge.multiply.contents=(look.wood ? UIColor.rgb(look.cabinet).blended(0.55):UIColor.white).withAlphaComponent(1)
+        edge.diffuse.intensity=0.82;edge.metalness.contents=look.wood ? 0:0.10;edge.clearCoat.contents=0
         let clothColor=clothTintIndex.map{Self.clothColors[$0].1} ?? .rgb(look.cloth)
         let cloth=mat(clothColor,roughness:0.97)
         cloth.diffuse.contents=clothAlbedo(clothColor)
@@ -724,7 +790,17 @@ final class TableScene {
         lamp.light?.castsShadow=false;lamp.light?.attenuationStartDistance=0.3;lamp.light?.attenuationEndDistance=end;lamp.position=p;scene.rootNode.addChildNode(lamp)
     }
     private func emissive(_ c:UIColor,_ glow:UIColor)->SCNMaterial{let m=mat(c,roughness:0.6);m.emission.contents=glow;return m}
+    /// 0.39 (owner: the floor shows flickering stripes like the cloth did). Two causes, both fixed: the floor/walls cast
+    /// and received the key-light shadow map (acne; shadow map now off and non-ball nodes never cast), and big smooth
+    /// dark gradients band in 8-bit — same sub-level dithering as the cloth.
+    static let ditherModifier="""
+    float3 dp = floor(_surface.position * 2600.0);
+    float n1 = fract(sin(dot(dp, float3(12.9898, 78.233, 37.719))) * 43758.5453);
+    float n2 = fract(sin(dot(dp, float3(39.346, 11.135, 83.155))) * 24634.6345);
+    _output.color.rgb *= 1.0 + (n1 + n2 - 1.0) * 0.018;
+    """
     private func shell(floor:SCNMaterial,wall:SCNMaterial,height:Float=3.5){
+        for m in [floor,wall] where m.shaderModifiers?[.fragment]==nil {m.shaderModifiers=[.fragment:Self.ditherModifier]}
         _=box(9,0.08,10,SCNVector3(0,-0.79,0),floor,chamfer:0)
         for side:Float in [-1,1]{
             _=box(0.09,CGFloat(height),10,SCNVector3(side*4,height/2-0.8,0),wall,chamfer:0)
@@ -915,25 +991,24 @@ final class TableScene {
                 }
                 return m
             }
-            let node=SCNNode(geometry:geometry);node.name="premium-cue-"+appearance.id;node.castsShadow=true
+            let node=SCNNode(geometry:geometry);node.name="premium-cue-"+appearance.id;node.castsShadow=false
             if cueType==1 {node.scale=SCNVector3(1,0.72,1)}   // jump cue is short (1.044 m), as the clearance model assumes
             cueRoot.addChildNode(node)
-            let cap=SCNCylinder(radius:0.006,height:0.0008);cap.materials=[mat(.rgb(0x163D57),roughness:0.9)]
-            let tip=SCNNode(geometry:cap);tip.position.y=0;cueRoot.addChildNode(tip)
+            cueRoot.addChildNode(domeTip(scale:cueType==1 ? 0.72:1))
             return
         }
         let scale:CGFloat=cueType==1 ? 0.72:(cueType==2 ? 1.015:1.0)
         // Local +Y points to the tip; full 1.45 m cue, separate leather/ferrule/shaft/joint/wrap/butt.
         func section(_ start:CGFloat,_ length:CGFloat,_ tipRadius:CGFloat,_ buttRadius:CGFloat,_ material:SCNMaterial){
             let g=SCNCone(topRadius:tipRadius,bottomRadius:buttRadius,height:length*scale);g.radialSegmentCount=48;g.materials=[material]
-            let node=SCNNode(geometry:g);node.position.y = -Float((start+length/2)*scale);node.castsShadow=true;cueRoot.addChildNode(node)
+            let node=SCNNode(geometry:g);node.position.y = -Float((start+length/2)*scale);node.castsShadow=false;cueRoot.addChildNode(node)
         }
         let maple=mat(appearance.carbon ? UIColor(white:0.12,alpha:1):UIColor.white,roughness:0.42)
         if !appearance.carbon {maple.diffuse.contents=woodTexture(light:true)}
         let ebony=mat(.rgb(masseLook && cueType==0 ? 0x6a1820:appearance.color),roughness:0.30)
         let ring=mat(.rgb(appearance.accent),roughness:0.3,metal:0.5)
-        section(0,0.004,0.0059,0.0059,mat(UIColor(red:0.07,green:0.23,blue:0.29,alpha:1),roughness:0.88))
-        section(0.004,0.017,0.0059,0.0060,mat(UIColor(red:0.93,green:0.91,blue:0.81,alpha:1),roughness:0.23))
+        cueRoot.addChildNode(domeTip(scale:1))
+        section(0.0045,0.0165,0.0059,0.0060,mat(UIColor(red:0.93,green:0.91,blue:0.81,alpha:1),roughness:0.23))
         section(0.021,0.704,0.006,0.0105,maple)
         section(0.725,0.025,0.0105,0.0107,ring)
         section(0.75,0.23,0.0107,0.013,ebony)
@@ -942,6 +1017,23 @@ final class TableScene {
         section(1.28,0.155,0.0142,0.0147,ebony)
         section(1.435,0.005,0.0147,0.0147,ring)
         section(1.44,0.010,0.0147,0.0147,mat(.black))
+    }
+    /// 0.39: leather tip, 12.2 mm diameter, 4.5 mm tall, domed to a 9.5 mm radius (between "dime" and "nickel"),
+    /// apex at local y = 0 (the contact point used by cuePose). Lathe mesh with true dome normals, chalk-blue leather.
+    static let tipDomeRadius:Float=0.0095,tipRadius:Float=0.0061
+    private func domeTip(scale:Float)->SCNNode{
+        let rd=Self.tipDomeRadius,rt=Self.tipRadius,sag=rd-(rd*rd-rt*rt).squareRoot(),bottom:Float = -0.0045
+        var profile:[(r:Float,y:Float,nr:Float,ny:Float)]=[(0,0,0,1)]
+        for k in 1...10 {let r=rt*Float(k)/10,y = -(rd-(rd*rd-r*r).squareRoot());profile.append((r,y,r/rd,(rd+y)/rd))}
+        profile.append((rt,-sag,1,0));profile.append((rt,bottom,1,0));profile.append((0,bottom,0,-1))
+        var v:[SCNVector3]=[],n:[SCNVector3]=[],idx:[Int32]=[];let seg=40
+        for i in 0...seg {let a=Float(i)/Float(seg)*2*Float.pi,c=cos(a),s=sin(a)
+            for q in profile {v.append(SCNVector3(q.r*c,q.y,q.r*s));n.append(SCNVector3(q.nr*c,q.ny,q.nr*s))}}
+        let m=Int32(profile.count)
+        for i in 0..<Int32(seg){for j in 0..<(m-1){let a=i*m+j,b=a+m;idx+=[a,b,a+1,a+1,b,b+1]}}
+        let g=SCNGeometry(sources:[SCNGeometrySource(vertices:v),SCNGeometrySource(normals:n)],elements:[SCNGeometryElement(indices:idx,primitiveType:.triangles)])
+        let leather=mat(.rgb(0x1E4F6E),roughness:0.92);leather.isDoubleSided=true;g.materials=[leather]
+        let node=SCNNode(geometry:g);node.name="cue-tip";node.castsShadow=false;node.scale=SCNVector3(1,scale,1);return node
     }
     private func materialMap(_ name:String,fallback:()->UIImage)->UIImage {
         if let cached=cachedMaterialMaps[name]{return cached}
@@ -1043,16 +1135,27 @@ final class TableScene {
             }}
         };cachedWood[light]=image;return image
     }
+    /// 0.39 (owner: ball shadow must be round, soft and smooth): two Gaussian layers in units of the ball radius R —
+    /// a dark core where the ball nearly touches the cloth (σ≈0.55R) and a wide penumbra from the lamp's size (σ≈1.3R) —
+    /// faded to exactly zero at the plane edge (2.2R). Built per pixel with sub-level noise in alpha, so the dark-on-dark
+    /// gradient has no 8-bit rings.
     private func contactShadowTexture()->UIImage{
-        texture(CGSize(width:512,height:512),opaque:false){c in
-            // 0.37 (owner: shadow should be dark but SMOOTH): Gaussian-like falloff, 12 stops, no visible ring.
-            var stops:[CGFloat]=[],colours:[CGColor]=[]
-            for k in 0...11 {let x=CGFloat(k)/11;stops.append(x);colours.append(UIColor.black.withAlphaComponent(0.92*exp(-x*x*4.2)*(1-x*x*x)).cgColor)}
-            let colors=colours as CFArray
-            if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:stops){
-                c.cgContext.drawRadialGradient(g,startCenter:CGPoint(x:256,y:256),startRadius:0,endCenter:CGPoint(x:256,y:256),endRadius:256,options:[])
-            }
-        }
+        let n=256,half=Double(n)/2
+        var bytes=[UInt8](repeating:0,count:n*n*4)
+        var seed:UInt64=0x9E3779B97F4A7C15
+        func noise()->Double{seed=seed &* 6364136223846793005 &+ 1442695040888963407;return Double((seed>>33)%10_000)/10_000}
+        for y in 0..<n{for x in 0..<n{
+            let dx=(Double(x)+0.5-half)/half*2.2,dy=(Double(y)+0.5-half)/half*2.2,r=(dx*dx+dy*dy).squareRoot()
+            let edge=max(0,1-pow(r/2.2,4))
+            let a=(0.80*exp(-r*r/(2*0.55*0.55))+0.34*exp(-r*r/(2*1.3*1.3)))*edge
+            let v=min(255,max(0,a*255+(noise()+noise()-1)))
+            let k=(y*n+x)*4;bytes[k+3]=UInt8(v)   // premultiplied black: rgb 0
+        }}
+        let space=CGColorSpaceCreateDeviceRGB()
+        guard let provider=CGDataProvider(data:Data(bytes) as CFData),
+              let image=CGImage(width:n,height:n,bitsPerComponent:8,bitsPerPixel:32,bytesPerRow:n*4,space:space,bitmapInfo:CGBitmapInfo(rawValue:CGImageAlphaInfo.premultipliedLast.rawValue),provider:provider,decode:nil,shouldInterpolate:true,intent:.defaultIntent)
+        else{return UIImage()}
+        return UIImage(cgImage:image)
     }
     private func diamond(_ p:SCNVector3,shortRail:Bool=false){
         let t=Float(Self.tune(Self.tuneDiamond)),long:Float=0.028*t,wide:Float=0.013*t   // 0.36: Tuỳ chỉnh · độ nổi kim cương
@@ -1130,11 +1233,17 @@ final class TableScene {
         sphere.materials=[material];cachedBallGeometry[id]=sphere;return sphere
     }
     private lazy var ballShadowGeometry:SCNPlane = {
-        let plane=SCNPlane(width:0.112,height:0.112),material=SCNMaterial()   // 0.36: wider soft contact shadow
-        material.lightingModel = .constant;material.diffuse.contents=shadowTexture
+        let plane=SCNPlane(width:CGFloat(radius*4.4),height:CGFloat(radius*4.4)),material=SCNMaterial()   // 0.39: ±2.2 R, see contactShadowTexture
+        material.lightingModel = .constant;material.diffuse.contents=shadowTexture;material.diffuse.mipFilter = .linear
         material.writesToDepthBuffer=false;material.readsFromDepthBuffer=true;material.blendMode = .alpha
         plane.materials=[material];return plane
     }()
+    /// 0.39: the contact shadow sits where the key lamp (2.30 m over the table centre) projects the ball centre, so it
+    /// leans slightly outward towards the rails like a real overhead light, and drifts away as a jumped ball rises.
+    private func shadowCenter(_ planar:SIMD2<Float>,_ height:Double?)->SIMD3<Float>{
+        let h=Float(radius)+Float(height ?? 0),f=2.30/max(0.3,2.30-h)
+        return SIMD3<Float>(planar.x*f,0.001,planar.y*f)
+    }
     private func setPosition(_ position:SCNVector3,on node:SCNNode){
         let old=node.position
         if old.x != position.x || old.y != position.y || old.z != position.z{node.position=position}
@@ -1200,8 +1309,11 @@ final class TableScene {
     func update(_ balls:[BallState],dt:Double){
         SCNTransaction.begin();SCNTransaction.animationDuration=0;SCNTransaction.disableActions=true
         defer{SCNTransaction.commit()}
+        let pacedAt:Double? = FramePacer.enabled ? presentAt:nil
+        if pacedAt==nil {pacer.clear()}
         let ids=Set(balls.map{$0.id})
         for id in Array(nodes.keys) where !ids.contains(id){
+            pacer.remove(id)
             nodes.removeValue(forKey:id)?.removeFromParentNode()
             contactShadows.removeValue(forKey:id)?.removeFromParentNode()
             restOrientations.removeValue(forKey:id);falling.removeValue(forKey:id);settledPocketNodes.remove(id)
@@ -1211,7 +1323,7 @@ final class TableScene {
             let node:SCNNode
             if let old=nodes[b.id]{node=old}else{
                 node=SCNNode(geometry:ballGeometry(b.id));node.name="ball_\(b.id)"
-                node.castsShadow=thermalState != .serious && thermalState != .critical
+                node.castsShadow=Self.realShadows && thermalState != .serious && thermalState != .critical
                 node.eulerAngles=SCNVector3(0.18,0.6,0.2)
                 restOrientations[b.id]=node.simdOrientation
                 ballRoot.addChildNode(node);nodes[b.id]=node
@@ -1223,6 +1335,7 @@ final class TableScene {
             if node.opacity != opacity{node.opacity=opacity}
             let planar=SIMD2<Float>(Float(b.x),Float(b.y))
             if b.sunk {
+                pacer.remove(b.id)
                 if falling[b.id]==nil{
                     let previous=lastPlanar[b.id]
                     let from=previous ?? planar
@@ -1261,12 +1374,13 @@ final class TableScene {
             if node.isHidden{node.isHidden=false}
             if dt.isFinite,dt>0,let previous=lastPlanar[b.id]{planarVelocity[b.id]=(planar-previous)/Float(dt)}
             lastPlanar[b.id]=planar
-            setPosition(SCNVector3(planar.x,Float(radius)+Float(b.height ?? 0),planar.y),on:node)
+            let ballAt=SIMD3<Float>(planar.x,Float(radius)+Float(b.height ?? 0),planar.y)
+            if pacedAt==nil {setPosition(SCNVector3(ballAt),on:node)}
             if let shadow=contactShadows[b.id]{
                 if shadow.isHidden{shadow.isHidden=false}
-                setPosition(SCNVector3(planar.x,0.001,planar.y),on:shadow)
+                if pacedAt==nil {setPosition(SCNVector3(shadowCenter(planar,b.height)),on:shadow)}
                 let height=Float(b.height ?? 0)
-                let shade=CGFloat(max(0.05,1.0/(1+height*13)))*min(1,Self.tune(Self.tuneShadow))
+                let shade=CGFloat(max(0.05,1.0/(1+height*13)))*min(1,Self.tune(Self.tuneShadow))*(Self.realShadows ? 0.75:1)   // 0.39: map shadow adds the penumbra
                 if shadow.opacity != shade{shadow.opacity=shade}
                 let spread:Float=0.92+height*1.6
                 if shadow.scale.x != spread{shadow.scale=SCNVector3(spread,spread,spread)}
@@ -1276,7 +1390,11 @@ final class TableScene {
                 let physical=simd_quatf(ix:Float(-x),iy:Float(-z),iz:Float(-y),r:Float(w))
                 let rest=restOrientations[b.id] ?? simd_quatf(angle:0,axis:SIMD3<Float>(0,1,0))
                 let orientation=physical*rest
-                if node.simdOrientation.vector != orientation.vector{node.simdOrientation=orientation}
+                if let t=pacedAt {
+                    pacer.push(id:b.id,node:node,shadow:contactShadows[b.id],time:t,position:ballAt,orientation:orientation,shadowAt:shadowCenter(planar,b.height))
+                }else if node.simdOrientation.vector != orientation.vector{node.simdOrientation=orientation}
+            }else if let t=pacedAt {
+                pacer.push(id:b.id,node:node,shadow:contactShadows[b.id],time:t,position:ballAt,orientation:node.simdOrientation,shadowAt:shadowCenter(planar,b.height))
             }
         }
     }
@@ -1486,9 +1604,11 @@ final class TableScene {
         let length:Float=cueType==1 ? 1.044:1.45
         let lift=asin(max(0,min(0.5,(0.0150-contact.y)/length)))
         let pitch=max(elevation,lift)
-        // A flat tip of radius 5.9 mm meeting an off-centre point on the sphere would sink its edge into the ball:
-        // stand it off by r·tanθ (θ = angle between the cue and the surface normal).
-        let s2=min(Float(0.95),x*x+y*y),tipBack=Float(0.0059)*sqrt(s2)/sqrt(1-s2)
+        // 0.39: domed tip (radius Rd) on the ball (radius R) with the apex on the contact: the dome clears the ball once
+        // stood off by the largest overlap of the tilted ball surface and the dome, max over ρ ≤ tip radius of
+        // ρ·tanθ − ρ²(1/R+1/Rd)/2  (θ = angle between the cue and the surface normal). Much less than the old flat r·tanθ.
+        let s2=min(Float(0.95),x*x+y*y),tanT=sqrt(s2)/sqrt(1-s2),k=1/Float(radius)+1/Self.tipDomeRadius
+        let rho=min(Self.tipRadius,tanT/k),tipBack=max(0,rho*tanT-rho*rho*k/2)
         return (contact,simd_normalize(flat*cos(pitch)-SIMD3<Float>(0,1,0)*sin(pitch)),tipBack)
     }
     func shotAngle(_ c:BallState?,angle:Double,side:Double,top:Double)->Double{
@@ -1509,13 +1629,44 @@ final class TableScene {
         }
         updateCueShadow()
     }
+    /// 0.39 (owner: with the cue ball near a rail the raised cue hides the line of aim and the object ball): fade the cue
+    /// to a ghost while — on screen — it covers the aim line in front of the cue ball (first 1.2 m) or the object ball.
+    /// Views where the line is visible keep a solid cue. Pure screen-space test, so it works for any camera/elevation.
+    private var cueFade:Float=1
+    func updateCueFade(view:SCNView,cue:BallState?,angle:Double,target:SIMD2<Float>?,dt:Double){
+        var want:Float=1
+        if Tuning.flag("tuneCueFade039",true),!cueRoot.isHidden,let c=cue {
+            func screen(_ p:SIMD3<Float>)->SIMD3<Float>{let v=view.projectPoint(SCNVector3(p));return SIMD3<Float>(v.x,v.y,v.z)}
+            let length:Float=cueType==1 ? 1.044:1.45
+            let tipW=cueRoot.convertPosition(SCNVector3(0,0,0),to:nil),buttW=cueRoot.convertPosition(SCNVector3(0,-length*0.7,0),to:nil)
+            let tip=screen(SIMD3(tipW.x,tipW.y,tipW.z)),butt=screen(SIMD3(buttW.x,buttW.y,buttW.z))
+            let right=simd_normalize(simd_cross(SIMD3<Float>(0,1,0),simd_normalize(SIMD3(buttW.x-tipW.x,buttW.y-tipW.y,buttW.z-tipW.z))+SIMD3(0.0001,0,0)))
+            let edge=screen(SIMD3(tipW.x,tipW.y,tipW.z)+right*0.009)
+            let halfWidth=max(4,simd_distance(SIMD2(edge.x,edge.y),SIMD2(tip.x,tip.y)))+6
+            let a=SIMD2(tip.x,tip.y),b=SIMD2(butt.x,butt.y),ab=b-a,len2=max(1,simd_length_squared(ab))
+            let start=SIMD3<Float>(Float(c.x),Float(radius),Float(c.y)),d=SIMD3<Float>(Float(cos(angle)),0,Float(sin(angle)))
+            var points:[SIMD3<Float>]=stride(from:Float(0.08),through:1.2,by:0.08).map{start+d*$0}
+            if let t=target {points.append(SIMD3(t.x,Float(radius),t.y))}
+            var hidden=0
+            for p in points {
+                let q=screen(p);guard q.z>0,q.z<1 else{continue}
+                let u=max(0,min(1,simd_dot(SIMD2(q.x,q.y)-a,ab)/len2)),closest=a+ab*u
+                let depth=tip.z+(butt.z-tip.z)*u   // cue in front of the point?
+                if simd_distance(SIMD2(q.x,q.y),closest)<halfWidth && depth<q.z {hidden+=1}
+            }
+            if hidden>=2 {want=0.28}
+        }
+        let k=Float(min(1,dt*10));cueFade+=(want-cueFade)*k
+        if abs(cueRoot.opacity-CGFloat(cueFade))>0.004 {cueRoot.opacity=CGFloat(cueFade)}
+    }
     private lazy var cueShadowMaterial:SCNMaterial = {
         let m=SCNMaterial();m.lightingModel = .constant;m.blendMode = .alpha
         m.writesToDepthBuffer=false;m.isDoubleSided=true
         m.diffuse.contents=texture(CGSize(width:128,height:8),opaque:false){c in
             for x in 0..<128 {let u=(Double(x)-63.5)/22;let a=0.22*exp(-u*u/2)
                 UIColor.black.withAlphaComponent(CGFloat(a)).setFill();c.fill(CGRect(x:x,y:0,width:1,height:8))}
-        };return m
+        };m.diffuse.mipFilter = .linear;m.diffuse.minificationFilter = .linear   // 0.39: no saw-tooth when the cue shadow is thin on screen
+        return m
     }()
     private func updateCueShadow(){
         let key=[cueRoot.position.x,cueRoot.position.z,Float(max(cueElevation,clearanceElevation)),cueRoot.rotation.x,cueRoot.rotation.y,cueRoot.rotation.z,cueRoot.rotation.w,Float(cueType)]

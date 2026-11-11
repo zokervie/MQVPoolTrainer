@@ -90,7 +90,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         return wall.isFinite
     }
+    /// 0.39: the first object ball on the straight aim line (cue fade keeps it visible), nil when a cushion comes first.
+    func aimTargetBall()->SIMD2<Float>?{
+        guard let c=cue,!c.sunk else{return nil}
+        let R=geometry.radius,d=SIMD2<Double>(cos(angle),sin(angle)),p=SIMD2<Double>(c.x,c.y)
+        var best=Double.infinity,hit:SIMD2<Float>?
+        for b in balls where b.id != 0 && !b.sunk {
+            let m=p-SIMD2<Double>(b.x,b.y),bq=simd_dot(m,d),cc=simd_dot(m,m)-4*R*R,disc=bq*bq-cc
+            if disc>=0 {let t = -bq-disc.squareRoot();if t>0 && t<best{best=t;hit=SIMD2<Float>(Float(b.x),Float(b.y))}}
+        }
+        return hit
+    }
     var hudFaded=false
+    var lastTurnCheck:Double=0
     var forcedElevationRestore:[String:NSNumber]?
     var highlightRecorder:HighlightRecorder?
     var consistencyKey="",consistencyStops:[SIMD2<Double>]=[]
@@ -226,7 +238,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         table=TableScene(rails:engine.rails)
         if let color=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int {table.setClothColor(color)}
-        scn=SCNView(frame:.zero);scn.scene=table.scene;scn.pointOfView=table.camera
+        scn=SCNView(frame:.zero);scn.scene=table.scene;scn.pointOfView=table.camera;scn.delegate=table.pacer
         scn.backgroundColor = .black;scn.antialiasingMode = .multisampling2X;scn.preferredFramesPerSecond=60;scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
         scn.isPlaying=false;scn.rendersContinuously=false;scn.translatesAutoresizingMaskIntoConstraints=false
         view.addSubview(scn)
@@ -472,15 +484,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 A(title:"Wi‑Fi gần nhau",icon:"wifi",id:"LobbyWifi",run:{[weak self] in self?.openMatchMenu(scope:1)}),
                 A(title:"Online · Game Center",icon:"globe",id:"LobbyOnline",run:{[weak self] in self?.openMatchMenu(scope:2)})]),
             .init(title:"Hồ sơ",subtitle:"Nhật ký tập, cú đánh đã lưu, tài khoản",icon:"person.crop.circle",color:LobbyController.profile,actions:[
-                A(title:"Nhật ký tập luyện",icon:"chart.line.uptrend.xyaxis",id:"LobbyJournal",run:{[weak self] in self?.layouts()}),
-                A(title:"Cú đánh / Highlight",icon:"film.stack",id:"LobbyShots",run:{[weak self] in guard let self=self else{return}
+                A(title:"Nhật ký · tiến bộ",icon:"chart.line.uptrend.xyaxis",id:"LobbyJournal",run:{[weak self] in self?.layouts()}),
+                A(title:"Cú đã lưu · video highlight",icon:"film.stack",id:"LobbyShots",run:{[weak self] in guard let self=self else{return}
                     let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
                     for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
                     sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)}),
                 A(title:"Tài khoản · Game Center",icon:"gamecontroller",id:"LobbyAccount",run:{[weak self] in self?.openAccount()})])]
-        lobby.footer=[A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()}),
-                      A(title:"Tuỳ chỉnh",icon:"slider.horizontal.3",id:"LobbyCustomize",run:{[weak self] in self?.openCustomize()}),
-                      A(title:"ZUPE Lab",icon:"flask",id:"LobbyLab",run:{[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})]
+        // 0.39 (owner: lobby a bit confusing): Tuỳ chỉnh first (most used), Hướng dẫn, then the lab under a plain name.
+        lobby.footer=[A(title:"Tuỳ chỉnh",icon:"slider.horizontal.3",id:"LobbyCustomize",run:{[weak self] in self?.openCustomize()}),
+                      A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()}),
+                      A(title:"Phòng thử vật lý (nâng cao)",icon:"flask",id:"LobbyLab",run:{[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})]
         lobby.modalPresentationStyle = .fullScreen;lobby.modalTransitionStyle = .crossDissolve
         present(lobby,animated:true)
     }
@@ -1357,6 +1370,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let shownAt=link.targetTimestamp
         let dt=lastTime==0 ? 0:min(0.1,max(0,shownAt-lastTime));lastTime=shownAt
         frameStateCache=nil;defer{frameStateCache=nil}
+        // 0.39 (owner: Wi-Fi/online break impossible, all keys grey on both phones). Belt and braces: a network state
+        // change that arrives without a callback (link up, relay peer, snapshot) can no longer leave the turn stale —
+        // twice a second the real permission is compared with what the controls show, and re-synced if they differ.
+        if matchPlay.active, shownAt-lastTurnCheck>0.5 {lastTurnCheck=shownAt;if matchAllowsInput != localTurn {syncMatchControls()}}
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let guestTick=matchGuestTick(dt)
         // Keep rendering until a Premium QA probe has recorded its result; slow
@@ -1372,6 +1389,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let guestMoving=guestTick && matchPlay.session.isConnected && matchPlay.session.latestSnapshot?.isMoving==true
         // 0.35 (owner: still judders and the phone gets hot): 120 Hz doubled GPU work and heat without curing the judder.
         // One fixed 60 Hz cadence for simulation and rendering; idle drops to 15 Hz.
+        // 0.39: SceneKit's own loop must run at the same rate as the tick, or paced frames repeat (120 Hz tick, 60 Hz view).
+        if scn.preferredFramesPerSecond != Tuning.frameRate {scn.preferredFramesPerSecond=Tuning.frameRate}
+        table.presentAt=link.targetTimestamp;defer{table.presentAt=nil}
         displayLink?.preferredFramesPerSecond=active ? Tuning.frameRate:30   // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh
         scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
         if active || guestMoving{scn.setNeedsDisplay()}
@@ -1522,6 +1542,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             table.showCue(displayCue,angle:sample.angle,visible:true,pull:sample.pull,side:sample.side,top:sample.top)
         }else{
             table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
+            table.updateCueFade(view:scn,cue:displayCue,angle:angle,target:aimTargetBall(),dt:dt)
         }
         // 0.37 "Dự đoán trước": no guide while aiming — the player commits by eye, the truth is shown after the shot.
         let guideAllowed=coachOn && guideOn && !presentationBusy && localTurn && !isPlacingBalls && !locked && !Tuning.predictFirst

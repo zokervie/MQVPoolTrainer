@@ -326,38 +326,63 @@ extension TrainingController {
         table.cameraMode = 0; table.zoom = 1; table.focusBounds = nil
         table.setCompetitivePresentation(numbers: false)
     }
-    /// 0.29 broadcast-style scoreboard, top centre: NAME  frames  RACE N  frames  NAME, gold dot on the shooter.
+    /// 0.39 (owner: scoreboard too plain — names and scores must stand apart, framed, professional type). Broadcast
+    /// layout: [● NAME][ 3 ]  RACE 5 · VÁN 2  [ 1 ][NAME ●]. Each player has a colour plate (blue / red), scores sit in
+    /// gold boxes with heavy rounded digits, the shooter's plate gets a bright frame and a dot; the frame is dark glass.
     func updateScoreboard() {
         let board = matchPlay.scoreboard
+        let gold = UIColor.rgb(0xEAC583), plates = [UIColor.rgb(0x1F5FAF), UIColor.rgb(0xB0343A)]
+        func rounded(_ size: CGFloat, _ weight: UIFont.Weight) -> UIFont {
+            let base = UIFont.systemFont(ofSize: size, weight: weight)
+            return UIFont(descriptor: base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor, size: size)
+        }
         if !matchPlay.scoreboardBuilt {
             matchPlay.scoreboardBuilt = true
             board.translatesAutoresizingMaskIntoConstraints = false; board.isUserInteractionEnabled = false
-            board.backgroundColor = UIColor(red: 0.04, green: 0.06, blue: 0.11, alpha: 0.88); board.layer.cornerRadius = 10
-            board.layer.borderWidth = 1; board.layer.borderColor = UIColor.rgb(0xEAC583).withAlphaComponent(0.55).cgColor
+            board.backgroundColor = UIColor(red: 0.03, green: 0.04, blue: 0.07, alpha: 0.90); board.layer.cornerRadius = 12
+            board.layer.borderWidth = 1.5; board.layer.borderColor = gold.withAlphaComponent(0.75).cgColor
+            board.layer.shadowColor = UIColor.black.cgColor; board.layer.shadowOpacity = 0.5; board.layer.shadowRadius = 8; board.layer.shadowOffset = .zero
             board.accessibilityIdentifier = "MatchScoreboard"
             view.addSubview(board)
             NSLayoutConstraint.activate([board.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
-                                         board.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-                                         board.heightAnchor.constraint(equalToConstant: 40)])
-            let row = UIStackView(); row.axis = .horizontal; row.spacing = 10; row.alignment = .center
+                                         board.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
+                                         board.heightAnchor.constraint(equalToConstant: 44)])
+            let row = UIStackView(); row.axis = .horizontal; row.spacing = 6; row.alignment = .fill
             row.translatesAutoresizingMaskIntoConstraints = false; board.addSubview(row); row.tag = 1
-            NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo: board.leadingAnchor, constant: 12), row.trailingAnchor.constraint(equalTo: board.trailingAnchor, constant: -12),
-                                         row.centerYAnchor.constraint(equalTo: board.centerYAnchor)])
-            for tag in 10...14 { let label = UILabel(); label.tag = tag; row.addArrangedSubview(label) }
+            NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo: board.leadingAnchor, constant: 5), row.trailingAnchor.constraint(equalTo: board.trailingAnchor, constant: -5),
+                                         row.topAnchor.constraint(equalTo: board.topAnchor, constant: 5), row.bottomAnchor.constraint(equalTo: board.bottomAnchor, constant: -5)])
+            for tag in 10...14 {
+                let plate = UIView(); plate.tag = tag + 10; plate.layer.cornerRadius = 7; plate.layer.cornerCurve = .continuous
+                let label = UILabel(); label.tag = tag; label.textAlignment = .center; label.adjustsFontSizeToFitWidth = true; label.minimumScaleFactor = 0.7
+                label.translatesAutoresizingMaskIntoConstraints = false; plate.addSubview(label)
+                let inset: CGFloat = (tag == 11 || tag == 13) ? 8 : 10
+                NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: inset), label.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -inset),
+                                             label.centerYAnchor.constraint(equalTo: plate.centerYAnchor)])
+                if tag == 11 || tag == 13 { plate.widthAnchor.constraint(greaterThanOrEqualToConstant: 38).isActive = true }
+                if tag == 10 || tag == 14 { plate.widthAnchor.constraint(greaterThanOrEqualToConstant: 96).isActive = true }
+                row.addArrangedSubview(plate)
+            }
         }
         board.isHidden = !matchPlay.active
         guard matchPlay.active, let row = board.viewWithTag(1) else { return }
-        let player = matchInt("currentPlayer"), gold = UIColor.rgb(0xEAC583)
-        func set(_ tag: Int, _ text: String, _ size: CGFloat, _ color: UIColor, _ weight: UIFont.Weight) {
-            guard let label = row.viewWithTag(tag) as? UILabel else { return }
-            label.text = text; label.textColor = color; label.font = .monospacedDigitSystemFont(ofSize: size, weight: weight)
-        }
+        let player = matchInt("currentPlayer")
         let shooting = matchPlay.matchWinner < 0 && matchInt("winner", fallback: -1) < 0
-        set(10, (shooting && player == 0 ? "● " : "") + matchPlay.names[0], 14, player == 0 ? .white : UIColor(white: 0.7, alpha: 1), .semibold)
-        set(11, "\(matchPlay.frames[0])", 22, .white, .bold)
-        set(12, "RACE \(matchPlay.raceTo) · VÁN \(matchPlay.rackNo)", 11, gold, .bold)
-        set(13, "\(matchPlay.frames[1])", 22, .white, .bold)
-        set(14, matchPlay.names[1] + (shooting && player == 1 ? " ●" : ""), 14, player == 1 ? .white : UIColor(white: 0.7, alpha: 1), .semibold)
+        func set(_ tag: Int, _ text: String, _ font: UIFont, _ color: UIColor, plate: UIColor, frame: UIColor?) {
+            guard let label = row.viewWithTag(tag) as? UILabel, let box = row.viewWithTag(tag + 10) else { return }
+            label.text = text; label.textColor = color; label.font = font
+            box.backgroundColor = plate
+            box.layer.borderWidth = frame == nil ? 0 : 2; box.layer.borderColor = frame?.cgColor
+        }
+        for seat in 0...1 {
+            let active = shooting && player == seat
+            let name = matchPlay.names[seat].uppercased()
+            set(seat == 0 ? 10 : 14, seat == 0 ? (active ? "● " : "") + name : name + (active ? " ●" : ""), rounded(14, .heavy),
+                .white, plate: plates[seat].withAlphaComponent(active ? 1 : 0.55), frame: active ? gold : nil)
+            set(seat == 0 ? 11 : 13, "\(matchPlay.frames[seat])", .monospacedDigitSystemFont(ofSize: 24, weight: .black),
+                UIColor(white: 0.06, alpha: 1), plate: gold, frame: nil)
+        }
+        set(12, "RACE \(matchPlay.raceTo)\nVÁN \(matchPlay.rackNo)", rounded(10, .bold), gold, plate: .clear, frame: nil)
+        (row.viewWithTag(12) as? UILabel)?.numberOfLines = 2
         view.bringSubviewToFront(board)
     }
     func leaveMatch() {
@@ -377,6 +402,11 @@ extension TrainingController {
         guard matchPlay.active else { matchPlay.banner.isHidden = true; matchPlay.scoreboard.isHidden = true; table.spectatorPivot = false; return }
         let wasLocal = localTurn
         localTurn = matchAllowsInput
+        // 0.39 (owner: Wi-Fi/online — after the friend joined, every key on both sides stayed grey and the break could
+        // not be played). The turn flips to this device from network callbacks (peer joined, snapshot, command), which
+        // only ran this function; the cue icons, spin, elevation and quick rail are enabled in updateControls(), so they
+        // kept the state from while the room was waiting. Any change of turn now refreshes every control once.
+        if localTurn != wasLocal { DispatchQueue.main.async { [weak self] in self?.updateControls() } }
         updateScoreboard()
         table.spectatorPivot = !localTurn
         // 0.29: when the turn comes to this device, it is already in the ready-to-shoot aim view.

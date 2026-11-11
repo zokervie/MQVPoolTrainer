@@ -149,11 +149,12 @@ enum ReplayDirector {
         var focus: SIMD4<Float>?
         switch segment.style {
         case .wide:
-            // establishing: whole table from a high three-quarter angle on the shooter's side
+            // establishing: three-quarter angle on the shooter's side. 0.39 (owner: the first cut was so high that the
+            // lamp fixture hid the balls): lower (0.72 → 0.46 rad) and a little closer, still the whole table in frame.
             mode = 0
-            zoom = 0.94
+            zoom = 1.0
             yaw = angle + 0.55 - 0.20
-            pitch = 0.72
+            pitch = 0.46
             focus = nil
         case .follow:
             // low, behind the cue ball's line of travel, framing the cue ball and what it is about to hit

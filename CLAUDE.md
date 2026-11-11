@@ -21,6 +21,9 @@ Khi anh nói "chấp thuận" = duyệt TOÀN BỘ đề xuất/phát kiến/s�
 ## Cách làm việc (anh dặn 09/11/2026 22:23)
 Anh muốn ÍT đợt nghiệm thu: gom thành một bản hoàn chỉnh rồi mới nghiệm thu; sau đó tách tính năng để bán trong app (In-App Purchase). Viết tính năng theo cờ/khối độc lập để sau này khoá/mở theo gói được.
 
+## 0.39 (anh nghiệm thu 0.38 ngày 11/11 + 7 phát hiện)
+Đồng bộ khung hình (bi trôi), chỉ bi đổ bóng (kiểu 0.19) + gậy không đổ bóng bản đồ, gậy mờ khi che hướng ngắm, sợi nỉ 0,6 mm, típ vòm 4,5 mm, nỉ cũ chấm li ti/bi cũ đục, sàn hết sọc, bỏ viền kim loại, Wi‑Fi break được, bảng điểm kiểu TV, cảnh đầu xem lại thấp hơn, Tuỳ chỉnh 5 thẻ, sảnh gọn. Bàn theo thương hiệu thật: KHÔNG chép 100% kiểu dáng/tên (rủi ro kiểu dáng công nghiệp khi bán app) — dùng kích thước chuẩn WPA + họ kiểu dáng phổ biến, tên Z-.
+
 ## 0.38 = 0.37 + toàn bộ đề xuất còn lại (anh duyệt hết 09/11/2026 22:21)
 Nút số tự hiện khi ngắm chạm băng; chấm độ đều tay; đường chỉ dẫn mờ theo trình độ; góc ngắm mặc định; kích thước/độ trong phím; lưu 3 bố cục; màu/độ dày đường ngắm; độ rõ vân nỉ; đường dự đoán theo độ dốc tự nâng; tự tăng lại chất lượng; xuất video highlight.
 
