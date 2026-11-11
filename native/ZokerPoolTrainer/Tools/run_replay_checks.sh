@@ -11,3 +11,6 @@ Path('build/replay-checks/BallState.swift').write_text('import Foundation\n'+mod
 PY
 xcrun swiftc -warnings-as-errors build/replay-checks/BallState.swift BankLab/UI/ShotArchive.swift BankLab/UI/ReplayDirector.swift Tests/ReplayRecordingTests.swift -o build/replay-checks/ReplayRecordingTests
 build/replay-checks/ReplayRecordingTests
+# Compile and exercise the actual SceneKit pacer; portable C++ cannot verify it.
+xcrun swiftc -warnings-as-errors BankLab/Rendering/FramePacer.swift Tests/FramePacerTests.swift -o build/replay-checks/FramePacerTests
+build/replay-checks/FramePacerTests

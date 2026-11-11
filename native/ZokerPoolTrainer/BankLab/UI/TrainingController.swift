@@ -1344,6 +1344,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         coachGeneration+=1;predictionGeneration+=1
         lastShotSpeed=speed
         displayDurations=[]
+        table.pacer.clear()
+        table.pacer.interval=1.0/Double(Tuning.frameRate)
+        table.pacer.resetDiagnostics()
+        // Seed the pre-strike pose, so the first interpolated frame includes
+        // the start of the stroke rather than jumping to the first sample.
+        let previousPresentAt=table.presentAt
+        table.presentAt=lastTime>0 ? lastTime:CACurrentMediaTime()
+        table.update(balls,dt:0)
+        table.presentAt=previousPresentAt
         testSpeed=speed
         hintLabel.text=String(format:"Cú vuốt vừa rồi · %.2f m/s · %@",speed,CueLook.roles[engine.settings["cueType"]?.intValue ?? 0])
         shotCameraAnchor=cue;liveCameraAngle=angle
@@ -1401,7 +1410,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // 0.39: SceneKit's own loop must run at the same rate as the tick, or paced frames repeat (120 Hz tick, 60 Hz view).
         if scn.preferredFramesPerSecond != Tuning.frameRate {scn.preferredFramesPerSecond=Tuning.frameRate}
         table.presentAt=link.targetTimestamp;defer{table.presentAt=nil}
-        let frameLead=1.0/Double(Tuning.frameRate);if abs(table.pacer.lead-frameLead)>1e-6 {table.pacer.lead=frameLead}
+        // Keep the presentation delay fixed through a motion segment. Changing
+        // it on a missed refresh would move the sampling clock backwards.
+        if !table.pacer.isActive {table.pacer.interval=link.targetTimestamp-link.timestamp}
         displayLink?.preferredFramesPerSecond=active ? Tuning.frameRate:30   // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh
         scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
         if active || guestMoving{scn.setNeedsDisplay()}
@@ -1466,23 +1477,22 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             var remaining=dt
             while remaining>1e-9 {
                 let h=min(1.0/240.0,remaining);engine.advance(h);remaining-=h;sampleClock+=h
-                let chunk=engine.states.map{BallState($0)}
-                let fastest=chunk.reduce(0.0){max($0,$1.sunk ? 0:hypot($1.vx ?? 0,$1.vy ?? 0)+abs($1.vertical ?? 0))}
+                let fastest=engine.maximumSpeed
                 let interval=fastest>0.8 ? 1.0/240.0:(fastest>0.25 ? 1.0/60.0:1.0/30.0)
                 if sampleClock>=interval-1e-9 {
+                    let chunk=engine.states.map{BallState($0)}
                     sampleClock=0
                     frames.append(chunk);frameTimes.append(engine.elapsed)
                     if frames.count%4==0{for b in chunk where !b.sunk {paths[b.id,default:[]].append(SIMD3<Float>(Float(b.x),Float((b.height ?? 0)+0.004),Float(b.y)))}}
                 }
             }
             // Dispatch impacts before rendering, labels or archive sampling.
-            let events=engine.events
-            if events.count>lastEventCount {
-                let fresh=events.suffix(events.count-lastEventCount)
+            let fresh=engine.events(since:lastEventCount)
+            if !fresh.isEmpty {
                 if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {
                     for event in fresh {poolAudio.play(kind:event["kind"]?.intValue ?? 1,impact:event["impact"]?.doubleValue ?? 0.3,pan:audioPan(event["x"]?.doubleValue ?? 0,event["y"]?.doubleValue ?? 0),eventAge:max(0,engine.elapsed-(event["time"]?.doubleValue ?? engine.elapsed)))}
                 }
-                lastEventCount=events.count
+                lastEventCount+=fresh.count
             }
             didAdvanceMatchShot()
             let state=engine.states.map{BallState($0)};frameStateCache=state
@@ -1610,6 +1620,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         return samples.filter{s in let t=s["time"]?.doubleValue ?? 0;return (s["id"]?.intValue ?? 0)==0 ? t<=contact:t<=contact+0.25}
     }
     func finishShot(timedOut:Bool){
+        table.pacer.endDiagnostics()
         if let restore=forcedElevationRestore{engine.settings=restore;forcedElevationRestore=nil}
         let d=Drill.all[drillIndex],events=engine.events
         lastShotEvents=events
@@ -2336,7 +2347,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         a.addAction(UIAlertAction(title:"Nhịp hiển thị cú vừa đánh",style:.default){[weak self]_ in
             guard let self=self else{return}
             let values=self.displayDurations.sorted(),count=values.count
-            let message=count==0 ? "Đánh một cú trước để đo nhịp CADisplayLink trên thiết bị.":String(format:"%d khung · median %.2f ms · p95 %.2f ms · max %.2f ms\n%d nhịp dài hơn 25 ms.\nĐây là nhịp cập nhật, không phải phép đo thời gian GPU; xem thêm thống kê render.",count,values[count/2]*1000,values[min(count-1,Int(Double(count)*0.95))]*1000,(values.last ?? 0)*1000,values.filter{$0>0.025}.count)
+            let render=self.table.pacer.diagnostics, intervals=render.intervals.sorted()
+            func summary(_ v:[Double])->String {
+                guard !v.isEmpty else{return "chưa có dữ liệu"}
+                return String(format:"%d khung · p50 %.2f · p95 %.2f · max %.2f ms",v.count,v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
+            }
+            let message=count==0 ? "Đánh một cú trước để đo nhịp trên thiết bị.":
+                "Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%d/%d khung thiếu mẫu · mẫu trễ nhất %.2f ms\nĐệm hiển thị %.2f ms. Đây là nhịp callback render, chưa phải thời điểm GPU thực sự đưa hình lên màn.",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000)
             let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
             alert.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(alert)
         })

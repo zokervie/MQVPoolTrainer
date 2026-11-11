@@ -12,6 +12,11 @@ using namespace banklab;
 - (instancetype)init { if((self=[super init])){_world=std::make_unique<World>(Config::app());}return self; }
 - (BOOL)moving{return _world->moving();}
 - (double)elapsed{return _world->time;}
+- (double)maximumSpeed{
+    double speed=0;
+    for(const auto&b:_world->balls)if(!b.sunk)speed=std::max(speed,b.v.length()+std::abs(b.vertical));
+    return speed;
+}
 - (NSArray*)states{
     NSMutableArray *a=[NSMutableArray array];
     for(const auto&b:_world->balls)[a addObject:@{@"id":@(b.id),@"x":@(b.p.x),@"y":@(b.p.y),@"vx":@(b.v.x),@"vy":@(b.v.y),@"wx":@(b.w.x),@"wy":@(b.w.y),@"spin":@(b.spin),@"sunk":@(b.sunk),@"rails":@(b.rails),@"height":@(b.height),@"vertical":@(b.vertical),@"qx":@(b.rotation.x),@"qy":@(b.rotation.y),@"qz":@(b.rotation.z),@"qw":@(b.rotation.w)}];
@@ -26,9 +31,15 @@ using namespace banklab;
     NSMutableArray*a=[NSMutableArray array];
     for(const auto&s:_world->segments)[a addObject:@{@"ax":@(s.a.x),@"ay":@(s.a.y),@"bx":@(s.b.x),@"by":@(s.b.y),@"id":@(s.rail)}];return a;
 }
-- (NSArray*)events{
+- (NSArray*)events{return [self eventsSince:0];}
+- (NSArray*)eventsSince:(NSUInteger)index{
     NSMutableArray*a=[NSMutableArray array];
-    for(const auto&e:_world->events)[a addObject:@{@"kind":@(e.kind),@"a":@(e.a),@"b":@(e.b),@"time":@(e.time),@"x":@(e.p.x),@"y":@(e.p.y),@"impact":@(e.impact)}];return a;
+    const auto&events=_world->events;
+    for(size_t i=std::min(static_cast<size_t>(index),events.size());i<events.size();++i){
+        const auto&e=events[i];
+        [a addObject:@{@"kind":@(e.kind),@"a":@(e.a),@"b":@(e.b),@"time":@(e.time),@"x":@(e.p.x),@"y":@(e.p.y),@"impact":@(e.impact)}];
+    }
+    return a;
 }
 - (NSDictionary*)settings{
     auto&c=_world->config;

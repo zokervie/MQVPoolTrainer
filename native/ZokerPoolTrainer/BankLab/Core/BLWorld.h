@@ -7,6 +7,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic,readonly) NSArray<NSDictionary<NSString*,NSNumber*>*> *presentationStates;
 @property(nonatomic,readonly) BOOL moving;
 @property(nonatomic,readonly) double elapsed;
+/// Fast scalar query: no per-ball NSDictionary/NSNumber allocation in the replay sampling loop.
+@property(nonatomic,readonly) double maximumSpeed;
+- (NSArray<NSDictionary<NSString*,NSNumber*>*>*)eventsSince:(NSUInteger)index NS_SWIFT_NAME(events(since:));
 @property(nonatomic,copy) NSDictionary<NSString*,NSNumber*> *settings;
 - (void)loadLayout:(NSArray<NSDictionary<NSString*,NSNumber*>*>*)layout;
 - (void)advance:(double)seconds;
