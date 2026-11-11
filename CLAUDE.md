@@ -28,7 +28,9 @@ Anh muốn ÍT đợt nghiệm thu: gom thành một bản hoàn chỉnh rồi m
 - Kỹ thuật: vật lý chạy luồng riêng, bỏ cấp phát mỗi khung; CI đo tỉ lệ khung trễ; bộ so sánh 20 cú mẫu với video thật; "phòng chuẩn" chụp ảnh so trước/sau mỗi bản; cờ tính năng cho gói IAP.
 - Trải nghiệm: mẫu đèn "Thi đấu" 520 lux; hướng dẫn tương tác 3 bước lần đầu; bảng tiến bộ hằng tuần; thử thách hằng ngày + bảng xếp hạng Game Center.
 - Đo bàn thật: anh quay 5 cú 240 fps ở CLB để hiệu chỉnh hệ số (chờ anh).
-- Nghiên cứu tính năng mới 2026 (deep research) → đề xuất bổ sung.
+- Nghiên cứu tính năng 2026 (Project doc `claude/zoker-nghien-cuu-tinh-nang-2026.md`) — anh duyệt lưu và sẽ làm theo lộ trình: 0.40 khung IAP (cờ + StoreKit 2), bài mỗi ngày + chuỗi ngày, "Giữ mắt", "Vì sao trượt" (phân tích), Z-Exam v1; 0.41 bóng ma + Game Center, giải tuần, thống kê, chia sẻ link/QR, rung+âm, AI coach, mở bán; sau: ảnh bàn → thế bi, Apple Watch, SharePlay, RealityKit, AR.
+- (anh dặn 11/11 18:29) Đấu với máy 6 cấp: Beginner · Amateur · Quarter Pro · Semi Pro · Pro · AI; chọn luật (8/9/10 Ball, 15 Rotation, …), race. Máy chọn cú bằng tìm kiếm trên lõi vật lý tất định (ứng viên cú → mô phỏng → chấm điểm vào lỗ + vị trí + phòng thủ), cấp độ = sai số thực thi (góc/lực/xoáy) + độ sâu tính toán (vị trí 0–3 bi, phòng thủ, kick thoát). Viết test C++ trước (tỉ lệ vào theo cấp nằm trong khoảng mục tiêu). Chạy ở luồng riêng.
+- (anh dặn 11/11 18:29) Sắp xếp lại giao diện và hạng mục cho hợp lý, dễ dùng.
 
 ## 0.39 (anh nghiệm thu 0.38 ngày 11/11 + 7 phát hiện)
 Đồng bộ khung hình (bi trôi), chỉ bi đổ bóng (kiểu 0.19) + gậy không đổ bóng bản đồ, gậy mờ khi che hướng ngắm, sợi nỉ 0,6 mm, típ vòm 4,5 mm, nỉ cũ chấm li ti/bi cũ đục, sàn hết sọc, bỏ viền kim loại, Wi‑Fi break được, bảng điểm kiểu TV, cảnh đầu xem lại thấp hơn, Tuỳ chỉnh 5 thẻ, sảnh gọn. Bàn theo thương hiệu thật: KHÔNG chép 100% kiểu dáng/tên (rủi ro kiểu dáng công nghiệp khi bán app) — dùng kích thước chuẩn WPA + họ kiểu dáng phổ biến, tên Z-.
