@@ -70,7 +70,7 @@ final class InteractionTests: XCTestCase {
     /// CI log lines are cut at 300 chars: lead failures with the fields that explain a stall.
     private func brief(_ scene: XCUIElement) -> String {
         let v = scene.value as? String ?? ""
-        let keys = ["ballCount","busy","locked","editing","replay","preRoll","kind","status","lastTouch"]
+        let keys = ["kind","moving","shots","jumpSeen","ballCount","busy","locked","editing","replay","preRoll","status","lastTouch"]
         let parts = v.split(separator: ";")
         return keys.compactMap { k in parts.first { $0.hasPrefix(k + "=") }.map(String.init) }.joined(separator: ";")
     }
@@ -114,13 +114,17 @@ final class InteractionTests: XCTestCase {
         let down = pitchBefore < 0.8
         let start = scene.coordinate(withNormalizedOffset: CGVector(dx: 0.40, dy: down ? 0.30 : 0.50))
         let end = scene.coordinate(withNormalizedOffset: CGVector(dx: 0.40, dy: down ? 0.50 : 0.30))
-        start.press(forDuration: 0.05, thenDragTo: end)
+        // Intel CI can drop a synthesized drag (seen in run 126 only): retry the same gesture, never a different one.
+        for _ in 0..<3 {
+            start.press(forDuration: 0.05, thenDragTo: end)
+            if poll(5 * slow, { let p = self.field(scene, "pitch"); return p.isFinite && abs(p - pitchBefore) > 0.01 }) { break }
+        }
         let changed = NSPredicate { _, _ in
             let p = self.field(scene, "pitch")
             return p.isFinite && abs(p - pitchBefore) > 0.01
         }
         expectation(for: changed, evaluatedWith: scene)
-        waitForExpectations(timeout: 10 * slow)
+        waitForExpectations(timeout: 2 * slow)
         XCTAssertEqual(angle(scene), angleBefore, accuracy: 1e-6, "kéo dọc không được đổi hướng ngắm")
         XCTAssertTrue((scene.value as? String ?? "").contains("moving=0"))
     }
@@ -303,7 +307,8 @@ final class InteractionTests: XCTestCase {
 
     func testJumpShotResetsEffectAndReturnsToPlayingCue() {
         let (_,scene)=launch(["--ux018-jump-qa"])
-        wait(scene,timeout:10 * slow){self.field(scene,"kind")==1 && self.field(scene,"moving")==1}
+        // latched by the app: the jump shot really ran with the jump cue (0.5 s polling could miss a short shot)
+        wait(scene,timeout:10 * slow){self.field(scene,"jumpSeen")==1}
         wait(scene){self.field(scene,"moving")==0 && self.field(scene,"kind")==0}
         XCTAssertEqual(field(scene,"side"),0,accuracy:0.0001)
         XCTAssertEqual(field(scene,"top"),0,accuracy:0.0001)

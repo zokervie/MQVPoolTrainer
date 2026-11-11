@@ -67,6 +67,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     var shotProfile=ShotProfile()
     var hudLayoutKey="",hudLayoutDeferred=false
+    var qaShots=0,qaJumpSeen=false   // UI-test latches: polling every 0.5 s can miss a short shot
     var shotTickStart:Double?
     /// A/B switches for the same build (Chẩn đoán độ mượt): bring back the 0.39 behaviours to prove or refute a cause.
     static var legacyStatusAB:Bool{UserDefaults.standard.bool(forKey:"diagLegacyStatus039")}
@@ -336,7 +337,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 func fire(_ left:Int){
                     DispatchQueue.main.asyncAfter(deadline:.now()+(left==40 ? (args.contains("--ux018-jump-qa") ? 2:0.8):0.5)){[weak self] in
                         guard let self=self,!self.shotActive,self.frames.isEmpty else{return}
+                        // 0.39d: a startup gate can swallow chooseShotKind(1) — re-select before every attempt.
+                        if args.contains("--ux018-jump-qa") && self.shotKind != 1 {self.locked=false;self.chooseShotKind(1)}
                         self.locked=true;self.shoot(args.contains("--ux018-jump-qa") ? 1:2)
+                        if self.shotActive {self.qaShots+=1}
                         if !self.shotActive && left>0 {fire(left-1)}
                     }
                 }
@@ -1623,7 +1627,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f",preparationDuration,replayClock)+String(format:";coachDown=%d;coachUp=%d;locked=%d;expanded=%d;coachEnabled=%d",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
+        if shotActive && shotKind==1 {qaJumpSeen=true}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f",preparationDuration,replayClock)+String(format:";coachDown=%d;coachUp=%d;locked=%d;expanded=%d;coachEnabled=%d",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);jumpSeen="+(qaJumpSeen ? "1":"0")+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
