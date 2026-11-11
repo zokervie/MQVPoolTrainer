@@ -32,6 +32,9 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
         var sampledFrames = 0
         var starvedFrames = 0
         var maximumSampleAge = 0.0
+        /// SceneKit's `updateAtTime` minus CACurrentMediaTime() at the callback (s): Apple documents only "current
+        /// system time"; this tells on the device whether it is a timestamp, a target time or "now".
+        var clockOffsets: [Double] = []
         var lastRenderTime: Double?
         var interval = 1.0 / 60.0
     }
@@ -123,6 +126,7 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
                 if measured.intervals.count > 3600 { measured.intervals.removeFirst(measured.intervals.count - 3600) }
             }
             measured.lastRenderTime = time
+            if measured.clockOffsets.count < 600 { measured.clockOffsets.append(time - CACurrentMediaTime()) }
             measured.interval = intervalValue
             measured.sampledFrames += 1
             if starved { measured.starvedFrames += 1 }
