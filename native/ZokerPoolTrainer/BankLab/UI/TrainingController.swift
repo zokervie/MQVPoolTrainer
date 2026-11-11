@@ -2416,12 +2416,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
             let budget=1000.0/Double(Tuning.frameRate)
             let over=pr.tick.filter{$0*1000>budget*0.8}.count
-            let message=count==0 ? "Đánh một cú trước để đo nhịp trên thiết bị.":
-                "Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%d/%d khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000)+
-                "\nĐồng hồ SceneKit − hiện tại (ms): "+ms(render.clockOffsets)+
-                "\n\nCPU luồng chính mỗi khung (ms):\nVật lý: "+ms(pr.physics)+"\nGhi xem lại: "+ms(pr.record)+"\nSự kiện/âm: "+ms(pr.events)+"\nCảnh 3D: "+ms(pr.scene)+"\nCả tick: "+ms(pr.tick)+
-                String(format:"\n%d/%d khung dùng quá 80%% ngân sách %.1f ms\nBố cục UIKit giữa cú: %d lượt · dựng lại phím: %d · mẫu xem lại: %d",over,pr.tick.count,budget,pr.layoutPasses,pr.hudRelayouts,pr.recordedSamples)+
-                "\nA/B: trạng thái 5 Hz cũ "+(Self.legacyStatusAB ? "BẬT":"tắt")+" · xem lại không quay chậm "+(Self.replayNoSlowAB ? "BẬT":"tắt")
+            var lines:[String]=[]
+            lines.append("Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%d/%d khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000))
+            lines.append("\nĐồng hồ SceneKit − hiện tại (ms): "+ms(render.clockOffsets))
+            lines.append("\n\nCPU luồng chính mỗi khung (ms):\nVật lý: "+ms(pr.physics)+"\nGhi xem lại: "+ms(pr.record)+"\nSự kiện/âm: "+ms(pr.events)+"\nCảnh 3D: "+ms(pr.scene)+"\nCả tick: "+ms(pr.tick))
+            lines.append(String(format:"\n%d/%d khung dùng quá 80%% ngân sách %.1f ms\nBố cục UIKit giữa cú: %d lượt · dựng lại phím: %d · mẫu xem lại: %d",over,pr.tick.count,budget,pr.layoutPasses,pr.hudRelayouts,pr.recordedSamples))
+            lines.append("\nA/B: trạng thái 5 Hz cũ "+(Self.legacyStatusAB ? "BẬT":"tắt")+" · xem lại không quay chậm "+(Self.replayNoSlowAB ? "BẬT":"tắt"))
+            let message=count==0 ? "Đánh một cú trước để đo nhịp trên thiết bị.":lines.joined()
             let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
             alert.addAction(UIAlertAction(title:Self.legacyStatusAB ? "A/B: tắt trạng thái 5 Hz cũ":"A/B: bật lại trạng thái 5 Hz cũ (để so)",style:.default){_ in
                 UserDefaults.standard.set(!Self.legacyStatusAB,forKey:"diagLegacyStatus039")})
