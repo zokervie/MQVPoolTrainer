@@ -173,7 +173,15 @@ final class InteractionTests: XCTestCase {
     func testCameraRoundTripPreservesAimHeightAndZoom() {
         let (app,scene)=launch(["--ux017-qa"])
         scene.pinch(withScale:0.8,velocity:-1)
-        let zoom=field(scene,"zoom"),pitch=field(scene,"pitch")
+        // Run 127: the baseline was read while the camera was still easing after the pinch (pitch 1.197 → 1.228).
+        // Capture it only once zoom and pitch hold still for a second.
+        var zoom=field(scene,"zoom"),pitch=field(scene,"pitch")
+        _=poll(10 * slow){
+            Thread.sleep(forTimeInterval:1)
+            let z=self.field(scene,"zoom"),p=self.field(scene,"pitch")
+            defer{zoom=z;pitch=p}
+            return abs(z-zoom)<0.0005 && abs(p-pitch)<0.0005
+        }
         quick(app,"QuickCamera").tap();quick(app,"QuickCamera").tap()
         let returned=NSPredicate { _,_ in self.field(scene,"mode")==2 }
         expectation(for:returned,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
