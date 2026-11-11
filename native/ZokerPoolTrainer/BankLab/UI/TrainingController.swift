@@ -525,6 +525,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 A(title:"Bài tập · 5 cấp",icon:"star.circle",id:"LobbyDrills",run:{[weak self] in self?.chooseDrill()}),
                 A(title:"Thử thách kick 1–3 băng",icon:"arrow.triangle.turn.up.right.diamond",id:"LobbyKick",run:{[weak self] in self?.chooseKick()})]),
             .init(title:"Thi đấu",subtitle:"8 · 9 · 10 Ball luật WPA, 15 Ball Rotation",icon:"trophy",color:LobbyController.match,actions:[
+                A(title:"Đấu với máy · 6 cấp",icon:"cpu",id:"LobbyComputer",run:{[weak self] in self?.openComputerMatch()}),
                 A(title:"Hai người · một máy",icon:"person.2",id:"LobbyLocal",run:{[weak self] in self?.openMatchMenu(scope:0)}),
                 A(title:"Wi‑Fi gần nhau",icon:"wifi",id:"LobbyWifi",run:{[weak self] in self?.openMatchMenu(scope:1)}),
                 A(title:"Online · Game Center",icon:"globe",id:"LobbyOnline",run:{[weak self] in self?.openMatchMenu(scope:2)})]),
@@ -1435,6 +1436,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if matchPlay.active, shownAt-lastTurnCheck>0.5 {lastTurnCheck=shownAt;if matchAllowsInput != localTurn {syncMatchControls()}}
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let guestTick=matchGuestTick(dt)
+        driveComputerTurn()   // 0.40 Đấu với máy (no-op unless it is the computer's turn at rest)
         // Keep rendering until a Premium QA probe has recorded its result; slow
         // Simulator GPUs can need longer than the startup window.
         let premiumPending = !premiumProbeWritten && ProcessInfo.processInfo.arguments.contains("--premium-qa")

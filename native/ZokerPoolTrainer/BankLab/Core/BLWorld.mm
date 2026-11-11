@@ -10,6 +10,7 @@ using namespace banklab;
 //    rectified track of the 8-ball over 4 cushions), Tests/ReverseZigzagTests.cpp. Single clip = measured, not general.
 //  - squirt only with a raised cue (owner decision), break-cue gain 1.4 [design].
 - (instancetype)init { if((self=[super init])){_world=std::make_unique<World>(Config::app());}return self; }
+- (const void *)zokerCoreWorld { return _world.get(); }   // BLOpponent only (copies it on the main thread)
 - (BOOL)moving{return _world->moving();}
 - (double)elapsed{return _world->time;}
 - (double)maximumSpeed{

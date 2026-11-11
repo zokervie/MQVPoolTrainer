@@ -7,6 +7,9 @@ import simd
 final class MatchPlayState {
     let session = LocalMatchSession()
     var rules: BLMatch?
+    /// 0.40 Đấu với máy: level 0…5 of the computer (player 2); nil = two humans. Feature flag "vsComputer" (IAP-ready).
+    var computerLevel: Int?
+    var computerThinking = false, computerFailures = 0, computerTurnKey = ""
     var state: [String:Any] = [:]
     var active = false
     var showNumbers = false
@@ -57,6 +60,7 @@ extension TrainingController {
         guard matchPlay.active else { return true }
         if matchPlay.session.isApplyingCommand || matchPlay.applyingOfflineCommand { return true }
         guard matchInt("winner", fallback: -1) < 0 else { return false }
+        if matchPlay.computerLevel != nil && matchInt("currentPlayer") == 1 { return false }   // the computer's turn
         if matchPlay.session.role == .none { return true }
         let moving = matchPlay.session.role == .guest ?
             matchPlay.session.latestSnapshot?.isMoving == true : (shotActive || BLShotCameraBusy(shotCameraState))
@@ -388,6 +392,7 @@ extension TrainingController {
     func leaveMatch() {
         guard !shotActive || matchSimulationPaused || matchPlay.session.role == .guest else { notifyStatus("Chờ bi dừng trước khi rời trận"); return }
         matchPlay.active = false
+        matchPlay.computerLevel = nil; matchPlay.computerThinking = false
         matchPlay.session.leave()
         matchPlay.rules = nil; matchPlay.state = [:]
         matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
@@ -1063,5 +1068,111 @@ extension TrainingController {
          "eight_wrong_pocket":"Thua do bi 8 sai lỗ", "three_consecutive_fouls":"Thua do ba lỗi liên tiếp sau cảnh báo",
          "conceded":"Đối thủ nhận thua", "invalid_evidence":"Cú đánh không đủ dữ liệu để xác minh",
          "spot_blocked":"Không có chỗ hợp lệ để đặt lại bi"][reason] ?? "Tiếp tục theo quyền hiện tại"
+    }
+}
+
+// MARK: - 0.40 Đấu với máy (computer opponent, Core/Opponent.hpp via BLOpponent)
+extension TrainingController {
+    static let computerLevelTitles = ["Beginner", "Amateur", "Quarter Pro", "Semi Pro", "Pro", "AI"]
+    static let computerLevelNotes = ["mới chơi", "chơi vui", "CLB phong trào", "thi đấu phong trào", "chuyên nghiệp", "gần như không trượt"]
+    /// Lobby → Thi đấu → Đấu với máy: level, then rule, then race.
+    func openComputerMatch() {
+        guard !shotActive, replayIndex == nil, !locked else { return }
+        if matchPlay.active { openMatchActions(); return }
+        let sheet = UIAlertController(title: "Đấu với máy", message: "Máy tính toán bằng chính vật lý của bàn. Cấp càng cao càng ít sai tay, biết đi vị trí, phòng thủ và thoát bi.", preferredStyle: .actionSheet)
+        for (level, title) in Self.computerLevelTitles.enumerated() {
+            sheet.addAction(UIAlertAction(title: "\(title) · \(Self.computerLevelNotes[level])", style: .default) { [weak self] _ in self?.chooseComputerRule(level) })
+        }
+        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel)); presentSheet(sheet, source: menuButton)
+    }
+    func chooseComputerRule(_ level: Int) {
+        let sheet = UIAlertController(title: "Luật", message: "Đối thủ: \(Self.computerLevelTitles[level])", preferredStyle: .actionSheet)
+        for (rule, title) in matchDisciplines {
+            sheet.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in self?.chooseComputerRace(level, rule: rule) })
+        }
+        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel)); presentSheet(sheet, source: menuButton)
+    }
+    func chooseComputerRace(_ level: Int, rule: String) {
+        let sheet = UIAlertController(title: "Chạm mấy ván?", message: nil, preferredStyle: .actionSheet)
+        for race in [1, 3, 5, 7, 9] {
+            sheet.addAction(UIAlertAction(title: "Race \(race)", style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                UserDefaults.standard.set(level, forKey: "computerLevel040")
+                self.startMatch(rule: rule, network: false)
+                self.matchPlay.computerLevel = level
+                self.matchPlay.computerFailures = 0; self.matchPlay.computerTurnKey = ""
+                self.matchPlay.names = [UserDefaults.standard.string(forKey: "playerName0") ?? "Bạn", "Máy · " + Self.computerLevelTitles[level]]
+                self.matchPlay.raceTo = race
+                self.updateScoreboard(); self.syncMatchControls(); self.updateControls()
+                self.notifyStatus("Đấu với máy · \(Self.computerLevelTitles[level]) · race \(race) · bạn phá trước")
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel)); presentSheet(sheet, source: menuButton)
+    }
+    /// Called every tick: when it is the computer's turn and the table is still, plan on a background queue and play
+    /// the turn through the same command path as a human (choice → ball in hand → call → stroke).
+    func driveComputerTurn() {
+        guard matchPlay.active, let level = matchPlay.computerLevel, let rules = matchPlay.rules,
+              !matchPlay.computerThinking, matchInt("winner", fallback: -1) < 0, matchPlay.matchWinner < 0,
+              matchInt("currentPlayer") == 1, !shotActive, !presentationBusy, !table.rackIntroPlaying,
+              matchPlay.placementDraft == nil, presentedViewController == nil else { return }
+        let key = "\(matchPlay.rackNo)-\(matchInt("shotCount"))-\(matchPlay.state["pendingChoice"] as? String ?? "")-\(matchPlay.computerFailures)"
+        if key == matchPlay.computerTurnKey { return }
+        matchPlay.computerTurnKey = key
+        matchPlay.computerThinking = true
+        notifyStatus("Máy đang tính cú…")
+        let seed = UInt64.random(in: 1...UInt64.max)
+        let job = BLOpponent(world: engine, match: rules, level: level, seed: seed)
+        let started = ProcessInfo.processInfo.systemUptime
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let plan = job.plan()
+            // A short human pause so the turn is readable (never shorter than ~1 s in total).
+            let wait = max(0, 1.0 - (ProcessInfo.processInfo.systemUptime - started))
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in self?.playComputerTurn(plan, key: key) }
+        }
+    }
+    private func applyComputer(_ action: LANCommand.Action, shot: LANShot? = nil, placement: LANPlacement? = nil,
+                               call: LANCall? = nil, option: String? = nil) -> Bool {
+        let command = LANCommand(player: 1, action: action, shot: shot, placement: placement, call: call, option: option)
+        matchPlay.applyingOfflineCommand = true
+        let accepted = applyMatchCommand(command)
+        matchPlay.applyingOfflineCommand = false
+        return accepted
+    }
+    func playComputerTurn(_ plan: [String: Any], key: String) {
+        defer { matchPlay.computerThinking = false; updateControls(); syncMatchControls() }
+        guard matchPlay.active, matchPlay.computerLevel != nil, key == matchPlay.computerTurnKey,
+              matchInt("currentPlayer") == 1, !shotActive else { return }
+        func number(_ k: String) -> Double { (plan[k] as? NSNumber)?.doubleValue ?? 0 }
+        if let option = plan["option"] as? String, !option.isEmpty, !(matchPlay.state["pendingChoice"] as? String ?? "").isEmpty {
+            if !applyComputer(.chooseOption, option: option) { matchPlay.computerFailures += 1 }
+            else { notifyStatus("Máy chọn: \(option)") }
+            return
+        }
+        guard (plan["valid"] as? NSNumber)?.boolValue == true else { matchPlay.computerFailures += 1; return }
+        if (plan["placed"] as? NSNumber)?.boolValue == true, matchBool("ballInHand") {
+            _ = applyComputer(.placeCue, placement: LANPlacement(x: number("x"), y: number("y")))
+        }
+        let target = Int(number("target")), pocket = Int(number("pocket"))
+        if matchBool("requiresCall") {
+            let safety = (plan["safety"] as? NSNumber)?.boolValue == true
+            if safety, (matchPlay.state["rule"] as? String) == "eightBall" {
+                _ = applyComputer(.callShot, call: LANCall(ball: 0, pocket: -1, safety: true))
+            } else if target > 0, (0...5).contains(pocket) {
+                _ = applyComputer(.callShot, call: LANCall(ball: target, pocket: pocket))
+            }
+        }
+        angle = number("angle")
+        let shot = LANShot(angle: number("angle"), speed: number("speed"), side: number("side"), top: number("top"), elevation: 0, cueType: 0)
+        if applyComputer(.strike, shot: shot) {
+            matchPlay.computerFailures = 0
+        } else {
+            matchPlay.computerFailures += 1
+            if matchPlay.computerFailures >= 3 {
+                // Never stall the match: a plain roll at the table centre line (the referee judges it like any stroke).
+                matchPlay.computerFailures = 0
+                _ = applyComputer(.strike, shot: LANShot(angle: Double.pi / 2, speed: 2, side: 0, top: 0, elevation: 0, cueType: 0))
+            }
+        }
     }
 }

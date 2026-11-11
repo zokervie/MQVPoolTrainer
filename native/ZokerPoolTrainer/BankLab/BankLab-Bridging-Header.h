@@ -8,3 +8,4 @@
 #import "UI/StrokeResponse.h"
 #import "UI/ShotKindPolicy.h"
 #import "Core/BLMatch.h"
+#import "Core/BLOpponent.h"
