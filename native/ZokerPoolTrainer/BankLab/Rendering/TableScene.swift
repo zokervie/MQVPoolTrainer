@@ -1401,6 +1401,7 @@ final class TableScene {
     /// Call before loading a layout, starting another replay or seeking. Already
     /// sunk initial-state balls park immediately on the next update.
     func resetPocketPresentation(){
+        pacer.clear() // Layout/seek must not blend with an old shot.
         falling.removeAll(keepingCapacity:true)
         settledPocketNodes.removeAll(keepingCapacity:true)
         lastPlanar.removeAll(keepingCapacity:true);planarVelocity.removeAll(keepingCapacity:true)
