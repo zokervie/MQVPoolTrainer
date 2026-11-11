@@ -465,7 +465,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // 0.39d (CI 125): skip ONLY while balls are moving (live shot / replay) and nothing that places keys changed.
         // At rest every pass lays the HUD out exactly like 0.39 (shot kind, coach, ball editing… all rely on it);
         // a pass skipped mid-motion is replayed once the table is still.
-        let moving=shotActive || replayIndex != nil
+        // Code audit: a guest watching the host's shot gets scoreboard text at up to 10 Hz — that is motion too.
+        let moving=shotActive || replayIndex != nil || (matchPlay.session.role == .guest && matchPlay.session.latestSnapshot?.isMoving==true)
         if moving && key==hudLayoutKey && !Self.legacyStatusAB {hudLayoutDeferred=true;return}
         hudLayoutKey=key;hudLayoutDeferred=false
         if shotActive {shotProfile.hudRelayouts+=1}
@@ -1463,7 +1464,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if displayLink?.preferredFramesPerSecond != wantRate {displayLink?.preferredFramesPerSecond=wantRate}
         if scn.isPlaying != playing {scn.isPlaying=playing}
         if scn.rendersContinuously != playing {scn.rendersContinuously=playing}
-        if hudLayoutDeferred && !shotActive && replayIndex == nil {hudLayoutDeferred=false;view.setNeedsLayout()}
+        if hudLayoutDeferred && !shotActive && replayIndex == nil && !guestMoving {hudLayoutDeferred=false;view.setNeedsLayout()}
 
         if !active && !guestMoving && !(coachOn && guideOn && guideDirty){missWindow=0;missCount=0;return}
         // 0.37: adaptive quality — if more than 25 % of active frames over 2 s miss their slot, drop one render level

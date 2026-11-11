@@ -6,13 +6,19 @@
 //   - hand: execution error added to the planned stroke (aim / speed / tip offset), drawn from a seeded generator;
 //   - head: how the stroke is chosen (does it centre the pot window, look one ball ahead, play safe, escape a snooker).
 // Skill numbers are ASSUMPTIONS to be tuned against real ratings, not measurements:
-//   aim error (1 sigma)  1.5°, 0.8°, 0.45°, 0.30°, 0.18°, 0.08°  for Beginner … AI.
+//   aim error (1 sigma)  0.65°, 0.47°, 0.33°, 0.24°, 0.17°, 0.08°  for Beginner … AI.
+//   Chosen so that on this engine's MEDIAN pot window (~0.5° wide at 1–1.5 m, measured by potWindow) the expected
+//   Tip error (side/top, ball radii) 0.10 … 0.02: unintended side squirts the cue ball ~1° per 0.1 R on this engine,
+//   so it is part of the aim budget, not on top of it.
+//   pot rate on a makeable ball is ~30 / 40 / 55 / 70 / 85 / 95 % (assumed targets, to tune with real players).
 // Deterministic: the same world, state, level and seed always give the same stroke.
 #include "MatchRules.hpp"
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 
 namespace banklab { namespace ai {
@@ -35,11 +41,11 @@ struct Skill {
 };
 inline const Skill& skill(int level){
     static const std::array<Skill,kLevels> table={{
-        {"Beginner",   1.50*kPi/180,.20,.25,false,0,false,0.00,false,.25,4.0},
-        {"Amateur",    0.80*kPi/180,.14,.18,true, 0,false,0.00,false,.12,5.0},
-        {"Quarter Pro",0.45*kPi/180,.10,.12,true, 1,false,0.20,true, .06,6.0},
-        {"Semi Pro",   0.30*kPi/180,.07,.08,true, 1,true, 0.30,true, .03,6.8},
-        {"Pro",        0.18*kPi/180,.05,.05,true, 2,true, 0.40,true, .00,7.4},
+        {"Beginner",   0.65*kPi/180,.20,.10,false,0,false,0.00,false,.25,4.0},
+        {"Amateur",    0.47*kPi/180,.14,.08,true, 0,false,0.00,false,.12,5.0},
+        {"Quarter Pro",0.33*kPi/180,.10,.06,true, 1,false,0.20,true, .06,6.0},
+        {"Semi Pro",   0.24*kPi/180,.07,.04,true, 1,true, 0.30,true, .03,6.8},
+        {"Pro",        0.17*kPi/180,.05,.03,true, 2,true, 0.40,true, .00,7.4},
         {"AI",         0.08*kPi/180,.02,.02,true, 2,true, 0.45,true, .00,7.8}}};
     return table[static_cast<size_t>(std::clamp(level,0,kLevels-1))];
 }
@@ -73,17 +79,21 @@ inline std::array<V2,6> mouths(const Config& c){
     return {V2{-x+r*.6,-y+r*.6},V2{x-r*.6,-y+r*.6},V2{-x-r*.2,0},V2{x+r*.2,0},V2{-x+r*.6,y-r*.6},V2{x-r*.6,y-r*.6}};
 }
 inline const Ball* find(const std::vector<Ball>& balls,int id){for(const auto& b:balls)if(b.id==id&&!b.sunk)return &b;return nullptr;}
+// Same definitions as match::Rules (private there); kept identical so the opponent never disagrees with the referee.
+inline int ballGroup(int id){return id>=1&&id<=7?0:(id>=9&&id<=15?1:-1);}
+inline int countGroup(const std::vector<Ball>& balls,int group){int n=0;for(const auto& b:balls)if(!b.sunk&&ballGroup(b.id)==group)++n;return n;}
+inline int lowestBall(const std::vector<Ball>& balls){int n=99;for(const auto& b:balls)if(b.id>0&&!b.sunk)n=std::min(n,b.id);return n==99?-1:n;}
 
 /// May `id` be the first object ball struck by `player`?
 inline bool legalFirst(const match::State& s,const std::vector<Ball>& balls,int id,int player){
     if(id<=0)return false;
     using D=match::Discipline;
-    if(s.rule!=D::EightBall)return id==match::Rules::lowestBall(balls);
+    if(s.rule!=D::EightBall)return id==lowestBall(balls);
     const int group=s.groups[static_cast<size_t>(player)];
     if(s.breakShot)return true;
     if(group<0)return id!=8;
-    if(match::Rules::countGroup(balls,group)==0)return id==8;
-    return match::Rules::ballGroup(id)==group;
+    if(countGroup(balls,group)==0)return id==8;
+    return ballGroup(id)==group;
 }
 /// Is potting `id` good for `player` (keeps the turn or wins)? The 8 before its time is handled by the caller.
 inline bool wantedPot(const match::State& s,const std::vector<Ball>& balls,int id,int player){
@@ -91,8 +101,8 @@ inline bool wantedPot(const match::State& s,const std::vector<Ball>& balls,int i
     if(id<=0)return false;
     if(s.rule==D::EightBall){
         const int group=s.groups[static_cast<size_t>(player)];
-        if(id==8)return group>=0&&match::Rules::countGroup(balls,group)==0;
-        return group<0||match::Rules::ballGroup(id)==group;
+        if(id==8)return group>=0&&countGroup(balls,group)==0;
+        return group<0||ballGroup(id)==group;
     }
     return true;
 }
@@ -180,15 +190,19 @@ inline double paceFor(const World& w,double cueTravel,double objectTravel,double
     const double g=9.81,mu=w.config.rolling;
     const double vObject=std::sqrt(2*mu*g*(objectTravel+extra));
     const double vCueAtImpact=vObject/std::max(0.2,cutCos);
-    const double v=std::sqrt(vCueAtImpact*vCueAtImpact+2*mu*g*cueTravel+0.35);   // +sliding loss allowance
-    return std::clamp(v,0.7,7.5);
+    // A struck ball slides first and keeps ~5/7 of its speed once rolling (Shepard; Alciatore TP 4.1), and a cut
+    // transfers speed only along the line of centres; 1.45 covers both plus throw losses (CALIBRATED in
+    // OpponentTests: the planned pace must drop the ball at the geometric line, not die in the jaws).
+    const double v=1.45*std::sqrt(vCueAtImpact*vCueAtImpact+2*mu*g*cueTravel)+0.15;
+    return std::clamp(v,0.8,7.5);
 }
 
 struct Candidate {int ball=-1,pocket=-1;double angle=0,speed=0,top=0,side=0,chance=0,value=0;Judgement outcome{};};
 
 /// Scan aim offsets around the geometric line; returns the centre and angular width (rad) of the window that pots.
 inline bool potWindow(const World& w,const match::State& s,int player,const Ball& object,int k,double geometric,double speed,double top,double& centre,double& width){
-    const double span=1.2*kPi/180;const int n=13;int first=-1,last=-1,run=0,bestFirst=-1,bestRun=0;
+    // Throw/squirt can move the window ~1° off the ghost line.
+    const double span=2.4*kPi/180;const int n=25;int first=-1,last=-1,run=0,bestFirst=-1,bestRun=0;
     for(int i=0;i<n;++i){
         const double a=geometric+span*(2.0*i/(n-1)-1);
         const Judgement j=judge(w,s,w.simulate(a,speed,0,top,25),player,object.id,k);
@@ -262,7 +276,7 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
             const V2 ghost=b.p-u*(2*r);const V2 line=ghost-cue->p;const double dc=line.length();
             const double geometric=std::atan2(line.y,line.x),cutCos=(line.x*u.x+line.y*u.y)/dc;
             std::vector<double> tops{0};if(k.usesSpin){tops.push_back(0.55);tops.push_back(-0.55);}
-            std::vector<double> extras{0.25};if(k.lookahead>0){extras.push_back(0.9);}
+            std::vector<double> extras{0.6};if(k.lookahead>0){extras.push_back(1.3);}   // object ball runs 0.6 m past the pocket: a firm pot, not one dying in the jaws
             for(double top:tops)for(double extra:extras){
                 Candidate c;c.ball=b.id;c.pocket=pk;c.top=top;c.speed=paceFor(world,dc,dp,cutCos,extra);
                 double centre=geometric,width=0;

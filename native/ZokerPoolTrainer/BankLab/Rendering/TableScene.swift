@@ -1346,7 +1346,10 @@ final class TableScene {
                 pacer.remove(b.id)
                 if falling[b.id]==nil{
                     let previous=lastPlanar[b.id]
-                    let from=previous ?? planar
+                    // 0.39d (code audit): while the pacer draws 1.5 frames behind the solver, start the fall from where
+                    // the ball is SHOWN, not from the newest solver sample — otherwise it skips forward as it drops.
+                    let shown=SIMD2<Float>(node.simdPosition.x,node.simdPosition.z)
+                    let from=pacer.isActive && node.simdPosition.y>0 ? shown:(previous ?? planar)
                     let velocity=planarVelocity[b.id] ?? .zero
                     // Classify from the solver's captured position, not the
                     // previous rendered frame: a fast break can travel many
