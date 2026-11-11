@@ -59,6 +59,18 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var paths:[Int:[SIMD3<Float>]]=[:]
     var sampleClock=0.0,draggedBall:Int?
     var displayDurations:[Double]=[]
+    /// 0.39c AUTOPSY: main-thread CPU time per live-shot frame, split by stage (seconds), plus how many times UIKit
+    /// laid the HUD out while balls were rolling. Evidence for the owner's device, not a guess from the simulator.
+    struct ShotProfile {
+        var physics:[Double]=[],record:[Double]=[],events:[Double]=[],scene:[Double]=[],tick:[Double]=[]
+        var layoutPasses=0,hudRelayouts=0,recordedSamples=0
+    }
+    var shotProfile=ShotProfile()
+    var hudLayoutKey=""
+    var shotTickStart:Double?
+    /// A/B switches for the same build (Chẩn đoán độ mượt): bring back the 0.39 behaviours to prove or refute a cause.
+    static var legacyStatusAB:Bool{UserDefaults.standard.bool(forKey:"diagLegacyStatus039")}
+    static var replayNoSlowAB:Bool{UserDefaults.standard.bool(forKey:"diagReplayNoSlow039")}
     var lastEventCount=0
     let titleLabel=UILabel(),statusLabel=UILabel(),scoreLabel=UILabel(),hintLabel=UILabel()
     let spinCenter=UIButton(type:.system)
@@ -202,7 +214,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     let predictionQueue=DispatchQueue(label:"ZTrainer.prediction",qos:.utility)
     var predictionPending=false,predictionGeneration=0,coachGeneration=0
     let coachQueue=DispatchQueue(label:"ZTrainer.coach",qos:.utility)
-    func wakeRendering(){renderUntil=ProcessInfo.processInfo.systemUptime+0.4;displayLink?.preferredFramesPerSecond=Tuning.frameRate;scn?.setNeedsDisplay()}
+    func wakeRendering(){
+        renderUntil=ProcessInfo.processInfo.systemUptime+0.4
+        // 0.39c: never re-assign an unchanged rate — re-arming the link mid-shot can shift its phase by a frame.
+        if displayLink?.preferredFramesPerSecond != Tuning.frameRate {displayLink?.preferredFramesPerSecond=Tuning.frameRate}
+        scn?.setNeedsDisplay()
+    }
     /// 0.39b: a thermal change rebuilds shader variants (shadow taps, ball segments) = a visible stall; never mid-shot.
     @objc func thermalChanged(){
         if shotActive || replayIndex != nil {pendingThermal=true;return}
@@ -432,8 +449,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // Do not keep a second rendering loop running behind the research workspace.
         displayLink?.isPaused=true;scn?.isPlaying=false;scn?.rendersContinuously=false
     }
+    /// 0.39c ROOT CAUSE candidate (live-only 5 Hz hitch): ANY Auto Layout change under this view — a label text in the
+    /// hidden menu, a toast, a score — ends here, and this used to re-place ~25 keys, redraw the effect ball and B,
+    /// re-read saved offsets, restart a fade animation and re-arm the display link. Now the HUD is laid out only when
+    /// its inputs changed (size, safe area, hand, expanded ball, key count, scale); everything else is a no-op.
     override func viewDidLayoutSubviews(){
-        super.viewDidLayoutSubviews();layoutRightHUD();wakeRendering()
+        super.viewDidLayoutSubviews()
+        if shotActive {shotProfile.layoutPasses+=1}
+        let safe=hudSafeFrame
+        let key="\(view.bounds.size)|\(safe)|\(leftHanded)|\(spinExpanded)|\(menuOpen)|\(matchIsCompetitive)|\(matchIsCompetitive && matchBool("requiresCall"))|\(Tuning.hudScale)|\(replayIndex != nil)"
+        if key==hudLayoutKey && !Self.legacyStatusAB {return}
+        hudLayoutKey=key
+        if shotActive {shotProfile.hudRelayouts+=1}
+        layoutRightHUD();wakeRendering()
     }
     /// 0.22: HUD controls are placed by the portable policy BLHUDLayout (PresentationPolicy.h, C++-tested):
     /// thumb column on the dominant-hand edge, effect ball 76/100 pt, elevation beside it, wheel under it,
@@ -525,7 +553,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));presentSheet(sheet,source:menuButton)
     }
     func setLeftHanded(_ on:Bool){
-        UserDefaults.standard.set(on,forKey:"leftHanded022");view.setNeedsLayout();view.layoutIfNeeded()
+        UserDefaults.standard.set(on,forKey:"leftHanded022");hudLayoutKey="";view.setNeedsLayout();view.layoutIfNeeded()
         notifyStatus(on ? "Tay trái: phím và bi effect bên trái":"Tay phải: phím và bi effect bên phải")
     }
     func recordG1QA(_ name:String,_ values:[String:Any]){
@@ -614,7 +642,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self.coachButton.isEnabled = !expanded
             self.spin.isHidden=self.menuOpen
             self.spinCenter.isHidden = !expanded
-            self.view.layoutIfNeeded()
+            self.hudLayoutKey="";self.view.setNeedsLayout();self.view.layoutIfNeeded()
         }
         lockButton.heldChanged={[weak self] held in self?.setHold(held)}
         NSLayoutConstraint.activate([
@@ -957,7 +985,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         syncCueIcons()
         guard quickRole != nil else{return}
         let wantCall=matchIsCompetitive && matchBool("requiresCall"),wantRetry = !matchIsCompetitive
-        if quickCall.isHidden == wantCall || retryButton.isHidden == wantRetry {quickCall.isHidden = !wantCall;retryButton.isHidden = !wantRetry;view.setNeedsLayout()}
+        if quickCall.isHidden == wantCall || retryButton.isHidden == wantRetry {quickCall.isHidden = !wantCall;retryButton.isHidden = !wantRetry;hudLayoutKey="";view.setNeedsLayout()}
         let role=engine.settings["cueType"]?.intValue ?? 0
         elevationPad.degrees=table.cueElevation
         let kindNames=[0:"Đánh",1:"Jump",2:"Break",3:"Massé"]
@@ -1346,7 +1374,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         displayDurations=[]
         table.pacer.clear()
         table.pacer.interval=1.0/Double(Tuning.frameRate)
-        table.pacer.resetDiagnostics()
+        table.pacer.resetDiagnostics();shotProfile=ShotProfile()
         // Seed the pre-strike pose, so the first interpolated frame includes
         // the start of the stroke rather than jumping to the first sample.
         let previousPresentAt=table.presentAt
@@ -1409,13 +1437,21 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // One fixed 60 Hz cadence for simulation and rendering; idle drops to 15 Hz.
         // 0.39: SceneKit's own loop must run at the same rate as the tick, or paced frames repeat (120 Hz tick, 60 Hz view).
         if scn.preferredFramesPerSecond != Tuning.frameRate {scn.preferredFramesPerSecond=Tuning.frameRate}
-        table.presentAt=link.targetTimestamp;defer{table.presentAt=nil}
+        table.presentAt=link.targetTimestamp
+        defer{
+            table.presentAt=nil
+            if let start=shotTickStart {shotTickStart=nil;if shotProfile.tick.count<3600 {shotProfile.tick.append(CACurrentMediaTime()-start)}}
+        }
         // Keep the presentation delay fixed through a motion segment. Changing
         // it on a missed refresh would move the sampling clock backwards.
-        if !table.pacer.isActive {table.pacer.interval=link.targetTimestamp-link.timestamp}
-        displayLink?.preferredFramesPerSecond=active ? Tuning.frameRate:30   // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh
-        scn.isPlaying=active || guestMoving;scn.rendersContinuously=active || guestMoving
-        if active || guestMoving{scn.setNeedsDisplay()}
+        // 0.39c: the idle link runs at 30 Hz, so its duration is NOT the active refresh; use the chosen rate.
+        if !table.pacer.isActive {table.pacer.interval=1.0/Double(Tuning.frameRate)}
+        // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh. 0.39c: set only on change.
+        let wantRate=active ? Tuning.frameRate:30,playing=active || guestMoving
+        if displayLink?.preferredFramesPerSecond != wantRate {displayLink?.preferredFramesPerSecond=wantRate}
+        if scn.isPlaying != playing {scn.isPlaying=playing}
+        if scn.rendersContinuously != playing {scn.rendersContinuously=playing}
+
         if !active && !guestMoving && !(coachOn && guideOn && guideDirty){missWindow=0;missCount=0;return}
         // 0.37: adaptive quality — if more than 25 % of active frames over 2 s miss their slot, drop one render level
         // (shadow samples / map size). Physics and interpolation are unaffected (render cost only).
@@ -1441,7 +1477,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if let index=replayIndex {
             let direction=replayPlan?.frame(time:replayClock,balls:frames[index])
             let endingRate=ReplayDirector.endingRate(time:replayClock,duration:frameTimes.last ?? 0)
-            let rate=replayClock<0 ? 1:min(endingRate,replayAuto && !cameraManual ? (direction?.slowMotion ?? 1):1)
+            let rate=replayClock<0 || Self.replayNoSlowAB ? 1:min(endingRate,replayAuto && !cameraManual ? (direction?.slowMotion ?? 1):1)
             replayClock += replayPaused ? 0:dt*replaySpeed*rate
             var i=index
             while i+1<frames.count && replayClock>=frameTimes[i+1] {i+=1}
@@ -1475,11 +1511,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             // 6 m/s jump shot moved 20 cm between samples and slow-motion interpolation started the object ball early.
             // Advance in 1/240 s chunks and sample by speed: 240 Hz while anything is fast, 60 Hz medium, 30 Hz slow.
             var remaining=dt
+            let tickStart=CACurrentMediaTime();var physicsTime=0.0,recordTime=0.0
             while remaining>1e-9 {
+                let p0=CACurrentMediaTime()
                 let h=min(1.0/240.0,remaining);engine.advance(h);remaining-=h;sampleClock+=h
                 let fastest=engine.maximumSpeed
+                let p1=CACurrentMediaTime();physicsTime+=p1-p0
+                defer{recordTime+=CACurrentMediaTime()-p1}
                 let interval=fastest>0.8 ? 1.0/240.0:(fastest>0.25 ? 1.0/60.0:1.0/30.0)
                 if sampleClock>=interval-1e-9 {
+                    shotProfile.recordedSamples+=1
                     let chunk=engine.states.map{BallState($0)}
                     sampleClock=0
                     frames.append(chunk);frameTimes.append(engine.elapsed)
@@ -1487,6 +1528,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 }
             }
             // Dispatch impacts before rendering, labels or archive sampling.
+            let e0=CACurrentMediaTime()
             let fresh=engine.events(since:UInt(lastEventCount))
             if !fresh.isEmpty {
                 if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {
@@ -1495,13 +1537,20 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 lastEventCount+=fresh.count
             }
             didAdvanceMatchShot()
+            let s0=CACurrentMediaTime()
             let state=engine.states.map{BallState($0)};frameStateCache=state
             table.update(engine.presentationStates.map{BallState($0)},dt:dt)
+            let s1=CACurrentMediaTime()
+            if shotProfile.tick.count<3600 {
+                shotProfile.physics.append(physicsTime);shotProfile.record.append(recordTime)
+                shotProfile.events.append(s0-e0);shotProfile.scene.append(s1-s0)
+            }
+            shotTickStart=tickStart
             // The multiline status label lives inside the menu's Auto Layout stack.
             // Updating it while that menu is hidden can invalidate layout at 5 Hz;
             // viewDidLayoutSubviews then lays out the whole HUD and wakes rendering.
             // Keep live status work tied to visibility. finishShot supplies the result.
-            if menuOpen,link.timestamp-lastStatusTime>0.2,let cb=state.first(where:{$0.id==0}),!cb.sunk {
+            if menuOpen || Self.legacyStatusAB,link.timestamp-lastStatusTime>0.2,let cb=state.first(where:{$0.id==0}),!cb.sunk {
                 lastStatusTime=link.timestamp
                 statusLabel.text=String(format:"Đang chạy · %.2f m/s · %.1f s",hypot(cb.vx ?? 0,cb.vy ?? 0),engine.elapsed)
             }
@@ -2356,9 +2405,24 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 guard !v.isEmpty else{return "chưa có dữ liệu"}
                 return String(format:"%d khung · p50 %.2f · p95 %.2f · max %.2f ms",v.count,v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
             }
+            let pr=self.shotProfile
+            func ms(_ v:[Double])->String {
+                let v=v.sorted();guard !v.isEmpty else{return "—"}
+                return String(format:"p50 %.2f · p95 %.2f · max %.2f",v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
+            }
+            let budget=1000.0/Double(Tuning.frameRate)
+            let over=pr.tick.filter{$0*1000>budget*0.8}.count
             let message=count==0 ? "Đánh một cú trước để đo nhịp trên thiết bị.":
-                "Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%d/%d khung thiếu mẫu · mẫu trễ nhất %.2f ms\nĐệm hiển thị %.2f ms. Đây là nhịp callback render, chưa phải thời điểm GPU thực sự đưa hình lên màn.",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000)
+                "Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%d/%d khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000)+
+                "\n\nCPU luồng chính mỗi khung (ms):\nVật lý: "+ms(pr.physics)+"\nGhi xem lại: "+ms(pr.record)+"\nSự kiện/âm: "+ms(pr.events)+"\nCảnh 3D: "+ms(pr.scene)+"\nCả tick: "+ms(pr.tick)+
+                String(format:"\n%d/%d khung dùng quá 80%% ngân sách %.1f ms\nBố cục UIKit giữa cú: %d lượt · dựng lại phím: %d · mẫu xem lại: %d",over,pr.tick.count,budget,pr.layoutPasses,pr.hudRelayouts,pr.recordedSamples)+
+                "\nA/B: trạng thái 5 Hz cũ "+(Self.legacyStatusAB ? "BẬT":"tắt")+" · xem lại không quay chậm "+(Self.replayNoSlowAB ? "BẬT":"tắt")
             let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
+            alert.addAction(UIAlertAction(title:Self.legacyStatusAB ? "A/B: tắt trạng thái 5 Hz cũ":"A/B: bật lại trạng thái 5 Hz cũ (để so)",style:.default){_ in
+                UserDefaults.standard.set(!Self.legacyStatusAB,forKey:"diagLegacyStatus039")})
+            alert.addAction(UIAlertAction(title:Self.replayNoSlowAB ? "A/B: xem lại có quay chậm tự động":"A/B: xem lại 1× không quay chậm",style:.default){_ in
+                UserDefaults.standard.set(!Self.replayNoSlowAB,forKey:"diagReplayNoSlow039")})
+            alert.addAction(UIAlertAction(title:"Sao chép số đo",style:.default){_ in UIPasteboard.general.string=message})
             alert.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(alert)
         })
         a.addAction(UIAlertAction(title:"Khôi phục góc máy",style:.default){[weak self]_ in self?.table.orbit=0;self?.table.zoom=1;self?.table.aimPitch=TableScene.defaultAimPitch
@@ -2698,7 +2762,7 @@ extension TrainingController {
     func loadHUDLayout(_ n:Int){
         var found=false
         for (name,_) in hudItems{if let o=UserDefaults.standard.array(forKey:hudSlotKey(n,name)){found=true;UserDefaults.standard.set(o,forKey:hudOffsetKey(name))}}
-        view.setNeedsLayout();layoutRightHUD()
+        hudLayoutKey="";view.setNeedsLayout();layoutRightHUD()
         notifyStatus(found ? "Đang dùng bố cục phím \(n)":"Bố cục \(n) chưa lưu")
     }
     func applyTuning(){
@@ -2713,12 +2777,13 @@ extension TrainingController {
         let vc=CustomizeController()
         vc.changed={[weak self] in self?.applyTuning()}
         vc.openPhysics={[weak self] in self?.settings()}
+        vc.openDiagnostics={[weak self] in self?.graphics()}
         vc.arrangeHUD={[weak self] in self?.beginHUDArrange()}
         vc.saveLayout={[weak self] n in self?.saveHUDLayout(n)}
         vc.loadLayout={[weak self] n in self?.loadHUDLayout(n)}
         vc.resetHUD={[weak self] in guard let self=self else{return}
             for (name,_) in self.hudItems{UserDefaults.standard.removeObject(forKey:self.hudOffsetKey(name))}
-            self.view.setNeedsLayout();self.layoutRightHUD()}
+            self.hudLayoutKey="";self.view.setNeedsLayout();self.layoutRightHUD()}
         let nav=UINavigationController(rootViewController:vc);nav.modalPresentationStyle = .formSheet;present(nav,animated:true)
     }
     func beginHUDArrange(){

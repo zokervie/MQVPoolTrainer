@@ -203,6 +203,7 @@ enum Tuning {
 final class CustomizeController:UIViewController {
     var changed:(()->Void)?
     var openPhysics:(()->Void)?
+    var openDiagnostics:(()->Void)?
     var arrangeHUD:(()->Void)?
     var resetHUD:(()->Void)?
     var saveLayout:((Int)->Void)?
@@ -299,6 +300,8 @@ final class CustomizeController:UIViewController {
         segmented("Độ phân giải 3D",["100 %","85 %","70 % (mát máy)"],scales.firstIndex{abs($0-Tuning.renderScale)<0.01} ?? 0){
             UserDefaults.standard.set(scales[$0],forKey:"tuneScale036")}
         toggle("Đồng bộ khung hình (bi trôi mượt, không giật)","tuneFramePacing039",true)
+        target.addArrangedSubview(UIButton.lab("Chẩn đoán độ mượt · số đo cú vừa đánh"){[weak self] in
+            guard let self=self else{return};self.dismiss(animated:true){self.openDiagnostics?()}})
         header("Âm thanh")
         slider("Âm lượng tiếng bi","tuneVolume037",0,1)
         target=body

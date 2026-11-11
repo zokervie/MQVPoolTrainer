@@ -1391,7 +1391,7 @@ final class TableScene {
                 let rest=restOrientations[b.id] ?? simd_quatf(angle:0,axis:SIMD3<Float>(0,1,0))
                 let orientation=physical*rest
                 if let t=pacedAt {
-                    pacer.push(id:b.id,node:node,shadow:contactShadows[b.id],time:t,position:ballAt,orientation:orientation,shadowAt:shadowCenter(planar,b.height))
+                    pacer.push(id:b.id,node:node,shadow:contactShadows[b.id],time:t,position:ballAt,orientation:orientation,shadowAt:shadowCenter(planar,b.height),spin:SIMD3<Float>(Float(-b.wx),Float(-b.spin),Float(-b.wy)))   // same axis map as the quaternion
                 }else if node.simdOrientation.vector != orientation.vector{node.simdOrientation=orientation}
             }else if let t=pacedAt {
                 pacer.push(id:b.id,node:node,shadow:contactShadows[b.id],time:t,position:ballAt,orientation:node.simdOrientation,shadowAt:shadowCenter(planar,b.height))

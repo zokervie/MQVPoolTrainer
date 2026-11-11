@@ -81,6 +81,15 @@ enum Tuning { static func flag(_ key: String, _ fallback: Bool) -> Bool { fallba
         let replacement = SCNNode()
         push(p, replacement, s, time: 12.02, x: 6); p.render(at: 12.02)
         try near(replacement.simdPosition.x, 6, "new node identity resets history")
+        // Fast spin: 229° between samples. Shortest-path slerp would show -65.5° at the midpoint (backwards).
+        let axis = SIMD3<Float>(0, 1, 0), qa = simd_quatf(angle: 0, axis: axis), qb = simd_quatf(angle: 4.0, axis: axis)
+        let mid = FramePacer.orientation(qa, qb, spin: axis * 200, span: 0.02, fraction: 0.5)
+        try near(abs(simd_dot(mid.vector, simd_quatf(angle: 2.0, axis: axis).vector)), 1, "spin-aware midpoint follows angular velocity")
+        let end = FramePacer.orientation(qa, qb, spin: axis * 200, span: 0.02, fraction: 1)
+        try near(abs(simd_dot(end.vector, qb.vector)), 1, "spin-aware end-point is the recorded sample")
+        // Velocity that does not explain the samples (slow-motion replay / collision): plain slerp, no overshoot.
+        let slow = FramePacer.orientation(qa, simd_quatf(angle: 0.2, axis: axis), spin: axis * 200, span: 0.02, fraction: 0.5)
+        try near(abs(simd_dot(slow.vector, simd_quatf(angle: 0.1, axis: axis).vector)), 1, "inconsistent spin falls back to slerp")
         print("PASS FramePacer: \(checks) checks; real SCNNodes, continuous time, 60/120 Hz callback ordering, rebound, jump, rotation, stalls, reset")
     }
 }
