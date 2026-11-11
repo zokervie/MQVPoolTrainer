@@ -1,4 +1,5 @@
 import SceneKit
+import QuartzCore
 import simd
 
 /// Presentation only; the native fixed-step solver remains authoritative.
