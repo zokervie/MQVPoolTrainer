@@ -34,7 +34,7 @@ using namespace banklab;
         if(!found){Ball cue;cue.id=0;cue.p=place;layout.insert(layout.begin(),cue);}
         _world.reset(layout);
     }
-    ai::Shot planned=ai::plan(_world,_state,_level,_seed);
+    ai::Shot planned=ai::plan(_world,_state,_level,_seed,2.0);   // 0.40b: wall-clock budget (OpponentTests "full table")
     ai::Shot shot=ai::execute(planned,_level,_seed*31+7);
     return @{@"valid":@(shot.valid),@"angle":@(shot.angle),@"speed":@(shot.speed),@"side":@(shot.side),@"top":@(shot.top),
              @"target":@(planned.target),@"pocket":@(planned.pocket),@"safety":@(planned.safety),

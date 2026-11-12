@@ -15,6 +15,7 @@
 #include "MatchRules.hpp"
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -38,6 +39,14 @@ struct Skill {
     bool escapes;         // searches kicks when no direct legal contact exists
     double blunder;       // chance to take a worse option on purpose (human-like mistake in choice, not in hand)
     double breakSpeed;    // m/s
+};
+/// Simulated seconds per candidate: a pool shot is decided (pot/foul/position) well inside 12 s.
+constexpr double kJudgeSeconds=12;
+/// Wall-clock planning budget so the computer never "waits" on a full rack (owner, 12/11). ASSUMED: ~2.5 s feels human.
+struct Deadline {
+    std::chrono::steady_clock::time_point end;
+    explicit Deadline(double seconds):end(std::chrono::steady_clock::now()+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(seconds>1e6?1e6:seconds))){}
+    bool over()const{return std::chrono::steady_clock::now()>end;}
 };
 inline const Skill& skill(int level){
     static const std::array<Skill,kLevels> table={{
@@ -200,19 +209,21 @@ inline double paceFor(const World& w,double cueTravel,double objectTravel,double
 struct Candidate {int ball=-1,pocket=-1;double angle=0,speed=0,top=0,side=0,chance=0,value=0;Judgement outcome{};};
 
 /// Scan aim offsets around the geometric line; returns the centre and angular width (rad) of the window that pots.
+/// 0.40b (owner: "đến lượt máy cứ chờ"): coarse 9-point scan (0.6° apart) then 3-step bisection of each edge —
+/// 15 simulations instead of 25 with a finer width (≈0.08°).
 inline bool potWindow(const World& w,const match::State& s,int player,const Ball& object,int k,double geometric,double speed,double top,double& centre,double& width){
-    // Throw/squirt can move the window ~1° off the ghost line.
-    const double span=2.4*kPi/180;const int n=25;int first=-1,last=-1,run=0,bestFirst=-1,bestRun=0;
+    const double span=2.4*kPi/180;const int n=9;const double step=2*span/(n-1);
+    auto pots=[&](double a){const Judgement j=judge(w,s,w.simulate(a,speed,0,top,kJudgeSeconds),player,object.id,k);return j.potted&&!j.lost;};
+    int run=0,first=-1,bestFirst=-1,bestRun=0;
     for(int i=0;i<n;++i){
-        const double a=geometric+span*(2.0*i/(n-1)-1);
-        const Judgement j=judge(w,s,w.simulate(a,speed,0,top,25),player,object.id,k);
-        if(j.potted&&!j.lost){if(run==0)first=i;++run;last=i;if(run>bestRun){bestRun=run;bestFirst=first;}}else run=0;
+        if(pots(geometric-span+i*step)){if(run==0)first=i;++run;if(run>bestRun){bestRun=run;bestFirst=first;}}else run=0;
     }
-    (void)last;
     if(bestRun==0)return false;
-    const double step=2*span/(n-1);
-    centre=geometric+span*(2.0*(bestFirst+(bestRun-1)/2.0)/(n-1)-1);
-    width=bestRun*step;
+    double lo=geometric-span+bestFirst*step,hi=geometric-span+(bestFirst+bestRun-1)*step;   // inside the window
+    double loOut=lo-step,hiOut=hi+step;                                                       // outside (or scan edge)
+    for(int i=0;i<3;++i){const double m=(lo+loOut)/2;if(pots(m))lo=m;else loOut=m;}
+    for(int i=0;i<3;++i){const double m=(hi+hiOut)/2;if(pots(m))hi=m;else hiOut=m;}
+    centre=(lo+hi)/2;width=std::max(hi-lo,step/8);
     return true;
 }
 /// Chance that a normally distributed aim error stays inside a window of the given width.
@@ -251,8 +262,8 @@ inline V2 placeCue(const World& w,const match::State& s,int player){
 }
 
 /// Plan a stroke (no hand error). `world` must be at rest with the cue ball already placed.
-inline Shot plan(const World& world,const match::State& s,int level,std::uint64_t seed){
-    Shot out;const Skill& k=skill(level);Random rng(seed^(0xA5A5ULL*static_cast<std::uint64_t>(level+1)));
+inline Shot plan(const World& world,const match::State& s,int level,std::uint64_t seed,double budgetSeconds=1e9){
+    Shot out;const Deadline deadline(budgetSeconds);const Skill& k=skill(level);Random rng(seed^(0xA5A5ULL*static_cast<std::uint64_t>(level+1)));
     const int player=s.currentPlayer;
     const Ball* cue=find(world.balls,0);if(!cue)return out;
     const double r=world.config.radius;const auto m=mouths(world.config);
@@ -267,17 +278,27 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
         out.target=apex;out.valid=true;out.value=0;return out;
     }
 
-    std::vector<Candidate> pots;
+    // Geometric pre-filter: only the easiest few (ball, pocket) pairs are simulated, easiest first.
+    struct Option{const Ball* b;int pk;double e;};std::vector<Option> options;
     for(const auto& b:world.balls){
         if(b.sunk||b.id<=0||!legalFirst(s,world.balls,b.id,player)||!wantedPot(s,world.balls,b.id,player))continue;
-        for(int pk=0;pk<6;++pk){
-            const double e=ease(world,cue->p,b,pk);if(e<=0)continue;
+        for(int pk=0;pk<6;++pk){const double e=ease(world,cue->p,b,pk);if(e>0)options.push_back({&b,pk,e});}
+    }
+    std::sort(options.begin(),options.end(),[](const Option& x,const Option& y){return x.e>y.e;});
+    if(options.size()>static_cast<size_t>(level>=3?6:4))options.resize(static_cast<size_t>(level>=3?6:4));
+    std::vector<Candidate> pots;
+    for(const auto& option:options){
+        if(!pots.empty()&&deadline.over())break;
+        const Ball& b=*option.b;
+        {
+            const int pk=option.pk;const double e=option.e;
             const V2 toPocket=m[static_cast<size_t>(pk)]-b.p;const double dp=toPocket.length();const V2 u=toPocket*(1/dp);
             const V2 ghost=b.p-u*(2*r);const V2 line=ghost-cue->p;const double dc=line.length();
             const double geometric=std::atan2(line.y,line.x),cutCos=(line.x*u.x+line.y*u.y)/dc;
             std::vector<double> tops{0};if(k.usesSpin){tops.push_back(0.55);tops.push_back(-0.55);}
             std::vector<double> extras{0.6};if(k.lookahead>0){extras.push_back(1.3);}   // object ball runs 0.6 m past the pocket: a firm pot, not one dying in the jaws
             for(double top:tops)for(double extra:extras){
+                if(!pots.empty()&&deadline.over())break;
                 Candidate c;c.ball=b.id;c.pocket=pk;c.top=top;c.speed=paceFor(world,dc,dp,cutCos,extra);
                 double centre=geometric,width=0;
                 if(k.centreWindow){
@@ -287,12 +308,12 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
                     // Beginner: trusts the ghost ball; whether it drops is found out on the table.
                     c.chance=std::clamp(e*1.6,0.05,0.9);
                 }
-                c.angle=centre;c.outcome=judge(world,s,world.simulate(c.angle,c.speed,0,top,25),player,b.id,pk);
+                c.angle=centre;c.outcome=judge(world,s,world.simulate(c.angle,c.speed,0,top,kJudgeSeconds),player,b.id,pk);
                 if(c.outcome.lost)continue;
                 if(k.centreWindow&&!c.outcome.potted)continue;
                 double position=0;
                 if(k.lookahead>0&&c.outcome.potted&&!c.outcome.won){
-                    World after(world.config);after.reset(world.simulate(c.angle,c.speed,0,top,25).balls);
+                    World after(world.config);after.reset(world.simulate(c.angle,c.speed,0,top,kJudgeSeconds).balls);
                     match::State next=s;next.breakShot=false;
                     position=offer(after,next,c.outcome.cue,player);
                     if(k.lookahead>1&&position<=0)position=-0.15;      // no shot afterwards hurts a strong player more
@@ -321,7 +342,7 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
     // Safety / escape: scan directions and speeds, keep the legal stroke that leaves the opponent least.
     if(k.safetyBelow>0||k.escapes||!bestPot){
         Candidate best;bool found=false;double bestScore=-1e9;
-        const int directions=(k.escapes||!bestPot)?(level>=4?96:72):0;
+        const int directions=(k.escapes||!bestPot)?(level>=4?48:36):0;
         std::vector<double> angles;
         for(const auto& b:world.balls){
             if(b.sunk||b.id<=0||!legalFirst(s,world.balls,b.id,player))continue;
@@ -332,7 +353,8 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
         const std::vector<double> speeds=level>=3?std::vector<double>{1.1,1.9,2.8}:std::vector<double>{1.6,2.6};
         match::State next=s;next.breakShot=false;
         for(double a:angles)for(double v:speeds){
-            const Outcome o=world.simulate(a,v,0,0,25);
+            if(found&&deadline.over())break;
+            const Outcome o=world.simulate(a,v,0,0,kJudgeSeconds);
             const Judgement j=judge(world,s,o,player,-1,-1);
             if(j.lost)continue;
             double score;

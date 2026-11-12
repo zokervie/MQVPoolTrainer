@@ -142,5 +142,14 @@ int main(){
      check(a.state.winner<0,"auto-call: 10-ball combination on the 10 is not a lucky win");}
     {check(Rules::inferDirectCall({contact(3),pot(3,1)}).ball==3&&Rules::inferDirectCall({contact(3),pot(3,1)}).pocket==1,"inferDirectCall reads ball and pocket");
      check(Rules::inferDirectCall({contact(3),Event{1,3,5,.2,{}},pot(3,1,.3)}).ball==0,"inferDirectCall: kiss before the pocket = no call");}
+    // 0.40b shot clock: the app adjudicates "time expired" as a stroke with no contact (WPA 6.x standard foul):
+    // incoming player gets ball in hand anywhere, the foul counts toward the three-foul rule (9/10-ball).
+    for(auto d:{Discipline::NineBall,Discipline::TenBall,Discipline::EightBall}){
+        auto r=playing(d);const int shooter=r.state.currentPlayer;auto a=r.complete(shot({0,1,2,9},{}));
+        check(a.foul,"shot clock: time foul is a foul");
+        check(a.state.ballInHand&&!a.state.headStringOnly,"shot clock: opponent has ball in hand anywhere");
+        check(a.state.currentPlayer==1-shooter,"shot clock: turn passes");
+        if(d!=Discipline::EightBall)check(a.state.fouls[shooter]==1,"shot clock: counts toward three fouls");
+    }
     std::cout<<"PASS MatchRules: "<<assertions<<" checks; WPA8/9/10 event adjudication, break choices, push-out, called shots, three-foul warning, seeded racks; Rotation15 named practice variant\n";
 }

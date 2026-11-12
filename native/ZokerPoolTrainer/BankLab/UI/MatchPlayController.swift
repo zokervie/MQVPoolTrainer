@@ -9,7 +9,11 @@ final class MatchPlayState {
     var rules: BLMatch?
     /// 0.40 Đấu với máy: level 0…5 of the computer (player 2); nil = two humans. Feature flag "vsComputer" (IAP-ready).
     var computerLevel: Int?
-    var computerThinking = false, computerFailures = 0, computerTurnKey = ""
+    var computerThinking = false, computerFailures = 0, computerTurnKey = "", computerShots = 0, computerStarted = 0.0
+    /// 0.40b shot clock (Tuỳ chỉnh → Vật lý → Đồng hồ cú). Extensions are per player per rack.
+    var clockLeft = 0.0, clockKey = "", extensionsLeft = [0, 0], extensionRack = -1, clockWarned = 0
+    let clockBar = UIView(), clockLabel = UILabel(), extensionButton = UIButton(type: .system)
+    var clockBuilt = false
     var state: [String:Any] = [:]
     var active = false
     var showNumbers = false
@@ -333,37 +337,83 @@ extension TrainingController {
     /// 0.39 (owner: scoreboard too plain — names and scores must stand apart, framed, professional type). Broadcast
     /// layout: [● NAME][ 3 ]  RACE 5 · VÁN 2  [ 1 ][NAME ●]. Each player has a colour plate (blue / red), scores sit in
     /// gold boxes with heavy rounded digits, the shooter's plate gets a bright frame and a dot; the frame is dark glass.
+    /// 0.40b (owner 12/11): slimmer TV bar (30 pt), a lit "turn lamp" on the shooter's plate (also pass-and-play on one
+    /// phone), and 10 styles in Tuỳ chỉnh → Hình ảnh → Bảng điểm (feature flag "scoreboardStyles" → Z-Style pack later).
+    struct ScoreboardStyle {
+        let name: String
+        let plates: (UIColor, UIColor), score: UIColor, scoreText: UIColor, text: UIColor
+        let centre: UIColor, centreText: UIColor, frame: UIColor, radius: CGFloat, slant: Bool, lamp: UIColor
+    }
+    static let scoreboardStyles: [ScoreboardStyle] = {
+        let c = UIColor.rgb
+        return [
+            ScoreboardStyle(name: "TV đêm", plates: (c(0x1F5FAF), c(0xB0343A)), score: c(0xEAC583), scoreText: c(0x101010), text: .white, centre: c(0x0A0D14), centreText: c(0xEAC583), frame: c(0xEAC583), radius: 8, slant: false, lamp: c(0x5BFF7A)),
+            ScoreboardStyle(name: "VS xanh–đỏ", plates: (c(0x1E3A9E), c(0x1E3A9E)), score: c(0x2B2F38), scoreText: .white, text: .white, centre: c(0xC62828), centreText: .white, frame: c(0xC9CED6), radius: 4, slant: true, lamp: c(0x5BFF7A)),
+            ScoreboardStyle(name: "Bạc cổ điển", plates: (c(0xEDEFF2), c(0xEDEFF2)), score: c(0x1E3A9E), scoreText: .white, text: c(0x16213E), centre: c(0x2B2F38), centreText: .white, frame: c(0xB0343A), radius: 3, slant: true, lamp: c(0x18C24A)),
+            ScoreboardStyle(name: "Tối giản", plates: (UIColor(white: 0, alpha: 0.55), UIColor(white: 0, alpha: 0.55)), score: UIColor(white: 1, alpha: 0.12), scoreText: .white, text: .white, centre: .clear, centreText: UIColor(white: 1, alpha: 0.7), frame: .clear, radius: 10, slant: false, lamp: c(0x5BFF7A)),
+            ScoreboardStyle(name: "Neon", plates: (c(0x05060A), c(0x05060A)), score: c(0x05060A), scoreText: c(0x29F0FF), text: c(0x29F0FF), centre: c(0x05060A), centreText: c(0xFF3DCB), frame: c(0xFF3DCB), radius: 8, slant: false, lamp: c(0x29F0FF)),
+            ScoreboardStyle(name: "Gỗ CLB", plates: (c(0x5A3A22), c(0x5A3A22)), score: c(0xF1E3C6), scoreText: c(0x3A2414), text: c(0xF1E3C6), centre: c(0x2E1D10), centreText: c(0xF1E3C6), frame: c(0xC79A5B), radius: 6, slant: false, lamp: c(0xFFD15C)),
+            ScoreboardStyle(name: "Nỉ xanh", plates: (c(0x0F5E3C), c(0x0F5E3C)), score: c(0xEAC583), scoreText: c(0x0B2A1B), text: .white, centre: c(0x08321F), centreText: c(0xEAC583), frame: c(0xEAC583), radius: 8, slant: false, lamp: c(0xFFE36E)),
+            ScoreboardStyle(name: "Carbon", plates: (c(0x24262B), c(0x24262B)), score: c(0xFF7A1A), scoreText: c(0x111111), text: .white, centre: c(0x141518), centreText: c(0xFF7A1A), frame: c(0x3A3D44), radius: 5, slant: true, lamp: c(0xFF7A1A)),
+            ScoreboardStyle(name: "Hoàng gia", plates: (c(0x3B1F6B), c(0x3B1F6B)), score: c(0xE9C46A), scoreText: c(0x2A1450), text: .white, centre: c(0x24113F), centreText: c(0xE9C46A), frame: c(0xE9C46A), radius: 8, slant: false, lamp: c(0x7CFFB2)),
+            ScoreboardStyle(name: "Trắng sáng", plates: (c(0xFFFFFF), c(0xFFFFFF)), score: c(0x16213E), scoreText: .white, text: c(0x16213E), centre: c(0xE6E9EF), centreText: c(0x16213E), frame: c(0xC9CED6), radius: 10, slant: false, lamp: c(0x18C24A)),
+        ]
+    }()
+    static var scoreboardStyleIndex: Int {
+        min(scoreboardStyles.count - 1, max(0, UserDefaults.standard.integer(forKey: "scoreboardStyle040")))
+    }
     func updateScoreboard() {
         let board = matchPlay.scoreboard
-        let gold = UIColor.rgb(0xEAC583), plates = [UIColor.rgb(0x1F5FAF), UIColor.rgb(0xB0343A)]
+        let styleIndex = Self.scoreboardStyleIndex, style = Self.scoreboardStyles[styleIndex]
         func rounded(_ size: CGFloat, _ weight: UIFont.Weight) -> UIFont {
             let base = UIFont.systemFont(ofSize: size, weight: weight)
             return UIFont(descriptor: base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor, size: size)
         }
-        if !matchPlay.scoreboardBuilt {
+        if !matchPlay.scoreboardBuilt || board.tag != 100 + styleIndex {
             matchPlay.scoreboardBuilt = true
-            board.translatesAutoresizingMaskIntoConstraints = false; board.isUserInteractionEnabled = false
-            board.backgroundColor = UIColor(red: 0.03, green: 0.04, blue: 0.07, alpha: 0.90); board.layer.cornerRadius = 12
-            board.layer.borderWidth = 1.5; board.layer.borderColor = gold.withAlphaComponent(0.75).cgColor
-            board.layer.shadowColor = UIColor.black.cgColor; board.layer.shadowOpacity = 0.5; board.layer.shadowRadius = 8; board.layer.shadowOffset = .zero
-            board.accessibilityIdentifier = "MatchScoreboard"
-            view.addSubview(board)
-            NSLayoutConstraint.activate([board.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
-                                         board.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
-                                         board.heightAnchor.constraint(equalToConstant: 44)])
-            let row = UIStackView(); row.axis = .horizontal; row.spacing = 6; row.alignment = .fill
+            board.subviews.forEach { $0.removeFromSuperview() }
+            board.tag = 100 + styleIndex
+            if board.superview == nil {
+                board.translatesAutoresizingMaskIntoConstraints = false; board.isUserInteractionEnabled = false
+                board.accessibilityIdentifier = "MatchScoreboard"
+                view.addSubview(board)
+                NSLayoutConstraint.activate([board.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+                                             board.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
+                                             board.heightAnchor.constraint(equalToConstant: 30),
+                                             board.widthAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.widthAnchor, multiplier: 0.62)])
+            }
+            board.backgroundColor = .clear
+            board.layer.shadowColor = UIColor.black.cgColor; board.layer.shadowOpacity = 0.45; board.layer.shadowRadius = 6; board.layer.shadowOffset = .zero
+            let row = UIStackView(); row.axis = .horizontal; row.spacing = 0; row.alignment = .fill
             row.translatesAutoresizingMaskIntoConstraints = false; board.addSubview(row); row.tag = 1
-            NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo: board.leadingAnchor, constant: 5), row.trailingAnchor.constraint(equalTo: board.trailingAnchor, constant: -5),
-                                         row.topAnchor.constraint(equalTo: board.topAnchor, constant: 5), row.bottomAnchor.constraint(equalTo: board.bottomAnchor, constant: -5)])
+            NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo: board.leadingAnchor), row.trailingAnchor.constraint(equalTo: board.trailingAnchor),
+                                         row.topAnchor.constraint(equalTo: board.topAnchor), row.bottomAnchor.constraint(equalTo: board.bottomAnchor)])
+            row.layer.cornerRadius = style.radius; row.layer.cornerCurve = .continuous; row.clipsToBounds = true
+            row.layer.borderWidth = style.frame == .clear ? 0 : 1; row.layer.borderColor = style.frame.cgColor
+            if style.slant { row.transform = CGAffineTransform(a: 1, b: 0, c: -0.18, d: 1, tx: 0, ty: 0) }   // TV-style parallelogram
             for tag in 10...14 {
-                let plate = UIView(); plate.tag = tag + 10; plate.layer.cornerRadius = 7; plate.layer.cornerCurve = .continuous
-                let label = UILabel(); label.tag = tag; label.textAlignment = .center; label.adjustsFontSizeToFitWidth = true; label.minimumScaleFactor = 0.7
+                let plate = UIView(); plate.tag = tag + 10
+                let label = UILabel(); label.tag = tag; label.textAlignment = .center; label.adjustsFontSizeToFitWidth = true; label.minimumScaleFactor = 0.6
                 label.translatesAutoresizingMaskIntoConstraints = false; plate.addSubview(label)
-                let inset: CGFloat = (tag == 11 || tag == 13) ? 8 : 10
-                NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: inset), label.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -inset),
-                                             label.centerYAnchor.constraint(equalTo: plate.centerYAnchor)])
-                if tag == 11 || tag == 13 { plate.widthAnchor.constraint(greaterThanOrEqualToConstant: 38).isActive = true }
-                if tag == 10 || tag == 14 { plate.widthAnchor.constraint(greaterThanOrEqualToConstant: 96).isActive = true }
+                if style.slant { label.transform = CGAffineTransform(a: 1, b: 0, c: 0.18, d: 1, tx: 0, ty: 0) }
+                let lampSide: CGFloat = tag == 10 ? 1 : (tag == 14 ? -1 : 0)
+                if lampSide != 0 {
+                    // The turn lamp: dark when waiting, lit and breathing for the player to shoot.
+                    let lamp = UIView(); lamp.tag = tag + 40; lamp.layer.cornerRadius = 4.5
+                    lamp.translatesAutoresizingMaskIntoConstraints = false; plate.addSubview(lamp)
+                    NSLayoutConstraint.activate([lamp.widthAnchor.constraint(equalToConstant: 9), lamp.heightAnchor.constraint(equalToConstant: 9),
+                                                 lamp.centerYAnchor.constraint(equalTo: plate.centerYAnchor),
+                                                 lampSide > 0 ? lamp.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: 8)
+                                                              : lamp.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -8)])
+                    NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: lampSide > 0 ? 22 : 8),
+                                                 label.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: lampSide > 0 ? -8 : -22)])
+                    plate.widthAnchor.constraint(greaterThanOrEqualToConstant: 92).isActive = true
+                } else {
+                    NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: 6),
+                                                 label.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -6)])
+                    plate.widthAnchor.constraint(greaterThanOrEqualToConstant: tag == 12 ? 44 : 30).isActive = true
+                }
+                label.centerYAnchor.constraint(equalTo: plate.centerYAnchor).isActive = true
                 row.addArrangedSubview(plate)
             }
         }
@@ -371,22 +421,31 @@ extension TrainingController {
         guard matchPlay.active, let row = board.viewWithTag(1) else { return }
         let player = matchInt("currentPlayer")
         let shooting = matchPlay.matchWinner < 0 && matchInt("winner", fallback: -1) < 0
-        func set(_ tag: Int, _ text: String, _ font: UIFont, _ color: UIColor, plate: UIColor, frame: UIColor?) {
+        func set(_ tag: Int, _ text: String, _ font: UIFont, _ color: UIColor, plate: UIColor) {
             guard let label = row.viewWithTag(tag) as? UILabel, let box = row.viewWithTag(tag + 10) else { return }
-            label.text = text; label.textColor = color; label.font = font
-            box.backgroundColor = plate
-            box.layer.borderWidth = frame == nil ? 0 : 2; box.layer.borderColor = frame?.cgColor
+            if label.text != text { label.text = text }
+            label.textColor = color; label.font = font; box.backgroundColor = plate
         }
         for seat in 0...1 {
             let active = shooting && player == seat
             let name = matchPlay.names[seat].uppercased()
-            set(seat == 0 ? 10 : 14, seat == 0 ? (active ? "● " : "") + name : name + (active ? " ●" : ""), rounded(14, .heavy),
-                .white, plate: plates[seat].withAlphaComponent(active ? 1 : 0.55), frame: active ? gold : nil)
-            set(seat == 0 ? 11 : 13, "\(matchPlay.frames[seat])", .monospacedDigitSystemFont(ofSize: 24, weight: .black),
-                UIColor(white: 0.06, alpha: 1), plate: gold, frame: nil)
+            let plate = seat == 0 ? style.plates.0 : style.plates.1
+            set(seat == 0 ? 10 : 14, name, rounded(12, .heavy), style.text.withAlphaComponent(active ? 1 : 0.55),
+                plate: plate.withAlphaComponent(plate.cgColor.alpha * (active ? 1 : 0.7)))
+            set(seat == 0 ? 11 : 13, "\(matchPlay.frames[seat])", .monospacedDigitSystemFont(ofSize: 17, weight: .black), style.scoreText, plate: style.score)
+            if let lamp = row.viewWithTag((seat == 0 ? 10 : 14) + 40) {
+                lamp.backgroundColor = active ? style.lamp : UIColor(white: 0.25, alpha: 0.8)
+                lamp.layer.shadowColor = style.lamp.cgColor; lamp.layer.shadowRadius = 5; lamp.layer.shadowOffset = .zero
+                lamp.layer.shadowOpacity = active ? 0.95 : 0
+                lamp.accessibilityLabel = active ? "Đến lượt \(matchPlay.names[seat])" : nil
+                if active, lamp.layer.animation(forKey: "breath") == nil {
+                    let breath = CABasicAnimation(keyPath: "opacity"); breath.fromValue = 1; breath.toValue = 0.45
+                    breath.duration = 0.8; breath.autoreverses = true; breath.repeatCount = .infinity
+                    lamp.layer.add(breath, forKey: "breath")
+                } else if !active { lamp.layer.removeAnimation(forKey: "breath") }
+            }
         }
-        set(12, "RACE \(matchPlay.raceTo)\nVÁN \(matchPlay.rackNo)", rounded(10, .bold), gold, plate: .clear, frame: nil)
-        (row.viewWithTag(12) as? UILabel)?.numberOfLines = 2
+        set(12, "R\(matchPlay.raceTo) · V\(matchPlay.rackNo)", rounded(10, .bold), style.centreText, plate: style.centre)
         view.bringSubviewToFront(board)
     }
     func leaveMatch() {
@@ -1112,6 +1171,9 @@ extension TrainingController {
     /// Called every tick: when it is the computer's turn and the table is still, plan on a background queue and play
     /// the turn through the same command path as a human (choice → ball in hand → call → stroke).
     func driveComputerTurn() {
+        if matchPlay.computerThinking, ProcessInfo.processInfo.systemUptime - matchPlay.computerStarted > 10 {
+            matchPlay.computerThinking = false; matchPlay.computerFailures += 1   // never leave the turn hanging
+        }
         guard matchPlay.active, let level = matchPlay.computerLevel, let rules = matchPlay.rules,
               !matchPlay.computerThinking, matchInt("winner", fallback: -1) < 0, matchPlay.matchWinner < 0,
               matchInt("currentPlayer") == 1, !shotActive, !presentationBusy, !table.rackIntroPlaying,
@@ -1119,7 +1181,7 @@ extension TrainingController {
         let key = "\(matchPlay.rackNo)-\(matchInt("shotCount"))-\(matchPlay.state["pendingChoice"] as? String ?? "")-\(matchPlay.computerFailures)"
         if key == matchPlay.computerTurnKey { return }
         matchPlay.computerTurnKey = key
-        matchPlay.computerThinking = true
+        matchPlay.computerThinking = true; matchPlay.computerStarted = ProcessInfo.processInfo.systemUptime
         notifyStatus("Máy đang tính cú…")
         let seed = UInt64.random(in: 1...UInt64.max)
         let job = BLOpponent(world: engine, match: rules, level: level, seed: seed)
@@ -1163,16 +1225,108 @@ extension TrainingController {
             }
         }
         angle = number("angle")
-        let shot = LANShot(angle: number("angle"), speed: number("speed"), side: number("side"), top: number("top"), elevation: 0, cueType: 0)
+        // A cue over a rail or another ball must be raised, exactly as the human player has to (strike checks clearance).
+        let lift = min(30, max(0, cueClearance(side: number("side"), top: number("top")) + 0.5))
+        let shot = LANShot(angle: number("angle"), speed: number("speed"), side: number("side"), top: number("top"), elevation: lift, cueType: 0)
         if applyComputer(.strike, shot: shot) {
-            matchPlay.computerFailures = 0
+            matchPlay.computerFailures = 0; matchPlay.computerShots += 1
         } else {
             matchPlay.computerFailures += 1
             if matchPlay.computerFailures >= 3 {
                 // Never stall the match: a plain roll at the table centre line (the referee judges it like any stroke).
                 matchPlay.computerFailures = 0
-                _ = applyComputer(.strike, shot: LANShot(angle: Double.pi / 2, speed: 2, side: 0, top: 0, elevation: 0, cueType: 0))
+                angle = Double.pi / 2
+                let lift = min(30, max(0, cueClearance(side: 0, top: 0) + 0.5))
+                if applyComputer(.strike, shot: LANShot(angle: Double.pi / 2, speed: 2, side: 0, top: 0, elevation: lift, cueType: 0)) { matchPlay.computerShots += 1 }
             }
         }
+    }
+}
+
+// MARK: - 0.40b Đồng hồ cú + Gia hạn (EXTENSION), theo thông lệ giải quốc tế
+/// Presets (seconds per shot, extensions per player per rack, seconds per extension). Professional events use a
+/// 30-second clock with one 30-second extension per player per rack (World Nineball Tour shot-clock rules; WPA events
+/// similar) — the "Quốc tế" preset. Time running out = standard foul, opponent ball in hand anywhere (MatchRulesTests).
+/// ASSUMED (not in the rule text we checked): the break shot is not timed; the clock pauses while a referee choice
+/// (push-out, re-break, …) is pending and while the balls move.
+struct ShotClockPreset { let name: String, seconds: Double, extensions: Int, extensionSeconds: Double }
+extension TrainingController {
+    static let shotClockPresets = [
+        ShotClockPreset(name: "Tắt", seconds: 0, extensions: 0, extensionSeconds: 0),
+        ShotClockPreset(name: "Quốc tế · 30 s + 1 gia hạn", seconds: 30, extensions: 1, extensionSeconds: 30),
+        ShotClockPreset(name: "Luyện thi đấu · 45 s + 2", seconds: 45, extensions: 2, extensionSeconds: 30),
+        ShotClockPreset(name: "Nhanh · 20 s + 1", seconds: 20, extensions: 1, extensionSeconds: 15),
+    ]
+    static var shotClock: ShotClockPreset {
+        shotClockPresets[min(shotClockPresets.count - 1, max(0, UserDefaults.standard.integer(forKey: "shotClock040")))]
+    }
+    /// Called every tick on the host / offline device (the guest only mirrors the result through the referee).
+    func tickShotClock(_ dt: Double) {
+        let preset = Self.shotClock
+        let running = matchPlay.active && preset.seconds > 0 && matchPlay.session.role != .guest &&
+            matchInt("winner", fallback: -1) < 0 && matchPlay.matchWinner < 0 && !matchBool("breakShot") &&
+            (matchPlay.state["pendingChoice"] as? String ?? "").isEmpty && !shotActive && !presentationBusy && !table.rackIntroPlaying
+        buildShotClock()
+        let showing = matchPlay.active && preset.seconds > 0
+        if matchPlay.clockBar.isHidden == showing { matchPlay.clockBar.isHidden = !showing }
+        guard showing else { return }
+        if matchPlay.extensionRack != matchPlay.rackNo {
+            matchPlay.extensionRack = matchPlay.rackNo; matchPlay.extensionsLeft = [preset.extensions, preset.extensions]
+        }
+        let key = "\(matchPlay.rackNo)-\(matchInt("shotCount"))-\(matchInt("currentPlayer"))"
+        if key != matchPlay.clockKey { matchPlay.clockKey = key; matchPlay.clockLeft = preset.seconds; matchPlay.clockWarned = 0 }
+        if running { matchPlay.clockLeft = max(0, matchPlay.clockLeft - min(dt, 0.1)) }
+        let left = matchPlay.clockLeft
+        // Owner TXT A: light haptic at 10 s and 5 s.
+        if running, left <= 10, matchPlay.clockWarned < 1 { matchPlay.clockWarned = 1; UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        if running, left <= 5, matchPlay.clockWarned < 2 { matchPlay.clockWarned = 2; UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+        let text = running || left < preset.seconds ? String(format: "%02.0f", ceil(left)) : "\(Int(preset.seconds))"
+        if matchPlay.clockLabel.text != text { matchPlay.clockLabel.text = text }
+        let colour: UIColor = left <= 5 ? .rgb(0xFF4D4D) : (left <= 10 ? .rgb(0xFFC94D) : .white)
+        if matchPlay.clockLabel.textColor != colour { matchPlay.clockLabel.textColor = colour }
+        let player = matchInt("currentPlayer")
+        let canExtend = running && matchPlay.extensionsLeft[player] > 0 && matchAllowsInput
+        if matchPlay.extensionButton.isHidden == canExtend { matchPlay.extensionButton.isHidden = !canExtend }
+        if running && left <= 0 { shotClockExpired() }
+    }
+    private func buildShotClock() {
+        guard !matchPlay.clockBuilt, matchPlay.scoreboard.superview != nil else { return }   // anchored under the scoreboard
+        matchPlay.clockBuilt = true
+        let bar = matchPlay.clockBar, label = matchPlay.clockLabel, ext = matchPlay.extensionButton
+        bar.translatesAutoresizingMaskIntoConstraints = false; bar.isHidden = true
+        bar.backgroundColor = UIColor(white: 0, alpha: 0.6); bar.layer.cornerRadius = 11; bar.accessibilityIdentifier = "ShotClock"
+        label.font = .monospacedDigitSystemFont(ofSize: 15, weight: .heavy); label.textColor = .white; label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        ext.setTitle("Gia hạn", for: .normal); ext.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        ext.tintColor = .rgb(0xEAC583); ext.accessibilityIdentifier = "ShotClockExtension"; ext.translatesAutoresizingMaskIntoConstraints = false
+        ext.addAction(UIAction { [weak self] _ in self?.callExtension() }, for: .touchUpInside)
+        let row = UIStackView(arrangedSubviews: [label, ext]); row.axis = .horizontal; row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false; bar.addSubview(row); view.addSubview(bar)
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 10), row.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -10),
+            row.topAnchor.constraint(equalTo: bar.topAnchor), row.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
+            bar.heightAnchor.constraint(equalToConstant: 22), label.widthAnchor.constraint(greaterThanOrEqualToConstant: 24),
+            bar.centerXAnchor.constraint(equalTo: matchPlay.scoreboard.centerXAnchor),
+            bar.topAnchor.constraint(equalTo: matchPlay.scoreboard.bottomAnchor, constant: 4)])
+    }
+    func callExtension() {
+        let preset = Self.shotClock, player = matchInt("currentPlayer")
+        guard matchPlay.active, matchPlay.extensionsLeft[player] > 0, matchAllowsInput else { return }
+        matchPlay.extensionsLeft[player] -= 1
+        matchPlay.clockLeft += preset.extensionSeconds; matchPlay.clockWarned = 0
+        notifyStatus("\(matchPlay.names[player]) gọi GIA HẠN +\(Int(preset.extensionSeconds)) s")
+    }
+    private func shotClockExpired() {
+        guard let rules = matchPlay.rules else { return }
+        let player = matchInt("currentPlayer")
+        // Same referee path as a stroke with no contact → standard foul (see MatchRulesTests "shot clock").
+        let state = engine.states
+        let result = rules.complete(before: state, after: state, events: [], headCrossed: [])
+        guard (result["accepted"] as? NSNumber)?.boolValue == true else { return }
+        applyMatchResult(result)
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        notifyStatus("Hết giờ · \(matchPlay.names[player]) phạm lỗi · đối thủ có bi trong tay")
+        matchPlay.clockKey = ""
+        refresh(); updateControls(); syncMatchControls(); publishMatchSnapshot(force: true)
     }
 }

@@ -67,6 +67,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     var shotProfile=ShotProfile()
     var hudLayoutKey="",hudLayoutDeferred=false
+    var appliedClothTint = -2
     var qaShots=0,qaJumpSeen=false   // UI-test latches: polling every 0.5 s can miss a short shot
     var shotTickStart:Double?
     /// A/B switches for the same build (Chẩn đoán độ mượt): bring back the 0.39 behaviours to prove or refute a cause.
@@ -263,6 +264,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             engine.settings=config
         }
         table=TableScene(rails:engine.rails)
+        // 0.40b: four "300" card colours were put in front of the list — shift a colour saved by 0.39 or earlier.
+        if !UserDefaults.standard.bool(forKey:"clothTintMigrated040"){
+            if let old=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int {UserDefaults.standard.set(old+4,forKey:"clothTintIndex")}
+            UserDefaults.standard.set(true,forKey:"clothTintMigrated040")}
         if let color=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int {table.setClothColor(color)}
         scn=SCNView(frame:.zero);scn.scene=table.scene;scn.pointOfView=table.camera;scn.delegate=table.pacer
         scn.backgroundColor = .black;scn.antialiasingMode = .multisampling2X;scn.preferredFramesPerSecond=60;scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
@@ -326,6 +331,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}
             if args.contains("--ux018-match-rotation-qa"){startMatch(rule:"rotation15",network:false)}
+            // 0.40b: the computer breaks a 9-ball rack by itself (owner: "đến lượt máy cứ chờ"); CI waits for cpuShots ≥ 2.
+            if args.contains("--computer-qa") {
+                DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
+                    self.startMatch(rule:"nineBall",network:false)
+                    self.matchPlay.computerLevel=1;self.matchPlay.breaker=1
+                    self.matchPlay.rules?.reset(breaker:1);self.updateMatchState()
+                    self.syncMatchControls();self.updateControls()}
+            }
             if args.contains("--ux017-shot-qa") {
                 DispatchQueue.main.asyncAfter(deadline:.now()+1){[weak self] in guard let self=self else{return};self.loadDrill(Drill.rollTest);self.spin.select(side:0,top:0.4);self.locked=true;self.shoot(0.2)}
             }
@@ -1437,6 +1450,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let guestTick=matchGuestTick(dt)
         driveComputerTurn()   // 0.40 Đấu với máy (no-op unless it is the computer's turn at rest)
+        tickShotClock(dt)     // 0.40b đồng hồ cú + gia hạn (no-op when off)
         // Keep rendering until a Premium QA probe has recorded its result; slow
         // Simulator GPUs can need longer than the startup window.
         let premiumPending = !premiumProbeWritten && ProcessInfo.processInfo.arguments.contains("--premium-qa")
@@ -1631,7 +1645,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
         if shotActive && shotKind==1 {qaJumpSeen=true}
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f",preparationDuration,replayClock)+String(format:";coachDown=%d;coachUp=%d;locked=%d;expanded=%d;coachEnabled=%d",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);jumpSeen="+(qaJumpSeen ? "1":"0")+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%d;moving=%d;pitch=%.4f;coach=%d;kind=%d;zoom=%.4f;replay=%d;editing=%d;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f",preparationDuration,replayClock)+String(format:";coachDown=%d;coachUp=%d;locked=%d;expanded=%d;coachEnabled=%d",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
@@ -2786,6 +2800,10 @@ extension TrainingController {
     }
     func applyTuning(){
         table.applyTuning();layoutRightHUD()
+        let tint=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int ?? -1
+        if tint != appliedClothTint {appliedClothTint=tint;table.setClothColor(tint<0 ? nil:tint)}   // only rebuild on change
+        let worn=UserDefaults.standard.bool(forKey:"clothWear021");if worn != table.oldCloth {table.setClothWear(old:worn)}
+        if matchPlay.active {updateScoreboard()}
         if table.cameraMode==2 && !shotActive && replayIndex==nil {restoreAimCamera(transition:0.3)}   // preview the default aim view
         scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
         displayLink?.preferredFramesPerSecond=Tuning.frameRate

@@ -245,11 +245,18 @@ final class CustomizeController:UIViewController {
         slider("Độ đậm bóng bi",TableScene.tuneShadow,0.4,1.3)
         toggle("Bóng bi thật, tròn mềm (tắt nếu máy nóng/yếu)","tuneRealShadow039",true)
         header("Bàn")
+        // 0.40b (owner: cloth colours as icons like the sample card, inside Tuỳ chỉnh).
+        swatches("Màu nỉ · Z-Weave 300 (60% len · 40% nylon)",TableScene.clothColors.map{name,color in (name,Self.clothSwatch(color))},
+                 UserDefaults.standard.object(forKey:"clothTintIndex") as? Int ?? -1){UserDefaults.standard.set($0,forKey:"clothTintIndex")}
+        segmented("Tình trạng nỉ",["Mới · rõ sợi","Cũ · xơ"],UserDefaults.standard.bool(forKey:"clothWear021") ? 1:0){UserDefaults.standard.set($0==1,forKey:"clothWear021")}
         slider("Độ sáng mặt bàn (nỉ)",TableScene.tuneCloth,0.6,1.4)
         slider("Độ rõ vân nỉ",TableScene.tuneWeave,0,1.5)
         slider("Độ nổi kim cương / nút số",TableScene.tuneDiamond,0.8,2.0)
         header("Đèn")
         slider("Đèn bàn",TableScene.tuneLight,0.5,1.6)
+        header("Bảng điểm (trận đấu)")
+        swatches("Kiểu bảng tên · 10 mẫu",TrainingController.scoreboardStyles.map{($0.name,Self.scoreboardSwatch($0))},
+                 TrainingController.scoreboardStyleIndex){UserDefaults.standard.set($0,forKey:"scoreboardStyle040")}
         // 2 · Ngắm
         target=pages[1]
         header("Góc ngắm mặc định (camera quay về sau mỗi cú)")
@@ -261,6 +268,7 @@ final class CustomizeController:UIViewController {
         segmented("Màu đường ngắm",colours,UserDefaults.standard.integer(forKey:TableScene.tuneGuideColor)){UserDefaults.standard.set($0,forKey:TableScene.tuneGuideColor)}
         slider("Độ dày đường ngắm",TableScene.tuneGuideWidth,0.6,2.2)
         toggle("Gậy mờ đi khi che hướng ngắm / bi mục tiêu","tuneCueFade039",true)
+        slider("Độ rõ của gậy khi mờ","tuneCueGhost040",0.2,0.8,fallback:0.42,format:{String(format:"%.0f%%",$0*100)})
         header("Khoá hướng cơ")
         toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
         header("Luyện mắt")
@@ -286,6 +294,12 @@ final class CustomizeController:UIViewController {
         toggle("Phím tự mờ khi đang ngắm","tuneHUDFade037",true)
         // 4 · Vật lý
         target=pages[3]
+        header("Thi đấu · đồng hồ cú")
+        segmented("Đồng hồ cú (áp dụng ván kế tiếp)",TrainingController.shotClockPresets.map{$0.name.components(separatedBy:" · ").first ?? $0.name},
+                  UserDefaults.standard.integer(forKey:"shotClock040")){UserDefaults.standard.set($0,forKey:"shotClock040")}
+        let clockNote=UILabel();clockNote.numberOfLines=0;clockNote.font = .systemFont(ofSize:11);clockNote.textColor=UIColor(white:1,alpha:0.7)
+        clockNote.text="Quốc tế: 30 s mỗi cú, mỗi người 1 lần GIA HẠN +30 s mỗi ván. Luyện thi đấu: 45 s, 2 lần. Nhanh: 20 s, 1 lần +15 s. Hết giờ = phạm lỗi, đối thủ có bi trong tay. Cú phá không tính giờ; đồng hồ dừng khi bi đang chạy."
+        target.addArrangedSubview(clockNote)
         header("Lực đánh")
         slider("Lực đánh tối đa",  "tuneMaxPower036",0.6,1.3,format:{String(format:"%.1f m/s",8*$0)})
         header("Bàn và vật lý")
@@ -331,6 +345,54 @@ final class CustomizeController:UIViewController {
             s.addAction(UIAction{[weak self,weak s]_ in guard let s=s else{return};UserDefaults.standard.set(Double(s.value),forKey:key);self?.changed?()},for:event)
         }
         let g=UIStackView(arrangedSubviews:[label,s]);g.axis = .vertical;g.spacing=4;target.addArrangedSubview(g)
+    }
+    /// Horizontal strip of picture swatches (cloth colours, scoreboard styles); the chosen one gets a gold ring.
+    private func swatches(_ title:String,_ items:[(String,UIImage)],_ selected:Int,_ set:@escaping(Int)->Void){
+        let label=UILabel();label.text=title;label.textColor = .white;label.font = .systemFont(ofSize:13,weight:.medium);label.numberOfLines=0
+        let strip=UIStackView();strip.axis = .horizontal;strip.spacing=10;strip.alignment = .top
+        let scroll=UIScrollView();scroll.showsHorizontalScrollIndicator=false;scroll.translatesAutoresizingMaskIntoConstraints=false
+        strip.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(strip)
+        NSLayoutConstraint.activate([strip.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor),strip.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor),
+                                     strip.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor),strip.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor),
+                                     strip.heightAnchor.constraint(equalTo:scroll.frameLayoutGuide.heightAnchor)])
+        var buttons:[UIButton]=[]
+        func mark(_ chosen:Int){for (i,b) in buttons.enumerated(){b.layer.borderWidth = i==chosen ? 2.5:0}}
+        for (index,item) in items.enumerated(){
+            let b=UIButton(type:.custom);b.setImage(item.1,for:.normal);b.imageView?.contentMode = .scaleAspectFit
+            b.layer.cornerRadius=10;b.layer.borderColor=UIColor.rgb(0xEAC583).cgColor;b.clipsToBounds=true
+            b.accessibilityLabel=item.0;b.accessibilityIdentifier="Swatch-"+item.0
+            let caption=UILabel();caption.text=item.0;caption.font = .systemFont(ofSize:10,weight:.semibold);caption.textColor = UIColor(white:1,alpha:0.85)
+            caption.textAlignment = .center;caption.numberOfLines=2
+            let cell=UIStackView(arrangedSubviews:[b,caption]);cell.axis = .vertical;cell.spacing=4;cell.alignment = .center
+            b.widthAnchor.constraint(equalToConstant:item.1.size.width).isActive=true;b.heightAnchor.constraint(equalToConstant:item.1.size.height).isActive=true
+            caption.widthAnchor.constraint(equalToConstant:max(56,item.1.size.width)).isActive=true
+            b.addAction(UIAction{[weak self]_ in set(index);mark(index);self?.changed?()},for:.touchUpInside)
+            buttons.append(b);strip.addArrangedSubview(cell)
+        }
+        mark(selected)
+        scroll.heightAnchor.constraint(equalToConstant:(items.first?.1.size.height ?? 48)+34).isActive=true
+        let g=UIStackView(arrangedSubviews:[label,scroll]);g.axis = .vertical;g.spacing=6;target.addArrangedSubview(g)
+    }
+    /// A cloth sample: the colour with a woven grain, like the swatches on a cloth card.
+    static func clothSwatch(_ color:UIColor)->UIImage{
+        UIGraphicsImageRenderer(size:CGSize(width:56,height:44)).image{ctx in
+            color.setFill();ctx.fill(CGRect(x:0,y:0,width:56,height:44))
+            for y in stride(from:0,to:44,by:2){for x in stride(from:(y/2)%2,to:56,by:2){
+                UIColor(white:(x*7+y*13)%5==0 ? 0:1,alpha:0.10).setFill();ctx.fill(CGRect(x:x,y:y,width:1.4,height:1.4))}}
+        }
+    }
+    /// A miniature of a scoreboard style (two plates, scores, centre, one lit lamp).
+    static func scoreboardSwatch(_ s:TrainingController.ScoreboardStyle)->UIImage{
+        UIGraphicsImageRenderer(size:CGSize(width:116,height:30)).image{ctx in
+            UIColor(white:0.12,alpha:1).setFill();ctx.fill(CGRect(x:0,y:0,width:116,height:30))
+            let bar=UIBezierPath(roundedRect:CGRect(x:4,y:8,width:108,height:15),cornerRadius:min(6,s.radius*0.6));bar.addClip()
+            s.plates.0.setFill();ctx.fill(CGRect(x:4,y:8,width:38,height:15));s.score.setFill();ctx.fill(CGRect(x:42,y:8,width:10,height:15))
+            s.centre.setFill();ctx.fill(CGRect(x:52,y:8,width:12,height:15));s.score.setFill();ctx.fill(CGRect(x:64,y:8,width:10,height:15))
+            s.plates.1.setFill();ctx.fill(CGRect(x:74,y:8,width:38,height:15))
+            s.lamp.setFill();ctx.cgContext.fillEllipse(in:CGRect(x:8,y:13,width:5,height:5))
+            s.text.withAlphaComponent(0.8).setFill();ctx.fill(CGRect(x:16,y:14.5,width:20,height:2));ctx.fill(CGRect(x:80,y:14.5,width:20,height:2))
+            if s.frame != .clear {s.frame.setStroke();bar.lineWidth=1.5;bar.stroke()}
+        }
     }
     private func segmented(_ title:String,_ items:[String],_ selected:Int,_ set:@escaping(Int)->Void){
         let label=UILabel();label.text=title;label.textColor = .white;label.font = .systemFont(ofSize:13,weight:.medium)

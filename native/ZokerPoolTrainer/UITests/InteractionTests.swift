@@ -70,7 +70,7 @@ final class InteractionTests: XCTestCase {
     /// CI log lines are cut at 300 chars: lead failures with the fields that explain a stall.
     private func brief(_ scene: XCUIElement) -> String {
         let v = scene.value as? String ?? ""
-        let keys = ["kind","moving","shots","jumpSeen","ballCount","busy","locked","editing","replay","preRoll","status","lastTouch"]
+        let keys = ["kind","moving","shots","cpuShots","cpuTurn","jumpSeen","ballCount","busy","locked","editing","replay","preRoll","status","lastTouch"]
         let parts = v.split(separator: ";")
         return keys.compactMap { k in parts.first { $0.hasPrefix(k + "=") }.map(String.init) }.joined(separator: ";")
     }
@@ -313,6 +313,12 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"zoom"),observedZoom,accuracy:0.005)
     }
 
+    /// 0.40b (owner 12/11: "đến lượt máy cứ chờ"): the computer must break and then keep taking its turns by itself.
+    func testComputerOpponentTakesItsTurns() {
+        let (_,scene)=launch(["--computer-qa"])
+        wait(scene,timeout:40 * slow){self.field(scene,"cpuShots")>=1}
+        wait(scene,timeout:60 * slow){self.field(scene,"moving")==0 && (self.field(scene,"cpuTurn")==0 || self.field(scene,"cpuShots")>=2)}
+    }
     func testJumpShotResetsEffectAndReturnsToPlayingCue() {
         let (_,scene)=launch(["--ux018-jump-qa"])
         // latched by the app: the jump shot really ran with the jump cue (0.5 s polling could miss a short shot)

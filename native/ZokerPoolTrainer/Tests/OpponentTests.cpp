@@ -75,6 +75,22 @@ int main(){
             check(planned.target!=8,"does not aim at the 8 with a group ball left");
         }
     }
+    // 3b. Owner 12/11: "đến lượt máy cứ chờ" — a full table must plan inside the wall-clock budget at every level.
+    for(auto rule:{match::Discipline::NineBall,match::Discipline::EightBall}){
+        match::Rules rules(rule);World w(config);w.reset(rules.rack(11));
+        const auto broke=w.simulate(ai::kPi/2,7.0,0,0,25);w.reset(broke.balls);
+        bool cueOn=false;for(const auto& b:w.balls)if(b.id==0&&!b.sunk)cueOn=true;
+        if(!cueOn){auto l=w.balls;for(auto& b:l)if(b.id==0){b.sunk=false;b.p={0,-.8};}w.reset(l);}
+        auto s=playing(rule);if(rule==match::Discipline::EightBall)s.groups={{0,1}};
+        for(int level=0;level<ai::kLevels;++level){
+            const auto t0=std::chrono::steady_clock::now();
+            const auto p=ai::plan(w,s,level,77,1.5);
+            const double took=std::chrono::duration<double>(std::chrono::steady_clock::now()-t0).count();
+            std::printf("REPORT full-table %s level %d planned in %.2f s\n",rule==match::Discipline::NineBall?"9-ball":"8-ball",level,took);std::fflush(stdout);
+            check(p.valid,"full table: a stroke is always returned");
+            check(took<3.0,"full table: plan respects the 1.5 s budget (one candidate may overrun)");
+        }
+    }
     // 4. Referee choices.
     {match::State s;s.pendingChoice="push_out";s.choiceOptions={"accept","pass"};check(ai::chooseOption(s)=="accept","accepts a push-out table by default");}
     const double seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-started).count();
