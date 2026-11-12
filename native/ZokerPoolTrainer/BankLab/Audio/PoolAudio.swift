@@ -34,7 +34,7 @@ final class PoolAudio {
          Policy(name: "PoolBall3", maximumDuration: 0.220, trimOnset: true)],
         [Policy(name: "PoolPocket0", maximumDuration: 0.400, trimOnset: false)],
         [Policy(name: "PoolCue0", maximumDuration: 0.140, trimOnset: true)]
-    ].enumerated().map { kind, list in list + Self.pack041.filter { $0.0 == kind }.map { $0.1 } }
+    ].enumerated().map { kind, list in list + PoolAudio.pack041.filter { $0.0 == kind }.map { $0.1 } }
     /// 0.41 (owner's pack, Tools/AudioSources/ATTRIBUTION.md): sliced at the impacts, three tiers per kind + a break.
     private static let pack041: [(Int, Policy)] = {
         var out: [(Int, Policy)] = []

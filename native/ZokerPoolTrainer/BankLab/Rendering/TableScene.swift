@@ -860,6 +860,7 @@ final class TableScene {
     func selectSpace(_ k:Int){
         space=max(0,min(Self.spaces.count-1,k));UserDefaults.standard.set(space,forKey:"tableSpace034")
         roomRoot.childNodes.forEach{$0.removeFromParentNode()}
+        scene.fogColor=UIColor(red:0.025,green:0.032,blue:0.042,alpha:1);scene.fogStartDistance=9;scene.fogEndDistance=19   // per-space override below
         let before=Set(scene.rootNode.childNodes.map{ObjectIdentifier($0)})
         switch space {
         case 1: buildHome()
@@ -870,7 +871,13 @@ final class TableScene {
         case 6: buildRoom()
         default: buildClub()
         }
-        for node in scene.rootNode.childNodes where !before.contains(ObjectIdentifier(node)) && node !== roomRoot {roomRoot.addChildNode(node)}
+        // 0.41: static decor is merged into ONE node (one draw-call batch per material) — the richer rooms cost no
+        // more per frame than the old boxes. Lights stay separate nodes.
+        let decor=SCNNode()
+        for node in scene.rootNode.childNodes where !before.contains(ObjectIdentifier(node)) && node !== roomRoot {
+            if node.light != nil || node.geometry == nil || !node.childNodes.isEmpty {roomRoot.addChildNode(node)} else {node.removeFromParentNode();decor.addChildNode(node)}
+        }
+        let merged=decor.flattenedClone();merged.name="room-decor";merged.castsShadow=false;roomRoot.addChildNode(merged)
     }
     /// Rectangular lamp over the table (visual; the table light itself is in buildLights).
     private func tableFixture(){
@@ -902,24 +909,126 @@ final class TableScene {
             _=box(8,CGFloat(height),0.09,SCNVector3(0,height/2-0.8,side*4.7),wall,chamfer:0)
         }
     }
-    /// Club like the owner's reference photo: grey textured walls, a wood-slat feature wall with warm LED strip,
-    /// dark carpet, rectangular LED panels, neighbouring tables.
+    /// 0.41 (owner: "không gian quá xấu, quá thô sơ"): a real club, detailed but cheap to draw.
+    /// Layout (room 8 × 9.4 m, floor at −0.79): patterned carpet with skirting; walnut wainscot to waist height with a
+    /// brass rail, deep blue-grey fabric above; framed pool diagrams; a wall cue rack with eight cues and a bead
+    /// scoreboard; a back bar with backlit shelves and stools; two dimmer neighbour tables under their own fixtures;
+    /// dark ceiling with recessed downlights. Decor glows by emission (no extra real lights, which would cost on the
+    /// cloth shader); only the existing table light and two soft room lamps light the scene. Depth fog darkens far walls.
     private func buildClub(){
         tableFixture()
-        scene.background.contents=UIColor(red:0.02,green:0.022,blue:0.026,alpha:1)
-        let carpet=mat(UIColor(red:0.10,green:0.105,blue:0.115,alpha:1),roughness:0.98)
-        let wall=mat(UIColor(red:0.33,green:0.34,blue:0.37,alpha:1),roughness:0.95);wall.normal.contents=normalImage;wall.normal.intensity=0.35
-        wall.normal.wrapS = .repeat;wall.normal.wrapT = .repeat;wall.normal.contentsTransform=SCNMatrix4MakeScale(6,6,1)
-        shell(floor:carpet,wall:wall,height:3.2)
-        let ceiling=mat(UIColor(white:0.55,alpha:1),roughness:0.9);_=box(8,0.04,9.4,SCNVector3(0,2.42,0),ceiling,chamfer:0)
-        let slat=premiumMaterial("WalnutDark")
-        for i in 0..<28 {_=box(0.07,3.1,0.06,SCNVector3(-3.0+Float(i)*0.22,0.75,-4.62),slat,chamfer:0.004)}
-        _=box(0.03,3.1,0.03,SCNVector3(-3.25,0.75,-4.6),emissive(.rgb(0xF2A65A),.rgb(0xE0903F)),chamfer:0)
-        let panel=emissive(UIColor(white:0.95,alpha:1),UIColor(white:0.9,alpha:1))
-        for x:Float in [-2.6,2.6]{for z:Float in [-3,0,3]{_=box(0.6,0.02,0.6,SCNVector3(x,2.39,z),panel,chamfer:0)}}
-        for x:Float in [-2.6,2.6]{for z:Float in [-2.8,2.8]{neighbourTable(SCNVector3(x,0,z))}}
-        roomLamp(SCNVector3(-2.6,2.2,0),30,5200,end:6);roomLamp(SCNVector3(2.6,2.2,0),30,5200,end:6);roomLamp(SCNVector3(-3,1.4,-4.3),14,2900,end:3)
+        scene.background.contents=UIColor(red:0.012,green:0.014,blue:0.018,alpha:1)
+        scene.fogColor=UIColor(red:0.014,green:0.017,blue:0.022,alpha:1);scene.fogStartDistance=3.2;scene.fogEndDistance=12
+        let carpet=mat(.white,roughness:0.98);carpet.diffuse.contents=carpetTexture()
+        carpet.diffuse.wrapS = .repeat;carpet.diffuse.wrapT = .repeat;carpet.diffuse.contentsTransform=SCNMatrix4MakeScale(9,10,1)
+        carpet.diffuse.mipFilter = .linear;carpet.diffuse.maxAnisotropy=8
+        let fabric=mat(UIColor(red:0.10,green:0.12,blue:0.16,alpha:1),roughness:0.97);fabric.normal.contents=normalImage;fabric.normal.intensity=0.4
+        fabric.normal.wrapS = .repeat;fabric.normal.wrapT = .repeat;fabric.normal.contentsTransform=SCNMatrix4MakeScale(10,6,1)
+        shell(floor:carpet,wall:fabric,height:3.2)
+        let walnut=premiumMaterial("WalnutDark"),brass=premiumMaterial("ChampagneGold")
+        let dark=mat(UIColor(white:0.05,alpha:1),roughness:0.5)
+        // ceiling + recessed downlights
+        _=box(8,0.04,9.4,SCNVector3(0,2.42,0),mat(UIColor(white:0.07,alpha:1),roughness:0.95),chamfer:0)
+        let down=emissive(UIColor(white:0.9,alpha:1),UIColor(red:1,green:0.93,blue:0.82,alpha:1))
+        for x:Float in [-2.8,2.8]{for z:Float in [-3.6,-1.2,1.2,3.6]{
+            let disc=SCNNode(geometry:SCNCylinder(radius:0.07,height:0.01));disc.geometry?.materials=[down];disc.position=SCNVector3(x,2.395,z);scene.rootNode.addChildNode(disc)}}
+        // wainscot + chair rail + skirting on all four walls
+        for side:Float in [-1,1]{
+            _=box(0.03,0.95,9.3,SCNVector3(side*3.94,-0.315,0),walnut,chamfer:0.004)
+            _=box(7.9,0.95,0.03,SCNVector3(0,-0.315,side*4.64),walnut,chamfer:0.004)
+            _=box(0.05,0.035,9.3,SCNVector3(side*3.93,0.17,0),brass,chamfer:0.004)
+            _=box(7.9,0.035,0.05,SCNVector3(0,0.17,side*4.63),brass,chamfer:0.004)
+            _=box(0.04,0.10,9.3,SCNVector3(side*3.935,-0.74,0),dark,chamfer:0.004)
+            _=box(7.9,0.10,0.04,SCNVector3(0,-0.74,side*4.635),dark,chamfer:0.004)
+            for z:Float in stride(from:-4.2,through:4.2,by:0.85){_=box(0.012,0.7,0.012,SCNVector3(side*3.925,-0.32,z),brass,chamfer:0.001)}   // panel mouldings
+        }
+        // framed pool diagrams (procedural art) along both long walls
+        let art=mat(.white,roughness:0.6);art.diffuse.contents=diagramArt();art.emission.contents=diagramArt();art.emission.intensity=0.08
+        for side:Float in [-1,1]{for z:Float in [-2.6,0,2.6]{
+            _=box(0.03,0.86,1.16,SCNVector3(side*3.935,1.05,z),walnut,chamfer:0.01)
+            let canvas=box(0.012,0.74,1.04,SCNVector3(side*3.915,1.05,z),art,chamfer:0);canvas.eulerAngles.y = side>0 ? Float.pi:0
+            let lampBar=box(0.06,0.025,0.5,SCNVector3(side*3.86,1.56,z),brass,chamfer:0.005);_=lampBar
+            _=box(0.02,0.012,0.44,SCNVector3(side*3.84,1.545,z),emissive(.rgb(0xFFE2B0),.rgb(0xFFD08A)),chamfer:0)
+        }}
+        // wall cue rack (front wall, left) with eight cues + bead scoreboard above
+        let rackX:Float = -1.6
+        _=box(1.1,1.5,0.04,SCNVector3(rackX,0.55,-4.6),walnut,chamfer:0.01)
+        _=box(1.0,0.05,0.12,SCNVector3(rackX,-0.12,-4.55),walnut,chamfer:0.01);_=box(1.0,0.05,0.10,SCNVector3(rackX,1.15,-4.56),walnut,chamfer:0.01)
+        let maple=mat(.rgb(0xD9B98A),roughness:0.35),ebony=mat(.rgb(0x15100C),roughness:0.3),ferrule=mat(.rgb(0xF2EEE6),roughness:0.25)
+        for k in 0..<8 {
+            let x=rackX-0.42+Float(k)*0.12
+            let shaft=SCNNode(geometry:SCNCylinder(radius:0.0065,height:1.3));shaft.geometry?.materials=[k%3==0 ? ebony:maple];shaft.position=SCNVector3(x,0.53,-4.53);scene.rootNode.addChildNode(shaft)
+            let butt=SCNNode(geometry:SCNCylinder(radius:0.0145,height:0.42));butt.geometry?.materials=[k%2==0 ? ebony:walnut];butt.position=SCNVector3(x,0.05,-4.53);scene.rootNode.addChildNode(butt)
+            let tip=SCNNode(geometry:SCNCylinder(radius:0.0065,height:0.025));tip.geometry?.materials=[ferrule];tip.position=SCNVector3(x,1.19,-4.53);scene.rootNode.addChildNode(tip)
+        }
+        let bead=mat(.rgb(0xE8DCC2),roughness:0.4),beadDark=mat(.rgb(0x2B1A10),roughness:0.4)
+        for row:Float in [1.55,1.68]{
+            _=box(1.3,0.006,0.006,SCNVector3(rackX,row,-4.55),brass,chamfer:0)
+            for k in 0..<18 {let n=SCNNode(geometry:SCNSphere(radius:0.018));n.geometry?.materials=[k%5==4 ? beadDark:bead]
+                let step:Float = k<11 ? 0.04:0.055;let bx:Float = rackX-0.6+Float(k)*step
+                n.position=SCNVector3(bx,row,-4.55);scene.rootNode.addChildNode(n)}
+        }
+        // back bar: counter, top, backlit shelves with bottles, stools
+        let barZ:Float=4.25
+        _=box(3.6,1.05,0.55,SCNVector3(0.6,-0.265,barZ),walnut,chamfer:0.02)
+        _=box(3.7,0.05,0.65,SCNVector3(0.6,0.285,barZ),mat(UIColor(white:0.08,alpha:1),roughness:0.2),chamfer:0.01)
+        _=box(3.6,0.02,0.02,SCNVector3(0.6,-0.70,barZ-0.28),emissive(.rgb(0xFFB25A),.rgb(0xE08A30)),chamfer:0)   // toe-kick LED
+        for shelf:Float in [0.75,1.15,1.55]{
+            _=box(3.2,0.03,0.22,SCNVector3(0.6,shelf,4.5),walnut,chamfer:0.004)
+            _=box(3.2,0.012,0.02,SCNVector3(0.6,shelf+0.02,4.6),emissive(.rgb(0xFFC27A),.rgb(0xF0A050)),chamfer:0)
+            for k in 0..<14 {
+                let tone=[UIColor.rgb(0x5A2E12),UIColor.rgb(0x1E3B26),UIColor.rgb(0x6E5A1E),UIColor.rgb(0x2A2440)][k%4]
+                let glass=mat(tone,roughness:0.08);glass.emission.contents=tone.withAlphaComponent(1);glass.emission.intensity=0.35
+                let bottle=SCNNode(geometry:SCNCylinder(radius:0.035,height:CGFloat(0.22+Float(k%3)*0.04)));bottle.geometry?.materials=[glass]
+                bottle.position=SCNVector3(-0.85+Float(k)*0.21,shelf+0.13+Float(k%3)*0.02,4.5);scene.rootNode.addChildNode(bottle)
+            }
+        }
+        let leather=mat(.rgb(0x3A1E14),roughness:0.6)
+        for k in 0..<5 {let x = -0.8+Float(k)*0.7
+            let seat=SCNNode(geometry:SCNCylinder(radius:0.17,height:0.07));seat.geometry?.materials=[leather];seat.position=SCNVector3(x,-0.04,barZ-0.55);scene.rootNode.addChildNode(seat)
+            let post=SCNNode(geometry:SCNCylinder(radius:0.025,height:0.7));post.geometry?.materials=[brass];post.position=SCNVector3(x,-0.42,barZ-0.55);scene.rootNode.addChildNode(post)
+            let foot=SCNNode(geometry:SCNCylinder(radius:0.2,height:0.02));foot.geometry?.materials=[dark];foot.position=SCNVector3(x,-0.77,barZ-0.55);scene.rootNode.addChildNode(foot)}
+        // neighbour tables, each under its own dimmed fixture, with a few balls left on them
+        for p in [SCNVector3(-2.65,0,-1.6),SCNVector3(2.65,0,1.6)]{
+            neighbourTable(p)
+            let housing=mat(UIColor(white:0.08,alpha:1),roughness:0.3,metal:0.6)
+            _=box(0.9,0.06,1.9,SCNVector3(p.x,1.75,p.z),housing,chamfer:0.01)
+            _=box(0.8,0.012,1.8,SCNVector3(p.x,1.718,p.z),emissive(UIColor(white:0.8,alpha:1),UIColor(white:0.55,alpha:1)),chamfer:0)
+            for (k,c) in [UIColor.rgb(0xF4D03F),UIColor.rgb(0x1F4FB4),UIColor.rgb(0xC0392B),UIColor.white].enumerated(){
+                let ball=SCNNode(geometry:SCNSphere(radius:0.0286));ball.geometry?.materials=[mat(c,roughness:0.2)]
+                ball.position=SCNVector3(p.x-0.3+Float(k)*0.19,0.035,p.z+Float(k%2)*0.4-0.2);scene.rootNode.addChildNode(ball)}
+        }
+        roomLamp(SCNVector3(-2.65,1.6,-1.6),16,4800,end:3.2);roomLamp(SCNVector3(2.65,1.6,1.6),16,4800,end:3.2);roomLamp(SCNVector3(0.6,1.3,4.0),12,2700,end:3)
     }
+    /// Low-pile club carpet: deep teal-charcoal with a small diamond motif (no hard edges, mip-safe).
+    private func carpetTexture()->UIImage{
+        let format=UIGraphicsImageRendererFormat();format.scale=1
+        return UIGraphicsImageRenderer(size:CGSize(width:128,height:128),format:format).image{ctx in
+            UIColor(red:0.075,green:0.09,blue:0.10,alpha:1).setFill();ctx.fill(CGRect(x:0,y:0,width:128,height:128))
+            var seed:UInt32=7;func r()->CGFloat{seed=seed &* 1664525 &+ 1013904223;return CGFloat(seed>>8)/CGFloat(1<<24)}
+            for _ in 0..<1800 {UIColor(white:r()*0.25,alpha:0.10).setFill();ctx.fill(CGRect(x:r()*128,y:r()*128,width:1,height:1))}
+            let motif=UIBezierPath();motif.move(to:CGPoint(x:64,y:44));motif.addLine(to:CGPoint(x:84,y:64));motif.addLine(to:CGPoint(x:64,y:84));motif.addLine(to:CGPoint(x:44,y:64));motif.close()
+            UIColor(red:0.42,green:0.30,blue:0.16,alpha:0.18).setStroke();motif.lineWidth=2;motif.stroke()
+            for (x,y) in [(0,0),(128,0),(0,128),(128,128)]{UIColor(red:0.42,green:0.30,blue:0.16,alpha:0.12).setFill();ctx.cgContext.fillEllipse(in:CGRect(x:x-5,y:y-5,width:10,height:10))}
+        }
+    }
+    /// Framed art: a vintage pool diagram (table outline, diamonds, a two-rail kick path) in cream on deep green.
+    private lazy var diagramImage:UIImage={
+        let format=UIGraphicsImageRendererFormat();format.scale=1
+        return UIGraphicsImageRenderer(size:CGSize(width:512,height:368),format:format).image{ctx in
+            UIColor(red:0.07,green:0.17,blue:0.13,alpha:1).setFill();ctx.fill(CGRect(x:0,y:0,width:512,height:368))
+            let cream=UIColor(red:0.93,green:0.88,blue:0.76,alpha:1);cream.setStroke()
+            let table=UIBezierPath(rect:CGRect(x:56,y:64,width:400,height:200));table.lineWidth=3;table.stroke()
+            for k in 1..<8 {let x=56+CGFloat(k)*50;ctx.cgContext.fillEllipse(in:CGRect(x:x-2,y:56,width:4,height:4));ctx.cgContext.fillEllipse(in:CGRect(x:x-2,y:268,width:4,height:4))}
+            let path=UIBezierPath();path.move(to:CGPoint(x:120,y:220));path.addLine(to:CGPoint(x:300,y:64));path.addLine(to:CGPoint(x:456,y:190));path.addLine(to:CGPoint(x:380,y:264))
+            path.setLineDash([8,6],count:2,phase:0);path.lineWidth=2;path.stroke()
+            cream.setFill();ctx.cgContext.fillEllipse(in:CGRect(x:112,y:212,width:16,height:16))
+            UIColor(red:0.85,green:0.2,blue:0.2,alpha:1).setFill();ctx.cgContext.fillEllipse(in:CGRect(x:372,y:236,width:16,height:16))
+            let text="Z · TWO-RAIL KICK" as NSString
+            text.draw(at:CGPoint(x:56,y:300),withAttributes:[.font:UIFont.systemFont(ofSize:22,weight:.semibold),.foregroundColor:cream])
+        }
+    }()
+    private func diagramArt()->UIImage{diagramImage}
     private func neighbourTable(_ p:SCNVector3){
         let black=mat(UIColor(white:0.05,alpha:1),roughness:0.35),grey=mat(.rgb(0x6e767d),roughness:0.97),alu=mat(.rgb(0xc4c9cd),roughness:0.35,metal:0.8)
         _=box(1.55,0.18,2.85,SCNVector3(p.x,-0.10,p.z),black,chamfer:0.02)
@@ -1615,7 +1724,19 @@ final class TableScene {
         }
         update(states,dt:0)
     }
+    /// 0.41 replay "Action camera": a free eye/target/lens set by the replay each frame (nil = normal cameras).
+    var actionCamera:(eye:SIMD3<Float>,target:SIMD3<Float>,fov:Float)?
     func placeCamera(cue:BallState?,angle:Double,aspect:CGFloat,blend:Float=1){
+        if let action=actionCamera {
+            camera.camera?.usesOrthographicProjection=false
+            let fraction=max(0,min(1,blend))
+            if let lens=camera.camera {lens.fieldOfView += (CGFloat(action.fov)-lens.fieldOfView)*CGFloat(fraction)}
+            var eye=action.eye,target=action.target
+            if let old=lastCameraTarget,fraction<1 {eye=camera.simdPosition+(eye-camera.simdPosition)*fraction;target=old+(target-old)*fraction}
+            lastCameraTarget=target
+            camera.simdPosition=eye;camera.look(at:SCNVector3(target.x,target.y,target.z),up:SCNVector3(0,1,0),localFront:SCNVector3(0,0,-1))
+            return
+        }
         guard let c=cue else{return}
         let d=SIMD3<Float>(Float(cos(angle)),0,Float(sin(angle)))
         let fieldOfView:Float = cameraMode==2 ? Float(UserDefaults.standard.object(forKey:"tuneAimFOV038") as? Double ?? 38):46   // 0.38: Tuỳ chỉnh · góc nhìn ngắm

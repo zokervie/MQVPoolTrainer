@@ -1,4 +1,4 @@
-# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 13/11/2026 00:30)
+# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 13/11/2026 06:40)
 
 Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất của anh. Cuối phiên cập nhật lại file này, và bản trong Project `claude/zoker-trang-thai.md`.
 
@@ -6,7 +6,7 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 | Bản | Nhánh / commit | Trạng thái |
 |---|---|---|
 | 0.40b | `ci/native-0.40b` @ 1626168 | CI 132 xanh (PASSED_SIMULATOR_UNSIGNED). IPA: artifact `zoker-ipa-candidate-132`. Anh đã nghiệm thu 12/11 23:36 |
-| 0.40c | `cho/native-0.40c` @ c249e27 | **Nhánh chờ, chưa build** (anh dặn "khoan build"). Phần Swift chưa biên dịch |
+| 0.41 (gồm 0.40c) | `cho/native-0.40c` → build `ci/native-0.41` | Anh dặn gộp 0.40c + 10 mục ngày 13/11 vào MỘT lần build. Cách thử: `Docs/NGHIEM-THU-0.41.md` + `Docs/CHO-0.40c-NGHIEM-THU-12-11.md` |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
 Lệnh build khi anh chốt: `git push origin cho/native-0.40c:ci/native-0.40c`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
@@ -20,7 +20,7 @@ Lệnh build khi anh chốt: `git push origin cho/native-0.40c:ci/native-0.40c`,
 - ✅ Ô màu nỉ, nỉ mới/cũ, 10 mẫu bảng điểm, đèn báo lượt: đạt. 0.40c chỉ chỉnh độ cân và kích thước sợi.
 
 ## 3. ĐANG CHỜ ANH — nhắc anh khi trả lời việc lớn
-1. Chốt build 0.40c, rồi thử 4 mục: máy đối thủ, bảng điểm cân, đồng hồ trên ô tên, băng/nỉ/bóng lỗ (`Docs/CHO-0.40c-NGHIEM-THU-12-11.md`).
+1. Thử 0.41 trên máy: 4 mục của 0.40c + 10 mục ngày 13/11 (`Docs/NGHIEM-THU-0.41.md`). Nghe A/B bộ âm thanh. Duyệt luật vắng mặt (45 s/lượt, 3 phút thua) và xác nhận giấy phép 5 file âm thanh chưa kiểm.
 2. Trả lời 3 câu ở bản đánh giá ngày 12/11 (`Docs/DANH-GIA-SKILL-VA-CANH-TRANH-2026-11-12.md`):
    - (a) 0.41 có dồn sức vào P0–P2 (vật lý thật, TestFlight, vòng luyện tập) thay cho phần trang trí không?
    - (b) Có mở tài khoản Apple Developer ($99/năm) để lên TestFlight không?
@@ -31,8 +31,8 @@ Lệnh build khi anh chốt: `git push origin cho/native-0.40c:ci/native-0.40c`,
 6. Khi về gần máy Mac có Xcode: chuyển phần code sang Claude Code chạy trên Mac (biên dịch và chạy Simulator tại chỗ, không chờ CI 50 phút).
 
 ## 4. Việc kế tiếp — theo thứ tự, yêu cầu mới nhất của anh luôn đứng đầu
-1. **(Đang chờ anh chốt)** Build 0.40c. Lỗi biên dịch Swift sửa trong cùng nhánh.
-2. **0.41**: kế hoạch ở `Docs/KE-HOACH-0.41.md`. Thứ tự đề xuất, chờ anh chọn ở câu 3(a):
+1. Theo dõi CI `ci/native-0.41`: đỏ vì lỗi biên dịch Swift thì sửa và đẩy lại cùng nhánh; xanh thì gửi anh IPA.
+2. **0.42** (phần còn lại của kế hoạch cũ `Docs/KE-HOACH-0.41.md`). Thứ tự đề xuất, chờ anh chọn ở câu 3(a):
    - P0: hiệu chỉnh vật lý theo video, có test so 20 cú mẫu.
    - P1: lên TestFlight.
    - P2: Z-Assess (đánh giá trình độ), lộ trình tự sinh, "Vì sao trượt", báo cáo tuần.

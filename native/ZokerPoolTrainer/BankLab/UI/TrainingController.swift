@@ -43,8 +43,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var replayStrikePlayed=false
     var preparationDuration:Double{lastPreparation.last?.time ?? 0}
     /// 0.37 (owner): replay starts 1.5 s before the strike and ends 1.5 s after the balls stop.
-    var replayLead:Double{min(1.5,preparationDuration)}
-    static let replayTail=1.5
+    var replayLead:Double{min(1.0,preparationDuration)}   // 0.41 (owner): 1 s before the cue meets the ball
+    static let replayTail=1.0   // 0.41 (owner): 1 s after the last ball stops
     func capturePreparation(time:Double){
         guard localTurn,!presentationBusy,!menuOpen,!isPlacingBalls,cue?.sunk==false else{aimBuffer.removeAll();return}
         if let last=aimBuffer.last {
@@ -178,7 +178,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// 0.35: Chỉ dẫn has two modes — 1 to the aim point (cue path to first contact), 2 the whole run. Bảng shows/hides the coach card.
     var guideMode=UserDefaults.standard.integer(forKey:"guideMode035")==1 ? 1:2,cardOn=true
     var numbersOn=UserDefaults.standard.object(forKey:"numbersOn033") as? Bool ?? true
-    var replayCamera=0
+    var replayCamera=UserDefaults.standard.integer(forKey:"replayCamera041")
+    /// 0.41 Action camera state: current cut, smoothed travel directions, crane yaw.
+    var actionShot = -1,actionDirections:[Int:SIMD2<Float>]=[:],actionCraneYaw:Float=0
     func currentSetup()->ShotSetup{ShotSetup(angle:angle,side:side,top:top,kind:shotKind,elevation:table.cueElevation)}
     var sessionShots:[(shot:SavedShot,score:Int,label:String)]=[]
     var autoSaveEveryShot:Bool{UserDefaults.standard.bool(forKey:"autoSaveEveryShot025")}
@@ -1544,8 +1546,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     replayPreparation=lastPreparation.last(where:{$0.time<=clock}) ?? lastPreparation.first
                     // 0.37 (owner): the replay opens on the wide establishing shot, also during the 1.5 s lead-in.
                     if replayAuto,!cameraManual {directCamera(time:0,state:frames[0],replay:true)}
+                    if replayCamera>=4 {updateActionCamera(0,0,fraction:0,span:0,dt:dt)}   // 0.41: action cams run in the lead-in too
                 }else{
                     directCamera(time:replayClock,state:frames[i],replay:true)
+                    if replayCamera>=4 {updateActionCamera(i,j,fraction:span>0 ? (replayClock-frameTimes[i])/span:0,span:span,dt:dt)}
                     if !replayStrikePlayed {
                         replayStrikePlayed=true
                         if !replayPaused,UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true{poolAudio.play(kind:3,impact:lastShot?.speed ?? 1,pan:0)}
@@ -1854,6 +1858,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if replayIndex != nil{stopReplay();return}
         hideCoach();table.resetPocketPresentation();replayPlan=ReplayDirector.Plan(duration:frameTimes.last ?? 0,events:lastShotEvents,initialAngle:lastShot?.aimAngle ?? angle);replayOrigin=captureCamera();replayEquipment=(engine.settings["cueType"]?.intValue ?? 0,table.cueElevation);replayRenderedCueType=nil;replayPreparation=nil;replayStrikePlayed=false;replayIndex=0;replayClock = -replayLead;replayYaw=0;replayAudioIndex=0
         replayPaused=false;replayAuto=true;cameraManual=false;lastDirectorTime = -10
+        actionDirections=[:];actionCraneYaw=0;actionShot = -1;if replayCamera>8 {replayCamera=0}
         DispatchQueue.main.async{[weak self] in self?.syncOverlayButtons()}
         if replayCamera != 0 {DispatchQueue.main.async{[weak self] in guard let self=self,self.replayIndex != nil else{return};self.chooseReplayCamera(self.replayCamera)}} else {replayAutoButton.setTitle("Điện ảnh",for:.normal)}
         if let pose=savedAimCamera{applyCamera(pose)}else{table.cameraMode=2}
@@ -1872,6 +1877,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         notifyStatus("Đang quay video highlight…")
     }
     func stopReplay(){
+        table.actionCamera=nil;actionShot = -1
         if let recorder=highlightRecorder{
             highlightRecorder=nil
             recorder.finish{[weak self] url in
@@ -1911,7 +1917,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         replayPause.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.replayPaused.toggle();self.replayPause.setTitle(self.replayPaused ? "Tiếp":"Dừng",for:.normal)},for:.touchUpInside)
         replayRate.showsMenuAsPrimaryAction=true;replayRate.menu=UIMenu(children:[0.25,0.5,1.0].map{rate in UIAction(title:"\(rate)×"){[weak self]_ in self?.replaySpeed=rate;self?.replayRate.setTitle("\(rate)×",for:.normal)}})
         replayAutoButton.setTitle("Điện ảnh",for:.normal);replayAutoButton.showsMenuAsPrimaryAction=true
-        replayAutoButton.menu=UIMenu(title:"Góc máy xem lại",children:["Điện ảnh · tự chuyển, chậm khi va chạm","Người đánh 3D","Toàn bàn","Trên cao"].enumerated().map{item->UIMenuElement in
+        replayAutoButton.menu=UIMenu(title:"Góc máy xem lại",children:Self.replayCameraTitles.enumerated().map{item->UIMenuElement in
             UIAction(title:item.element){[weak self]_ in self?.chooseReplayCamera(item.offset)}})
         close.addAction(UIAction{[weak self]_ in self?.stopReplay()},for:.touchUpInside)
         replaySlider.addAction(UIAction{[weak self]_ in
@@ -1923,9 +1929,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         replayBar.isHidden=true
     }
     /// 0.33 replay angles: 0 cinematic director (cuts + slow motion around collisions), 1 shooter 3D, 2 whole table, 3 top.
+    static let replayCameraTitles=["Điện ảnh · tự chuyển, chậm khi va chạm","Người đánh 3D","Toàn bàn","Trên cao",
+                                   "Action · bám bi cái","Action · bám bi mục tiêu","Action · đón bi ở lỗ","Cẩu quay quanh bàn",
+                                   "Action Mix · tự cắt cảnh"]
     func chooseReplayCamera(_ k:Int){
-        replayCamera=k;replayAuto = k==0;cameraManual = k != 0;lastDirectorTime = -10
-        replayAutoButton.setTitle(["Điện ảnh","Người đánh","Toàn bàn","Trên cao"][k],for:.normal)
+        replayCamera=k;replayAuto = k==0;cameraManual = k != 0 && k<4;lastDirectorTime = -10
+        replayAutoButton.setTitle(["Điện ảnh","Người đánh","Toàn bàn","Trên cao","Bi cái","Bi mục tiêu","Đón ở lỗ","Cẩu quay","Action Mix"][min(k,8)],for:.normal)
+        if k<4 {table.actionCamera=nil};actionShot = -1
+        UserDefaults.standard.set(k,forKey:"replayCamera041")
         beginCameraTransition(0.45)
         switch k {
         case 1: table.cameraMode=2;table.zoom=1;table.focusBounds=nil
@@ -2938,5 +2949,75 @@ final class HighlightRecorder {
     func finish(_ done:@escaping(URL?)->Void){
         input.markAsFinished()
         let ok=frame>0;writer.finishWriting{[url] in DispatchQueue.main.async{done(ok ? url:nil)}}
+    }
+}
+
+
+// MARK: - 0.41 Xem lại · góc quay "Action camera"
+extension TrainingController {
+    /// Pocket mouths on the playing surface, physics (x, y) = scene (x, z); order as World::pocket.
+    static let actionMouths:[SIMD2<Float>]=[SIMD2(-0.60,-1.235),SIMD2(0.60,-1.235),SIMD2(-0.66,0),SIMD2(0.66,0),SIMD2(-0.60,1.235),SIMD2(0.60,1.235)]
+    /// Owner 13/11: more cinematic replay angles, "Action camera" style, with clean cuts.
+    /// 4 chase the cue ball (low, just behind it) · 5 chase the first object ball · 6 low pocket cam meeting the potted
+    /// ball · 7 crane orbiting the table · 8 Action Mix: cue chase → object chase → pocket cam → crane, cut by events.
+    func updateActionCamera(_ i:Int,_ j:Int,fraction:Double,span:Double,dt:Double){
+        guard replayIndex != nil,frames.indices.contains(i),frames.indices.contains(j) else{table.actionCamera=nil;return}
+        let a=frames[i],b=frames[j],f=Float(max(0,min(1,fraction)))
+        func position(_ id:Int)->SIMD2<Float>?{
+            guard let p=a.first(where:{$0.id==id}) else{return nil}
+            let q=b.first(where:{$0.id==id}) ?? p
+            return SIMD2(Float(p.x+(q.x-p.x)*Double(f)),Float(p.y+(q.y-p.y)*Double(f)))
+        }
+        func heading(_ id:Int)->SIMD2<Float>{
+            var dir=actionDirections[id] ?? SIMD2(Float(cos(lastShot?.aimAngle ?? angle)),Float(sin(lastShot?.aimAngle ?? angle)))
+            if span>0,let p=a.first(where:{$0.id==id}),let q=b.first(where:{$0.id==id}),!q.sunk {
+                let v=SIMD2(Float(q.x-p.x),Float(q.y-p.y))/Float(span)
+                if simd_length(v)>0.04 {dir=simd_normalize(dir+(simd_normalize(v)-dir)*min(1,Float(dt)*5))}
+            }
+            if simd_length(dir)<1e-4 {dir=SIMD2(0,1)}
+            dir=simd_normalize(dir);actionDirections[id]=dir;return dir
+        }
+        let events=lastShotEvents
+        let contact=events.first{($0["kind"]?.intValue ?? -1)==1 && (($0["a"]?.intValue ?? -1)==0 || ($0["b"]?.intValue ?? -1)==0)}
+        let objectID=contact.map{($0["a"]?.intValue ?? 0)==0 ? ($0["b"]?.intValue ?? 1):($0["a"]?.intValue ?? 1)} ?? 1
+        let pot=events.first{($0["kind"]?.intValue ?? -1)==2 && ($0["a"]?.intValue ?? 0)>0}
+        let potID=pot?["a"]?.intValue ?? objectID,potPocket=min(5,max(0,pot?["b"]?.intValue ?? 0)),potTime=pot?["time"]?.doubleValue ?? .infinity
+        let contactTime=contact?["time"]?.doubleValue ?? 0
+        let end=frameTimes.last ?? 0
+        var shot=replayCamera
+        if replayCamera==8 {
+            if replayClock<contactTime-0.12 {shot=4}
+            else if replayClock>=potTime-0.8 && replayClock<potTime+0.6 {shot=6}
+            else if replayClock>=min(potTime+0.6,end-1.4) {shot=7}
+            else {shot=5}
+        }
+        if shot != actionShot {beginCameraTransition(actionShot<0 ? 0:0.35);actionShot=shot}   // quick glide = action cut
+        func chase(_ id:Int)->(SIMD3<Float>,SIMD3<Float>,Float)?{
+            guard let p=position(id) else{return nil}
+            let d=heading(id)
+            var eye=SIMD3(p.x-d.x*0.42,0.11,p.y-d.y*0.42)
+            if abs(eye.x)>0.64||abs(eye.z)>1.28 {eye.y=0.16}   // over the rail: rise above the wood
+            eye.x=max(-0.95,min(0.95,eye.x));eye.z=max(-1.6,min(1.6,eye.z))
+            return (eye,SIMD3(p.x+d.x*0.55,0.03,p.y+d.y*0.55),54)
+        }
+        var pose:(SIMD3<Float>,SIMD3<Float>,Float)?
+        switch shot {
+        case 4: pose=chase(0)
+        case 5: pose=chase(objectID) ?? chase(0)
+        case 6:
+            let mouth=Self.actionMouths[potPocket]
+            let outward=simd_normalize(mouth)   // from the table centre out through the pocket
+            let eye=SIMD3(mouth.x+outward.x*0.05,0.05,mouth.y+outward.y*0.05)
+            let ball=position(potID).map{SIMD3($0.x,0.028,$0.y)} ?? SIMD3(mouth.x*0.7,0.028,mouth.y*0.7)
+            pose=(eye,ball,40)
+        default:
+            actionCraneYaw+=Float(dt)*0.22*(replayPaused ? 0:1)
+            let moving=a.filter{!$0.sunk}
+            var centre=SIMD2<Float>(0,0)
+            if !moving.isEmpty {centre=moving.reduce(SIMD2<Float>(0,0)){$0+SIMD2(Float($1.x),Float($1.y))}/Float(moving.count)*0.5}
+            let yaw=Float(lastShot?.aimAngle ?? angle)+Float.pi+actionCraneYaw
+            pose=(SIMD3(cos(yaw)*1.7,1.15,sin(yaw)*2.3),SIMD3(centre.x,0,centre.y),46)
+        }
+        if let pose=pose {table.actionCamera=(eye:pose.0,target:pose.1,fov:pose.2)}
     }
 }
