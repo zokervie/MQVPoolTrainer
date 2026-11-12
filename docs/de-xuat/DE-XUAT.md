@@ -55,14 +55,16 @@ Miễn phí (vòng luyện chính, không quảng cáo ép) · Z-Lab Phân tích
 ### Đề xuất ngày 12/11/2026
 Tình hình: CI `ci/native-0.40` xanh (11/11, đấu với máy 6 cấp + OpponentTests). Chủ đề tìm hiểu: đối thủ app luyện bida dùng AI/camera trên bàn thật ([DrillRoom – AZBilliards](https://azbilliards.com/?p=197467), [DrillRoom – App Store](https://apps.apple.com/ru/app/id1539827505)) và các cách bán mới của App Store 2026 ([Apple Newsroom 06/2026](https://www.apple.com/ie/newsroom/2026/06/apple-expands-app-store-capabilities-to-help-developers-grow-and-reach-new-users/)).
 
-1. 🟡 **"Bàn nhà tôi" — người chơi tự hiệu chỉnh tốc độ nỉ/băng**
+1. 🟢 **"Bàn nhà tôi" — người chơi tự hiệu chỉnh tốc độ nỉ/băng**
    - Vì sao: đối thủ đang đi theo hướng "luyện trên bàn thật"; cách rẻ nhất để app sát bàn của từng người là cho họ đo bàn mình: đánh bi từ băng đầu, đếm số lần chạm băng/thời gian lăn (bấm giờ trong app) → suy ra hệ số lăn và độ nảy băng, lưu thành hồ sơ bàn. Khác bộ "5 cú 240 fps" (hiệu chỉnh gốc của app); đây là hiệu chỉnh của người dùng, chặn trong khoảng an toàn đã test.
    - Công sức: vừa (màn đo 3 bước + test C++ ánh xạ số đo → hệ số). Bản: 0.41. Gói: Z-Lab Phân tích.
-2. 🟡 **"Cú quyết định" — luyện dưới áp lực**
+2. 🟢 **"Cú quyết định" — luyện dưới áp lực**
    - Vì sao: tâm lý thi đấu là chỗ người chơi phong trào hụt nhiều nhất; tập trong điều kiện có áp lực (đồng hồ cú 30 s + 1 lần gia hạn như giải chuyên nghiệp, tiếng khán giả nhỏ dần, "phải vào mới qua bài", mất chuỗi nếu trượt) chuyển sang bàn thật tốt hơn tập thả lỏng. Dùng lại bài mỗi ngày + đấu máy, chỉ thêm lớp luật và âm thanh (nguồn CC0/tự thu, không YouTube).
    - Công sức: nhỏ. Bản: 0.41. Gói: Z-Drill (bộ "Áp lực"), bản thử 1 bài miễn phí.
-3. 🟡 **Live Activity + widget: "Đến lượt bạn" và chuỗi ngày**
+3. 🟢 **Live Activity + widget: "Đến lượt bạn" và chuỗi ngày**
    - Vì sao: khi đấu Wi‑Fi/online hay chờ bài mỗi ngày, Live Activity trên màn khoá/Dynamic Island (ActivityKit) báo tỉ số, lượt đánh, giờ bài mới mà không cần mở app; widget đếm chuỗi ngày giữ người chơi quay lại — rẻ hơn mọi quảng cáo. Không cần máy chủ cho chế độ Wi‑Fi cục bộ.
    - Công sức: vừa (widget extension + ActivityKit; push cho online để sau). Bản: 0.41 (widget), sau (push online). Gói: miễn phí (giữ chân), kiểu widget đẹp bán trong Z-Style.
 
 Còn chờ anh: quay 5 cú 240 fps ở CLB · thu âm theo kịch bản 15 phút.
+
+→ Anh duyệt cả 3 ngày 12/11/2026, kèm tối ưu giao diện · âm thanh · logo · intro. Danh sách việc: `docs/de-xuat/NHIEM-VU-0.41.md`.
