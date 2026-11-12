@@ -378,7 +378,7 @@ final class CustomizeController:UIViewController {
         UIGraphicsImageRenderer(size:CGSize(width:56,height:44)).image{ctx in
             color.setFill();ctx.fill(CGRect(x:0,y:0,width:56,height:44))
             for y in stride(from:0,to:44,by:2){for x in stride(from:(y/2)%2,to:56,by:2){
-                UIColor(white:(x*7+y*13)%5==0 ? 0:1,alpha:0.10).setFill();ctx.fill(CGRect(x:x,y:y,width:1.4,height:1.4))}}
+                UIColor(white:(x*7+y*13)%5==0 ? 0:1,alpha:0.10).setFill();ctx.fill(CGRect(x:CGFloat(x),y:CGFloat(y),width:1.4,height:1.4))}}
         }
     }
     /// A miniature of a scoreboard style (two plates, scores, centre, one lit lamp).
