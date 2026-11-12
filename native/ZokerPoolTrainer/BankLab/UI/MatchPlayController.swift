@@ -18,6 +18,12 @@ final class MatchPlayState {
     let clockBar = UIView(), clockLabel = UILabel(), extensionButton = UIButton(type: .system)
     var clockBuilt = false
     var clockSides: [NSLayoutConstraint] = [], clockSide = -1
+    var lastSnapshotBuild = -Double.infinity
+    // 0.41 live cue of the remote shooter (display only) and the away rules.
+    var remoteAim: LANAim?, remoteShown: LANAim?, remoteAimAt = -Double.infinity
+    var lastAimSent: LANAim?, lastAimSentAt = -Double.infinity
+    var localCueVisual: (Int, Double)?
+    var awaySince: Double?, awayTurnKey = "", awayTurnStart = 0.0, everConnected = false
     var state: [String:Any] = [:]
     var active = false
     var showNumbers = false
@@ -62,7 +68,13 @@ extension TrainingController {
         return matchPlay.active && matchPlay.session.role == .guest ? matchPlay.guestBalls : nil
     }
     var matchSimulationPaused: Bool {
-        matchPlay.active && matchPlay.session.role != .none && !matchPlay.session.isConnected
+        matchPlay.active && matchPlay.session.role != .none && !matchPlay.session.isConnected && !matchHostSolo
+    }
+    /// 0.41 (owner: "đến lượt ai nấy đánh, tránh chờ đợi"): the host holds the rules and the solver, so it keeps
+    /// playing its own turns while the guest is away (screen off, other app). The guest resyncs in full on return.
+    var matchHostSolo: Bool {
+        matchPlay.active && matchPlay.session.role == .host && !matchPlay.session.isConnected &&
+            matchPlay.everConnected && matchPlay.awaySince != nil
     }
     var matchAllowsInput: Bool {
         guard matchPlay.active else { return true }
@@ -72,7 +84,7 @@ extension TrainingController {
         if matchPlay.session.role == .none { return true }
         let moving = matchPlay.session.role == .guest ?
             matchPlay.session.latestSnapshot?.isMoving == true : (shotActive || BLShotCameraBusy(shotCameraState))
-        return matchPlay.session.isConnected && !matchPlay.session.hasPendingCommand &&
+        return (matchPlay.session.isConnected || matchHostSolo) && !matchPlay.session.hasPendingCommand &&
             !moving &&
             matchInt("currentPlayer") == matchPlay.session.localPlayer
     }
@@ -149,6 +161,11 @@ extension TrainingController {
             self.syncMatchControls()
         }
         session.onSnapshot = { [weak self] snapshot in self?.receiveMatchSnapshot(snapshot) }
+        session.onAim = { [weak self] aim in
+            guard let self = self else { return }
+            self.matchPlay.remoteAim = aim; self.matchPlay.remoteAimAt = ProcessInfo.processInfo.systemUptime
+            self.wakeRendering()
+        }
         session.onEvents = { [weak self, weak session] events, shotID in
             guard let self = self, session?.role == .guest else { return }
             if shotID > self.matchPlay.audioShotID {
@@ -482,6 +499,8 @@ extension TrainingController {
         guard !shotActive || matchSimulationPaused || matchPlay.session.role == .guest else { notifyStatus("Chờ bi dừng trước khi rời trận"); return }
         matchPlay.active = false
         matchPlay.computerLevel = nil; matchPlay.computerThinking = false; matchPlay.computerAim = nil; matchPlay.humanSetup = nil
+        UIApplication.shared.isIdleTimerDisabled = false; matchPlay.awaySince = nil; matchPlay.everConnected = false
+        matchPlay.remoteAim = nil; matchRestoreLocalCue()
         matchPlay.session.leave()
         matchPlay.rules = nil; matchPlay.state = [:]
         matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
@@ -534,6 +553,14 @@ extension TrainingController {
         let name = matchPlay.state["rule"] as? String == "rotation15" ? "15 Rotation" :
             (matchDisciplines.first { $0.0 == (matchPlay.state["rule"] as? String) }?.1 ?? "Trận Wi-Fi")
         let room = matchPlay.session.role == .none ? "Chuyền máy" : "Mã \(matchPlay.session.roomCode)"
+        if let since = matchPlay.awaySince, matchPlay.everConnected, matchPlay.matchWinner < 0 {
+            let away = Int(ProcessInfo.processInfo.systemUptime - since)
+            let left = max(0, Int(Self.awayForfeitSeconds) - away)
+            if matchPlay.session.role == .host {
+                return "\(room) · Đối thủ tạm vắng \(away) s\nBạn vẫn đánh lượt của mình · đối thủ quá \(Int(Self.awayTurnSeconds)) s/lượt bị lỗi · xử thắng sau \(left) s"
+            }
+            return "\(room) · Chủ phòng tạm vắng \(away) s\nChờ nối lại · bạn được xử thắng sau \(left) s"
+        }
         if matchSimulationPaused { return "\(room) · TẠM DỪNG\n\(matchPlay.lastStatus)" }
         let winner = matchInt("winner", fallback: -1)
         if matchPlay.matchWinner >= 0 { return "\(name) · \(room)\n\(matchPlay.names[matchPlay.matchWinner]) thắng trận \(matchPlay.frames.max() ?? 0)–\(matchPlay.frames.min() ?? 0) · chạm để chơi trận mới" }
@@ -693,11 +720,12 @@ extension TrainingController {
         guard matchPlay.active else { return }
         var command = LANCommand(player: matchPlay.session.role == .none ? matchInt("currentPlayer") : matchPlay.session.localPlayer,
                                  action: action, shot: shot, placement: placement, call: call, option: option)
-        if matchPlay.session.role == .none {
+        if matchPlay.session.role == .none || matchHostSolo {
             matchPlay.applyingOfflineCommand = true
             let accepted = applyMatchCommand(command)
             matchPlay.applyingOfflineCommand = false
             if !accepted { notifyStatus("Thao tác chưa hợp lệ theo luật đang chơi") }
+            if matchHostSolo { publishMatchSnapshot(force: true) }   // stored; sent when the guest is back
         } else {
             guard let snapshot = matchPlay.session.latestSnapshot else { notifyStatus("Chờ đồng bộ trạng thái trận"); return }
             command.matchID = snapshot.matchID; command.expectedRevision = snapshot.revision
@@ -994,6 +1022,11 @@ extension TrainingController {
     }
     func publishMatchSnapshot(force: Bool = false) {
         guard matchPlay.active, matchPlay.session.role == .host else { return }
+        // 0.41 (owner: match play less smooth than practice). The host built the rules JSON, 128 events and every ball
+        // on EVERY display frame, then the session dropped all but 10–20 per second. Build only when it can be sent.
+        let now = ProcessInfo.processInfo.systemUptime
+        if !force && now - matchPlay.lastSnapshotBuild < matchPlay.session.snapshotInterval { return }
+        matchPlay.lastSnapshotBuild = now
         var state = matchPlay.state
         state["calledBall"] = matchPlay.calledBall; state["calledPocket"] = matchPlay.calledPocket
         state["safety"] = matchPlay.safety; state["pushOut"] = matchPlay.pushOut
@@ -1063,7 +1096,7 @@ extension TrainingController {
         }
         matchPlay.snapshots.append(snapshot)
         // 10 Hz samples: 8 cover the largest internet playout delay (0.45 s).
-        if matchPlay.snapshots.count > 8 { matchPlay.snapshots.removeFirst(matchPlay.snapshots.count - 8) }
+        if matchPlay.snapshots.count > 16 { matchPlay.snapshots.removeFirst(matchPlay.snapshots.count - 16) }   // 0.41: 20 Hz Wi‑Fi needs twice the samples
         matchPlay.guestBalls = snapshot.balls.map { matchRenderBall($0) }
         if !snapshot.isMoving {
             matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
@@ -1485,6 +1518,96 @@ extension TrainingController {
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
         notifyStatus("Hết giờ · \(matchPlay.names[player]) phạm lỗi · đối thủ có bi trong tay")
         matchPlay.clockKey = ""
+        refresh(); updateControls(); syncMatchControls(); publishMatchSnapshot(force: true)
+    }
+}
+
+// MARK: - 0.41 Cơ của đối thủ hiện trên màn hình · luật vắng mặt khi chơi mạng
+extension TrainingController {
+    /// A player away (screen off, other app, lost link) gets a foul after this long on their own turn, and loses the
+    /// match after this long away in total. ASSUMED values (owner to tune): 45 s ≈ shot clock + extension.
+    static let awayTurnSeconds = 45.0, awayForfeitSeconds = 180.0
+
+    /// Local shooter → the other screen: angle, tip point, lift, pull and cue, ~15 Hz while aiming.
+    func matchPublishAim() {
+        guard matchPlay.active, matchPlay.session.role != .none, localTurn, !shotActive, !presentationBusy else { return }
+        var aim = LANAim(angle: angle, side: side, top: top,
+                         elevation: min(90, max(0, max(table.cueElevation, table.clearanceElevation))),
+                         pull: max(0, min(1, pull)), cueType: max(0, min(2, engine.settings["cueType"]?.intValue ?? 0)),
+                         visible: !isPlacingBalls)
+        let tip = hypot(aim.side, aim.top)
+        if tip > 0.7 { aim.side *= 0.7 / tip; aim.top *= 0.7 / tip }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let last = matchPlay.lastAimSent, last == aim, now - matchPlay.lastAimSentAt < 0.5 { return }
+        if matchPlay.session.publishAim(aim) { matchPlay.lastAimSent = aim; matchPlay.lastAimSentAt = now }
+    }
+    /// The remote shooter's cue, eased toward the latest pose, while it is their turn and the balls are still.
+    func matchRemoteCue(_ dt: Double) -> LANAim? {
+        let session = matchPlay.session
+        guard matchPlay.active, session.role != .none, !localTurn, !presentationBusy, !shotActive,
+              matchInt("currentPlayer") != session.localPlayer, let target = matchPlay.remoteAim, target.visible,
+              ProcessInfo.processInfo.systemUptime - matchPlay.remoteAimAt < 3,
+              session.role != .guest || session.latestSnapshot?.isMoving != true else { return nil }
+        var shown = matchPlay.remoteShown ?? target
+        let k = min(1, max(0, dt) * 14)
+        var turn = target.angle - shown.angle
+        while turn > Double.pi { turn -= 2 * Double.pi }
+        while turn < -Double.pi { turn += 2 * Double.pi }
+        shown.angle += turn * k; shown.side += (target.side - shown.side) * k; shown.top += (target.top - shown.top) * k
+        shown.elevation += (target.elevation - shown.elevation) * k
+        shown.pull += (target.pull - shown.pull) * min(1, max(0, dt) * 22)
+        shown.cueType = target.cueType
+        matchPlay.remoteShown = shown
+        if matchPlay.localCueVisual == nil { matchPlay.localCueVisual = (engine.settings["cueType"]?.intValue ?? 0, table.cueElevation) }
+        table.selectCue(shown.cueType); table.cueElevation = shown.elevation
+        return shown
+    }
+    /// The turn is back: the local cue model and lift return to what this player had chosen.
+    func matchRestoreLocalCue() {
+        matchPlay.remoteShown = nil
+        guard let local = matchPlay.localCueVisual else { return }
+        matchPlay.localCueVisual = nil
+        table.selectCue(local.0); table.cueElevation = local.1
+    }
+    /// Every 0.5 s while a network match runs: track absence, foul an absent player's turn, award the match.
+    func matchNetworkWatch() {
+        let session = matchPlay.session
+        guard matchPlay.active, session.role != .none else { matchPlay.awaySince = nil; return }
+        UIApplication.shared.isIdleTimerDisabled = true   // the screen never auto-locks mid-match (owner: "màn hình tắt")
+        if session.isConnected {
+            if matchPlay.awaySince != nil { notifyStatus("Đối thủ đã quay lại · tiếp tục trận"); syncMatchControls() }
+            matchPlay.everConnected = true; matchPlay.awaySince = nil; matchPlay.awayTurnKey = ""
+            return
+        }
+        guard matchPlay.everConnected, matchPlay.matchWinner < 0, matchInt("winner", fallback: -1) < 0 else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if matchPlay.awaySince == nil {
+            matchPlay.awaySince = now
+            notifyStatus(session.role == .host ? "Đối thủ tạm vắng · bạn vẫn đánh lượt của mình" : "Chủ phòng tạm vắng · đang chờ nối lại")
+            syncMatchControls()
+        }
+        let away = now - (matchPlay.awaySince ?? now)
+        matchPlay.banner.setTitle(matchStatusText(), for: .normal)
+        if away >= Self.awayForfeitSeconds {
+            let me = session.localPlayer
+            matchPlay.matchWinner = me; matchPlay.forfeitWinner = me
+            updateMatchState(); updateScoreboard()
+            notifyStatus("\(matchPlay.names[me]) thắng · đối thủ rời trận quá \(Int(Self.awayForfeitSeconds / 60)) phút")
+            if session.role == .host { publishMatchSnapshot(force: true) }
+            syncMatchControls(); updateControls()
+            return
+        }
+        // Host only: the absent guest's turn runs a clock; at the limit it is a foul (ball in hand to the host).
+        guard session.role == .host, matchInt("currentPlayer") == 1, !shotActive, !presentationBusy,
+              (matchPlay.state["pendingChoice"] as? String ?? "").isEmpty, let rules = matchPlay.rules else { return }
+        let key = "\(matchPlay.rackNo)-\(matchInt("shotCount"))"
+        if matchPlay.awayTurnKey != key { matchPlay.awayTurnKey = key; matchPlay.awayTurnStart = now }
+        guard now - matchPlay.awayTurnStart >= Self.awayTurnSeconds else { return }
+        let state = engine.states
+        let result = rules.complete(before: state, after: state, events: [], headCrossed: [])
+        guard (result["accepted"] as? NSNumber)?.boolValue == true else { return }
+        applyMatchResult(result)
+        notifyStatus("Đối thủ vắng quá \(Int(Self.awayTurnSeconds)) s · phạm lỗi · bạn có bi trong tay")
         refresh(); updateControls(); syncMatchControls(); publishMatchSnapshot(force: true)
     }
 }

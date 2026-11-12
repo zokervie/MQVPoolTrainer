@@ -21,6 +21,8 @@ final class LocalMatchSession: NSObject {
     var onAcceptedCommand: ((LANCommand) -> Void)?
     var onEvents: (([LANEvent], Int) -> Void)?
     var onError: ((String) -> Void)?
+    /// 0.41: the remote shooter's live cue pose (display only).
+    var onAim: ((LANAim) -> Void)?
 
     private(set) var role: Role = .none
     private(set) var transport: Transport = .nearby
@@ -31,6 +33,8 @@ final class LocalMatchSession: NSObject {
     private(set) var connectionDescription = "Chưa vào phòng"
     var hasPendingCommand: Bool { awaitingCommandID != nil }
     var localPlayer: Int { role == .guest ? 1 : 0 }
+    /// 0.41: 20 Hz on Wi‑Fi / Game Center (smoother guest playback), 10 Hz through the internet relay.
+    var snapshotInterval: Double { transport == .internet ? 0.1 : 0.05 }
     var isConnected: Bool {
         remoteReady && (role == .host || snapshotReady) && !backgrounded && !protocolBlocked && linkUp
     }
@@ -97,8 +101,11 @@ final class LocalMatchSession: NSObject {
             }
         }
         super.init()
-        NotificationCenter.default.addObserver(self, selector: #selector(suspend),
-                                               name: UIApplication.willResignActiveNotification, object: nil)
+        // 0.41 (owner: the other screen turning off froze the match). willResignActive also fires for Control Centre,
+        // a notification banner or an incoming-call banner — the match was cut for each. Now only a real move to the
+        // background counts, with a 25 s grace kept alive by a background task (quick app switch keeps the room).
+        NotificationCenter.default.addObserver(self, selector: #selector(enterBackground),
+                                               name: UIApplication.didEnterBackgroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(resume),
                                                name: UIApplication.didBecomeActiveNotification, object: nil)
     }
@@ -193,6 +200,7 @@ final class LocalMatchSession: NSObject {
         deliveredEventShot = -1; deliveredEventIndex = -1; isApplyingCommand = false
         backgrounded = false; protocolBlocked = false
         lastPublished = -Double.infinity
+        endBackgroundGrace()
         describe("Chưa vào phòng")
     }
 
@@ -212,7 +220,7 @@ final class LocalMatchSession: NSObject {
         requireMain()
         guard role == .host, value.isValid else { return false }
         let now = ProcessInfo.processInfo.systemUptime
-        guard force || now - lastPublished >= 0.1 else { return false }
+        guard force || now - lastPublished >= snapshotInterval - 0.002 else { return false }
         if !force, !value.isMoving, let previous = latestSnapshot, !previous.isMoving,
            previous.shotID == value.shotID, previous.balls == value.balls,
            previous.currentPlayer == value.currentPlayer, previous.isPaused == value.isPaused,
@@ -234,6 +242,16 @@ final class LocalMatchSession: NSObject {
         guard role == .host, isConnected, !events.isEmpty, events.count <= 128,
               events.allSatisfy({ $0.isValid }), (0...1_000_000_000).contains(shotID) else { return }
         send(kind: .events, events: events, shotID: shotID)
+    }
+
+    /// 0.41: the local shooter's cue pose for the other screen, at most ~15 Hz (display only, never authoritative).
+    private var lastAimSent = -Double.infinity
+    @discardableResult func publishAim(_ aim: LANAim) -> Bool {
+        requireMain()
+        let now = ProcessInfo.processInfo.systemUptime
+        guard role != .none, isConnected, aim.isValid, now - lastAimSent >= 0.066 else { return false }
+        lastAimSent = now
+        return send(kind: .aim, aim: aim)
     }
 
     /// Host: true means applied by onCommand. Guest: true means queued; only snapshots confirm state.
@@ -373,6 +391,26 @@ final class LocalMatchSession: NSObject {
         }
     }
 
+    private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    private var backgroundDeadline: Timer?
+    static let backgroundGrace = 25.0
+    @objc private func enterBackground() {
+        guard role != .none, !backgrounded else { return }
+        endBackgroundGrace()
+        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "zoker-match") { [weak self] in
+            self?.suspend(); self?.endBackgroundGrace()
+        }
+        let timer = Timer(timeInterval: Self.backgroundGrace, repeats: false) { [weak self] _ in
+            guard let self = self, UIApplication.shared.applicationState == .background else { self?.endBackgroundGrace(); return }
+            self.suspend(); self.endBackgroundGrace()
+        }
+        backgroundDeadline = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+    private func endBackgroundGrace() {
+        backgroundDeadline?.invalidate(); backgroundDeadline = nil
+        if backgroundTask != .invalid { UIApplication.shared.endBackgroundTask(backgroundTask); backgroundTask = .invalid }
+    }
     @objc private func suspend() {
         guard role != .none else { return }
         backgrounded = true; remoteReady = false; snapshotReady = false
@@ -382,6 +420,7 @@ final class LocalMatchSession: NSObject {
         describe("Ứng dụng tạm nghỉ · trận tạm dừng")
     }
     @objc private func resume() {
+        endBackgroundGrace()   // back within the grace: the room never dropped
         guard role != .none, backgrounded, !protocolBlocked else { return }
         backgrounded = false
         restartSession()
@@ -390,12 +429,12 @@ final class LocalMatchSession: NSObject {
 
     @discardableResult private func send(kind: LANEnvelope.Kind, snapshot: LANSnapshot? = nil,
                                          command: LANCommand? = nil, message: String? = nil,
-                                         events: [LANEvent]? = nil, shotID: Int? = nil) -> Bool {
+                                         events: [LANEvent]? = nil, shotID: Int? = nil, aim: LANAim? = nil) -> Bool {
         guard linkUp else { return false }
         sendSequence += 1
         var packet = LANEnvelope(roomCode: roomCode, matchID: matchID, sequence: sendSequence, kind: kind)
         packet.snapshot = snapshot; packet.command = command; packet.message = message
-        packet.events = events; packet.shotID = shotID
+        packet.events = events; packet.shotID = shotID; packet.aim = aim
         if kind == .hello { packet.role = role == .host ? "host" : "guest"; packet.game = game }
         do {
             let data = try LANWireCodec.encode(packet)
@@ -493,6 +532,9 @@ final class LocalMatchSession: NSObject {
             let fresh = events.filter { $0.index > deliveredEventIndex }.sorted { $0.index < $1.index }
             if let index = fresh.last?.index { deliveredEventIndex = index }
             if !fresh.isEmpty { onEvents?(fresh, shot) }
+        case .aim:
+            guard remoteReady, let aim = packet.aim, aim.isValid else { return }
+            onAim?(aim)
         case .ping: send(kind: .pong)
         case .pong: break
         case .leave:

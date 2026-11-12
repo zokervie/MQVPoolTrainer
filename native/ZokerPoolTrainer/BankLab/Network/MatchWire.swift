@@ -44,6 +44,22 @@ struct LANShot: Codable, Equatable {
     }
 }
 
+/// 0.41 (owner: "đối thủ đang đánh không thấy hình cơ"): the shooter's live cue pose, ~15 Hz, display only — it never
+/// changes the table. pull 0…1 = how far the cue is drawn back.
+struct LANAim: Codable, Equatable {
+    var angle: Double
+    var side: Double = 0
+    var top: Double = 0
+    var elevation: Double = 0
+    var pull: Double = 0
+    var cueType: Int = 0
+    var visible: Bool = true
+    var isValid: Bool {
+        [angle, side, top, elevation, pull].allSatisfy { $0.isFinite } && abs(angle) <= 1_000_000 &&
+            hypot(side, top) <= 0.711 && (0...90).contains(elevation) && (0...1).contains(pull) && (0...2).contains(cueType)
+    }
+}
+
 struct LANPlacement: Codable, Equatable {
     var x: Double
     var y: Double
@@ -142,7 +158,7 @@ struct LANSnapshot: Codable, Equatable {
 
 /// One protocol version for rules/physics compatibility. A mismatched client is refused.
 struct LANEnvelope: Codable {
-    enum Kind: String, Codable { case hello, snapshot, command, accepted, rejected, events, ping, pong, leave }
+    enum Kind: String, Codable { case hello, snapshot, command, accepted, rejected, events, ping, pong, leave, aim }
     static let protocolVersion = 1
     static let maximumBytes = 131_072
     var version: Int = LANEnvelope.protocolVersion
@@ -157,6 +173,7 @@ struct LANEnvelope: Codable {
     var events: [LANEvent]? = nil
     var shotID: Int? = nil
     var message: String? = nil
+    var aim: LANAim? = nil
 }
 
 /// The same gate used by the live host and protocol regression harness.

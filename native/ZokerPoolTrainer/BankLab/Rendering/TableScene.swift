@@ -1089,7 +1089,7 @@ final class TableScene {
             let node=SCNNode(geometry:geometry);node.name="premium-cue-"+appearance.id;node.castsShadow=false
             if cueType==1 {node.scale=SCNVector3(1,0.72,1)}   // jump cue is short (1.044 m), as the clearance model assumes
             cueRoot.addChildNode(node)
-            cueRoot.addChildNode(domeTip(scale:cueType==1 ? 0.72:1))
+            cueRoot.addChildNode(domeTip(scale:cueType==1 ? 0.72:1,kind:cueType))
             return
         }
         let scale:CGFloat=cueType==1 ? 0.72:(cueType==2 ? 1.015:1.0)
@@ -1102,7 +1102,7 @@ final class TableScene {
         if !appearance.carbon {maple.diffuse.contents=woodTexture(light:true)}
         let ebony=mat(.rgb(masseLook && cueType==0 ? 0x6a1820:appearance.color),roughness:0.30)
         let ring=mat(.rgb(appearance.accent),roughness:0.3,metal:0.5)
-        cueRoot.addChildNode(domeTip(scale:1))
+        cueRoot.addChildNode(domeTip(scale:1,kind:cueType))
         section(0.0045,0.0165,0.0059,0.0060,mat(UIColor(red:0.93,green:0.91,blue:0.81,alpha:1),roughness:0.23))
         section(0.021,0.704,0.006,0.0105,maple)
         section(0.725,0.025,0.0105,0.0107,ring)
@@ -1116,8 +1116,10 @@ final class TableScene {
     /// 0.39: leather tip, 12.2 mm diameter, 4.5 mm tall, domed to a 9.5 mm radius (between "dime" and "nickel"),
     /// apex at local y = 0 (the contact point used by cuePose). Lathe mesh with true dome normals, chalk-blue leather.
     static let tipDomeRadius:Float=0.0095,tipRadius:Float=0.0061
-    private func domeTip(scale:Float)->SCNNode{
-        let rd=Self.tipDomeRadius,rt=Self.tipRadius,sag=rd-(rd*rd-rt*rt).squareRoot(),bottom:Float = -0.0045
+    /// 0.41 (owner): jump and break cues have HARD phenolic tips — milky white (break) or solid black (jump), glossy,
+    /// never chalk-blue leather; their dome is flatter (harder tips are shaped to a larger radius).
+    private func domeTip(scale:Float,kind:Int=0)->SCNNode{
+        let rd=kind==0 ? Self.tipDomeRadius:0.0125,rt=Self.tipRadius,sag=rd-(rd*rd-rt*rt).squareRoot(),bottom:Float = -0.0045
         var profile:[(r:Float,y:Float,nr:Float,ny:Float)]=[(0,0,0,1)]
         for k in 1...10 {let r=rt*Float(k)/10,y = -(rd-(rd*rd-r*r).squareRoot());profile.append((r,y,r/rd,(rd+y)/rd))}
         profile.append((rt,-sag,1,0));profile.append((rt,bottom,1,0));profile.append((0,bottom,0,-1))
@@ -1127,7 +1129,15 @@ final class TableScene {
         let m=Int32(profile.count)
         for i in 0..<Int32(seg){for j in 0..<(m-1){let a=i*m+j,b=a+m;idx+=[a,b,a+1,a+1,b,b+1]}}
         let g=SCNGeometry(sources:[SCNGeometrySource(vertices:v),SCNGeometrySource(normals:n)],elements:[SCNGeometryElement(indices:idx,primitiveType:.triangles)])
-        let leather=mat(.rgb(0x1E4F6E),roughness:0.92);leather.isDoubleSided=true;g.materials=[leather]
+        let leather:SCNMaterial
+        if kind==2 {
+            leather=mat(UIColor(red:0.94,green:0.93,blue:0.89,alpha:1),roughness:0.16)   // milky phenolic
+            leather.clearCoat.contents=0.9;leather.clearCoatRoughness.contents=0.05
+            leather.transparency=0.9;leather.transparencyMode = .dualLayer
+        }else if kind==1 {
+            leather=mat(UIColor(white:0.06,alpha:1),roughness:0.2);leather.clearCoat.contents=0.8;leather.clearCoatRoughness.contents=0.06
+        }else{leather=mat(.rgb(0x1E4F6E),roughness:0.92)}
+        leather.isDoubleSided=true;g.materials=[leather]
         let node=SCNNode(geometry:g);node.name="cue-tip";node.castsShadow=false;node.scale=SCNVector3(1,scale,1);return node
     }
     private func materialMap(_ name:String,fallback:()->UIImage)->UIImage {
@@ -1717,7 +1727,7 @@ final class TableScene {
         // 0.39: domed tip (radius Rd) on the ball (radius R) with the apex on the contact: the dome clears the ball once
         // stood off by the largest overlap of the tilted ball surface and the dome, max over ρ ≤ tip radius of
         // ρ·tanθ − ρ²(1/R+1/Rd)/2  (θ = angle between the cue and the surface normal). Much less than the old flat r·tanθ.
-        let s2=min(Float(0.95),x*x+y*y),tanT=sqrt(s2)/sqrt(1-s2),k=1/Float(radius)+1/Self.tipDomeRadius
+        let s2=min(Float(0.95),x*x+y*y),tanT=sqrt(s2)/sqrt(1-s2),k=1/Float(radius)+1/(cueType==0 ? Self.tipDomeRadius:Float(0.0125))
         let rho=min(Self.tipRadius,tanT/k),tipBack=max(0,rho*tanT-rho*rho*k/2)
         return (contact,simd_normalize(flat*cos(pitch)-SIMD3<Float>(0,1,0)*sin(pitch)),tipBack)
     }

@@ -110,5 +110,365 @@
     "changes": "HQ MP3 preview decoded to 44.1 kHz mono PCM16; trim, DC removal, short fades, peak gain. No pitch shift.",
     "sha256": "77616bd46f25294ddfd734a21f6d4ffe0edb5bbfb01dbfb7a8ca18d0ce456b9f",
     "frames": 13230
+  },
+  {
+    "asset": "PoolCueT0v0",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      142.974,
+      143.118
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "cue",
+    "tier": 0,
+    "sha256": "b30d5f6512f771ca5678d43683eed86db45219d0a82453dfb442f0bfa6264c85",
+    "frames": 6350
+  },
+  {
+    "asset": "PoolCueT0v1",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      112.27,
+      112.414
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "cue",
+    "tier": 0,
+    "sha256": "483ca90b97a4e8a79b1c0941fa4ada5d15260a169c12453123d50a460f665eda",
+    "frames": 6350
+  },
+  {
+    "asset": "PoolCueT1v2",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      164.007,
+      164.151
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "cue",
+    "tier": 1,
+    "sha256": "6fbe31262bd1d4c7475d12fe12ab7c305a393894e1638787a91bcb7a4498733e",
+    "frames": 6351
+  },
+  {
+    "asset": "PoolCueT1v3",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      125.876,
+      126.02
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "cue",
+    "tier": 1,
+    "sha256": "b11358cf933b0c08141df5ac7727a294d567075db3f475522c6618e72d39a1dd",
+    "frames": 6351
+  },
+  {
+    "asset": "PoolCueT1v4",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      94.59,
+      94.734
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "cue",
+    "tier": 1,
+    "sha256": "903c253c428fe3b78f01b8f0988b12342b50b81f765d4d9ffb5d8be964f7dcda",
+    "frames": 6351
+  },
+  {
+    "asset": "PoolCueT2v5",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      68.783,
+      68.927
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "cue",
+    "tier": 2,
+    "sha256": "ac6abcfa24329107c6572c1b05d1e77f8381c01452da10b4271a072173cddef1",
+    "frames": 6350
+  },
+  {
+    "asset": "PoolCueT2v6",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      170.063,
+      170.207
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "cue",
+    "tier": 2,
+    "sha256": "6418dc9e02eff154406af02d788619cca4ce3db23f3eead6390f4dd9eea150aa",
+    "frames": 6350
+  },
+  {
+    "asset": "PoolCueT2v7",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      50.803,
+      50.947
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "cue",
+    "tier": 2,
+    "sha256": "c04462f9732e7626d5cfbfcbeb077b6feeb73b61cb94c84c65e5bccedae40739",
+    "frames": 6350
+  },
+  {
+    "asset": "PoolBallT0v8",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      143.354,
+      143.578
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "ball",
+    "tier": 0,
+    "sha256": "6db656b5dac237418ae14895b49ea4486c64b515f285a3c9935c490ed26f04cf",
+    "frames": 9878
+  },
+  {
+    "asset": "PoolBallT0v9",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      95.868,
+      96.08
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "ball",
+    "tier": 0,
+    "sha256": "e1d82a8436d9c90950c333c714a8a7b1cbfe7d9d30436838b74e35e997b248c6",
+    "frames": 9350
+  },
+  {
+    "asset": "PoolBallT1v10",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      144.098,
+      144.322
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "ball",
+    "tier": 1,
+    "sha256": "b2b30b6334d19388cda3bd130fd4615b43fe462588743fcfe421fc075979ccff",
+    "frames": 9879
+  },
+  {
+    "asset": "PoolBallT1v11",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      33.384,
+      33.608
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "ball",
+    "tier": 1,
+    "sha256": "f5b564b246762a973c45973aee2d305370799e197dca6787215c3bb49af36a64",
+    "frames": 9878
+  },
+  {
+    "asset": "PoolBallT1v12",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      151.64,
+      151.864
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "ball",
+    "tier": 1,
+    "sha256": "2aaf3c013081acaaedad25cff00ead3ca1edf4161d396debbf73de6c76dfc6be",
+    "frames": 9878
+  },
+  {
+    "asset": "PoolBallT1v13",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      95.054,
+      95.278
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "ball",
+    "tier": 1,
+    "sha256": "b57184bf3001b3ab8200bc20cf08cada37ddfe55ca1f0abe7e3e315e55c4b1a2",
+    "frames": 9878
+  },
+  {
+    "asset": "PoolBallT2v14",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      20.315,
+      20.539
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "ball",
+    "tier": 2,
+    "sha256": "2237f249775a2dff46a4b836b12b6aba24682c6e8d5b4c5e33a0271dbaaac020",
+    "frames": 9878
+  },
+  {
+    "asset": "PoolBallT2v15",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      170.446,
+      170.67
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "ball",
+    "tier": 2,
+    "sha256": "ef03c5a2f7939962f1f6d300bed2f8a163760a2816c458e47adc8177e68f303b",
+    "frames": 9878
+  },
+  {
+    "asset": "PoolPocketT1v16",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      129.126,
+      129.58
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "pocket",
+    "tier": 1,
+    "sha256": "f6dc60574e527b3f14afdc5054b543eab3a0aad721b47fb5db6766e01c7ba09b",
+    "frames": 20021
+  },
+  {
+    "asset": "PoolPocketT1v17",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      80.163,
+      80.617
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "pocket",
+    "tier": 1,
+    "sha256": "553959a267fcec3c4561f755efdaa898e13ba8f6332adfbe557874c2a101802e",
+    "frames": 20021
+  },
+  {
+    "asset": "PoolPocketT0v18",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      87.287,
+      87.741
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "pocket",
+    "tier": 0,
+    "sha256": "79cb98aafd7b23dee173277cd21c9a526d686eeca540d1c55584e8bf91c5e9bc",
+    "frames": 20022
+  },
+  {
+    "asset": "PoolBreakT2v19",
+    "author": "cameronmusic",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "https://freesound.org/people/cameronmusic/sounds/138405/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "6c7d197eb36f5fcd47f1cf88e48516e785825f5c9f497e582b20c152a2798403",
+    "trim_seconds": [
+      0.86,
+      1.16
+    ],
+    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "category": "break",
+    "tier": 2,
+    "sha256": "1fc5c7a0cfcd686ad0fb34f0a22b68afc13c485a2a35725d810716826e633a83",
+    "frames": 13230
   }
 ]

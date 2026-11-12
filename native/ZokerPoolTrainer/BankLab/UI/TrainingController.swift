@@ -77,6 +77,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     let titleLabel=UILabel(),statusLabel=UILabel(),scoreLabel=UILabel(),hintLabel=UILabel()
     let spinCenter=UIButton(type:.system)
     let spin=SpinPad(frame:.zero),stroke=StrokePad(frame:.zero)
+    let powerFX=PowerFX(frame:.zero)   // 0.41 thang lực 7 màu + vệt vuốt
     var testShotButton:UIButton!
     var lastPassed=false,lastScratch=false
     var lastShotSpeed=0.0
@@ -448,7 +449,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spinExpanded=true;quickRail.isHidden=false
             spin.select(side:0.25,top:0.35)
         }
-        stroke.shot={[weak self]v in guard let self=self else{return};self.shoot(v*Tuning.maxPower);self.spin.collapse();self.setHold(false)}   // 0.30b: reset after the stroke
+        stroke.shot={[weak self]v in guard let self=self else{return}
+            self.powerFX.fire(self.stroke.convert(self.stroke.lastPoint,to:self.powerFX),speed:v*Tuning.maxPower)
+            self.shoot(v*Tuning.maxPower);self.spin.collapse();self.setHold(false)}   // 0.30b: reset after the stroke
+        stroke.track={[weak self]p,v,forward in guard let self=self else{return}
+            self.powerFX.maxSpeed=8*Tuning.maxPower
+            self.powerFX.track(self.stroke.convert(p,to:self.powerFX),speed:v*Tuning.maxPower,forward:forward)}
         stroke.released={[weak self] fired in guard let self=self,!fired,self.locked else{return};self.setHold(false)}
         stroke.pullChanged={[weak self]p in self?.pull=p}
         displayLink=CADisplayLink(target:self,selector:#selector(tick(_:)));displayLink?.preferredFramesPerSecond=60
@@ -637,6 +643,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func buildHUD(){
         // The SceneKit viewport never changes size when the menu opens.
+        powerFX.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(powerFX)
+        NSLayoutConstraint.activate([powerFX.leadingAnchor.constraint(equalTo:view.leadingAnchor),powerFX.trailingAnchor.constraint(equalTo:view.trailingAnchor),
+                                     powerFX.topAnchor.constraint(equalTo:view.topAnchor),powerFX.bottomAnchor.constraint(equalTo:view.bottomAnchor)])
         stroke.translatesAutoresizingMaskIntoConstraints=false
         stroke.isUserInteractionEnabled=false;view.addSubview(stroke)
         NSLayoutConstraint.activate([
@@ -699,21 +708,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             menuButton.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:10),
             menuButton.widthAnchor.constraint(equalToConstant:78),menuButton.heightAnchor.constraint(equalToConstant:44)])
 
-        panel.backgroundColor=UIColor.rgb(0x131218).withAlphaComponent(0.98)
+        // 0.41 (owner): the menu opens in a wooden frame (10 pt walnut rim), the inside a deep muted tone.
         panel.layer.cornerRadius=20;panel.layer.borderWidth=1.5;panel.layer.borderColor=MenuSkin.gold.withAlphaComponent(0.6).cgColor
-        let wood=UIImageView(image:MenuSkin.wood);wood.contentMode = .scaleAspectFill;wood.alpha=0.25
-        wood.translatesAutoresizingMaskIntoConstraints=false;wood.isUserInteractionEnabled=false;panel.addSubview(wood)
-        panel.clipsToBounds=true
-        NSLayoutConstraint.activate([wood.leadingAnchor.constraint(equalTo:panel.leadingAnchor),wood.trailingAnchor.constraint(equalTo:panel.trailingAnchor),wood.topAnchor.constraint(equalTo:panel.topAnchor),wood.bottomAnchor.constraint(equalTo:panel.bottomAnchor)])
+        panel.layer.shadowColor=UIColor.black.cgColor;panel.layer.shadowOpacity=0.6;panel.layer.shadowRadius=14
         panel.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(panel)
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;panel.addSubview(scroll)
+        MenuSkin.frame(panel,content:scroll,tone:UIColor(red:0.06,green:0.05,blue:0.045,alpha:0.97),radius:12)
         NSLayoutConstraint.activate([
             panel.leadingAnchor.constraint(equalTo:menuButton.leadingAnchor),
             panel.topAnchor.constraint(equalTo:menuButton.bottomAnchor,constant:8),
             panel.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12),
             panel.widthAnchor.constraint(equalToConstant:318),
-            scroll.leadingAnchor.constraint(equalTo:panel.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:panel.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo:panel.topAnchor),scroll.bottomAnchor.constraint(equalTo:panel.bottomAnchor)])
+            scroll.leadingAnchor.constraint(equalTo:panel.leadingAnchor,constant:10),scroll.trailingAnchor.constraint(equalTo:panel.trailingAnchor,constant:-10),
+            scroll.topAnchor.constraint(equalTo:panel.topAnchor,constant:10),scroll.bottomAnchor.constraint(equalTo:panel.bottomAnchor,constant:-10)])
         let brand=UILabel();text(brand,17,.white,.bold);brand.text="ZOKER POOL · Trainer";brand.textColor=MenuSkin.gold
         text(titleLabel,14,.white,.bold);text(statusLabel,12,.mint);text(scoreLabel,12,.white);text(hintLabel,12,.mint)
         for label in [titleLabel,statusLabel,scoreLabel,hintLabel]{label.numberOfLines=0}
@@ -829,6 +836,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         recordings.configuration?.title="Lưu và xem lại · cú đánh / highlight"
         let lobby=UIButton.lab("Về sảnh · chế độ chơi, bài tập, hồ sơ"){[weak self]in self?.setMenu(false);self?.openLobby()}
         lobby.accessibilityIdentifier="MenuLobby"
+        // 0.41: each section its own muted tone (bàn = rừng thông, tuỳ chỉnh = xanh đêm, lưu trữ = đỏ rượu, sảnh = đá).
+        MenuSkin.tone(library,MenuSkin.tones[0]);MenuSkin.tone(customize,MenuSkin.tones[1])
+        MenuSkin.tone(recordings,MenuSkin.tones[4]);MenuSkin.tone(lobby,MenuSkin.tones[5])
         _=(modes,guide,drills,journal,tuning,close)
         let controls=stack(.vertical,10,[brand,titleLabel,statusLabel,scoreLabel,hintLabel,
             resume,library,customize,recordings,lobby])
@@ -1056,7 +1066,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let role=kind==3 ? 0:kind
         var values=engine.settings;values["cueType"]=NSNumber(value:role);shotKindPhysics(kind,&values);engine.settings=values;table.masseLook=kind==3;table.selectCue(role)
         let preset=UserDefaults.standard.dictionary(forKey:"cuePreset017-\(kind)") as? [String:Double]
-        setElevation(preset?["elevation"] ?? (kind==1 ? 45:(kind==3 ? 70:0)))
+        // 0.41 (owner: "chọn cơ Break bị mặc định có độ dốc"): the break cue always starts level. Its saved preset could
+        // hold a lift forced over the rail on an earlier shot; the clearance still raises the stroke when needed.
+        setElevation(kind==2 ? 0:(preset?["elevation"] ?? (kind==1 ? 45:(kind==3 ? 70:0))))
         spin.select(side:preset?["side"] ?? 0,top:preset?["top"] ?? 0)
         syncQuickRail()
     }
@@ -1167,6 +1179,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func setHold(_ held:Bool){
         locked=held && strokeAllowed
+        powerFX.showMeter(locked)
         wakeRendering();table.setTrainingOverlaysHidden(locked);coachCard.isHidden=locked || !cardOn || coachCard.alpha==0
         for recognizer in aimRecognizers{recognizer.isEnabled = !locked}
         stroke.isUserInteractionEnabled=locked;stroke.isEnabled=locked
@@ -1389,7 +1402,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
 
     func shoot(_ speed:Double){
-        if table.rackIntroPlaying{table.skipRackIntro();return}
+        // 0.41 (owner: "cú phá đầu tiên không thao tác được"): the first stroke of a rack only ended the rack intro and
+        // was thrown away. The intro is presentation only (the solver already holds the rack): end it and play the shot.
+        if table.rackIntroPlaying{table.skipRackIntro()}
         if routeMatchShot(speed){return}
         guard locked,strokeAllowed,speed.isFinite,speed>0 else{return}
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
@@ -1446,7 +1461,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // 0.39 (owner: Wi-Fi/online break impossible, all keys grey on both phones). Belt and braces: a network state
         // change that arrives without a callback (link up, relay peer, snapshot) can no longer leave the turn stale —
         // twice a second the real permission is compared with what the controls show, and re-synced if they differ.
-        if matchPlay.active, shownAt-lastTurnCheck>0.5 {lastTurnCheck=shownAt;if matchAllowsInput != localTurn {syncMatchControls()}}
+        if matchPlay.active, shownAt-lastTurnCheck>0.5 {
+            lastTurnCheck=shownAt
+            if matchAllowsInput != localTurn {syncMatchControls()}
+            else if matchPlay.session.role == .host && !shotActive {publishMatchSnapshot()}   // de-duplicated by the session
+            matchNetworkWatch()   // 0.41: opponent away · turn timeout · forfeit
+        }
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let guestTick=matchGuestTick(dt)
         driveComputerTurn()   // 0.40 Đấu với máy (no-op unless it is the computer's turn at rest)
@@ -1600,7 +1620,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             // the cue ball (yaw 0, zoom kept) — match and practice alike.
             if localTurn && replayIndex == nil && peekPose == nil && !isPlacingBalls {restoreAimCamera(transition:0.2)}
         }
-        if wasBusy != BLShotCameraBusy(shotCameraState){updateControls()}
+        // 0.41 (owner: after the opponent's shot, B stayed hidden and the turn could not be played). The host published
+        // its end-of-shot snapshot while the shot camera was still settling (isMoving = true) and nothing re-published
+        // when it settled, so the guest waited forever. Any readiness change now re-syncs the match (host republishes).
+        if wasBusy != BLShotCameraBusy(shotCameraState){if matchPlay.active{syncMatchControls()};updateControls()}
         if qaAwaitingAimReturn && !presentationBusy {
             precondition(qaPeekReleased,"Camera settled before observation completed")
             precondition(table.cameraMode==2,"Live shot changed camera mode")
@@ -1650,9 +1673,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
             table.showCue(displayCue,angle:sample.angle,visible:true,pull:sample.pull,side:sample.side,top:sample.top)
+        }else if let remote=matchRemoteCue(dt){
+            // 0.41 (owner: "đối thủ đang đánh không thấy hình cơ"): the other player's live cue, eased.
+            table.showCue(displayCue,angle:remote.angle,visible:true,pull:remote.pull,side:remote.side,top:remote.top)
         }else{
+            if matchPlay.localCueVisual != nil {matchRestoreLocalCue()}
             table.showCue(displayCue,angle:angle,visible:!presentationBusy && (localTurn || matchPlay.computerAim != nil) && !isPlacingBalls,pull:pull,side:side,top:top)   // 0.40c: the computer's cue is seen lining up
             table.updateCueFade(view:scn,cue:displayCue,angle:angle,target:aimTargetBall(),dt:dt)
+            if matchPlay.active && matchPlay.session.role != .none {matchPublishAim()}
         }
         // 0.37 "Dự đoán trước": no guide while aiming — the player commits by eye, the truth is shown after the shot.
         let guideAllowed=coachOn && guideOn && !presentationBusy && localTurn && !isPlacingBalls && !locked && !Tuning.predictFirst
@@ -2097,7 +2125,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
     }
     func help(){
-        let message="Giữ B: khóa hướng. Ngón khác kéo lùi rồi đẩy tới: tốc độ vuốt quyết định lực. Buông B để hủy. C: bật/tắt toàn bộ trợ giúp. Ngang: ngắm, dọc: nâng mắt, hai ngón: quan sát. Bi đang chạy: kéo hoặc dùng hai ngón để quan sát, chụm để zoom; camera giữ góc đang chọn. Góc điện ảnh chỉ có khi xem lại. Chạm + Bi thêm từng bi, giữ để xếp ngẫu nhiên.\n\nÂm thanh thu thật: bsumusictech, Za-Games, mccarthy@bedmas.com, AmberdeMeillon (CC0). ‘Pool Ball in pocket.wav’ — jtroan, CC BY 3.0, freesound.org/people/jtroan/sounds/241373/ ; creativecommons.org/licenses/by/3.0/ . Đã cắt, đổi mono/PCM, chỉnh gain và fade. Bản dùng từ HQ MP3 preview."
+        let message="Giữ B: khóa hướng. Ngón khác kéo lùi rồi đẩy tới: tốc độ vuốt quyết định lực. Buông B để hủy. C: bật/tắt toàn bộ trợ giúp. Ngang: ngắm, dọc: nâng mắt, hai ngón: quan sát. Bi đang chạy: kéo hoặc dùng hai ngón để quan sát, chụm để zoom; camera giữ góc đang chọn. Góc điện ảnh chỉ có khi xem lại. Chạm + Bi thêm từng bi, giữ để xếp ngẫu nhiên.\n\nÂm thanh thu thật: bsumusictech, Za-Games, mccarthy@bedmas.com, AmberdeMeillon (CC0). ‘Pool Ball in pocket.wav’ — jtroan, CC BY 3.0, freesound.org/people/jtroan/sounds/241373/ ; creativecommons.org/licenses/by/3.0/ . Đã cắt, đổi mono/PCM, chỉnh gain và fade. Bản dùng từ HQ MP3 preview. Bộ 0.41: dhoy42 (CC0) freesound.org/people/dhoy42/sounds/114308/ ; ‘pool break.wav’ — cameronmusic, CC BY 3.0, freesound.org/people/cameronmusic/sounds/138405/ ."
         let alert=UIAlertController(title:"Điều khiển 0.18 & ghi công",message:message,preferredStyle:.alert)
         alert.addAction(UIAlertAction(title:"Xong",style:.cancel));present(alert,animated:true)
     }

@@ -153,6 +153,17 @@ import Foundation
         try check(!SnapshotCurve.eligible(a, railed), "rail contact falls back to linear")
         var sunk = b; sunk.sunk = true
         try check(!SnapshotCurve.eligible(a, sunk), "pocketed ball falls back to linear")
+        // 0.41: the shooter's live cue pose travels as its own small, validated message (display only).
+        let aim = LANAim(angle: 1.2, side: 0.2, top: -0.3, elevation: 12, pull: 0.4, cueType: 1, visible: true)
+        try check(aim.isValid, "a finite cue pose is valid")
+        var aimEnvelope = LANEnvelope(roomCode: "123456", matchID: match, sequence: 2, kind: .aim)
+        aimEnvelope.aim = aim
+        let aimBack = try LANWireCodec.decode(try LANWireCodec.encode(aimEnvelope))
+        try check(aimBack.kind == .aim && aimBack.aim == aim, "cue pose roundtrip")
+        var badAim = aim; badAim.pull = 1.5
+        try check(!badAim.isValid, "pull outside 0…1 is rejected")
+        badAim = aim; badAim.side = 0.7; badAim.top = 0.7
+        try check(!badAim.isValid, "tip point outside the miscue circle is rejected")
         print("PASS LAN wire: \(checks) production codec/authority/roundtrip validation checks; two-device transport NOT_RUN")
     }
 }

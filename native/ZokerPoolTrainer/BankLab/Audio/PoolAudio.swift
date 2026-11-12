@@ -11,6 +11,7 @@ final class PoolAudio {
         let buffer: AVAudioPCMBuffer
         let removedOnset: Double
         let duration: Double
+        var tier = 1, pack = 0
     }
     private struct Voice {
         let node: AVAudioPlayerNode
@@ -22,6 +23,8 @@ final class PoolAudio {
         let name: String
         let maximumDuration: Double
         let trimOnset: Bool
+        /// 0.41: loudness/hardness tier (0 soft · 1 medium · 2 hard · 3 break) and pack (0 = 0.17 set, 1 = 0.41 set).
+        var tier = 1, pack = 0
     }
     private static let policies: [[Policy]] = [
         [Policy(name: "PoolRail0", maximumDuration: 0.160, trimOnset: true)],
@@ -31,7 +34,21 @@ final class PoolAudio {
          Policy(name: "PoolBall3", maximumDuration: 0.220, trimOnset: true)],
         [Policy(name: "PoolPocket0", maximumDuration: 0.400, trimOnset: false)],
         [Policy(name: "PoolCue0", maximumDuration: 0.140, trimOnset: true)]
-    ]
+    ].enumerated().map { kind, list in list + Self.pack041.filter { $0.0 == kind }.map { $0.1 } }
+    /// 0.41 (owner's pack, Tools/AudioSources/ATTRIBUTION.md): sliced at the impacts, three tiers per kind + a break.
+    private static let pack041: [(Int, Policy)] = {
+        var out: [(Int, Policy)] = []
+        func add(_ kind: Int, _ name: String, _ tier: Int, _ length: Double, _ trim: Bool = true) {
+            out.append((kind, Policy(name: name, maximumDuration: length, trimOnset: trim, tier: tier, pack: 1)))
+        }
+        for (i, tier) in [0, 0, 1, 1, 1, 2, 2, 2].enumerated() { add(3, "PoolCueT\(tier)v\(i)", tier, 0.120) }
+        for (i, tier) in [0, 0, 1, 1, 1, 1, 2, 2].enumerated() { add(1, "PoolBallT\(tier)v\(i + 8)", tier, 0.200) }
+        add(2, "PoolPocketT1v16", 1, 0.420, false); add(2, "PoolPocketT1v17", 1, 0.420, false); add(2, "PoolPocketT0v18", 0, 0.420, false)
+        add(3, "PoolBreakT2v19", 3, 0.300)
+        return out
+    }()
+    /// Tuỳ chỉnh → Âm thanh: 1 = bộ 0.41 (mặc định), 0 = bộ cũ 0.17 — so sánh A/B trên máy.
+    static let packKey = "soundPack041"
     private let audioQueue = DispatchQueue(label: "com.ztrainer.pool-audio", qos: .userInteractive)
     private let queueKey = DispatchSpecificKey<UInt8>()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
@@ -86,7 +103,7 @@ final class PoolAudio {
                         NSLog("PoolAudio: missing recorded asset %@", policy.name)
                         return nil
                     }
-                    do { return try Self.decode(data, policy: policy, format: format) }
+                    do { var sample = try Self.decode(data, policy: policy, format: format); sample.tier = policy.tier; sample.pack = policy.pack; return sample }
                     catch {
                         NSLog("PoolAudio: invalid asset %@: %@", policy.name, String(describing: error))
                         return nil
@@ -149,7 +166,13 @@ final class PoolAudio {
             guard self.engine.isRunning else { self.droppedCount += 1; return }
             let type = max(0, min(3, kind))
             guard self.groups.indices.contains(type), !self.groups[type].isEmpty else { return }
-            let samples = self.groups[type]
+            // 0.41: pick the pack, then the tier nearest the impact (soft / medium / hard / break), rotating variants.
+            let wantPack = UserDefaults.standard.object(forKey: Self.packKey) as? Int ?? 1
+            var samples = self.groups[type].filter { $0.pack == wantPack }
+            if samples.isEmpty { samples = self.groups[type] }
+            let wantTier: Int = type == 3 ? (impact < 1.6 ? 0 : (impact < 3.6 ? 1 : (impact < 5.8 ? 2 : 3)))
+                : (type == 1 ? (impact < 0.8 ? 0 : (impact < 2.2 ? 1 : 2)) : (impact < 0.9 ? 0 : 1))
+            if let nearest = samples.map({ abs($0.tier - wantTier) }).min() { samples = samples.filter { abs($0.tier - wantTier) == nearest } }
             let sample = samples[self.variation % samples.count]
             self.variation = (self.variation + 1) % 1_000_000
             let kindGain = type == 0 ? 0.82 : (type == 2 ? 0.78 : (type == 3 ? 0.86 : 1.0))

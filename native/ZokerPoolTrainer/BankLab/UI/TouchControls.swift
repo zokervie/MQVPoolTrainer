@@ -15,6 +15,27 @@ enum MenuSkin {
         }
     }()
     static let gold=UIColor(red:0.94,green:0.76,blue:0.43,alpha:1)
+    /// 0.41 (owner): menus open inside a wooden frame; each section has its own deep, muted tone.
+    static let frameWood:UIColor = wood.map{UIColor(patternImage:$0)} ?? UIColor(red:0.24,green:0.13,blue:0.06,alpha:1)
+    static let tones:[UIColor]=[UIColor(red:0.07,green:0.15,blue:0.12,alpha:1),   // rừng thông · hình ảnh / bàn
+                                UIColor(red:0.07,green:0.10,blue:0.18,alpha:1),   // xanh đêm · ngắm
+                                UIColor(red:0.16,green:0.10,blue:0.07,alpha:1),   // nâu gỗ trầm · phím
+                                UIColor(red:0.12,green:0.10,blue:0.17,alpha:1),   // tím than · vật lý
+                                UIColor(red:0.17,green:0.07,blue:0.09,alpha:1),   // đỏ rượu · máy / âm thanh
+                                UIColor(red:0.09,green:0.11,blue:0.13,alpha:1)]   // xám đá · hệ thống
+    /// Puts `content` inside a wood frame of `width` points on `host` (host shows the wood, content the tone).
+    static func frame(_ host:UIView,content:UIView,width:CGFloat=10,tone:UIColor=MenuSkin.tones[5],radius:CGFloat=14){
+        host.backgroundColor=frameWood
+        content.backgroundColor=tone;content.layer.cornerRadius=radius;content.layer.cornerCurve = .continuous
+        content.layer.borderWidth=1;content.layer.borderColor=gold.withAlphaComponent(0.45).cgColor;content.clipsToBounds=true
+        _=width
+    }
+    /// A section button in a muted tone instead of the wood image (distinct per section).
+    static func tone(_ button:UIButton,_ tone:UIColor){
+        guard var c=button.configuration else{return}
+        c.background.image=nil;c.baseBackgroundColor=tone;c.background.backgroundColor=tone
+        c.background.strokeColor=gold.withAlphaComponent(0.35);button.configuration=c
+    }
 }
 extension UIButton {
     static func lab(_ title:String,action:@escaping()->Void)->UIButton {
@@ -201,6 +222,9 @@ final class HoldLockControl:UIControl {
 final class StrokePad:UIControl {
     var shot:((Double)->Void)?
     var pullChanged:((Double)->Void)?
+    /// 0.41: every finger sample (point in this view, live stroke speed 0…8 before the power scale, forward?).
+    var track:((CGPoint,Double,Bool)->Void)?
+    private(set) var lastPoint:CGPoint = .zero
     var sensitivity=1.0
     private var finger:UITouch?
     private var start:CGFloat=0,furthest:CGFloat=0,previous:CGFloat=0,fired=false
@@ -216,10 +240,15 @@ final class StrokePad:UIControl {
         guard isEnabled,!fired,let t=finger,touches.contains(t) else{return}
         for sample in event?.coalescedTouches(for:t) ?? [t] {
             guard !fired else{break}
-            let y=sample.location(in:self).y,time=sample.timestamp
+            let point=sample.location(in:self),y=point.y,time=sample.timestamp
             if let last=samples.last,time<=last.0{continue}
             furthest=max(furthest,y);samples.append((time,y));samples.removeAll{time-$0.0>0.085}   // 0.30: wider window = smoother speed estimate
             pullChanged?(max(0,min(1,Double((y-start)/110))))
+            lastPoint=point
+            if let track=track {
+                let live=liveSpeed()
+                track(point,live > 0 ? BLStrokeSpeed(live,Double(min(bounds.width,bounds.height)),sensitivity):0,live > 0)
+            }
             let crosses=previous>start && y<=start
             previous=y
             guard furthest-start>14,crosses,samples.count>=3 else{continue}
@@ -235,6 +264,15 @@ final class StrokePad:UIControl {
             let edge=Double(min(bounds.width,bounds.height))
             fired=true;shot?(BLStrokeSpeed(Double(speed),edge,sensitivity));pullChanged?(0);return
         }
+    }
+    /// Forward finger speed (pt/s, > 0 when pushing toward the ball) by the same least-squares fit as the shot.
+    private func liveSpeed()->Double{
+        guard samples.count>=3 else{return 0}
+        let t0=samples[0].0,count=Double(samples.count)
+        let mt=samples.reduce(0.0){$0+($1.0-t0)}/count,my=samples.reduce(0.0){$0+Double($1.1)}/count
+        var numerator=0.0,denominator=0.0
+        for (stamp,point) in samples{let d=stamp-t0-mt;numerator+=d*(Double(point)-my);denominator+=d*d}
+        return denominator>1e-10 ? max(0,-numerator/denominator):0
     }
     /// 0.30b: called when the stroke finger lifts; false = no shot fired (the controller unlocks).
     var released:((Bool)->Void)?
@@ -358,4 +396,116 @@ final class FineAimWheel:UIControl {
     override var isEnabled:Bool{didSet{alpha=isEnabled ? 1:0.25}}
     override func accessibilityIncrement(){changed?(0.001)}
     override func accessibilityDecrement(){changed?(-0.001)}
+}
+
+
+/// 0.41 (owner): a 7-colour power scale (violet = MIN … red = MAX, colours blended), the live number and colour of
+/// the stroke, a misty trail along the swipe tinted by its speed, and at the end of the swipe a soft spectrum burst
+/// with the final speed — gone a moment later. Display only; Core Animation runs the fades (no per-frame drawing).
+final class PowerFX:UIView {
+    static let stops:[UIColor]=[UIColor.rgb(0x8B3DFF),UIColor.rgb(0x4F46E5),UIColor.rgb(0x1E90FF),UIColor.rgb(0x22C55E),
+                                UIColor.rgb(0xFACC15),UIColor.rgb(0xFF8A00),UIColor.rgb(0xFF2D2D)]
+    static func color(_ t:Double)->UIColor{
+        let x=max(0,min(1,t))*Double(stops.count-1),i=min(stops.count-2,Int(x)),f=CGFloat(x-Double(i))
+        var a:(CGFloat,CGFloat,CGFloat,CGFloat)=(0,0,0,0),b:(CGFloat,CGFloat,CGFloat,CGFloat)=(0,0,0,0)
+        stops[i].getRed(&a.0,green:&a.1,blue:&a.2,alpha:&a.3);stops[i+1].getRed(&b.0,green:&b.1,blue:&b.2,alpha:&b.3)
+        return UIColor(red:a.0+(b.0-a.0)*f,green:a.1+(b.1-a.1)*f,blue:a.2+(b.2-a.2)*f,alpha:1)
+    }
+    var maxSpeed=8.0
+    var enabled:Bool{UserDefaults.standard.object(forKey:"tunePowerFX041") as? Bool ?? true}
+    private let bar=CAGradientLayer(),well=CALayer(),marker=CALayer(),readout=UILabel(),caption=UILabel()
+    private var dots:[UIImage]=[]
+    private var lastDot:CGPoint?
+    private var meterOn=false
+    override init(frame:CGRect){
+        super.init(frame:frame);isUserInteractionEnabled=false;backgroundColor = .clear
+        well.backgroundColor=UIColor(white:0,alpha:0.45).cgColor;well.cornerRadius=8;well.opacity=0
+        bar.colors=Self.stops.map{$0.cgColor};bar.startPoint=CGPoint(x:0,y:0.5);bar.endPoint=CGPoint(x:1,y:0.5);bar.cornerRadius=4;bar.opacity=0
+        marker.backgroundColor=UIColor.white.cgColor;marker.cornerRadius=2;marker.shadowColor=UIColor.black.cgColor;marker.shadowOpacity=0.7;marker.shadowRadius=3;marker.opacity=0
+        for l in [well,bar,marker]{layer.addSublayer(l)}
+        readout.font = .monospacedDigitSystemFont(ofSize:15,weight:.heavy);readout.textAlignment = .center;readout.alpha=0
+        readout.layer.shadowColor=UIColor.black.cgColor;readout.layer.shadowOpacity=0.9;readout.layer.shadowRadius=3;readout.layer.shadowOffset = .zero
+        caption.font = .systemFont(ofSize:9,weight:.bold);caption.textColor=UIColor(white:1,alpha:0.7);caption.alpha=0
+        caption.text="MIN · LỰC · MAX";caption.textAlignment = .center
+        addSubview(readout);addSubview(caption)
+        // 24 tinted soft dots (radial falloff = "mờ sương"), drawn once.
+        let format=UIGraphicsImageRendererFormat();format.scale=1
+        for k in 0..<24 {
+            let c=Self.color(Double(k)/23)
+            dots.append(UIGraphicsImageRenderer(size:CGSize(width:64,height:64),format:format).image{ctx in
+                let colors=[c.withAlphaComponent(0.85).cgColor,c.withAlphaComponent(0.25).cgColor,c.withAlphaComponent(0).cgColor] as CFArray
+                if let g=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0,0.45,1]){
+                    ctx.cgContext.drawRadialGradient(g,startCenter:CGPoint(x:32,y:32),startRadius:0,endCenter:CGPoint(x:32,y:32),endRadius:32,options:[])
+                }
+            })
+        }
+    }
+    required init?(coder:NSCoder){fatalError()}
+    private var meterFrame:CGRect{
+        let w=min(bounds.width*0.42,340),top=safeAreaInsets.top+46
+        return CGRect(x:bounds.midX-w/2,y:top,width:w,height:8)
+    }
+    override func layoutSubviews(){
+        super.layoutSubviews()
+        CATransaction.begin();CATransaction.setDisableActions(true)
+        let f=meterFrame;bar.frame=f;well.frame=f.insetBy(dx:-8,dy:-6)
+        caption.frame=CGRect(x:f.minX,y:f.maxY+4,width:f.width,height:12)
+        CATransaction.commit()
+    }
+    /// B held: show the scale; released: hide it.
+    func showMeter(_ on:Bool){
+        guard on != meterOn else{return};meterOn=on && enabled
+        let o:Float=meterOn ? 1:0
+        for l in [well,bar,marker]{l.opacity=o}
+        UIView.animate(withDuration:0.18){self.caption.alpha=self.meterOn ? 1:0;if !self.meterOn{self.readout.alpha=0}}
+        lastDot=nil
+    }
+    /// Live finger sample: speed in m/s (0 while drawing back).
+    func track(_ p:CGPoint,speed:Double,forward:Bool){
+        guard enabled else{return}
+        let t=max(0,min(1,speed/max(0.1,maxSpeed)))
+        let f=meterFrame
+        CATransaction.begin();CATransaction.setDisableActions(true)
+        marker.frame=CGRect(x:f.minX+f.width*CGFloat(t)-2,y:f.minY-5,width:4,height:f.height+10)
+        CATransaction.commit()
+        if forward && speed>0.05 {
+            readout.text=String(format:"%.1f m/s",speed);readout.textColor=Self.color(t)
+            readout.sizeToFit();readout.center=CGPoint(x:f.minX+f.width*CGFloat(t),y:f.minY-14);readout.alpha=1
+        }
+        // misty trail: a soft dot every ~7 pt, tinted by the speed, fading and spreading out
+        if let last=lastDot,hypot(p.x-last.x,p.y-last.y)<7 {return}
+        lastDot=p
+        let dot=CALayer();let size:CGFloat=forward ? 30:22
+        dot.contents=dots[min(23,Int(t*23))].cgImage;dot.frame=CGRect(x:p.x-size/2,y:p.y-size/2,width:size,height:size)
+        dot.opacity=0;layer.addSublayer(dot)
+        fade(dot,from:forward ? 0.75:0.4,scale:1.7,duration:0.6)
+    }
+    /// Shot fired at `p` with `speed` m/s: spectrum burst + the number at the end of the swipe.
+    func fire(_ p:CGPoint,speed:Double){
+        guard enabled else{return}
+        let t=max(0,min(1,speed/max(0.1,maxSpeed)))
+        let ring=CAGradientLayer();ring.type = .conic;ring.colors=(Self.stops+[Self.stops[0]]).map{$0.cgColor}
+        ring.startPoint=CGPoint(x:0.5,y:0.5);ring.endPoint=CGPoint(x:0.5,y:0)
+        let size:CGFloat=110;ring.frame=CGRect(x:p.x-size/2,y:p.y-size/2,width:size,height:size);ring.cornerRadius=size/2
+        let mask=CALayer();mask.frame=ring.bounds;mask.contents=dots[0].cgImage   // soft radial mask: misty, no hard edge
+        ring.mask=mask;ring.opacity=0;layer.addSublayer(ring)
+        fade(ring,from:0.85,scale:1.5,duration:0.95)
+        let label=UILabel();label.text=String(format:"%.1f m/s",speed);label.font = .monospacedDigitSystemFont(ofSize:22,weight:.heavy)
+        label.textColor=Self.color(t);label.sizeToFit();label.center=CGPoint(x:p.x,y:p.y-46)
+        label.layer.shadowColor=UIColor.black.cgColor;label.layer.shadowOpacity=0.9;label.layer.shadowRadius=4;label.layer.shadowOffset = .zero
+        addSubview(label)
+        UIView.animate(withDuration:0.95,delay:0.25,options:[.curveEaseOut],animations:{label.alpha=0;label.transform=CGAffineTransform(translationX:0,y:-18)}){_ in label.removeFromSuperview()}
+        readout.text=String(format:"%.1f m/s",speed);readout.textColor=Self.color(t)
+        lastDot=nil
+    }
+    private func fade(_ l:CALayer,from:Float,scale:CGFloat,duration:Double){
+        CATransaction.begin()
+        CATransaction.setCompletionBlock{l.removeFromSuperlayer()}
+        let a=CABasicAnimation(keyPath:"opacity");a.fromValue=from;a.toValue=0
+        let s=CABasicAnimation(keyPath:"transform.scale");s.fromValue=1;s.toValue=scale
+        let g=CAAnimationGroup();g.animations=[a,s];g.duration=duration;g.timingFunction=CAMediaTimingFunction(name:.easeOut)
+        g.fillMode = .forwards;g.isRemovedOnCompletion=false
+        l.add(g,forKey:"mist")
+        CATransaction.commit()
+    }
 }

@@ -39,6 +39,6 @@ for item in json.loads((audio_root/'manifest.json').read_text()):
  assert hashlib.sha256(data).hexdigest()==item['sha256'],item['asset']
  target=assets/(item['asset']+'.dataset')/'audio.wav'
  target.write_bytes(data)
-print('Prepared seven attributed field-recording pool samples.')
+print('Prepared the attributed field-recording pool samples (manifest.json).')
 
 subprocess.run([sys.executable,str(root/'Tools/prepare_premium.py')],check=True)

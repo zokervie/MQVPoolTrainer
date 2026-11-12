@@ -17,8 +17,9 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Lưu",style:.done,target:self,action:#selector(save))
         navigationItem.leftBarButtonItem=UIBarButtonItem(title:"Hủy",style:.plain,target:self,action:#selector(cancel))
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
+        MenuSkin.frame(view,content:scroll,tone:MenuSkin.tones[3])   // 0.41: wood frame
         body.axis = .vertical;body.spacing=18;body.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(body)
-        NSLayoutConstraint.activate([scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor),scroll.bottomAnchor.constraint(equalTo:view.bottomAnchor),scroll.leadingAnchor.constraint(equalTo:view.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:view.trailingAnchor),body.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:20),body.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor,constant:-24),body.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor,constant:20),body.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor,constant:-20),body.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor,constant:-40)])
+        NSLayoutConstraint.activate([scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),scroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-8),scroll.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:10),scroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-10),body.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:20),body.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor,constant:-24),body.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor,constant:20),body.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor,constant:-20),body.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor,constant:-40)])
         let note=UILabel();note.text="Cấu hình thử nghiệm · Bàn 9 ft (1.27 × 2.54 m) · Bi 57.15 mm, 170 g\n\nBắt đầu với cú giữa bi, đo cùng tốc độ đầu. Chỉnh cản lăn trước, rồi độ nảy và ma sát băng. Thông số này chưa đại diện cho một mẫu bàn hoặc loại vải cụ thể."
         note.numberOfLines=0;note.textColor = .white;note.font = .systemFont(ofSize:13);body.addArrangedSubview(note)
         body.addArrangedSubview(UIButton.lab("Nhập cú đo băng · JSON"){[weak self]in
@@ -215,8 +216,9 @@ final class CustomizeController:UIViewController {
         navigationController?.navigationBar.barStyle = .black
         navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Xong",style:.done,target:self,action:#selector(done))
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
+        MenuSkin.frame(view,content:scroll,tone:MenuSkin.tones[0])   // 0.41: wood frame, tone per tab
         body.axis = .vertical;body.spacing=14;body.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(body)
-        NSLayoutConstraint.activate([scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor),scroll.bottomAnchor.constraint(equalTo:view.bottomAnchor),scroll.leadingAnchor.constraint(equalTo:view.leadingAnchor),scroll.trailingAnchor.constraint(equalTo:view.trailingAnchor),body.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),body.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor,constant:-24),body.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor,constant:20),body.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor,constant:-20),body.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor,constant:-40)])
+        NSLayoutConstraint.activate([scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),scroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-8),scroll.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:10),scroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-10),body.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),body.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor,constant:-24),body.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor,constant:20),body.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor,constant:-20),body.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor,constant:-40)])
         // 0.39 (owner: "4 thẻ hơi rối, sắp xếp lại logic hơn"). Grouped by what the player is thinking about, not by
         // implementation: what I SEE (ball / table / lamp) · how I AIM · the KEYS on screen · how the table PLAYS ·
         // the DEVICE (smoothness, heat, sound). Every item lives in exactly one place.
@@ -226,7 +228,7 @@ final class CustomizeController:UIViewController {
         tabs.accessibilityIdentifier="CustomizeTabs";body.addArrangedSubview(tabs)
         var pages:[UIStackView]=[]
         for _ in 0..<5 {let page=UIStackView();page.axis = .vertical;page.spacing=14;pages.append(page);body.addArrangedSubview(page)}
-        func show(_ i:Int){for (k,p) in pages.enumerated(){p.isHidden = k != i}}
+        func show(_ i:Int){for (k,p) in pages.enumerated(){p.isHidden = k != i};UIView.animate(withDuration:0.25){scroll.backgroundColor=MenuSkin.tones[min(i,MenuSkin.tones.count-1)]}}
         tabs.addAction(UIAction{[weak tabs]_ in show(tabs?.selectedSegmentIndex ?? 0)},for:.valueChanged)
         // 1 · Hình ảnh: preset first, then Bi → Bàn → Đèn
         target=pages[0]
@@ -271,6 +273,8 @@ final class CustomizeController:UIViewController {
         slider("Độ dày đường ngắm",TableScene.tuneGuideWidth,0.6,2.2)
         toggle("Gậy mờ đi khi che hướng ngắm / bi mục tiêu","tuneCueFade039",true)
         slider("Độ rõ của gậy khi mờ","tuneCueGhost040",0.2,0.8,fallback:0.42,format:{String(format:"%.0f%%",$0*100)})
+        // 0.41 (owner): 7-colour power scale (tím = nhẹ … đỏ = mạnh), misty swipe trail, speed shown where the swipe ends.
+        toggle("Thang lực 7 màu · vệt vuốt · số lực cuối cú","tunePowerFX041",true)
         header("Khoá hướng cơ")
         toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
         header("Luyện mắt")
@@ -320,6 +324,8 @@ final class CustomizeController:UIViewController {
             guard let self=self else{return};self.dismiss(animated:true){self.openDiagnostics?()}})
         header("Âm thanh")
         slider("Âm lượng tiếng bi","tuneVolume037",0,1)
+        // 0.41: owner's pack (sliced, 3 lực × biến thể + phá bi) vs the 0.17 set — A/B on the device.
+        segmented("Bộ âm thanh",["Mới 0.41 · 20 mẫu","Cũ 0.17"],(UserDefaults.standard.object(forKey:PoolAudio.packKey) as? Int ?? 1)==1 ? 0:1){UserDefaults.standard.set($0==0 ? 1:0,forKey:PoolAudio.packKey)}
         target=body
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in
             for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037",TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,"tuneHUDScale038","tuneHUDAlpha038","tuneAutoNumbers038","tuneGuideSkill038","tuneAimPitch038","tuneAimZoom038","tuneAimFOV038","tuneRealShadow039","tuneCueFade039","tuneFramePacing039",TableScene.tuneWeavePitch,"tuneCueGhost040"]{UserDefaults.standard.removeObject(forKey:k)}
