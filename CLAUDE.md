@@ -3,41 +3,40 @@
 App bida luyện mắt, tư duy và dự đoán đường bi trên iPhone/iPad. UIKit + SceneKit + lõi vật lý C++17 (`native/ZokerPoolTrainer/BankLab/Core`).
 Nguồn gốc: repo private `ZokerPoolTrainer-0.11-Native-Jump-Masse…` tại `efabf7e` (bàn giao ChatGPT, `Handoff/`). Bản Swift `feature/zoker-mvp` dừng phát triển, chỉ dùng làm chuẩn đối chiếu vật lý.
 
+## BẮT ĐẦU MỖI PHIÊN (anh dặn 13/11/2026) — đọc đúng 2 thứ, không đọc lan man
+1. `native/ZokerPoolTrainer/Docs/TRANG-THAI.md`: bản nào đang ở đâu, việc nào ĐÃ ĐẠT (không làm lại), việc kế tiếp, phát kiến đã duyệt.
+2. Tin nhắn mới nhất của anh: yêu cầu mới nhất thắng mọi kế hoạch cũ. Có mâu thuẫn thì hỏi 1 câu.
+
+Chỉ mở `Docs/LICH-SU-QUYET-DINH.md` hoặc các file NGHIEM-THU cũ khi cần tra lý do.
+
+## Tiết kiệm token, làm đúng trọng tâm
+- Đọc file theo đoạn (grep → đọc vài chục dòng), không đọc cả file Swift 2.000 dòng. Không in log dài; log CI chỉ lọc `error:|FAIL|REPORT`.
+- Mục đã đạt (ghi ✅ trong TRANG-THAI) không sửa lại, trừ khi anh báo lỗi mới về chính mục đó.
+- Mỗi việc: nguyên nhân gốc → sửa → test giữ cửa → cập nhật TRANG-THAI. Không viết lại thứ đang chạy tốt chỉ để "đẹp hơn".
+- Gom nhiều sửa đổi vào một lần build; chờ CI bằng tác vụ nền, không hỏi thăm liên tục.
+- Báo cáo ngắn: làm gì, kết quả, chưa xác minh gì, anh cần quyết gì.
+- Cuộc trò chuyện dài thì đề nghị anh mở cuộc mới trong Project (đã tóm tắt dễ sót chi tiết).
+- Cuối mỗi phiên: cập nhật `Docs/TRANG-THAI.md` (+ bản trong Project `claude/zoker-trang-thai.md`).
+
+## Nhắc anh (anh dặn: "nhắc khi anh quên")
+- Mỗi lần trả lời việc lớn: liệt kê ngắn các mục ĐANG CHỜ ANH trong TRANG-THAI (thiết bị thử, video 240 fps, âm thanh, tài khoản Developer, Game Center, Xcode/Mac).
+- Phát kiến tốt đã duyệt mà chưa làm thì nhắc khi tới bản phù hợp; không tự làm khi anh đang bảo "đợi anh chốt".
+- Mỗi nhiệm vụ mới: nêu skill sẽ dùng, rủi ro chính, công nghệ đề xuất (bảng trong TRANG-THAI §5).
+
 ## Quy tắc
 - Vật lý: viết test trước (C++, `Tests/*.cpp`, đăng ký trong `CMakeLists.txt`); mọi hệ số có nguồn: đã công bố / đã đo / giả định.
 - Không dùng engine vật lý có sẵn. Không có trợ giúp ngắm khi đánh ở chế độ chính; đường lý tưởng/dự đoán chỉ ở chế độ phân tích.
-- Một nhiệm vụ = một nhánh `ci/native-<mã>`; CI xanh mới gộp vào `feature/zoker-native`. Mỗi lần gộp có IPA mới (link cố định `dist-zoker-native`).
-- Chỉ đánh dấu xong khi CI macOS chạy thật; phần cần thiết bị ghi "chưa xác minh trên thiết bị".
-- Báo cáo ngắn; không in toàn bộ log.
-- (Anh dặn 09/11/2026) Hạng mục nào sửa đi sửa lại nhiều lần (ánh sáng, bố cục phím, màu nỉ…) thì chủ động nhắc và đề xuất đưa thành tuỳ chỉnh trong Menu → Tuỳ chỉnh, theo hướng anh muốn; có đề xuất gì cứ nêu để anh tham khảo.
-- (Anh dặn 09/11/2026) Anh không phải chuyên gia: luôn đứng ở góc độ chuyên gia (bida + phần mềm), chủ động góp ý, phản biện và đưa phương án tốt hơn dựa trên ý tưởng anh nêu — nói rõ vì sao tốt hơn, anh quyết.
+- Một nhiệm vụ = một nhánh `ci/native-<mã>`; CI xanh mới gộp vào `feature/zoker-native`. Mỗi lần gộp có IPA mới (link cố định `dist-zoker-native`). Nhánh `cho/…` = nhánh chờ, không chạy CI.
+- Chỉ đánh dấu xong khi CI macOS chạy thật; phần cần thiết bị ghi "chưa xác minh trên thiết bị". "Hết lỗi" chỉ khi anh xác nhận trên máy thật.
+- (Anh dặn 09/11/2026) Hạng mục nào sửa đi sửa lại nhiều lần thì chủ động đề xuất đưa thành tuỳ chỉnh trong Menu → Tuỳ chỉnh.
+- (Anh dặn 09/11/2026) Anh không phải chuyên gia: luôn đứng ở góc độ chuyên gia (bida + phần mềm), chủ động góp ý, phản biện và đưa phương án tốt hơn — nói rõ vì sao tốt hơn, anh quyết.
+- Không dùng tên/logo thương hiệu thật (dùng tên Z-…); âm thanh chỉ CC0/CC-BY/Sonniss/anh tự thu, không lấy YouTube; không gửi key trong chat.
 
 ## CI
 `.github/workflows/native-ci.yml`: cổng Linux (g++/clang++, check_suite_lists, Run-All-Checks) → `Tools/run_acceptance.py` trên macOS (Simulator, ảnh + đầu dò G1, XCTest cử chỉ, IPA) → Release `native-*` + nhánh `dist-zoker-native`; ảnh ở `shots/native`. Thêm bộ test C++ mới: đăng ký ở cả `CMakeLists.txt` (ZOKER_TEST_SUITES) và `Run-All-Checks.command`. Đọc thêm `AGENTS.md` (hợp đồng của nhánh council).
 
 ## Quy ước "chấp thuận" (anh dặn 09/11/2026 22:54)
-Khi anh nói "chấp thuận" = duyệt TOÀN BỘ đề xuất/phát kiến/sửa đổi em vừa nêu, làm luôn. Nếu cần thêm/bớt, anh nói sau chữ "chấp thuận".
+Khi anh nói "chấp thuận" = duyệt TOÀN BỘ đề xuất/phát kiến/sửa đổi em vừa nêu, làm luôn. Nếu cần thêm/bớt, anh nói sau chữ "chấp thuận". "Đợi anh chốt" / "khoan build" = không build, chỉ chuẩn bị trên nhánh chờ.
 
 ## Cách làm việc (anh dặn 09/11/2026 22:23)
 Anh muốn ÍT đợt nghiệm thu: gom thành một bản hoàn chỉnh rồi mới nghiệm thu; sau đó tách tính năng để bán trong app (In-App Purchase). Viết tính năng theo cờ/khối độc lập để sau này khoá/mở theo gói được.
-
-## 0.40 (anh "chấp thuận" toàn bộ đề xuất từ 0.38 tới nay, 11/11/2026 18:02)
-- Bàn: kích thước chuẩn WPA + họ kiểu dáng phổ biến 2026, chi tiết trang trí riêng, tên Z- (không chép 100% thương hiệu).
-- Âm thanh: ~40 mẫu CC0/CC-BY (Freesound) + Sonniss GDC + mẫu anh tự thu (em soạn kịch bản thu); 3 mức lực × 3–4 biến thể, tiếng lăn liên tục theo tốc độ, lỗ theo loại bàn, break/nhảy/massé/trượt típ, không gian âm theo phòng, giới hạn số tiếng. KHÔNG lấy tiếng YouTube.
-- Vật lý mới (test C++ trước): bi văng khỏi bàn, đập mép gỗ, nảy trên sàn theo vật liệu phòng.
-- Kỹ thuật: vật lý chạy luồng riêng, bỏ cấp phát mỗi khung; CI đo tỉ lệ khung trễ; bộ so sánh 20 cú mẫu với video thật; "phòng chuẩn" chụp ảnh so trước/sau mỗi bản; cờ tính năng cho gói IAP.
-- Trải nghiệm: mẫu đèn "Thi đấu" 520 lux; hướng dẫn tương tác 3 bước lần đầu; bảng tiến bộ hằng tuần; thử thách hằng ngày + bảng xếp hạng Game Center.
-- Đo bàn thật: anh quay 5 cú 240 fps ở CLB để hiệu chỉnh hệ số (chờ anh).
-- Nghiên cứu tính năng 2026 (Project doc `claude/zoker-nghien-cuu-tinh-nang-2026.md`) — anh duyệt lưu và sẽ làm theo lộ trình: 0.40 khung IAP (cờ + StoreKit 2), bài mỗi ngày + chuỗi ngày, "Giữ mắt", "Vì sao trượt" (phân tích), Z-Exam v1; 0.41 bóng ma + Game Center, giải tuần, thống kê, chia sẻ link/QR, rung+âm, AI coach, mở bán; sau: ảnh bàn → thế bi, Apple Watch, SharePlay, RealityKit, AR.
-- (anh dặn 11/11 18:29) Đấu với máy 6 cấp: Beginner · Amateur · Quarter Pro · Semi Pro · Pro · AI; chọn luật (8/9/10 Ball, 15 Rotation, …), race. Máy chọn cú bằng tìm kiếm trên lõi vật lý tất định (ứng viên cú → mô phỏng → chấm điểm vào lỗ + vị trí + phòng thủ), cấp độ = sai số thực thi (góc/lực/xoáy) + độ sâu tính toán (vị trí 0–3 bi, phòng thủ, kick thoát). Viết test C++ trước (tỉ lệ vào theo cấp nằm trong khoảng mục tiêu). Chạy ở luồng riêng.
-- (anh dặn 11/11 18:29) Sắp xếp lại giao diện và hạng mục cho hợp lý, dễ dùng.
-
-## 0.39 (anh nghiệm thu 0.38 ngày 11/11 + 7 phát hiện)
-Đồng bộ khung hình (bi trôi), chỉ bi đổ bóng (kiểu 0.19) + gậy không đổ bóng bản đồ, gậy mờ khi che hướng ngắm, sợi nỉ 0,6 mm, típ vòm 4,5 mm, nỉ cũ chấm li ti/bi cũ đục, sàn hết sọc, bỏ viền kim loại, Wi‑Fi break được, bảng điểm kiểu TV, cảnh đầu xem lại thấp hơn, Tuỳ chỉnh 5 thẻ, sảnh gọn. Bàn theo thương hiệu thật: KHÔNG chép 100% kiểu dáng/tên (rủi ro kiểu dáng công nghiệp khi bán app) — dùng kích thước chuẩn WPA + họ kiểu dáng phổ biến, tên Z-.
-
-## 0.38 = 0.37 + toàn bộ đề xuất còn lại (anh duyệt hết 09/11/2026 22:21)
-Nút số tự hiện khi ngắm chạm băng; chấm độ đều tay; đường chỉ dẫn mờ theo trình độ; góc ngắm mặc định; kích thước/độ trong phím; lưu 3 bố cục; màu/độ dày đường ngắm; độ rõ vân nỉ; đường dự đoán theo độ dốc tự nâng; tự tăng lại chất lượng; xuất video highlight.
-
-## 0.37 (anh duyệt 09/11/2026 21:34 — gộp tất cả)
-Sửa: lag (chỉ bi đổ bóng, tự hạ chất lượng), sọc nỉ = phân tầng màu (dithering, nỉ không bóng, vân mờ sớm), sọc viền/yếm (bóng tự đổ), bo góc gỗ; bi bớt chói + bóng mềm; cơ không xuyên băng/bi, dốc tự nâng đồng bộ thanh dốc; kiểm tra va chạm khi bi bay; xem lại 1,5 s trước/sau + 3 cảnh điện ảnh; logo "Zoker Pool / Trainer"; khoá chỉ bằng B (công tắc bi effect khoá trong Tuỳ chỉnh, mặc định tắt).
-Thêm: Tuỳ chỉnh độ chói bi + độ đậm bóng; mẫu loại bàn (nhanh/chuẩn/chậm); vạch vùng thực tế trên thanh vật lý; phím tự mờ khi ngắm; dự đoán rồi hiện đường đúng (lệch °); mẫu ánh sáng (Câu lạc bộ/TV/Dịu mắt); Sảnh chính (Luyện tập/Thi đấu/Hồ sơ) + menu trong trận 5 mục + Tuỳ chỉnh 4 thẻ + màu theo chế độ.
