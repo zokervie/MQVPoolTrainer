@@ -36,7 +36,11 @@ using namespace banklab;
     }
     ai::Shot planned=ai::plan(_world,_state,_level,_seed,2.0);   // 0.40b: wall-clock budget (OpponentTests "full table")
     ai::Shot shot=ai::execute(planned,_level,_seed*31+7);
-    return @{@"valid":@(shot.valid),@"angle":@(shot.angle),@"speed":@(shot.speed),@"side":@(shot.side),@"top":@(shot.top),
+    // The app strikes along TableScene.cuePose (pivot at the bridge hand): send the aim angle that produces this line.
+    const double aim=ai::aimAngle(shot,_world.config.radius);
+    return @{@"valid":@(shot.valid),@"angle":@(aim),@"strikeAngle":@(shot.angle),@"speed":@(shot.speed),@"side":@(shot.side),@"top":@(shot.top),
+             @"elevation":@(shot.elevation),@"cueType":@(shot.kind==ai::Jump?1:shot.kind==ai::BreakCue?2:0),
+             @"intent":@(planned.intent),@"think":@(planned.think),
              @"target":@(planned.target),@"pocket":@(planned.pocket),@"safety":@(planned.safety),
              @"placed":@(placed),@"x":@(place.x),@"y":@(place.y),@"chance":@(planned.potChance),@"option":option};
 }

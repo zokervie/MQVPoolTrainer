@@ -1,18 +1,26 @@
 #pragma once
-// 0.40 — Computer opponent ("Đấu với máy"), six levels. Owner request 11/11/2026.
+// Computer opponent ("Đấu với máy"), six levels. 0.40: owner request 11/11/2026. 0.40c: owner acceptance 12/11/2026
+// ("máy đánh quá đều đặn, không tư duy, không biết điều bi, không dùng lực/effect khác nhau, không biết nhảy/massé;
+// có lúc dừng quá 10 s").
 //
-// The opponent does not use a separate, simplified table model: every candidate stroke is played forward on a copy of
-// the real World (World::simulate) and judged from the events the referee would see. A level is two things:
-//   - hand: execution error added to the planned stroke (aim / speed / tip offset), drawn from a seeded generator;
-//   - head: how the stroke is chosen (does it centre the pot window, look one ball ahead, play safe, escape a snooker).
+// Method (computational-pool practice: PickPocket, U. Alberta; CueCard, Computer Olympiad 2008 — generate shots by
+// type, play each forward in the real simulator, estimate success under the player's own execution noise, value the
+// position that is left, play safe when the pot is poor):
+//   1. Shot generation by type: direct pot, one-rail bank (Quarter Pro+), combination (Semi Pro+), jump / massé pot
+//      and escape (Pro / AI), kick escape (Quarter Pro+), safety.
+//   2. A stroke menu per level: speed classes (soft … power), follow/stun/draw and side english. Every candidate is
+//      played forward on a copy of the real World with the SAME physics settings the app will use for that stroke
+//      (cue type, elevation over a rail, tip, squirt) — see strokeConfig.
+//   3. Position: the leave is valued as the next shot's ease (and the one after for Pro / AI: pattern play).
+//   4. Monte Carlo (Quarter Pro+): the best few candidates are replayed with the level's own hand error, so a player
+//      picks the stroke that works for HIS hand (CueCard), not the one that works only when executed perfectly.
+//   5. Anytime search under a wall-clock Deadline checked between simulations: there is always a legal stroke.
 // Skill numbers are ASSUMPTIONS to be tuned against real ratings, not measurements:
-//   aim error (1 sigma)  0.65°, 0.47°, 0.33°, 0.24°, 0.17°, 0.08°  for Beginner … AI.
-//   Chosen so that on this engine's MEDIAN pot window (~0.5° wide at 1–1.5 m, measured by potWindow) the expected
-//   Tip error (side/top, ball radii) 0.10 … 0.02: unintended side squirts the cue ball ~1° per 0.1 R on this engine,
-//   so it is part of the aim budget, not on top of it.
-//   pot rate on a makeable ball is ~30 / 40 / 55 / 70 / 85 / 95 % (assumed targets, to tune with real players).
+//   aim error (1 sigma)  0.65°, 0.47°, 0.33°, 0.24°, 0.17°, 0.08°  for Beginner … AI; tip error 0.10 … 0.02 R.
 // Deterministic: the same world, state, level and seed always give the same stroke.
 #include "MatchRules.hpp"
+#include "../UI/CueClearance.h"
+#include "../UI/ShotKindPolicy.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -27,46 +35,67 @@ namespace banklab { namespace ai {
 constexpr double kPi=3.14159265358979323846;
 constexpr int kLevels=6;
 
+/// Stroke kinds, numbered like the app's shot kinds (ShotKindPolicy.h): 0 normal, 1 jump cue, 2 break cue, 3 massé.
+enum Kind {Normal=0,Jump=1,BreakCue=2,Masse=3};
+/// What the stroke is meant to do (for tempo, the status line and tests).
+enum Plan {Pot=0,Bank=1,Combo=2,JumpPot=3,MassePot=4,Safety=5,Kick=6,JumpEscape=7,MasseEscape=8,Roll=9,Break=10};
+
 struct Skill {
     const char* name;
     double aimSigma;      // rad, 1 sigma
     double speedSigma;    // fraction of the planned speed
     double tipSigma;      // side/top offset in ball radii
-    bool centreWindow;    // aim at the middle of the pot window instead of the geometric ghost ball
-    int lookahead;        // 0 = pot only, 1 = leave a shot on the next ball, 2 = also value the ball after
-    bool usesSpin;        // tries follow/draw for position
-    double safetyBelow;   // play safe when the best pot chance is below this (0 = never)
-    bool escapes;         // searches kicks when no direct legal contact exists
-    double blunder;       // chance to take a worse option on purpose (human-like mistake in choice, not in hand)
+    bool centreWindow;    // aims at the middle of the measured pot window instead of the geometric ghost ball
+    int lookahead;        // 0 = pot only, 1 = values the next shot, 2 = also the shot after (pattern)
+    double safetyBelow;   // plays safe when the best pot chance is below this (0 = never)
+    bool escapes;         // searches kicks when snookered
+    double blunder;       // chance to take another option on purpose (mistake of choice, not of hand)
     double breakSpeed;    // m/s
+    int options;          // (ball, pocket) pairs examined
+    int speeds;           // speed classes used (kSpeeds, from the middle out)
+    int spins;            // 1 centre, 2 + follow, 3 + draw, 5 draw/stun/centre/follow/strong follow
+    bool english;         // side spin for position
+    bool banks,combos,jump,masse;
+    int samples;          // Monte Carlo replays of the best candidates (0 = trust the window)
+    double posWeight;     // weight of the leave against the pot itself
 };
-/// Simulated seconds per candidate: a pool shot is decided (pot/foul/position) inside 8 s (balls left rolling are judged where they are).
+/// Simulated seconds per candidate: a pool shot is decided (pot/foul/position) inside 8 s.
 constexpr double kJudgeSeconds=8;   // CI 131: 12 s made one full-table simulation the size of the overrun
-/// Wall-clock planning budget so the computer never "waits" on a full rack (owner, 12/11). ASSUMED: ~2.5 s feels human.
+/// Highest cue lift (deg) for a normal stroke over a rail / ball; above it the stroke must be a jump or a massé.
+constexpr double kMaxLift=30;
 struct Deadline {
-    std::chrono::steady_clock::time_point end;
-    explicit Deadline(double seconds):end(std::chrono::steady_clock::now()+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(seconds>1e6?1e6:seconds))){}
+    std::chrono::steady_clock::time_point start,end;
+    explicit Deadline(double seconds):start(std::chrono::steady_clock::now()),end(start+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(seconds>1e6?1e6:seconds))){}
     bool over()const{return std::chrono::steady_clock::now()>end;}
+    /// True once `fraction` of the budget is spent (phases share one turn).
+    bool past(double fraction)const{return std::chrono::steady_clock::now()>start+std::chrono::duration_cast<std::chrono::steady_clock::duration>((end-start)*fraction);}
 };
 inline const Skill& skill(int level){
     static const std::array<Skill,kLevels> table={{
-        {"Beginner",   0.65*kPi/180,.20,.10,false,0,false,0.00,false,.25,4.0},
-        {"Amateur",    0.47*kPi/180,.14,.08,true, 0,false,0.00,false,.12,5.0},
-        {"Quarter Pro",0.33*kPi/180,.10,.06,true, 1,false,0.20,true, .06,6.0},
-        {"Semi Pro",   0.24*kPi/180,.07,.04,true, 1,true, 0.30,true, .03,6.8},
-        {"Pro",        0.17*kPi/180,.05,.03,true, 2,true, 0.40,true, .00,7.4},
-        {"AI",         0.08*kPi/180,.02,.02,true, 2,true, 0.45,true, .00,7.8}}};
+        //  name          aim°          speed tip  window look safe  esc  blunder brk  opt spd spin eng  bank combo jump masse  mc  pos
+        {"Beginner",   0.65*kPi/180,.20,.10,false,0,0.00,false,.25,4.0, 3,  2,  1,  false,false,false,false,false,0, 0.0},
+        {"Amateur",    0.47*kPi/180,.14,.08,true, 0,0.00,false,.12,5.0, 4,  2,  2,  false,false,false,false,false,0, 0.0},
+        {"Quarter Pro",0.33*kPi/180,.10,.06,true, 1,0.20,true, .06,6.0, 5,  3,  3,  false,true, false,false,false,3, 1.0},
+        {"Semi Pro",   0.24*kPi/180,.07,.04,true, 1,0.30,true, .03,6.8, 6,  4,  5,  false,true, true, false,false,4, 1.4},
+        {"Pro",        0.17*kPi/180,.05,.03,true, 2,0.40,true, .00,7.4, 7,  5,  5,  true, true, true, true, false,5, 1.7},
+        {"AI",         0.08*kPi/180,.02,.02,true, 2,0.45,true, .00,7.8, 8,  5,  5,  true, true, true, true, true, 6, 2.0}}};
     return table[static_cast<size_t>(std::clamp(level,0,kLevels-1))];
 }
+/// Object-ball run past the pocket (m) for each speed class, middle-out so a level with few classes uses the common ones.
+constexpr std::array<double,5> kSpeeds{{1.1,0.6,1.8,0.3,2.9}};
+/// Vertical tip offsets (R): centre, follow, draw, stun, strong follow.
+constexpr std::array<double,5> kSpins{{0.0,0.42,-0.45,-0.18,0.55}};
 
-/// A planned or executed stroke. `target`/`pocket` are the call (pocket -1 = none), `place` a cue-ball position for
-/// ball in hand (used when `placed` is true).
+/// A planned or executed stroke. `angle` is the direction the cue ball is struck (physics); the app's aim angle is
+/// `aimAngle()` (the cue pivots at the bridge hand, so side english moves the stroke line — TableScene.cuePose).
 struct Shot {
-    double angle=0,speed=0,side=0,top=0;
+    double angle=0,speed=0,side=0,top=0,elevation=0;
+    int kind=Normal,intent=Roll;
     int target=-1,pocket=-1;
     bool safety=false,placed=false,valid=false;
     V2 place{};
     double potChance=0,value=-std::numeric_limits<double>::infinity();
+    double think=1.0;     // seconds a player of this level would spend on this decision (tempo, not computation)
 };
 
 /// splitmix64: tiny, seedable, identical on every platform (std::normal_distribution is not).
@@ -77,6 +106,32 @@ struct Random {
     double unit(){return (next()>>11)*(1.0/9007199254740992.0);}
     double normal(){double u=std::max(unit(),1e-12),v=unit();return std::sqrt(-2*std::log(u))*std::cos(2*kPi*v);}
 };
+
+/// Physics settings the app applies for a stroke (UI/MatchPlayController strike + shotKindPhysics); the planner must
+/// simulate exactly what will be played, otherwise a raised cue's squirt or a jump cue's tip makes the plan miss.
+inline Config strokeConfig(Config c,int kind,double elevation){
+    const int shotKind=kind==Normal&&elevation>35?Masse:kind;   // as the match strike: `cueType == 0 && elevation > 35 ? 3`
+    c.cueType=kind==Jump?1:kind==BreakCue?2:0;
+    c.cueElevationDegrees=elevation;
+    c.experimental3D=elevation>35||kind==Jump;
+    c.squirtEnabled=true;c.squirtRampDegrees=BL_SQUIRT_RAMP_DEGREES;
+    c.masseCoupledContact=BLMasseCoupledForShotKind(shotKind)>0;
+    c.tipProfile=BLTipForShotKind(shotKind);
+    return c;
+}
+/// Play a stroke forward on a copy of `w` with the stroke's own physics settings.
+inline Outcome play(const World& w,const Shot& s,double seconds=kJudgeSeconds){
+    World t(strokeConfig(w.config,s.kind,s.elevation));t.reset(w.balls);
+    return t.simulate(s.angle,s.speed,s.side,s.top,seconds);
+}
+/// Aim angle the app must be given so that its stroke line (TableScene.cuePose: the cue pivots at the bridge hand,
+/// 1.12 m behind the ball — 0.80 m for the short jump cue) equals `s.angle`.
+inline double aimAngle(const Shot& s,double radius){
+    const double limit=s.elevation>0?0.6:0.7;double x=s.side,y=s.top;const double size=std::hypot(x,y);
+    if(size>limit){x*=limit/size;y*=limit/size;}
+    const double radial=std::sqrt(std::max(0.0,1-x*x-y*y)),pivot=s.kind==Jump?0.80:1.12,el=s.elevation*kPi/180;
+    return s.angle-std::atan2(radius*x,(pivot-radius*radial)*std::cos(el)+radius*y*std::sin(el));
+}
 
 inline std::array<V2,6> pockets(const Config& c){
     const double x=c.width/2,y=c.length/2;   // same catch basins as World::pocket
@@ -133,9 +188,25 @@ inline bool clearPath(const std::vector<Ball>& balls,V2 a,V2 b,int ignoreA,int i
     }
     return true;
 }
+/// Lift (deg) the cue needs to clear the rail and the balls behind the cue ball (UI/CueClearance.h — the same test
+/// the app applies before it accepts a stroke).
+inline double clearance(const World& w,V2 cue,double angle,double side,double top){
+    std::vector<double> xs,ys;
+    for(const auto& b:w.balls)if(!b.sunk&&b.id!=0){xs.push_back(b.p.x);ys.push_back(b.p.y);}
+    return BLCueMinimumElevationBalls(cue.x,cue.y,angle,side,top,w.config.width,w.config.length,w.config.radius,w.config.railHeight,
+                                      xs.data(),ys.data(),static_cast<int>(xs.size()));
+}
+/// Lift for a normal stroke: the clearance plus half a degree, 0 on an open table; negative when a normal stroke
+/// cannot be played there (needs more than kMaxLift).
+inline double liftFor(const World& w,V2 cue,double angle,double side,double top){
+    const double need=clearance(w,cue,angle,side,top);
+    if(need<=0.01)return 0;
+    return need+0.5<=kMaxLift?need+0.5:-1;
+}
 
 /// Geometric ease of potting `object` into pocket `k` from `cue`: 0 (impossible) … ~1 (short, straight).
-inline double ease(const World& w,V2 cue,const Ball& object,int k){
+/// `blockedCueOk`: ignore balls on the cue-ball path (jump / massé candidates).
+inline double ease(const World& w,V2 cue,const Ball& object,int k,bool blockedCueOk=false){
     const auto m=mouths(w.config);const double r=w.config.radius;
     const V2 toPocket=m[static_cast<size_t>(k)]-object.p;const double dp=toPocket.length();if(dp<1e-6)return 0;
     const V2 u=toPocket*(1/dp);const V2 ghost=object.p-u*(2*r);
@@ -143,7 +214,8 @@ inline double ease(const World& w,V2 cue,const Ball& object,int k){
     const double cut=(toGhost.x*u.x+toGhost.y*u.y)/dc;          // cos(cut angle)
     if(cut<0.26)return 0;                                       // thinner than ~75°
     if(std::abs(ghost.x)>w.config.width/2-r*.5||std::abs(ghost.y)>w.config.length/2-r*.5)return 0;
-    if(!clearPath(w.balls,cue,ghost,0,object.id,r)||!clearPath(w.balls,object.p,m[static_cast<size_t>(k)],0,object.id,r))return 0;
+    if(!clearPath(w.balls,object.p,m[static_cast<size_t>(k)],0,object.id,r))return 0;
+    if(!blockedCueOk&&!clearPath(w.balls,cue,ghost,0,object.id,r))return 0;
     // Side pockets reject balls arriving along the rail.
     if(k==2||k==3){const double open=std::abs(u.x);if(open<0.45)return 0;}
     return cut*cut/(1+0.9*dc+1.3*dp);
@@ -156,6 +228,32 @@ inline double offer(const World& w,const match::State& s,V2 cue,int player){
         for(int k=0;k<6;++k)best=std::max(best,ease(w,cue,b,k));
     }
     return best;
+}
+/// Value of the position left for `player`'s next shot. depth 2 adds the shot after (pattern play): in rotation the
+/// ball after the next one, seen from the next ball; in 8-ball the second-best option (more choices = safer run).
+/// Small penalties: cue ball near a pocket (scratch risk) or frozen on a cushion (bridge over the rail).
+inline double leave(const World& after,const match::State& s,V2 cue,int player,int depth){
+    using D=match::Discipline;
+    std::vector<std::pair<double,int>> eases;
+    for(const auto& b:after.balls){
+        if(b.sunk||b.id<=0||!legalFirst(s,after.balls,b.id,player)||!wantedPot(s,after.balls,b.id,player))continue;
+        double e=0;for(int k=0;k<6;++k)e=std::max(e,ease(after,cue,b,k));
+        eases.push_back({e,b.id});
+    }
+    if(eases.empty())return 0;
+    std::sort(eases.begin(),eases.end(),[](const auto& a,const auto& b){return a.first>b.first;});
+    double v=eases.front().first;
+    if(depth>=2){
+        if(s.rule!=D::EightBall){
+            const Ball* next=find(after.balls,eases.front().second);
+            int second=99;for(const auto& b:after.balls)if(!b.sunk&&b.id>0&&next&&b.id!=next->id)second=std::min(second,b.id);
+            if(next&&second<99)if(const Ball* nb=find(after.balls,second)){double e=0;for(int k=0;k<6;++k)e=std::max(e,ease(after,next->p,*nb,k));v+=0.35*e;}
+        }else if(eases.size()>1)v+=0.3*eases[1].first;
+    }
+    const double r=after.config.radius;
+    for(const V2 p:mouths(after.config))if((p-cue).length()<0.10)v-=0.05;
+    if(std::abs(cue.x)>after.config.width/2-r*1.15||std::abs(cue.y)>after.config.length/2-r*1.15)v-=0.03;
+    return v;
 }
 
 struct Judgement {bool foul=false,potted=false,won=false,lost=false,keepsTurn=false;V2 cue{};int firstHit=-1;};
@@ -193,8 +291,8 @@ inline Judgement judge(const World& before,const match::State& s,const Outcome& 
     return j;
 }
 
-/// Stroke speed that carries the object ball to the pocket with a little to spare (rolling resistance only; ASSUMED
-/// margin, the simulation is the judge).
+/// Stroke speed that carries the object ball to the pocket and `extra` metres beyond (rolling resistance only;
+/// ASSUMED margin, the simulation is the judge).
 inline double paceFor(const World& w,double cueTravel,double objectTravel,double cutCos,double extra){
     const double g=9.81,mu=w.config.rolling;
     const double vObject=std::sqrt(2*mu*g*(objectTravel+extra));
@@ -206,32 +304,39 @@ inline double paceFor(const World& w,double cueTravel,double objectTravel,double
     return std::clamp(v,0.8,7.5);
 }
 
-struct Candidate {int ball=-1,pocket=-1;double angle=0,speed=0,top=0,side=0,chance=0,value=0;Judgement outcome{};};
+/// One potting idea before any simulation: what to hit, where it should go, and the geometric aim.
+struct Idea {int ball=-1,pocket=-1,plan=Pot;double aim=0,cueTravel=0,objectTravel=0,cutCos=1,e=0;bool blocked=false;};
+struct Candidate {Shot shot;double chance=0,width=0,leave=0,value=0;Judgement outcome{};};
 
-/// Scan aim offsets around the geometric line; returns the centre and angular width (rad) of the window that pots.
-/// 0.40b (owner: "đến lượt máy cứ chờ"): coarse 9-point scan (0.6° apart) then 3-step bisection of each edge —
-/// 15 simulations instead of 25 with a finer width (≈0.08°).
-inline bool potWindow(const World& w,const match::State& s,int player,const Ball& object,int k,double geometric,double speed,double top,double& centre,double& width,const Deadline* deadline=nullptr){
-    const double span=2.4*kPi/180;const int n=9;const double step=2*span/(n-1);
-    auto pots=[&](double a){const Judgement j=judge(w,s,w.simulate(a,speed,0,top,kJudgeSeconds),player,object.id,k);return j.potted&&!j.lost;};
-    int run=0,first=-1,bestFirst=-1,bestRun=0;
-    for(int i=0;i<n;++i){
+/// Find the pot window around `stroke.angle`: centre and angular width (rad) of the aim range that pots.
+/// 0.40c: nearest-first probes (0, ±0.25°, ±0.5°, … ±2.1°) — a typical window is only ~0.5° wide, so the old uniform
+/// 0.6–0.7° grid could step over it — then each edge is walked out in 0.15° steps and bisected 3 times (≈0.02°).
+inline bool potWindow(const World& w,const match::State& s,int player,int target,int k,Shot stroke,double& centre,double& width,const Deadline* deadline=nullptr,double span=2.1*kPi/180){
+    const double geometric=stroke.angle,deg=kPi/180;
+    auto pots=[&](double a){stroke.angle=a;const Judgement j=judge(w,s,play(w,stroke),player,target,k);return j.potted&&!j.lost;};
+    double found=0;bool any=false;const double scale=std::max(1.0,span/(2.1*deg));   // wider span: same probes, spread out
+    for(double o:{0.0,0.25,-0.25,0.5,-0.5,0.8,-0.8,1.15,-1.15,1.6,-1.6,2.1,-2.1}){
         if(deadline&&deadline->over())break;   // CI 131: one slow candidate must not blow the turn budget
-        if(pots(geometric-span+i*step)){if(run==0)first=i;++run;if(run>bestRun){bestRun=run;bestFirst=first;}}else run=0;
+        if(std::abs(o*deg)>span+1e-12)continue;
+        if(pots(geometric+o*scale*deg)){found=geometric+o*scale*deg;any=true;break;}
     }
-    if(bestRun==0)return false;
-    double lo=geometric-span+bestFirst*step,hi=geometric-span+(bestFirst+bestRun-1)*step;   // inside the window
-    double loOut=lo-step,hiOut=hi+step;                                                       // outside (or scan edge)
-    const int refine=deadline&&deadline->over()?0:3;
-    for(int i=0;i<refine;++i){const double m=(lo+loOut)/2;if(pots(m))lo=m;else loOut=m;}
-    for(int i=0;i<refine;++i){const double m=(hi+hiOut)/2;if(pots(m))hi=m;else hiOut=m;}
-    centre=(lo+hi)/2;width=std::max(hi-lo,step/8);
+    if(!any)return false;
+    auto edge=[&](double dir){
+        double in=found,out=found+dir*0.15*deg;
+        for(int i=0;i<6&&pots(out);++i){in=out;out+=dir*0.15*deg;if(deadline&&deadline->over())return in;}
+        const int refine=deadline&&deadline->over()?0:3;
+        for(int i=0;i<refine;++i){const double m=(in+out)/2;if(pots(m))in=m;else out=m;}
+        return in;
+    };
+    const double hi=edge(1),lo=edge(-1);
+    centre=(lo+hi)/2;width=std::max(hi-lo,0.02*deg);
     return true;
 }
 /// Chance that a normally distributed aim error stays inside a window of the given width.
 inline double chanceInside(double width,double sigma){return sigma<=0?1:std::erf(width/(2*std::sqrt(2.0)*sigma));}
 
-/// Cue-ball position for ball in hand: straight behind the easiest legal ball; behind the head string when required.
+/// Cue-ball position for ball in hand: behind the easiest legal ball at a natural angle for position (a slight cut,
+/// not dead straight); behind the head string when required.
 inline V2 placeCue(const World& w,const match::State& s,int player){
     const double r=w.config.radius,hx=w.config.width/2-r*1.2,hy=w.config.length/2-r*1.2;
     auto free=[&](V2 p){
@@ -249,11 +354,11 @@ inline V2 placeCue(const World& w,const match::State& s,int player){
         if(b.sunk||b.id<=0||!legalFirst(s,w.balls,b.id,player)||!wantedPot(s,w.balls,b.id,player))continue;
         for(int k=0;k<6;++k){
             const V2 d=m[static_cast<size_t>(k)]-b.p;const double len=d.length();if(len<1e-6)continue;
-            const V2 u=d*(1/len);
-            for(double back:{0.30,0.42,0.22,0.55}){
-                const V2 p=b.p-u*(2*r+back);
+            const V2 u=d*(1/len),side{-u.y,u.x};
+            for(double back:{0.30,0.42,0.22,0.55})for(double cut:{0.0,0.12,-0.12}){
+                const V2 p=b.p-u*(2*r+back)+side*(back*cut);
                 if(!free(p))continue;
-                const double e=ease(w,p,b,k);
+                const double e=ease(w,p,b,k)*(cut!=0?1.02:1.0);   // slight angle: easier to send the cue ball on
                 if(e>bestEase){bestEase=e;best=p;}
             }
         }
@@ -263,123 +368,370 @@ inline V2 placeCue(const World& w,const match::State& s,int player){
     return best;
 }
 
+/// Potting ideas from the geometry: direct, one-rail bank, combination, and pots behind a blocker (jump / massé).
+inline std::vector<Idea> ideas(const World& w,const match::State& s,int player,const Skill& k){
+    std::vector<Idea> out;const Ball* cue=find(w.balls,0);if(!cue)return out;
+    const double r=w.config.radius,hx=w.config.width/2-r,hy=w.config.length/2-r;const auto m=mouths(w.config);
+    auto aimAt=[&](V2 ghost,V2 u,Idea& i){const V2 line=ghost-cue->p;i.cueTravel=line.length();i.aim=std::atan2(line.y,line.x);i.cutCos=i.cueTravel>1e-9?(line.x*u.x+line.y*u.y)/i.cueTravel:0;};
+    for(const auto& b:w.balls){
+        if(b.sunk||b.id<=0)continue;
+        const bool first=legalFirst(s,w.balls,b.id,player),wanted=wantedPot(s,w.balls,b.id,player);
+        for(int pk=0;pk<6;++pk){
+            const V2 toPocket=m[static_cast<size_t>(pk)]-b.p;const double dp=toPocket.length();if(dp<1e-6)continue;
+            const V2 u=toPocket*(1/dp);
+            if(first&&wanted){
+                const double e=ease(w,cue->p,b,pk);
+                if(e>0){Idea i;i.ball=b.id;i.pocket=pk;i.plan=Pot;i.objectTravel=dp;i.e=e;aimAt(b.p-u*(2*r),u,i);out.push_back(i);}
+                else if(k.jump){
+                    const double eb=ease(w,cue->p,b,pk,true);
+                    if(eb>0){Idea i;i.ball=b.id;i.pocket=pk;i.plan=JumpPot;i.objectTravel=dp;i.e=eb*0.45;i.blocked=true;aimAt(b.p-u*(2*r),u,i);out.push_back(i);}
+                }
+            }
+        }
+        // One-rail bank: mirror the pocket across each cushion line the object ball can reach (corner pockets only
+        // for the long rails; banks into a side pocket off the short rail are out of a club player's repertoire).
+        if(k.banks&&first&&wanted){
+            for(int pk=0;pk<6;++pk){
+                const V2 mp=m[static_cast<size_t>(pk)];
+                const std::array<V2,4> images{{V2{2*hx-mp.x,mp.y},V2{-2*hx-mp.x,mp.y},V2{mp.x,2*hy-mp.y},V2{mp.x,-2*hy-mp.y}}};
+                for(int rail=0;rail<4;++rail){
+                    const V2 img=images[static_cast<size_t>(rail)];const V2 d=img-b.p;const double dl=d.length();if(dl<1e-6)continue;
+                    const V2 u=d*(1/dl);
+                    // Bounce point must be on that rail, not past a pocket.
+                    const double t=rail<2?((rail==0?hx:-hx)-b.p.x)/(u.x==0?1e-9:u.x):((rail==2?hy:-hy)-b.p.y)/(u.y==0?1e-9:u.y);
+                    if(t<=0.05||t>=dl)continue;
+                    const V2 hit=b.p+u*t;
+                    if(rail<2?(std::abs(hit.y)>hy-0.12||std::abs(hit.y)<0.12):(std::abs(hit.x)>hx-0.12))continue;
+                    const V2 ghost=b.p-u*(2*r);const V2 line=ghost-cue->p;const double dc=line.length();if(dc<1e-6)continue;
+                    const double cut=(line.x*u.x+line.y*u.y)/dc;if(cut<0.5)continue;
+                    if(!clearPath(w.balls,cue->p,ghost,0,b.id,r)||!clearPath(w.balls,b.p,hit,0,b.id,r)||!clearPath(w.balls,hit,mp,0,b.id,r))continue;
+                    Idea i;i.ball=b.id;i.pocket=pk;i.plan=Bank;i.objectTravel=dl;i.e=0.45*cut*cut/(1+0.9*dc+1.6*dl);aimAt(ghost,u,i);out.push_back(i);
+                }
+            }
+        }
+    }
+    // Combination: the legal ball A sends ball B into a pocket (9-ball: B = 9 wins).
+    if(k.combos){
+        for(const auto& a:w.balls){
+            if(a.sunk||a.id<=0||!legalFirst(s,w.balls,a.id,player))continue;
+            for(const auto& b:w.balls){
+                if(b.sunk||b.id<=0||b.id==a.id||!wantedPot(s,w.balls,b.id,player))continue;
+                if(s.rule==match::Discipline::EightBall&&b.id==8)continue;   // 8 on a combo needs a call the opponent rarely gives
+                const double ab=(b.p-a.p).length();if(ab>0.6)continue;          // long combos are not a percentage shot
+                for(int pk=0;pk<6;++pk){
+                    const double eb=ease(w,a.p,b,pk,true);if(eb<=0)continue;
+                    const V2 toPocket=m[static_cast<size_t>(pk)]-b.p;const V2 ub=toPocket*(1/toPocket.length());
+                    const V2 ghostB=b.p-ub*(2*r);const V2 dA=ghostB-a.p;const double la=dA.length();if(la<1e-6)continue;
+                    const V2 ua=dA*(1/la);const V2 ghostA=a.p-ua*(2*r);
+                    const double cutB=(dA.x*ub.x+dA.y*ub.y)/la;if(cutB<0.8)continue;
+                    const V2 line=ghostA-cue->p;const double dc=line.length();if(dc<1e-6)continue;
+                    const double cutA=(line.x*ua.x+line.y*ua.y)/dc;if(cutA<0.6)continue;
+                    if(!clearPath(w.balls,cue->p,ghostA,0,a.id,r)||!clearPath(w.balls,a.p,ghostB,a.id,b.id,r))continue;
+                    const bool money=b.id==moneyBall(s);
+                    Idea i;i.ball=b.id;i.pocket=pk;i.plan=Combo;i.objectTravel=la+toPocket.length();i.e=(money?0.9:0.35)*eb*cutA*cutA;
+                    aimAt(ghostA,ua,i);i.cutCos=cutA*cutB;out.push_back(i);
+                }
+            }
+        }
+    }
+    std::sort(out.begin(),out.end(),[](const Idea& x,const Idea& y){return x.e>y.e;});
+    return out;
+}
+
+/// First object ball the cue ball touches (−1: none / scratch), stepping only until that contact — a cheap test for
+/// kick lines before the full simulation.
+inline int firstContact(const World& w,const Shot& st,double horizon=6){
+    World t(strokeConfig(w.config,st.kind,st.elevation));t.reset(w.balls);t.strike(st.angle,st.speed,st.side,st.top);
+    const int limit=static_cast<int>(horizon/World::stepSize);
+    for(int i=0;i<limit&&t.moving();++i){
+        const size_t seen=t.events.size();t.step();
+        for(size_t e=seen;e<t.events.size();++e){
+            const Event& ev=t.events[e];
+            if(ev.kind==1&&(ev.a==0||ev.b==0))return ev.a==0?ev.b:ev.a;
+            if(ev.kind==2&&ev.a==0)return -1;
+        }
+    }
+    return -1;
+}
+
 /// Plan a stroke (no hand error). `world` must be at rest with the cue ball already placed.
 inline Shot plan(const World& world,const match::State& s,int level,std::uint64_t seed,double budgetSeconds=1e9){
     Shot out;const Deadline deadline(budgetSeconds);const Skill& k=skill(level);Random rng(seed^(0xA5A5ULL*static_cast<std::uint64_t>(level+1)));
     const int player=s.currentPlayer;
     const Ball* cue=find(world.balls,0);if(!cue)return out;
-    const double r=world.config.radius;const auto m=mouths(world.config);
+    const double r=world.config.radius;
+    match::State next=s;next.breakShot=false;
 
     if(s.breakShot){
-        // Full hit on the apex/lowest ball; better players break harder and from the side.
+        // Full hit on the apex; better players break harder, a touch of follow, from the side rail.
         int apex=-1;double nearest=1e9;
         for(const auto& b:world.balls){if(b.sunk||b.id<=0)continue;const double d=(b.p-cue->p).length();if(d<nearest){nearest=d;apex=b.id;}}
         if(apex<0)return out;
         const Ball* a=find(world.balls,apex);
         out.angle=std::atan2(a->p.y-cue->p.y,a->p.x-cue->p.x);out.speed=k.breakSpeed;out.top=level>=3?0.15:0;
-        out.target=apex;out.valid=true;out.value=0;return out;
+        out.elevation=std::max(0.0,liftFor(world,cue->p,out.angle,0,out.top));
+        out.target=apex;out.valid=true;out.value=0;out.intent=Break;out.think=1.2+0.4*level/5.0;return out;
     }
 
-    // Geometric pre-filter: only the easiest few (ball, pocket) pairs are simulated, easiest first.
-    struct Option{const Ball* b;int pk;double e;};std::vector<Option> options;
-    for(const auto& b:world.balls){
-        if(b.sunk||b.id<=0||!legalFirst(s,world.balls,b.id,player)||!wantedPot(s,world.balls,b.id,player))continue;
-        for(int pk=0;pk<6;++pk){const double e=ease(world,cue->p,b,pk);if(e>0)options.push_back({&b,pk,e});}
-    }
-    std::sort(options.begin(),options.end(),[](const Option& x,const Option& y){return x.e>y.e;});
-    if(options.size()>static_cast<size_t>(level>=3?6:4))options.resize(static_cast<size_t>(level>=3?6:4));
+    // Evaluate one concrete stroke: simulate it, judge it, value the leave.
+    auto evaluate=[&](Candidate& c,int target,int pocket){
+        const Outcome o=play(world,c.shot);
+        c.outcome=judge(world,s,o,player,target,pocket);
+        c.leave=0;
+        if(k.lookahead>0||k.posWeight>0)if(c.outcome.potted&&!c.outcome.won){
+            World after(world.config);after.reset(o.balls);
+            c.leave=leave(after,next,c.outcome.cue,player,k.lookahead);
+            if(k.lookahead>1&&c.leave<=0)c.leave=-0.15;   // no shot afterwards hurts a strong player more
+        }
+        return o;
+    };
+    auto score=[&](Candidate& c){
+        const double win=c.outcome.won?4.0:0;
+        const double miss=k.lookahead>0?0.35:0.1;
+        c.value=c.chance*(1.0+win+k.posWeight*c.leave)-(1-c.chance)*miss;
+    };
+
+    // 1. Ideas → pot windows (phase budget 35 %).
+    std::vector<Idea> list=ideas(world,s,player,k);
+    if(list.size()>static_cast<size_t>(k.options))list.resize(static_cast<size_t>(k.options));
+    double bestDirect=0;for(const Idea& d:list)if(d.plan==Pot)bestDirect=std::max(bestDirect,d.e);
     std::vector<Candidate> pots;
-    for(const auto& option:options){
+    for(const Idea& idea:list){
+        if(deadline.past(0.35)&&!pots.empty())break;
         if(deadline.over())break;
-        const Ball& b=*option.b;
-        {
-            const int pk=option.pk;const double e=option.e;
-            const V2 toPocket=m[static_cast<size_t>(pk)]-b.p;const double dp=toPocket.length();const V2 u=toPocket*(1/dp);
-            const V2 ghost=b.p-u*(2*r);const V2 line=ghost-cue->p;const double dc=line.length();
-            const double geometric=std::atan2(line.y,line.x),cutCos=(line.x*u.x+line.y*u.y)/dc;
-            std::vector<double> tops{0};if(k.usesSpin){tops.push_back(0.55);tops.push_back(-0.55);}
-            std::vector<double> extras{0.6};if(k.lookahead>0){extras.push_back(1.3);}   // object ball runs 0.6 m past the pocket: a firm pot, not one dying in the jaws
-            for(double top:tops)for(double extra:extras){
-                if(deadline.over())break;
-                Candidate c;c.ball=b.id;c.pocket=pk;c.top=top;c.speed=paceFor(world,dc,dp,cutCos,extra);
-                double centre=geometric,width=0;
-                if(k.centreWindow){
-                    if(!potWindow(world,s,player,b,pk,geometric,c.speed,top,centre,width,&deadline))continue;
-                    c.chance=chanceInside(width,k.aimSigma);
-                }else{
-                    // Beginner: trusts the ghost ball; whether it drops is found out on the table.
-                    c.chance=std::clamp(e*1.6,0.05,0.9);
+        if(idea.plan==Bank&&bestDirect>0.12)continue;   // a bank is the answer only when nothing straight is on
+        Candidate c;c.shot.target=idea.ball;c.shot.pocket=idea.pocket;c.shot.intent=idea.plan;
+        const size_t pick=k.centreWindow?0:static_cast<size_t>(rng.next()%static_cast<std::uint64_t>(k.speeds));
+        c.shot.speed=paceFor(world,idea.cueTravel,idea.objectTravel,idea.cutCos,kSpeeds[pick]);
+        c.shot.angle=idea.aim;
+        if(idea.plan==JumpPot){
+            if(clearance(world,cue->p,idea.aim,0,0)>32)continue;
+            c.shot.kind=Jump;c.shot.elevation=32;c.shot.speed=std::clamp(c.shot.speed*1.25,3.6,6.5);
+            double centre=idea.aim,width=0;
+            if(!potWindow(world,s,player,idea.ball,idea.pocket,c.shot,centre,width,&deadline,1.6*kPi/180))continue;
+            c.shot.angle=centre;c.width=width;c.chance=chanceInside(width,k.aimSigma*1.6);   // a jump stroke is less accurate
+        }else{
+            const double lift=liftFor(world,cue->p,idea.aim,0,0);
+            if(lift<0)continue;   // the cue cannot reach this line with a normal stroke (the 0.40b stall)
+            c.shot.elevation=lift;
+            if(k.centreWindow){
+                double centre=idea.aim,width=0;bool ok=false;
+                const double span=(idea.plan==Bank?4.0:2.1)*kPi/180;
+                // Base stroke: a firm pot (1.1 m past the pocket); if the ball dies short, firmer (1.8 m).
+                for(size_t vi:{size_t(0),size_t(2)}){
+                    if(deadline.over())break;
+                    c.shot.speed=paceFor(world,idea.cueTravel,idea.objectTravel,idea.cutCos,kSpeeds[vi]);c.shot.angle=idea.aim;
+                    if(potWindow(world,s,player,idea.ball,idea.pocket,c.shot,centre,width,&deadline,span)){ok=true;break;}
                 }
-                c.angle=centre;c.outcome=judge(world,s,world.simulate(c.angle,c.speed,0,top,kJudgeSeconds),player,b.id,pk);
-                if(c.outcome.lost)continue;
-                if(k.centreWindow&&!c.outcome.potted)continue;
-                double position=0;
-                if(k.lookahead>0&&c.outcome.potted&&!c.outcome.won&&!deadline.over()){
-                    World after(world.config);after.reset(world.simulate(c.angle,c.speed,0,top,kJudgeSeconds).balls);
-                    match::State next=s;next.breakShot=false;
-                    position=offer(after,next,c.outcome.cue,player);
-                    if(k.lookahead>1&&position<=0)position=-0.15;      // no shot afterwards hurts a strong player more
+                if(!ok)continue;
+                c.shot.angle=centre;c.width=width;c.chance=chanceInside(width,k.aimSigma);
+            }else c.chance=std::clamp(idea.e*1.6,0.05,0.9);   // Beginner: trusts the ghost ball, finds out on the table
+        }
+        evaluate(c,idea.ball,idea.pocket);
+        if(c.outcome.lost)continue;
+        if(k.centreWindow&&!c.outcome.potted)continue;
+        score(c);pots.push_back(c);
+    }
+    std::sort(pots.begin(),pots.end(),[](const Candidate& a,const Candidate& b){return a.value>b.value;});
+
+    // 2. Stroke menu on the best ideas: speed × follow/stun/draw (× side for Pro / AI). The window centre is kept;
+    //    a variant that no longer pots there is retried a third of a window either side (throw changes with spin).
+    if(k.speeds>1||k.spins>1){
+        const size_t ideasToVary=std::min<size_t>(pots.size(),level>=3?3:2);
+        std::vector<Candidate> variants;
+        for(size_t i=0;i<ideasToVary;++i){
+            const Candidate base=pots[i];
+            if(base.shot.kind!=Normal)continue;
+            const Idea* idea=nullptr;for(const auto& d:list)if(d.ball==base.shot.target&&d.pocket==base.shot.pocket&&d.plan==base.shot.intent){idea=&d;break;}
+            if(!idea)continue;
+            std::vector<std::pair<double,double>> english{{0.0,1.0}};
+            if(k.english){english.push_back({0.3,0.75});english.push_back({-0.3,0.75});}
+            for(const auto& [side,topScale]:english)
+            for(int si=0;si<k.spins;++si)for(int vi=0;vi<k.speeds;++vi){
+                if(deadline.past(0.7))break;
+                const double top=kSpins[static_cast<size_t>(si)]*topScale;
+                if(si==0&&vi==0&&side==0)continue;   // that is the base stroke
+                Candidate c=base;c.shot.side=side;c.shot.top=top;
+                c.shot.speed=paceFor(world,idea->cueTravel,idea->objectTravel,idea->cutCos,kSpeeds[static_cast<size_t>(vi)]);
+                // Draw needs a firmer stroke to survive the slide to the object ball (TP 4.x): add with distance.
+                if(top<0)c.shot.speed=std::min(7.5,c.shot.speed+0.35*idea->cueTravel);
+                const double lift=liftFor(world,cue->p,c.shot.angle,side,top);if(lift<0)continue;c.shot.elevation=lift;
+                bool ok=false;
+                for(double off:{0.0,1.0/3,-1.0/3}){
+                    if(deadline.over())break;
+                    c.shot.angle=base.shot.angle+off*base.width;
+                    evaluate(c,base.shot.target,base.shot.pocket);
+                    if(c.outcome.potted&&!c.outcome.lost){ok=true;c.chance=chanceInside(base.width*(off==0?1.0:0.8),k.aimSigma)*(side!=0?0.95:1.0);break;}
                 }
-                const double win=c.outcome.won?4.0:0;
-                c.value=c.chance*(1.0+win+(k.lookahead>0?1.5*position:0))-(1-c.chance)*(k.lookahead>0?0.35:0.1);
-                pots.push_back(c);
+                if(!ok)continue;
+                score(c);variants.push_back(c);
             }
         }
+        pots.insert(pots.end(),variants.begin(),variants.end());
+        std::sort(pots.begin(),pots.end(),[](const Candidate& a,const Candidate& b){return a.value>b.value;});
+    }
+
+    // 3. Monte Carlo with the level's own hand: replay the best few strokes with execution error (CueCard).
+    if(k.samples>0&&!pots.empty()){
+        const size_t top=std::min<size_t>(pots.size(),4);
+        Random mc(seed*0x2545F4914F6CDD1DULL+static_cast<std::uint64_t>(level));
+        for(size_t i=0;i<top;++i){
+            if(deadline.past(0.88))break;
+            Candidate& c=pots[i];int potted=0,fouls=0,lost=0,n=0;double leaveSum=0;
+            for(int t=0;t<k.samples;++t){
+                if(deadline.over())break;
+                Shot h=c.shot;h.angle+=k.aimSigma*mc.normal();h.speed=std::clamp(h.speed*(1+k.speedSigma*mc.normal()),0.4,8.0);
+                h.side=std::clamp(h.side+k.tipSigma*mc.normal(),-0.6,0.6);h.top=std::clamp(h.top+k.tipSigma*mc.normal(),-0.7,0.7);
+                const Outcome o=play(world,h);const Judgement j=judge(world,s,o,player,c.shot.target,c.shot.pocket);++n;
+                if(j.lost)++lost;else if(j.foul)++fouls;
+                if(j.potted&&!j.lost){++potted;if(!j.won){World after(world.config);after.reset(o.balls);leaveSum+=leave(after,next,j.cue,player,k.lookahead);}}
+            }
+            if(n<3)continue;
+            const double p=static_cast<double>(potted)/n,f=static_cast<double>(fouls)/n,l=static_cast<double>(lost)/n;
+            // Blend with the analytic estimate so 4–6 samples do not swing the choice on luck alone.
+            c.chance=0.5*c.chance+0.5*p;
+            const double avgLeave=potted>0?leaveSum/potted:c.leave;
+            c.leave=0.5*c.leave+0.5*avgLeave;
+            score(c);c.value-=0.8*f+6.0*l;
+        }
+        std::sort(pots.begin(),pots.end(),[](const Candidate& a,const Candidate& b){return a.value>b.value;});
     }
 
     auto fill=[&](const Candidate& c,bool safety){
-        out.angle=c.angle;out.speed=c.speed;out.top=c.top;out.side=c.side;out.target=c.ball;out.pocket=safety?-1:c.pocket;
-        out.safety=safety;out.potChance=c.chance;out.value=c.value;out.valid=true;
+        out=c.shot;out.pocket=safety?-1:c.shot.pocket;out.safety=safety;out.potChance=c.chance;out.value=c.value;out.valid=true;
+        if(safety&&out.intent<Safety)out.intent=Safety;
+        // The final line may differ from the one the lift was measured on (window centre, variant): re-measure, so the
+        // app's clearance guard never rejects the stroke (0.40b: rejected strokes looped and the computer "waited").
+        if(out.kind==Normal&&out.elevation<BL_MASSE_ELEVATION){
+            const double l=liftFor(world,cue->p,out.angle,out.side,out.top);
+            if(l>out.elevation)out.elevation=l;
+            else if(l<0)out.elevation=std::min(BL_MASSE_ELEVATION-1,clearance(world,cue->p,out.angle,out.side,out.top)+0.5);
+        }
     };
-    const Candidate* bestPot=nullptr;
-    for(const auto& c:pots)if(!bestPot||c.value>bestPot->value)bestPot=&c;
+    const Candidate* bestPot=pots.empty()?nullptr:&pots.front();
     if(bestPot&&k.blunder>0&&pots.size()>1&&rng.unit()<k.blunder){
         // Human-like mistake of choice: take another option, not the best one.
-        const Candidate* other=&pots[static_cast<size_t>(rng.next()%pots.size())];
-        if(other!=bestPot)bestPot=other;
+        bestPot=&pots[static_cast<size_t>(rng.next()%pots.size())];
     }
     const bool wantSafety=k.safetyBelow>0&&(!bestPot||bestPot->chance<k.safetyBelow);
-    if(bestPot&&!wantSafety){fill(*bestPot,false);return out;}
+    auto finish=[&](){
+        // Tempo (not computation): easy shots go quickly, hard choices and special strokes take longer.
+        const double hard=1-std::clamp(out.potChance,0.0,1.0);
+        out.think=0.7+1.4*hard+(out.safety?0.9:0)+(out.kind!=Normal?0.8:0)+0.6*rng.unit()-(level==0?0.3:0);
+        out.think=std::clamp(out.think,0.6,3.5);
+    };
+    if(bestPot&&!wantSafety){fill(*bestPot,false);finish();return out;}
 
-    // Safety / escape: scan directions and speeds, keep the legal stroke that leaves the opponent least.
+    // 4. Safety / escape. Is the cue ball snookered (no straight line to any legal ball)?
+    bool snookered=true;
+    for(const auto& b:world.balls)if(!b.sunk&&b.id>0&&legalFirst(s,world.balls,b.id,player)&&clearPath(world.balls,cue->p,b.p,0,b.id,r*0.98)){snookered=false;break;}
     if(k.safetyBelow>0||k.escapes||!bestPot){
         Candidate best;bool found=false;double bestScore=-1e9;
-        const int directions=(k.escapes||!bestPot)?(level>=4?48:36):0;
-        std::vector<double> angles;
+        auto consider=[&](Shot st){
+            if(deadline.over())return;
+            // A raised cue must still clear the rail and the balls behind the cue ball (a ball frozen behind it blocks
+            // even a jump cue).
+            if((st.kind!=Normal||st.elevation>kMaxLift)&&clearance(world,cue->p,st.angle,st.side,st.top)>st.elevation)return;
+            const Outcome o=play(world,st);
+            const Judgement j=judge(world,s,o,player,-1,-1);
+            if(j.lost)return;
+            double sc;
+            if(j.foul)sc=-2.0;
+            else{
+                World after(world.config);after.reset(o.balls);
+                sc=j.keepsTurn?0.6+offer(after,next,j.cue,player):-offer(after,next,j.cue,1-player);
+                if(st.kind!=Normal)sc-=0.05;   // a plain stroke is preferred when it is as good
+            }
+            if(sc>bestScore){bestScore=sc;found=true;best.shot=st;best.shot.target=j.firstHit;best.shot.pocket=-1;best.chance=0;best.value=sc;}
+        };
+        // a) Rolls and cuts to each legal ball at several speeds (and draw/stop for strong players).
+        const std::vector<double> speeds=level>=3?std::vector<double>{1.1,1.9,2.8}:std::vector<double>{1.6,2.6};
+        const std::vector<double> tops=level>=3?std::vector<double>{0.0,-0.35}:std::vector<double>{0.0};
         for(const auto& b:world.balls){
             if(b.sunk||b.id<=0||!legalFirst(s,world.balls,b.id,player))continue;
             const double base=std::atan2(b.p.y-cue->p.y,b.p.x-cue->p.x);
-            for(double off:{0.0,0.012,-0.012,0.024,-0.024})angles.push_back(base+off);
-        }
-        for(int i=0;i<directions;++i)angles.push_back(2*kPi*i/directions);
-        const std::vector<double> speeds=level>=3?std::vector<double>{1.1,1.9,2.8}:std::vector<double>{1.6,2.6};
-        match::State next=s;next.breakShot=false;int late=0;
-        for(double a:angles)for(double v:speeds){
-            if(deadline.over()&&(found||++late>3))break;   // over budget: keep what we have, else the plain roll below
-            const Outcome o=world.simulate(a,v,0,0,kJudgeSeconds);
-            const Judgement j=judge(world,s,o,player,-1,-1);
-            if(j.lost)continue;
-            double score;
-            if(j.foul)score=-2.0;
-            else{
-                World after(world.config);after.reset(o.balls);
-                score=j.keepsTurn?0.6+offer(after,next,j.cue,player):-offer(after,next,j.cue,1-player);
+            for(double off:{0.0,0.012,-0.012,0.024,-0.024})for(double v:speeds)for(double t:tops){
+                if(deadline.over())break;
+                Shot st;st.angle=base+off;st.speed=v;st.top=t;st.intent=Safety;
+                const double lift=liftFor(world,cue->p,st.angle,0,t);if(lift<0)continue;st.elevation=lift;consider(st);
             }
-            if(score>bestScore){bestScore=score;found=true;best.angle=a;best.speed=v;best.ball=j.firstHit;best.pocket=-1;best.chance=0;best.value=score;}
+        }
+        // b) Kicks: one- and two-rail mirror lines to the nearest legal balls, fanned ±3° (rebound is not a mirror).
+        if(k.escapes&&(snookered||!found||bestScore<-0.5)){
+            const double hx=world.config.width/2-r,hy=world.config.length/2-r;
+            std::vector<const Ball*> targets;
+            for(const auto& b:world.balls)if(!b.sunk&&b.id>0&&legalFirst(s,world.balls,b.id,player))targets.push_back(&b);
+            std::sort(targets.begin(),targets.end(),[&](const Ball* a,const Ball* b){return (a->p-cue->p).length()<(b->p-cue->p).length();});
+            if(targets.size()>2)targets.resize(2);
+            for(const Ball* t:targets){
+                std::vector<V2> images;
+                for(V2 p:{V2{2*hx-t->p.x,t->p.y},V2{-2*hx-t->p.x,t->p.y},V2{t->p.x,2*hy-t->p.y},V2{t->p.x,-2*hy-t->p.y}})images.push_back(p);
+                if(level>=3)for(double sx:{1.0,-1.0})for(double sy:{1.0,-1.0})images.push_back(V2{2*sx*hx-t->p.x,2*sy*hy-t->p.y});
+                for(V2 img:images)for(double v:{2.4,1.8,3.2}){
+                    bool hit=false;
+                    for(int f=0;f<=16&&!hit;++f){
+                        if(deadline.over())break;
+                        const double off=(f%2?1:-1)*((f+1)/2)*0.5*kPi/180;   // 0, ±0.5°, … ±4° (rebound is not a mirror)
+                        Shot st;st.angle=std::atan2(img.y-cue->p.y,img.x-cue->p.x)+off;st.speed=v;st.intent=Kick;
+                        const double lift=liftFor(world,cue->p,st.angle,0,0);if(lift<0)continue;st.elevation=lift;
+                        if(firstContact(world,st)!=t->id)continue;
+                        consider(st);hit=true;   // first line that reaches the ball on this image; the fan is its tolerance
+                    }
+                    if(hit)break;
+                }
+            }
+        }
+        // c) Pro / AI: jump over the blocker; AI: massé around it.
+        if(k.jump&&(snookered||bestScore<-0.5)){
+            for(const auto& b:world.balls){
+                if(b.sunk||b.id<=0||!legalFirst(s,world.balls,b.id,player))continue;
+                if((b.p-cue->p).length()<0.25)continue;   // too close to get the cue ball airborne first
+                const double base=std::atan2(b.p.y-cue->p.y,b.p.x-cue->p.x);
+                for(double el:{30.0,38.0})for(double v:{3.8,4.8,5.8})for(double off:{0.0,0.015,-0.015}){
+                    if(deadline.over())break;
+                    Shot st;st.kind=Jump;st.elevation=el;st.angle=base+off;st.speed=v;st.intent=JumpEscape;consider(st);
+                }
+            }
+        }
+        if(k.masse&&(snookered||bestScore<-0.5)){
+            for(const auto& b:world.balls){
+                if(b.sunk||b.id<=0||!legalFirst(s,world.balls,b.id,player))continue;
+                const double base=std::atan2(b.p.y-cue->p.y,b.p.x-cue->p.x);
+                for(double side:{0.45,-0.45})for(double off:{0.12,0.22,0.32})for(double v:{1.4,2.2}){
+                    if(deadline.over())break;
+                    // Swing out to the side opposite the english and let the curve bring the ball back.
+                    Shot st;st.kind=Normal;st.elevation=70;st.side=side;st.top=-0.1;st.speed=v;st.intent=MasseEscape;
+                    st.angle=base+(side>0?off:-off);consider(st);
+                    st.angle=base-(side>0?off:-off);consider(st);
+                }
+            }
         }
         // A weak pot is still better than a poor safety.
-        if(found&&(!bestPot||bestScore>bestPot->value-0.25)){fill(best,true);return out;}
+        if(found&&(!bestPot||bestScore>bestPot->value-0.25)){fill(best,true);finish();return out;}
     }
-    if(bestPot){fill(*bestPot,false);return out;}
+    if(bestPot){fill(*bestPot,false);finish();return out;}
 
-    // Nothing better: roll at the nearest legal ball (a beginner's answer to a snooker).
+    // Nothing better: roll at the nearest legal ball (a beginner's answer to a snooker), with a liftable line.
     double nearest=1e9;
     for(const auto& b:world.balls){
         if(b.sunk||b.id<=0||!legalFirst(s,world.balls,b.id,player))continue;
-        const double d=(b.p-cue->p).length();
-        if(d<nearest){nearest=d;out.angle=std::atan2(b.p.y-cue->p.y,b.p.x-cue->p.x);out.target=b.id;}
+        const double d=(b.p-cue->p).length();const double a=std::atan2(b.p.y-cue->p.y,b.p.x-cue->p.x);
+        const double lift=liftFor(world,cue->p,a,0,0);
+        if(d<nearest&&lift>=0){nearest=d;out.angle=a;out.target=b.id;out.elevation=lift;}
     }
-    if(nearest<1e9){out.speed=2.0;out.safety=true;out.valid=true;out.value=-1;}
+    if(nearest>=1e9){
+        // Every line to a legal ball needs too much lift: any direction the cue can reach (always exists away from
+        // the blocking rail) — never leave the turn hanging.
+        double want=kPi/2,closest=1e9;
+        for(const auto& b:world.balls)if(!b.sunk&&b.id>0&&legalFirst(s,world.balls,b.id,player)){const double d=(b.p-cue->p).length();if(d<closest){closest=d;want=std::atan2(b.p.y-cue->p.y,b.p.x-cue->p.x);}}
+        double bestDiff=1e9;
+        for(int i=0;i<144;++i){
+            const double a=want+(i%2?1:-1)*((i+1)/2)*2.5*kPi/180;const double lift=liftFor(world,cue->p,a,0,0);
+            if(lift>=0&&std::abs(a-want)<bestDiff){bestDiff=std::abs(a-want);nearest=0;out.angle=a;out.elevation=lift;break;}
+        }
+    }
+    if(nearest<1e9){out.speed=2.0;out.safety=true;out.valid=true;out.value=-1;out.intent=Roll;}
+    finish();
     return out;
 }
 
@@ -387,10 +739,13 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
 inline Shot execute(const Shot& planned,int level,std::uint64_t seed){
     Shot s=planned;if(!s.valid)return s;
     const Skill& k=skill(level);Random rng(seed^0x51ED270B0B5ULL);
-    s.angle+=k.aimSigma*rng.normal();
+    s.angle+=k.aimSigma*rng.normal()*(s.kind==Jump||s.elevation>=BL_MASSE_ELEVATION?1.6:1.0);
     s.speed=std::clamp(s.speed*(1+k.speedSigma*rng.normal()),0.4,8.0);
     s.side=std::clamp(s.side+k.tipSigma*rng.normal(),-0.6,0.6);
     s.top=std::clamp(s.top+k.tipSigma*rng.normal(),-0.7,0.7);
+    // The app rejects a tip point outside 0.711 R (LANShot.isValid) — keep the hand inside the miscue limit.
+    if(const double h=std::hypot(s.side,s.top);h>0.65){s.side*=0.65/h;s.top*=0.65/h;}
+    if(s.elevation>0)s.elevation=std::clamp(s.elevation+(s.kind==Jump||s.elevation>=BL_MASSE_ELEVATION?1.5:0.2)*rng.normal(),planned.elevation-0.2,85.0);
     return s;
 }
 

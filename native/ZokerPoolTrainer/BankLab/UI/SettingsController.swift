@@ -251,6 +251,8 @@ final class CustomizeController:UIViewController {
         segmented("Tình trạng nỉ",["Mới · rõ sợi","Cũ · xơ"],UserDefaults.standard.bool(forKey:"clothWear021") ? 1:0){UserDefaults.standard.set($0==1,forKey:"clothWear021")}
         slider("Độ sáng mặt bàn (nỉ)",TableScene.tuneCloth,0.6,1.4)
         slider("Độ rõ vân nỉ",TableScene.tuneWeave,0,1.5)
+        // 0.40c (owner, 3rd round on the weave): thread size seen when zooming close — 0.6 mm is real cloth, larger reads clearer.
+        slider("Độ thô sợi nỉ khi zoom gần",TableScene.tuneWeavePitch,0.6,1.6,fallback:1.0,format:{String(format:"%.1f mm/sợi",$0)})
         slider("Độ nổi kim cương / nút số",TableScene.tuneDiamond,0.8,2.0)
         header("Đèn")
         slider("Đèn bàn",TableScene.tuneLight,0.5,1.6)
@@ -320,7 +322,7 @@ final class CustomizeController:UIViewController {
         slider("Âm lượng tiếng bi","tuneVolume037",0,1)
         target=body
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in
-            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037",TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,"tuneHUDScale038","tuneHUDAlpha038","tuneAutoNumbers038","tuneGuideSkill038","tuneAimPitch038","tuneAimZoom038","tuneAimFOV038","tuneRealShadow039","tuneCueFade039","tuneFramePacing039"]{UserDefaults.standard.removeObject(forKey:k)}
+            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037",TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,"tuneHUDScale038","tuneHUDAlpha038","tuneAutoNumbers038","tuneGuideSkill038","tuneAimPitch038","tuneAimZoom038","tuneAimFOV038","tuneRealShadow039","tuneCueFade039","tuneFramePacing039",TableScene.tuneWeavePitch,"tuneCueGhost040"]{UserDefaults.standard.removeObject(forKey:k)}
             self?.resetHUD?();self?.changed?();self?.dismiss(animated:true)})
         show(0)
     }

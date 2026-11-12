@@ -188,10 +188,12 @@ final class TableScene {
         fibres.wrapS = .repeat;fibres.wrapT = .repeat;fibres.minificationFilter = .linear;fibres.magnificationFilter = .linear;fibres.mipFilter = .linear
         m.setValue(fibres,forKey:"fiberMap");m.setValue(NSNumber(value:Double(Self.tune(Self.tuneWeave))),forKey:"fiberStrength")   // 0.38: Tuỳ chỉnh · độ rõ vân nỉ
         m.setValue(NSNumber(value:oldCloth ? 1.0:0.0),forKey:"clothAge")   // 0.40b: new cloth = crisp threads, old = fuzz over the weave
+        m.setValue(NSNumber(value:Double(Self.weavePitchMetres)),forKey:"weavePitch")   // 0.40c: Tuỳ chỉnh · độ thô sợi
         m.shaderModifiers=[.surface:"""
         #pragma arguments
         float fiberStrength;
         float clothAge;
+        float weavePitch;
         texture2d<float> fiberMap;
         #pragma body
         constexpr sampler fs(filter::linear, mip_filter::linear, address::repeat);
@@ -213,10 +215,12 @@ final class TableScene {
         // read as a printed zig-zag. Now 0.6 mm plain weave, every thread with its own thickness/brightness (hash per
         // crossing) so rows never line up, a twisted-yarn striation along each thread, and dark gaps between threads
         // (ambient occlusion) for depth. Still fades before 3 px/thread, so no moire at distance.
-        float2 wv = plane / 0.0006;
+        // 0.40c (owner: "zoom vào sợi quá nhỏ"): thread pitch is a Tuỳ chỉnh value (default 1.0 mm, real worsted
+        // 0.55–0.7 mm reads too fine on a phone) and the weave now appears from ~2.2 px per thread (was ~3 px).
+        float2 wv = plane / max(weavePitch, 0.0004);
         // 0.40b (owner photos, 60/40 wool-nylon "300" speed cloth): up close every thread reads as a rounded grain with a
         // dark gap — stronger relief and gaps than 0.39; worn cloth keeps only ~40 % of it under the fuzz.
-        float weaveW = fiberStrength * (1.0 - 0.6 * clothAge) * saturate((0.33 - length(fwidth(wv))) / 0.13);
+        float weaveW = fiberStrength * (1.0 - 0.6 * clothAge) * saturate((0.45 - length(fwidth(wv))) / 0.17);
         if (weaveW > 0.001) {
             float2 cell = floor(wv), f = fract(wv);
             float odd = fmod(abs(cell.x + cell.y), 2.0);
@@ -245,6 +249,9 @@ final class TableScene {
     static let tuneBall="tuneBall036",tuneCloth="tuneCloth036",tuneLight="tuneLight036",tuneDiamond="tuneDiamond036",tuneShadow="tuneShadow037"
     // 0.38 Tuỳ chỉnh: weave clarity, aim-line colour (index) and thickness.
     static let tuneWeave="tuneWeave038",tuneGuideColor="tuneGuideColor038",tuneGuideWidth="tuneGuideWidth038"
+    /// 0.40c Tuỳ chỉnh · độ thô sợi nỉ (mm per thread), 0.6 (real worsted) … 1.6 (coarse, reads at a glance).
+    static let tuneWeavePitch="tuneWeavePitch040"
+    static var weavePitchMetres:Float{Float(Tuning.value(tuneWeavePitch,1.0))/1000}
     static let guideColors:[(String,UIColor)]=[("Trắng",UIColor(white:1,alpha:0.88)),("Vàng",UIColor.rgb(0xF2D06B)),("Xanh lá",UIColor.rgb(0x5BE3A0)),("Đỏ",UIColor.rgb(0xFF6B5B)),("Xanh dương",UIColor.rgb(0x6BB8FF))]
     static var guideColor:UIColor{let i=UserDefaults.standard.integer(forKey:tuneGuideColor);return guideColors[max(0,min(guideColors.count-1,i))].1}
     /// 0.38: guide fades with skill (controller sets it from the recent pass rate).
@@ -473,29 +480,7 @@ final class TableScene {
         ctx.interpolationQuality = .medium;ctx.draw(cg,in:CGRect(x:0,y:0,width:1,height:1))
         return (0.2126*CGFloat(px[0])+0.7152*CGFloat(px[1])+0.0722*CGFloat(px[2]))/255
     }
-    /// 0.40b (owner: rails look fake, want a light, real shadow). The rubber nose overhangs the bed, so a real table shows a
-    /// soft dark band (occlusion) where cushion meets cloth, ~1.5–2 cm wide. Six strips between the pocket jaws.
-    private func addCushionShade(){
-        let m=SCNMaterial();m.lightingModel = .constant;m.blendMode = .alpha;m.writesToDepthBuffer=false;m.isDoubleSided=true
-        m.diffuse.contents=texture(CGSize(width:4,height:64),opaque:false){c in
-            for y in 0..<64 {let t=Double(y)/63;UIColor.black.withAlphaComponent(CGFloat(0.34*pow(1-t,2.2))).setFill();c.fill(CGRect(x:0,y:y,width:4,height:1))}}
-        m.diffuse.wrapS = .clamp;m.diffuse.wrapT = .clamp;m.diffuse.minificationFilter = .linear;m.diffuse.mipFilter = .linear
-        let hw:Float=0.635,hl:Float=1.27,band:Float=0.019,corner:Float=0.118,side:Float=0.072
-        // (start, end, fixed coordinate, along z?, inward sign)
-        let runs:[(Float,Float,Float,Bool,Float)]=[(-hl+corner,-side,-hw,true,1),(side,hl-corner,-hw,true,1),(-hl+corner,-side,hw,true,-1),(side,hl-corner,hw,true,-1),
-                                                  (-hw+corner,hw-corner,-hl,false,1),(-hw+corner,hw-corner,hl,false,-1)]
-        for (a,b,fixed,alongZ,inward) in runs {
-            var v:[SCNVector3]=[];let y:Float=0.0011
-            if alongZ {v=[SCNVector3(fixed,y,a),SCNVector3(fixed,y,b),SCNVector3(fixed+inward*band,y,b),SCNVector3(fixed+inward*band,y,a)]}
-            else {v=[SCNVector3(a,y,fixed),SCNVector3(b,y,fixed),SCNVector3(b,y,fixed+inward*band),SCNVector3(a,y,fixed+inward*band)]}
-            let uv=[CGPoint(x:0,y:0),CGPoint(x:1,y:0),CGPoint(x:1,y:1),CGPoint(x:0,y:1)]
-            let g=SCNGeometry(sources:[SCNGeometrySource(vertices:v),SCNGeometrySource(textureCoordinates:uv)],elements:[SCNGeometryElement(indices:[Int32(0),1,2,0,2,3],primitiveType:.triangles)])
-            g.materials=[m];let n=SCNNode(geometry:g);n.name="cushion-shade";n.castsShadow=false;n.renderingOrder=1
-            scene.rootNode.addChildNode(n)
-        }
-    }
     private func buildTable(_ rails:[[String:NSNumber]]){
-        defer{addCushionShade()}
         // 0.35 (owner: rail geometry may be shared, but colour and MATERIAL follow each brand): finish per model family.
         // Gloss lacquer: Z-Ra (Rasson OX / Acurra / Victory), Z-Di Smart, Z-Pr ARC; matte powder-coat: Z-Br Black Wolf;
         // brushed metal: Z-Max, Z-Pr APEX; satin: the rest. Wood tables keep the walnut maps tinted to the cabinet colour.
@@ -682,10 +667,14 @@ final class TableScene {
         }
         // Nose height = 63.5% of 57.15 mm diameter, matching Config.railHeight = .27.
         // Rounded cloth-covered section; shared smooth normals across the curved nose.
-        let profile:[SIMD2<Float>]=[SIMD2(0,0.03629025),SIMD2(0.0006,0.0382),SIMD2(0.0022,0.0405),
-            SIMD2(0.006,0.0435),SIMD2(0.014,0.0475),SIMD2(0.030,0.052),SIMD2(0.050,0.055),
-            SIMD2(0.053,0.053),SIMD2(0.053,0.010),SIMD2(0.048,0.007),SIMD2(0.012,0.007),
-            SIMD2(0.005,0.019),SIMD2(0.001,0.031)]
+        // 0.40c (owner photo: cushions looked like puffy pillows). A real cushion is a rubber wedge under tight cloth: a
+        // small rounded nose (~3 mm), then a STRAIGHT top sloping ~7° up to the wooden rail cap (deck starts 52 mm
+        // behind the nose at 47 mm), and an undercut face back to the bed. The old profile bulged 19 mm over 5 cm and
+        // floated 7 mm above the bed, leaving a lit sliver under the nose.
+        let profile:[SIMD2<Float>]=[SIMD2(0,0.03629025),SIMD2(0.0007,0.0377),SIMD2(0.0022,0.0388),
+            SIMD2(0.0045,0.0395),SIMD2(0.012,0.0405),SIMD2(0.030,0.0428),SIMD2(0.048,0.0452),
+            SIMD2(0.053,0.0462),SIMD2(0.053,0.004),SIMD2(0.048,0.0005),SIMD2(0.014,0.0005),
+            SIMD2(0.006,0.017),SIMD2(0.0015,0.030)]
         var normals2:[SIMD2<Float>]=[],lengths:[Float]=[0]
         for j in 0..<profile.count {
             let prev=profile[(j+profile.count-1)%profile.count],next=profile[(j+1)%profile.count]
@@ -737,6 +726,64 @@ final class TableScene {
         let m=material.copy() as! SCNMaterial;m.isDoubleSided=true
         for channel in [m.diffuse,m.normal,m.roughness]{channel.contentsTransform=SCNMatrix4MakeScale(1.24,1.24,1)}
         g.materials=[m];scene.rootNode.addChildNode(SCNNode(geometry:g))
+        addCushionShade(points,rail:rail)
+    }
+    /// Shade levels for the cushion contact shadow: 1 on the long straights, rising towards the pocket jaws.
+    private static let shadeLevels:[Float]=[1.0,1.22,1.45,1.7,1.95]
+    private lazy var shadeMaterials:[SCNMaterial]=Self.shadeLevels.map{k in
+        let m=SCNMaterial();m.lightingModel = .constant;m.blendMode = .alpha;m.writesToDepthBuffer=false;m.isDoubleSided=true
+        // v: 0 under the cushion (occluded) · 0.35 nose line · 1 end of the soft falloff on the cloth.
+        m.diffuse.contents=texture(CGSize(width:4,height:128),opaque:false){c in
+            for y in 0..<128 {
+                let v=Double(y)/127
+                let a=v<0.35 ? 0.58:0.42*pow(1-(v-0.35)/0.65,2.0)
+                UIColor.black.withAlphaComponent(CGFloat(min(0.95,a*Double(k)))).setFill();c.fill(CGRect(x:0,y:y,width:4,height:1))
+            }}
+        m.diffuse.wrapS = .clamp;m.diffuse.wrapT = .clamp;m.diffuse.minificationFilter = .linear;m.diffuse.mipFilter = .linear
+        return m
+    }
+    /// 0.40c (owner: cushion shadow looked odd; wants it darker at the pockets so the opening reads on long shots).
+    /// The contact shadow follows the real cushion line — straights AND jaw facings — from under the overhanging
+    /// nose (fully occluded) to a soft 2.6 cm falloff on the cloth, and darkens towards each pocket mouth, framing the
+    /// opening. Replaces the six 0.40b strips, which stopped short of the jaws and left a lit sliver under the nose.
+    private func addCushionShade(_ points:[SIMD2<Float>],rail:Int){
+        guard points.count>1 else{return}
+        let outside:[SIMD2<Float>]=[SIMD2(-1,0),SIMD2(1,0),SIMD2(0,-1),SIMD2(0,1)]
+        var dense:[SIMD2<Float>]=[points[0]]
+        for i in 1..<points.count{
+            let a=points[i-1],b=points[i],n=max(1,Int(ceil(simd_distance(a,b)/0.03)))
+            for k in 1...n{dense.append(a+(b-a)*Float(k)/Float(n))}
+        }
+        func outward(_ a:SIMD2<Float>,_ b:SIMD2<Float>)->SIMD2<Float>{
+            let d=simd_normalize(b-a);var n=SIMD2(d.y,-d.x);if simd_dot(n,outside[rail])<0{n = -n};return n
+        }
+        var miters:[SIMD2<Float>]=[]
+        for i in dense.indices{
+            let prev=outward(dense[max(0,i-1)],dense[max(1,i)]),next=outward(dense[min(i,dense.count-2)],dense[min(i+1,dense.count-1)])
+            miters.append((prev+next)/max(0.5,1+simd_dot(prev,next)))
+        }
+        let pockets:[SIMD2<Float>]=[SIMD2(-0.67,-1.305),SIMD2(0.67,-1.305),SIMD2(-0.706,0),SIMD2(0.706,0),SIMD2(-0.67,1.305),SIMD2(0.67,1.305)]
+        let under:Float=0.014,band:Float=0.026,y:Float=0.0011
+        var buckets=[[SCNVector3]](repeating:[],count:Self.shadeLevels.count),coords=[[CGPoint]](repeating:[],count:Self.shadeLevels.count)
+        for i in 0..<(dense.count-1){
+            let mid=(dense[i]+dense[i+1])/2
+            let d=pockets.map{simd_distance($0,mid)}.min() ?? 1
+            let level=min(Self.shadeLevels.count-1,max(0,Int(((0.24-d)/0.16*Float(Self.shadeLevels.count-1)).rounded())))
+            for (a,b,va,vb) in [(under,Float(0),0.0,0.35),(Float(0),-band,0.35,1.0)]{
+                let p0=dense[i]+miters[i]*a,p1=dense[i+1]+miters[i+1]*a,p2=dense[i+1]+miters[i+1]*b,p3=dense[i]+miters[i]*b
+                buckets[level]+=[SCNVector3(p0.x,y,p0.y),SCNVector3(p1.x,y,p1.y),SCNVector3(p2.x,y,p2.y),SCNVector3(p3.x,y,p3.y)]
+                coords[level]+=[CGPoint(x:0,y:va),CGPoint(x:1,y:va),CGPoint(x:1,y:vb),CGPoint(x:0,y:vb)]
+            }
+        }
+        for level in buckets.indices where !buckets[level].isEmpty{
+            var indices:[Int32]=[]
+            for q in 0..<(buckets[level].count/4){let b=Int32(q*4);indices+=[b,b+1,b+2,b,b+2,b+3]}
+            let g=SCNGeometry(sources:[SCNGeometrySource(vertices:buckets[level]),SCNGeometrySource(textureCoordinates:coords[level])],
+                              elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
+            g.materials=[shadeMaterials[level]]
+            let n=SCNNode(geometry:g);n.name="cushion-shade";n.castsShadow=false;n.renderingOrder=1
+            scene.rootNode.addChildNode(n)
+        }
     }
     private func pocket(_ x:Float,_ z:Float){
         let segments=96

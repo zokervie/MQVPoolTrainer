@@ -10,10 +10,14 @@ final class MatchPlayState {
     /// 0.40 Đấu với máy: level 0…5 of the computer (player 2); nil = two humans. Feature flag "vsComputer" (IAP-ready).
     var computerLevel: Int?
     var computerThinking = false, computerFailures = 0, computerTurnKey = "", computerShots = 0, computerStarted = 0.0
+    var computerAim: ComputerAim?
+    /// The human's cue/elevation/tip before the computer took the table; restored when the turn comes back (0.40c).
+    var humanSetup: TrainingController.ShotSetup?
     /// 0.40b shot clock (Tuỳ chỉnh → Vật lý → Đồng hồ cú). Extensions are per player per rack.
     var clockLeft = 0.0, clockKey = "", extensionsLeft = [0, 0], extensionRack = -1, clockWarned = 0
     let clockBar = UIView(), clockLabel = UILabel(), extensionButton = UIButton(type: .system)
     var clockBuilt = false
+    var clockSides: [NSLayoutConstraint] = [], clockSide = -1
     var state: [String:Any] = [:]
     var active = false
     var showNumbers = false
@@ -380,7 +384,10 @@ extension TrainingController {
                 NSLayoutConstraint.activate([board.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
                                              board.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
                                              board.heightAnchor.constraint(equalToConstant: 30),
-                                             board.widthAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.widthAnchor, multiplier: 0.62)])
+                                             board.widthAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.widthAnchor, multiplier: 0.62),
+                                             board.widthAnchor.constraint(lessThanOrEqualToConstant: 400)])
+                let preferred = board.widthAnchor.constraint(equalTo: view.safeAreaLayoutGuide.widthAnchor, multiplier: 0.5)
+                preferred.priority = .defaultHigh; preferred.isActive = true
             }
             board.backgroundColor = .clear
             board.layer.shadowColor = UIColor.black.cgColor; board.layer.shadowOpacity = 0.45; board.layer.shadowRadius = 6; board.layer.shadowOffset = .zero
@@ -391,9 +398,13 @@ extension TrainingController {
             row.layer.cornerRadius = style.radius; row.layer.cornerCurve = .continuous; row.clipsToBounds = true
             row.layer.borderWidth = style.frame == .clear ? 0 : 1; row.layer.borderColor = style.frame.cgColor
             if style.slant { row.transform = CGAffineTransform(a: 1, b: 0, c: -0.18, d: 1, tx: 0, ty: 0) }   // TV-style parallelogram
+            // 0.40c (owner: a long and a short name made the bar lopsided): both name plates are the SAME width, the
+            // score and centre boxes are fixed, and the bar has a fixed width — names shrink (then abbreviate) to fit.
+            var namePlates: [UIView] = []
             for tag in 10...14 {
                 let plate = UIView(); plate.tag = tag + 10
-                let label = UILabel(); label.tag = tag; label.textAlignment = .center; label.adjustsFontSizeToFitWidth = true; label.minimumScaleFactor = 0.6
+                let label = UILabel(); label.tag = tag; label.textAlignment = .center; label.adjustsFontSizeToFitWidth = true; label.minimumScaleFactor = 0.62
+                label.lineBreakMode = .byTruncatingTail; label.numberOfLines = 1
                 label.translatesAutoresizingMaskIntoConstraints = false; plate.addSubview(label)
                 if style.slant { label.transform = CGAffineTransform(a: 1, b: 0, c: 0.18, d: 1, tx: 0, ty: 0) }
                 let lampSide: CGFloat = tag == 10 ? 1 : (tag == 14 ? -1 : 0)
@@ -401,21 +412,30 @@ extension TrainingController {
                     // The turn lamp: dark when waiting, lit and breathing for the player to shoot.
                     let lamp = UIView(); lamp.tag = tag + 40; lamp.layer.cornerRadius = 4.5
                     lamp.translatesAutoresizingMaskIntoConstraints = false; plate.addSubview(lamp)
+                    // Shot clock seconds sit in the shooter's own plate, next to the name (owner 12/11: not mid-screen).
+                    let clock = UILabel(); clock.tag = tag + 60; clock.textAlignment = .center
+                    clock.font = .monospacedDigitSystemFont(ofSize: 13, weight: .heavy); clock.isHidden = true
+                    clock.translatesAutoresizingMaskIntoConstraints = false; plate.addSubview(clock)
+                    if style.slant { clock.transform = label.transform }
                     NSLayoutConstraint.activate([lamp.widthAnchor.constraint(equalToConstant: 9), lamp.heightAnchor.constraint(equalToConstant: 9),
                                                  lamp.centerYAnchor.constraint(equalTo: plate.centerYAnchor),
                                                  lampSide > 0 ? lamp.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: 8)
-                                                              : lamp.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -8)])
-                    NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: lampSide > 0 ? 22 : 8),
-                                                 label.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: lampSide > 0 ? -8 : -22)])
-                    plate.widthAnchor.constraint(greaterThanOrEqualToConstant: 92).isActive = true
+                                                              : lamp.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -8),
+                                                 clock.widthAnchor.constraint(equalToConstant: 24), clock.centerYAnchor.constraint(equalTo: plate.centerYAnchor),
+                                                 lampSide > 0 ? clock.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -5)
+                                                              : clock.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: 5)])
+                    NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: lampSide > 0 ? 22 : 31),
+                                                 label.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: lampSide > 0 ? -31 : -22)])
+                    namePlates.append(plate)
                 } else {
-                    NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: 6),
-                                                 label.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -6)])
-                    plate.widthAnchor.constraint(greaterThanOrEqualToConstant: tag == 12 ? 44 : 30).isActive = true
+                    NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: 4),
+                                                 label.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -4),
+                                                 plate.widthAnchor.constraint(equalToConstant: tag == 12 ? 58 : 34)])
                 }
                 label.centerYAnchor.constraint(equalTo: plate.centerYAnchor).isActive = true
                 row.addArrangedSubview(plate)
             }
+            if namePlates.count == 2 { namePlates[0].widthAnchor.constraint(equalTo: namePlates[1].widthAnchor).isActive = true }
         }
         board.isHidden = !matchPlay.active
         guard matchPlay.active, let row = board.viewWithTag(1) else { return }
@@ -428,7 +448,7 @@ extension TrainingController {
         }
         for seat in 0...1 {
             let active = shooting && player == seat
-            let name = matchPlay.names[seat].uppercased()
+            let name = Self.scoreboardName(matchPlay.names[seat])
             let plate = seat == 0 ? style.plates.0 : style.plates.1
             set(seat == 0 ? 10 : 14, name, rounded(12, .heavy), style.text.withAlphaComponent(active ? 1 : 0.55),
                 plate: plate.withAlphaComponent(plate.cgColor.alpha * (active ? 1 : 0.7)))
@@ -448,10 +468,20 @@ extension TrainingController {
         set(12, "R\(matchPlay.raceTo) · V\(matchPlay.rackNo)", rounded(10, .bold), style.centreText, plate: style.centre)
         view.bringSubviewToFront(board)
     }
+    /// Display name for a plate: upper case; long names keep the given name whole and shorten the rest to initials
+    /// ("Nguyễn Văn Anh" → "N.V. ANH"); the computer's level is abbreviated ("Máy · Quarter Pro" → "MÁY · QP").
+    static func scoreboardName(_ raw: String) -> String {
+        let short = ["Beginner": "BEG", "Amateur": "AMA", "Quarter Pro": "QP", "Semi Pro": "SP", "Pro": "PRO", "AI": "AI"]
+        let parts = raw.components(separatedBy: " · ")
+        if parts.count == 2, let level = short[parts[1]] { return (parts[0] + " · " + level).uppercased() }
+        let words = raw.split(separator: " ").map(String.init)
+        guard raw.count > 12, words.count > 1 else { return raw.uppercased() }
+        return (words.dropLast().compactMap { $0.first.map { String($0) + "." } }.joined() + " " + words.last!).uppercased()
+    }
     func leaveMatch() {
         guard !shotActive || matchSimulationPaused || matchPlay.session.role == .guest else { notifyStatus("Chờ bi dừng trước khi rời trận"); return }
         matchPlay.active = false
-        matchPlay.computerLevel = nil; matchPlay.computerThinking = false
+        matchPlay.computerLevel = nil; matchPlay.computerThinking = false; matchPlay.computerAim = nil; matchPlay.humanSetup = nil
         matchPlay.session.leave()
         matchPlay.rules = nil; matchPlay.state = [:]
         matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
@@ -1133,12 +1163,13 @@ extension TrainingController {
 // MARK: - 0.40 Đấu với máy (computer opponent, Core/Opponent.hpp via BLOpponent)
 extension TrainingController {
     static let computerLevelTitles = ["Beginner", "Amateur", "Quarter Pro", "Semi Pro", "Pro", "AI"]
-    static let computerLevelNotes = ["mới chơi", "chơi vui", "CLB phong trào", "thi đấu phong trào", "chuyên nghiệp", "gần như không trượt"]
+    static let computerLevelNotes = ["mới chơi, đánh theo cảm tính", "chơi vui, chỉ lo vào bi", "CLB: đi vị trí, thủ, kick, bi băng",
+                                     "phong trào: thêm combo, lực và effect đa dạng", "chuyên nghiệp: tính 2 bi, xoáy ngang, nhảy bi", "gần như không trượt, cả massé"]
     /// Lobby → Thi đấu → Đấu với máy: level, then rule, then race.
     func openComputerMatch() {
         guard !shotActive, replayIndex == nil, !locked else { return }
         if matchPlay.active { openMatchActions(); return }
-        let sheet = UIAlertController(title: "Đấu với máy", message: "Máy tính toán bằng chính vật lý của bàn. Cấp càng cao càng ít sai tay, biết đi vị trí, phòng thủ và thoát bi.", preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: "Đấu với máy", message: "Máy tính bằng chính vật lý của bàn và tự thử cú theo tay của cấp đó. Cấp càng cao càng ít sai tay, điều bi xa hơn, dùng lực/effect, thủ, kick, nhảy, massé.", preferredStyle: .actionSheet)
         for (level, title) in Self.computerLevelTitles.enumerated() {
             sheet.addAction(UIAlertAction(title: "\(title) · \(Self.computerLevelNotes[level])", style: .default) { [weak self] _ in self?.chooseComputerRule(level) })
         }
@@ -1171,6 +1202,20 @@ extension TrainingController {
     /// Called every tick: when it is the computer's turn and the table is still, plan on a background queue and play
     /// the turn through the same command path as a human (choice → ball in hand → call → stroke).
     func driveComputerTurn() {
+        // 0.40c: the computer aims on screen (turns the cue, practice strokes) before striking — not a mechanical
+        // instant stroke (owner 12/11: "các cú đánh quá đều đặn").
+        if let aim = matchPlay.computerAim {
+            guard matchPlay.active, aim.key == matchPlay.computerTurnKey, matchInt("currentPlayer") == 1, !shotActive else {
+                matchPlay.computerAim = nil; matchPlay.computerThinking = false; pull = 0; return
+            }
+            animateComputerAim(aim); return
+        }
+        // Give the human back their own cue, lift and tip point (the computer may have jumped or played a massé).
+        if let saved = matchPlay.humanSetup, matchPlay.computerLevel != nil, matchInt("currentPlayer") == 0, !shotActive,
+           !presentationBusy, localTurn, !locked {
+            matchPlay.humanSetup = nil
+            applySetup(ShotSetup(angle: angle, side: saved.side, top: saved.top, kind: saved.kind, elevation: saved.elevation))
+        }
         if matchPlay.computerThinking, ProcessInfo.processInfo.systemUptime - matchPlay.computerStarted > 10 {
             matchPlay.computerThinking = false; matchPlay.computerFailures += 1   // never leave the turn hanging
         }
@@ -1188,9 +1233,8 @@ extension TrainingController {
         let started = ProcessInfo.processInfo.systemUptime
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let plan = job.plan()
-            // A short human pause so the turn is readable (never shorter than ~1 s in total).
-            let wait = max(0, 1.0 - (ProcessInfo.processInfo.systemUptime - started))
-            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in self?.playComputerTurn(plan, key: key) }
+            let spent = ProcessInfo.processInfo.systemUptime - started
+            DispatchQueue.main.async { [weak self] in self?.playComputerTurn(plan, key: key, spent: spent) }
         }
     }
     private func applyComputer(_ action: LANCommand.Action, shot: LANShot? = nil, placement: LANPlacement? = nil,
@@ -1201,20 +1245,83 @@ extension TrainingController {
         matchPlay.applyingOfflineCommand = false
         return accepted
     }
-    func playComputerTurn(_ plan: [String: Any], key: String) {
-        defer { matchPlay.computerThinking = false; updateControls(); syncMatchControls() }
+    /// Plan delivered: answer a referee choice at once; otherwise place the cue ball, show the cue, and start aiming.
+    func playComputerTurn(_ plan: [String: Any], key: String, spent: Double) {
         guard matchPlay.active, matchPlay.computerLevel != nil, key == matchPlay.computerTurnKey,
-              matchInt("currentPlayer") == 1, !shotActive else { return }
+              matchInt("currentPlayer") == 1, !shotActive else { matchPlay.computerThinking = false; return }
         func number(_ k: String) -> Double { (plan[k] as? NSNumber)?.doubleValue ?? 0 }
         if let option = plan["option"] as? String, !option.isEmpty, !(matchPlay.state["pendingChoice"] as? String ?? "").isEmpty {
             if !applyComputer(.chooseOption, option: option) { matchPlay.computerFailures += 1 }
             else { notifyStatus("Máy chọn: \(option)") }
+            matchPlay.computerThinking = false; updateControls(); syncMatchControls(); return
+        }
+        guard (plan["valid"] as? NSNumber)?.boolValue == true else {
+            matchPlay.computerFailures += 1; matchPlay.computerThinking = false
+            if matchPlay.computerFailures >= 3 { computerFallbackStroke(around: angle) }
             return
         }
-        guard (plan["valid"] as? NSNumber)?.boolValue == true else { matchPlay.computerFailures += 1; return }
         if (plan["placed"] as? NSNumber)?.boolValue == true, matchBool("ballInHand") {
             _ = applyComputer(.placeCue, placement: LANPlacement(x: number("x"), y: number("y")))
+            refresh()
         }
+        if matchPlay.humanSetup == nil { matchPlay.humanSetup = currentSetup() }
+        // Show the chosen cue, its lift and the tip point while the computer lines up (what a viewer reads as "thinking").
+        let cueType = Int(number("cueType")), elevation = number("elevation")
+        table.selectCue(cueType); table.cueElevation = elevation
+        table.masseLook = cueType == 0 && elevation >= BL_MASSE_ELEVATION
+        side = number("side"); top = number("top")
+        notifyStatus(Self.computerIntentText(Int(number("intent")), target: Int(number("target")), chance: number("chance")))
+        // Tempo: the plan's think time (hard choices take longer) less the time already spent computing, then
+        // two practice strokes. QA runs keep the same sequence, faster.
+        let qa = ProcessInfo.processInfo.arguments.contains("--computer-qa") ? 0.35 : 1.0
+        let think = max(0.5, number("think") - spent) * qa
+        var to = number("angle"); let from = angle
+        while to - from > Double.pi { to -= 2 * Double.pi }
+        while from - to > Double.pi { to += 2 * Double.pi }
+        matchPlay.computerAim = ComputerAim(from: from, to: to, start: ProcessInfo.processInfo.systemUptime,
+                                            turn: min(2.2, max(0.5, think)), strokes: (cueType == 1 || elevation >= BL_MASSE_ELEVATION ? 1.0 : 1.3) * qa,
+                                            plan: plan, key: key)
+        matchPlay.computerStarted = ProcessInfo.processInfo.systemUptime   // the watchdog counts from here
+        wakeRendering()
+    }
+    static func computerIntentText(_ intent: Int, target: Int, chance: Double) -> String {
+        let ball = target > 0 ? " bi \(target)" : ""
+        switch intent {
+        case 1: return "Máy: đánh băng" + ball
+        case 2: return "Máy: đánh combo" + ball
+        case 3: return "Máy: nhảy bi vào lỗ" + ball
+        case 4: return "Máy: massé vào lỗ" + ball
+        case 5: return "Máy: chơi thủ"
+        case 6: return "Máy: kick băng thoát bi"
+        case 7: return "Máy: nhảy bi thoát" + ball
+        case 8: return "Máy: massé thoát" + ball
+        case 9: return "Máy: chạm bi an toàn"
+        case 10: return "Máy phá bi"
+        default: return chance >= 0.85 ? "Máy: vào bi" + ball + " · đi vị trí" : "Máy: thử vào" + ball
+        }
+    }
+    /// One frame of the computer's pre-shot routine: turn the cue onto the line (eased), then practice strokes, strike.
+    func animateComputerAim(_ aim: ComputerAim) {
+        let t = ProcessInfo.processInfo.systemUptime - aim.start
+        if t < aim.turn {
+            let u = t / aim.turn, e = u * u * (3 - 2 * u)
+            angle = aim.from + (aim.to - aim.from) * e; pull = 0.06 * e
+        } else if t < aim.turn + aim.strokes {
+            angle = aim.to
+            let u = (t - aim.turn) / aim.strokes   // two short feathers, the last one drawn back further
+            pull = u < 0.66 ? 0.06 + 0.22 * (1 - cos(u / 0.33 * Double.pi)) / 2 : 0.06 + 0.45 * sin((u - 0.66) / 0.34 * Double.pi / 2)
+        } else {
+            matchPlay.computerAim = nil; pull = 0; angle = aim.to
+            strikeComputerPlan(aim.plan, key: aim.key)
+            return
+        }
+        guideDirty = true; wakeRendering()
+    }
+    func strikeComputerPlan(_ plan: [String: Any], key: String) {
+        defer { matchPlay.computerThinking = false; updateControls(); syncMatchControls() }
+        guard matchPlay.active, matchPlay.computerLevel != nil, key == matchPlay.computerTurnKey,
+              matchInt("currentPlayer") == 1, !shotActive else { return }
+        func number(_ k: String) -> Double { (plan[k] as? NSNumber)?.doubleValue ?? 0 }
         let target = Int(number("target")), pocket = Int(number("pocket"))
         if matchBool("requiresCall") {
             let safety = (plan["safety"] as? NSNumber)?.boolValue == true
@@ -1225,23 +1332,39 @@ extension TrainingController {
             }
         }
         angle = number("angle")
-        // A cue over a rail or another ball must be raised, exactly as the human player has to (strike checks clearance).
-        let lift = min(30, max(0, cueClearance(side: number("side"), top: number("top")) + 0.5))
-        let shot = LANShot(angle: number("angle"), speed: number("speed"), side: number("side"), top: number("top"), elevation: lift, cueType: 0)
+        let cueType = Int(number("cueType"))
+        // The planner measured the lift on its line; re-check with the app's own clearance (stale obstacle lists,
+        // aim vs stroke line) so the strike guard never rejects it (0.40b: rejected strokes looped = "máy chờ").
+        updateCueClearance()
+        let lift = min(85, max(number("elevation"), cueClearance(side: number("side"), top: number("top")) > 0.01 ? cueClearance(side: number("side"), top: number("top")) + 0.5 : 0))
+        let shot = LANShot(angle: angle, speed: number("speed"), side: number("side"), top: number("top"), elevation: lift, cueType: cueType)
         if applyComputer(.strike, shot: shot) {
             matchPlay.computerFailures = 0; matchPlay.computerShots += 1
         } else {
             matchPlay.computerFailures += 1
-            if matchPlay.computerFailures >= 3 {
-                // Never stall the match: a plain roll at the table centre line (the referee judges it like any stroke).
-                matchPlay.computerFailures = 0
-                angle = Double.pi / 2
-                let lift = min(30, max(0, cueClearance(side: 0, top: 0) + 0.5))
-                if applyComputer(.strike, shot: LANShot(angle: Double.pi / 2, speed: 2, side: 0, top: 0, elevation: lift, cueType: 0)) { matchPlay.computerShots += 1 }
-            }
+            if matchPlay.computerFailures >= 3 { computerFallbackStroke(around: angle) }
         }
     }
+    /// Last resort after repeated rejections: the nearest direction the cue can reach with a normal stroke; if none,
+    /// a no-contact foul (same referee path as the shot clock) — the turn always moves on.
+    func computerFallbackStroke(around start: Double) {
+        updateCueClearance()
+        for step in 0..<72 {
+            let a = start + Double(step % 2 == 0 ? 1 : -1) * Double((step + 1) / 2) * 5 * Double.pi / 180
+            angle = a
+            let need = cueClearance(side: 0, top: 0)
+            guard need <= 30 else { continue }
+            let lift = need > 0.01 ? need + 0.5 : 0
+            if applyComputer(.strike, shot: LANShot(angle: a, speed: 2, side: 0, top: 0, elevation: lift, cueType: 0)) {
+                matchPlay.computerFailures = 0; matchPlay.computerShots += 1; return
+            }
+        }
+        computerNoStrokeFoul()
+    }
 }
+
+/// The computer's pre-shot routine (0.40c): turn the cue onto the line, practice strokes, then the planned stroke.
+struct ComputerAim { var from: Double, to: Double, start: Double, turn: Double, strokes: Double, plan: [String: Any], key: String }
 
 // MARK: - 0.40b Đồng hồ cú + Gia hạn (EXTENSION), theo thông lệ giải quốc tế
 /// Presets (seconds per shot, extensions per player per rack, seconds per extension). Professional events use a
@@ -1269,7 +1392,10 @@ extension TrainingController {
         buildShotClock()
         let showing = matchPlay.active && preset.seconds > 0
         if matchPlay.clockBar.isHidden == showing { matchPlay.clockBar.isHidden = !showing }
-        guard showing else { return }
+        guard showing else {
+            for tag in [70, 74] { (matchPlay.scoreboard.viewWithTag(tag) as? UILabel)?.isHidden = true }
+            return
+        }
         if matchPlay.extensionRack != matchPlay.rackNo {
             matchPlay.extensionRack = matchPlay.rackNo; matchPlay.extensionsLeft = [preset.extensions, preset.extensions]
         }
@@ -1281,10 +1407,19 @@ extension TrainingController {
         if running, left <= 10, matchPlay.clockWarned < 1 { matchPlay.clockWarned = 1; UIImpactFeedbackGenerator(style: .light).impactOccurred() }
         if running, left <= 5, matchPlay.clockWarned < 2 { matchPlay.clockWarned = 2; UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
         let text = running || left < preset.seconds ? String(format: "%02.0f", ceil(left)) : "\(Int(preset.seconds))"
-        if matchPlay.clockLabel.text != text { matchPlay.clockLabel.text = text }
-        let colour: UIColor = left <= 5 ? .rgb(0xFF4D4D) : (left <= 10 ? .rgb(0xFFC94D) : .white)
-        if matchPlay.clockLabel.textColor != colour { matchPlay.clockLabel.textColor = colour }
         let player = matchInt("currentPlayer")
+        // 0.40c (owner): the seconds sit on the shooter's name plate (no box, no centre-screen bar).
+        let style = Self.scoreboardStyles[Self.scoreboardStyleIndex]
+        let colour: UIColor = left <= 5 ? .rgb(0xFF4D4D) : (left <= 10 ? .rgb(0xFFC94D) : style.text)
+        for seat in 0...1 {
+            guard let clock = matchPlay.scoreboard.viewWithTag((seat == 0 ? 10 : 14) + 60) as? UILabel else { continue }
+            let mine = seat == player
+            if clock.isHidden == mine { clock.isHidden = !mine }
+            if mine { if clock.text != text { clock.text = text }; if clock.textColor != colour { clock.textColor = colour } }
+            clock.accessibilityLabel = mine ? "Đồng hồ cú \(text) giây" : nil
+        }
+        if matchPlay.clockLabel.text != text { matchPlay.clockLabel.text = text }
+        layoutShotClockExtension(player: player)
         let canExtend = running && matchPlay.extensionsLeft[player] > 0 && matchAllowsInput
         if matchPlay.extensionButton.isHidden == canExtend { matchPlay.extensionButton.isHidden = !canExtend }
         if running && left <= 0 { shotClockExpired() }
@@ -1292,22 +1427,35 @@ extension TrainingController {
     private func buildShotClock() {
         guard !matchPlay.clockBuilt, matchPlay.scoreboard.superview != nil else { return }   // anchored under the scoreboard
         matchPlay.clockBuilt = true
-        let bar = matchPlay.clockBar, label = matchPlay.clockLabel, ext = matchPlay.extensionButton
+        // 0.40c: the seconds live on the shooter's plate (updateScoreboard); this transparent pill under that plate only
+        // carries the "Gia hạn" button and moves to the shooter's side.
+        let bar = matchPlay.clockBar, ext = matchPlay.extensionButton
         bar.translatesAutoresizingMaskIntoConstraints = false; bar.isHidden = true
-        bar.backgroundColor = UIColor(white: 0, alpha: 0.6); bar.layer.cornerRadius = 11; bar.accessibilityIdentifier = "ShotClock"
-        label.font = .monospacedDigitSystemFont(ofSize: 15, weight: .heavy); label.textColor = .white; label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        ext.setTitle("Gia hạn", for: .normal); ext.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
-        ext.tintColor = .rgb(0xEAC583); ext.accessibilityIdentifier = "ShotClockExtension"; ext.translatesAutoresizingMaskIntoConstraints = false
+        bar.backgroundColor = .clear; bar.accessibilityIdentifier = "ShotClock"
+        matchPlay.clockLabel.isHidden = true   // kept for QA probes; the visible seconds are on the plate
+        var config = UIButton.Configuration.plain()
+        config.title = "Gia hạn +"; config.baseForegroundColor = .rgb(0xEAC583)
+        config.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8)
+        config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { var a = $0; a.font = .systemFont(ofSize: 12, weight: .bold); return a }
+        ext.configuration = config
+        ext.layer.cornerRadius = 11; ext.layer.borderWidth = 1; ext.layer.borderColor = UIColor.rgb(0xEAC583).withAlphaComponent(0.6).cgColor
+        ext.layer.shadowColor = UIColor.black.cgColor; ext.layer.shadowOpacity = 0.5; ext.layer.shadowRadius = 3; ext.layer.shadowOffset = .zero
+        ext.accessibilityIdentifier = "ShotClockExtension"; ext.translatesAutoresizingMaskIntoConstraints = false
         ext.addAction(UIAction { [weak self] _ in self?.callExtension() }, for: .touchUpInside)
-        let row = UIStackView(arrangedSubviews: [label, ext]); row.axis = .horizontal; row.spacing = 8
-        row.translatesAutoresizingMaskIntoConstraints = false; bar.addSubview(row); view.addSubview(bar)
+        bar.addSubview(ext); view.addSubview(bar)
         NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 10), row.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -10),
-            row.topAnchor.constraint(equalTo: bar.topAnchor), row.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
-            bar.heightAnchor.constraint(equalToConstant: 22), label.widthAnchor.constraint(greaterThanOrEqualToConstant: 24),
-            bar.centerXAnchor.constraint(equalTo: matchPlay.scoreboard.centerXAnchor),
+            ext.leadingAnchor.constraint(equalTo: bar.leadingAnchor), ext.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
+            ext.topAnchor.constraint(equalTo: bar.topAnchor), ext.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
+            bar.heightAnchor.constraint(equalToConstant: 24),
             bar.topAnchor.constraint(equalTo: matchPlay.scoreboard.bottomAnchor, constant: 4)])
+        matchPlay.clockSides = [bar.leadingAnchor.constraint(equalTo: matchPlay.scoreboard.leadingAnchor, constant: 6),
+                                bar.trailingAnchor.constraint(equalTo: matchPlay.scoreboard.trailingAnchor, constant: -6)]
+    }
+    /// Keep the extension button under the shooter's plate.
+    private func layoutShotClockExtension(player: Int) {
+        guard matchPlay.clockSides.count == 2, matchPlay.clockSide != player else { return }
+        matchPlay.clockSide = player
+        matchPlay.clockSides[0].isActive = player == 0; matchPlay.clockSides[1].isActive = player != 0
     }
     func callExtension() {
         let preset = Self.shotClock, player = matchInt("currentPlayer")
@@ -1315,6 +1463,16 @@ extension TrainingController {
         matchPlay.extensionsLeft[player] -= 1
         matchPlay.clockLeft += preset.extensionSeconds; matchPlay.clockWarned = 0
         notifyStatus("\(matchPlay.names[player]) gọi GIA HẠN +\(Int(preset.extensionSeconds)) s")
+    }
+    /// The computer could not deliver any stroke (never seen in tests): referee it as a no-contact foul and move on.
+    func computerNoStrokeFoul() {
+        guard let rules = matchPlay.rules else { return }
+        let state = engine.states
+        let result = rules.complete(before: state, after: state, events: [], headCrossed: [])
+        guard (result["accepted"] as? NSNumber)?.boolValue == true else { return }
+        applyMatchResult(result); matchPlay.computerFailures = 0
+        notifyStatus("Máy không ra được cơ · phạm lỗi · bạn có bi trong tay")
+        refresh(); updateControls(); syncMatchControls(); publishMatchSnapshot(force: true)
     }
     private func shotClockExpired() {
         guard let rules = matchPlay.rules else { return }

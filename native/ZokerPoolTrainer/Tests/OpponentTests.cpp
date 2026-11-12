@@ -37,6 +37,7 @@ int main(){
             check(a.valid&&std::isfinite(a.angle)&&a.speed>0,"break stroke valid");
             check(a.angle==b.angle&&a.speed==b.speed&&a.side==b.side&&a.top==b.top,"same seed, same stroke");
             check(a.speed>=ai::skill(0).breakSpeed*.5,"break is struck firmly");
+            check(std::hypot(a.side,a.top)<=0.711&&a.speed<=8&&a.elevation>=0&&a.elevation<=90,"the stroke passes the app's LANShot.isValid");
         }
         check(ai::skill(5).breakSpeed>ai::skill(0).breakSpeed,"stronger player breaks harder");
     }
@@ -49,7 +50,8 @@ int main(){
             const auto planned=ai::plan(w,s,level,1000+i);
             check(planned.valid&&std::isfinite(planned.angle)&&planned.speed>0&&planned.speed<9,"a stroke is always returned");
             const auto shot=ai::execute(planned,level,7000+i*13+static_cast<size_t>(level));
-            const Outcome o=w.simulate(shot.angle,shot.speed,shot.side,shot.top,25);
+            check(std::hypot(shot.side,shot.top)<=0.711&&shot.speed<=8&&shot.elevation>=0&&shot.elevation<=90,"executed stroke passes LANShot.isValid");
+            const Outcome o=ai::play(w,shot,25);
             const auto j=ai::judge(w,s,o,0,1,-1);
             if(j.firstHit==1)++legal[static_cast<size_t>(level)];
             if(potted(o,1)&&!scratched(o))++pots[static_cast<size_t>(level)];
@@ -70,7 +72,7 @@ int main(){
         World w(config);w.reset({cue,eight,two});auto s=playing(match::Discipline::EightBall);s.groups={{0,1}};
         for(int level=1;level<ai::kLevels;++level){
             const auto planned=ai::plan(w,s,level,5);check(planned.valid,"8-ball stroke valid");
-            const auto j=ai::judge(w,s,w.simulate(planned.angle,planned.speed,planned.side,planned.top,25),0,planned.target,planned.pocket);
+            const auto j=ai::judge(w,s,ai::play(w,planned,25),0,planned.target,planned.pocket);
             check(!j.lost,"planned stroke never loses on the 8");
             check(planned.target!=8,"does not aim at the 8 with a group ball left");
         }
@@ -88,7 +90,68 @@ int main(){
             const double took=std::chrono::duration<double>(std::chrono::steady_clock::now()-t0).count();
             std::printf("REPORT full-table %s level %d planned in %.2f s\n",rule==match::Discipline::NineBall?"9-ball":"8-ball",level,took);std::fflush(stdout);
             check(p.valid,"full table: a stroke is always returned");
+            const Ball* c=ai::find(w.balls,0);
+            check(c&&ai::clearance(w,c->p,p.angle,p.side,p.top)<=p.elevation+0.01,"full table: the app accepts the stroke (cue lift clears rail and balls)");
             check(took<2.75,"full table: plan respects the 1.5 s budget (deadline checked between simulations)");
+        }
+    }
+    // 5. 0.40c owner acceptance 12/11: "đánh quá đều đặn, không tư duy, không điều bi, không dùng lực/effect khác
+    //    nhau, không biết nhảy/massé; có lúc dừng quá 10 s".
+    {
+        // a) Stall: the cue ball frozen behind another ball. Every level must return a stroke the app accepts
+        //    (lift ≤ 30° clears rail and balls), never one the strike guard rejects in a loop.
+        Ball cue;cue.id=0;cue.p={0.1,-0.2};Ball three;three.id=3;three.p={0.1,-0.2-2*config.radius-0.001};
+        Ball one;one.id=1;one.p={0.1,0.5};Ball two;two.id=2;two.p={-0.4,0.9};
+        World w(config);w.reset({cue,three,one,two});const auto s=playing(match::Discipline::NineBall);
+        for(int level=0;level<ai::kLevels;++level){
+            const auto p=ai::plan(w,s,level,9,1.5);
+            check(p.valid,"frozen behind a ball: a stroke is returned");
+            check(p.elevation<=ai::kMaxLift+1e-9||p.kind!=ai::Normal,"frozen: a normal stroke never needs more than 30 deg");
+            check(ai::clearance(w,cue.p,p.angle,p.side,p.top)<=p.elevation+0.01,"frozen: the app's clearance guard accepts the stroke");
+        }
+    }
+    {
+        // b) Variety and position: on two-ball rotation layouts the strong player varies speed and spin to get on
+        //    the next ball, and leaves better position than the Amateur.
+        ai::Random g(77);std::vector<std::vector<Ball>> twos;
+        while(twos.size()<14){
+            auto l=scenario(g,config);Ball b2;b2.id=2;b2.p={(g.unit()-.5)*(config.width-.3),(g.unit()-.5)*(config.length-.4)};
+            bool ok=true;for(const auto& b:l)if((b.p-b2.p).length()<.2)ok=false;
+            if(ok){l.push_back(b2);twos.push_back(l);}
+        }
+        const auto s=playing(match::Discipline::NineBall);
+        std::array<double,ai::kLevels> leaveSum{};std::array<int,ai::kLevels> potted{};
+        std::vector<double> speeds,tops;bool english=false;
+        for(int level:{1,4}){
+            for(size_t i=0;i<twos.size();++i){
+                World w(config);w.reset(twos[i]);
+                const auto p=ai::plan(w,s,level,300+i,6.0);
+                check(p.valid,"two-ball layout: a stroke is returned");
+                if(level==4){speeds.push_back(std::round(p.speed*2)/2);tops.push_back(std::round(p.top*10)/10);if(p.side!=0)english=true;}
+                const Outcome o=ai::play(w,p,25);const auto j=ai::judge(w,s,o,0,1,-1);
+                if(j.potted){World after(config);after.reset(o.balls);auto n=s;leaveSum[static_cast<size_t>(level)]+=ai::offer(after,n,j.cue,0);++potted[static_cast<size_t>(level)];}
+            }
+        }
+        std::sort(speeds.begin(),speeds.end());std::sort(tops.begin(),tops.end());
+        const auto distinct=[](std::vector<double> v){return static_cast<int>(std::unique(v.begin(),v.end())-v.begin());};
+        const double amateur=potted[1]?leaveSum[1]/potted[1]:0,pro=potted[4]?leaveSum[4]/potted[4]:0;
+        std::printf("REPORT variety Pro: %d speeds, %d spins, english %d · leave Amateur %.3f (%d pots) Pro %.3f (%d pots)\n",distinct(speeds),distinct(tops),english?1:0,amateur,potted[1],pro,potted[4]);std::fflush(stdout);
+        check(distinct(speeds)>=4,"Pro uses at least 4 different stroke speeds over 14 positions");
+        check(distinct(tops)>=3,"Pro uses follow, centre and draw");
+        check(pro>=amateur*1.15,"Pro leaves clearly better position than the Amateur");
+    }
+    {
+        // c) Jump physics as the planner plays it: a jump-cue stroke over a blocker reaches the object ball first.
+        Ball cue;cue.id=0;cue.p={0,-0.6};Ball five;five.id=5;five.p={0,-0.3};Ball one;one.id=1;one.p={0,0.25};
+        World w(config);w.reset({cue,five,one});
+        ai::Shot st;st.kind=ai::Jump;st.elevation=34;st.speed=4.8;st.angle=ai::kPi/2;
+        check(ai::firstContact(w,st)==1,"a jump stroke clears the blocker and hits the object ball first");
+        const auto s=playing(match::Discipline::NineBall);
+        for(int level:{4,5}){
+            const auto p=ai::plan(w,s,level,21,3.0);
+            const auto j=ai::judge(w,s,ai::play(w,p,25),0,-1,-1);
+            std::printf("REPORT blocked by the 5: level %d plays intent %d kind %d elev %.0f first hit %d\n",level,p.intent,p.kind,p.elevation,j.firstHit);std::fflush(stdout);
+            check(j.firstHit==1,"Pro / AI escape the blocker legally (kick, jump or massé)");
         }
     }
     // 4. Referee choices.

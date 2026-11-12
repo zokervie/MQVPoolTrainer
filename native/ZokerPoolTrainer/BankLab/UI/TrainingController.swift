@@ -1651,7 +1651,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             table.cueElevation=sample.elevation
             table.showCue(displayCue,angle:sample.angle,visible:true,pull:sample.pull,side:sample.side,top:sample.top)
         }else{
-            table.showCue(displayCue,angle:angle,visible:!presentationBusy && localTurn && !isPlacingBalls,pull:pull,side:side,top:top)
+            table.showCue(displayCue,angle:angle,visible:!presentationBusy && (localTurn || matchPlay.computerAim != nil) && !isPlacingBalls,pull:pull,side:side,top:top)   // 0.40c: the computer's cue is seen lining up
             table.updateCueFade(view:scn,cue:displayCue,angle:angle,target:aimTargetBall(),dt:dt)
         }
         // 0.37 "Dự đoán trước": no guide while aiming — the player commits by eye, the truth is shown after the shot.
