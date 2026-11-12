@@ -40,8 +40,8 @@ struct Skill {
     double blunder;       // chance to take a worse option on purpose (human-like mistake in choice, not in hand)
     double breakSpeed;    // m/s
 };
-/// Simulated seconds per candidate: a pool shot is decided (pot/foul/position) well inside 12 s.
-constexpr double kJudgeSeconds=12;
+/// Simulated seconds per candidate: a pool shot is decided (pot/foul/position) inside 8 s (balls left rolling are judged where they are).
+constexpr double kJudgeSeconds=8;   // CI 131: 12 s made one full-table simulation the size of the overrun
 /// Wall-clock planning budget so the computer never "waits" on a full rack (owner, 12/11). ASSUMED: ~2.5 s feels human.
 struct Deadline {
     std::chrono::steady_clock::time_point end;
@@ -211,18 +211,20 @@ struct Candidate {int ball=-1,pocket=-1;double angle=0,speed=0,top=0,side=0,chan
 /// Scan aim offsets around the geometric line; returns the centre and angular width (rad) of the window that pots.
 /// 0.40b (owner: "đến lượt máy cứ chờ"): coarse 9-point scan (0.6° apart) then 3-step bisection of each edge —
 /// 15 simulations instead of 25 with a finer width (≈0.08°).
-inline bool potWindow(const World& w,const match::State& s,int player,const Ball& object,int k,double geometric,double speed,double top,double& centre,double& width){
+inline bool potWindow(const World& w,const match::State& s,int player,const Ball& object,int k,double geometric,double speed,double top,double& centre,double& width,const Deadline* deadline=nullptr){
     const double span=2.4*kPi/180;const int n=9;const double step=2*span/(n-1);
     auto pots=[&](double a){const Judgement j=judge(w,s,w.simulate(a,speed,0,top,kJudgeSeconds),player,object.id,k);return j.potted&&!j.lost;};
     int run=0,first=-1,bestFirst=-1,bestRun=0;
     for(int i=0;i<n;++i){
+        if(deadline&&deadline->over())break;   // CI 131: one slow candidate must not blow the turn budget
         if(pots(geometric-span+i*step)){if(run==0)first=i;++run;if(run>bestRun){bestRun=run;bestFirst=first;}}else run=0;
     }
     if(bestRun==0)return false;
     double lo=geometric-span+bestFirst*step,hi=geometric-span+(bestFirst+bestRun-1)*step;   // inside the window
     double loOut=lo-step,hiOut=hi+step;                                                       // outside (or scan edge)
-    for(int i=0;i<3;++i){const double m=(lo+loOut)/2;if(pots(m))lo=m;else loOut=m;}
-    for(int i=0;i<3;++i){const double m=(hi+hiOut)/2;if(pots(m))hi=m;else hiOut=m;}
+    const int refine=deadline&&deadline->over()?0:3;
+    for(int i=0;i<refine;++i){const double m=(lo+loOut)/2;if(pots(m))lo=m;else loOut=m;}
+    for(int i=0;i<refine;++i){const double m=(hi+hiOut)/2;if(pots(m))hi=m;else hiOut=m;}
     centre=(lo+hi)/2;width=std::max(hi-lo,step/8);
     return true;
 }
@@ -288,7 +290,7 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
     if(options.size()>static_cast<size_t>(level>=3?6:4))options.resize(static_cast<size_t>(level>=3?6:4));
     std::vector<Candidate> pots;
     for(const auto& option:options){
-        if(!pots.empty()&&deadline.over())break;
+        if(deadline.over())break;
         const Ball& b=*option.b;
         {
             const int pk=option.pk;const double e=option.e;
@@ -298,11 +300,11 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
             std::vector<double> tops{0};if(k.usesSpin){tops.push_back(0.55);tops.push_back(-0.55);}
             std::vector<double> extras{0.6};if(k.lookahead>0){extras.push_back(1.3);}   // object ball runs 0.6 m past the pocket: a firm pot, not one dying in the jaws
             for(double top:tops)for(double extra:extras){
-                if(!pots.empty()&&deadline.over())break;
+                if(deadline.over())break;
                 Candidate c;c.ball=b.id;c.pocket=pk;c.top=top;c.speed=paceFor(world,dc,dp,cutCos,extra);
                 double centre=geometric,width=0;
                 if(k.centreWindow){
-                    if(!potWindow(world,s,player,b,pk,geometric,c.speed,top,centre,width))continue;
+                    if(!potWindow(world,s,player,b,pk,geometric,c.speed,top,centre,width,&deadline))continue;
                     c.chance=chanceInside(width,k.aimSigma);
                 }else{
                     // Beginner: trusts the ghost ball; whether it drops is found out on the table.
@@ -312,7 +314,7 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
                 if(c.outcome.lost)continue;
                 if(k.centreWindow&&!c.outcome.potted)continue;
                 double position=0;
-                if(k.lookahead>0&&c.outcome.potted&&!c.outcome.won){
+                if(k.lookahead>0&&c.outcome.potted&&!c.outcome.won&&!deadline.over()){
                     World after(world.config);after.reset(world.simulate(c.angle,c.speed,0,top,kJudgeSeconds).balls);
                     match::State next=s;next.breakShot=false;
                     position=offer(after,next,c.outcome.cue,player);
@@ -351,9 +353,9 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
         }
         for(int i=0;i<directions;++i)angles.push_back(2*kPi*i/directions);
         const std::vector<double> speeds=level>=3?std::vector<double>{1.1,1.9,2.8}:std::vector<double>{1.6,2.6};
-        match::State next=s;next.breakShot=false;
+        match::State next=s;next.breakShot=false;int late=0;
         for(double a:angles)for(double v:speeds){
-            if(found&&deadline.over())break;
+            if(deadline.over()&&(found||++late>3))break;   // over budget: keep what we have, else the plain roll below
             const Outcome o=world.simulate(a,v,0,0,kJudgeSeconds);
             const Judgement j=judge(world,s,o,player,-1,-1);
             if(j.lost)continue;

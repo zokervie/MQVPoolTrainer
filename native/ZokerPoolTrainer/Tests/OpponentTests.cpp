@@ -88,7 +88,7 @@ int main(){
             const double took=std::chrono::duration<double>(std::chrono::steady_clock::now()-t0).count();
             std::printf("REPORT full-table %s level %d planned in %.2f s\n",rule==match::Discipline::NineBall?"9-ball":"8-ball",level,took);std::fflush(stdout);
             check(p.valid,"full table: a stroke is always returned");
-            check(took<3.0,"full table: plan respects the 1.5 s budget (one candidate may overrun)");
+            check(took<2.75,"full table: plan respects the 1.5 s budget (deadline checked between simulations)");
         }
     }
     // 4. Referee choices.
