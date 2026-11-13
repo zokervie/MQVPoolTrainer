@@ -35,16 +35,31 @@ final class PoolAudio {
         [Policy(name: "PoolPocket0", maximumDuration: 0.400, trimOnset: false)],
         [Policy(name: "PoolCue0", maximumDuration: 0.140, trimOnset: true)]
     ].enumerated().map { kind, list in list + PoolAudio.pack041.filter { $0.0 == kind }.map { $0.1 } }
-    /// 0.41 (owner's pack, Tools/AudioSources/ATTRIBUTION.md): sliced at the impacts, three tiers per kind + a break.
+    /// 0.41 (owner's pack, Tools/AudioSources/ATTRIBUTION.md): sliced at the impacts, approved by ear by the owner; tiers per kind + breaks.
     private static let pack041: [(Int, Policy)] = {
         var out: [(Int, Policy)] = []
         func add(_ kind: Int, _ name: String, _ tier: Int, _ length: Double, _ trim: Bool = true) {
             out.append((kind, Policy(name: name, maximumDuration: length, trimOnset: trim, tier: tier, pack: 1)))
         }
-        for (i, tier) in [0, 0, 1, 1, 1, 2, 2, 2].enumerated() { add(3, "PoolCueT\(tier)v\(i)", tier, 0.120) }
-        for (i, tier) in [0, 0, 1, 1, 1, 1, 2, 2].enumerated() { add(1, "PoolBallT\(tier)v\(i + 8)", tier, 0.200) }
-        add(2, "PoolPocketT1v16", 1, 0.420, false); add(2, "PoolPocketT1v17", 1, 0.420, false); add(2, "PoolPocketT0v18", 0, 0.420, false)
-        add(3, "PoolBreakT2v19", 3, 0.300)
+        // 0.41: the owner's listening pass (13/11) chose these 18 clips; tier = source loudness within each kind.
+        add(3, "PoolCueT0v0", 0, 0.130, true)
+        add(3, "PoolCueT0v1", 0, 0.130, true)
+        add(3, "PoolCueT1v2", 1, 0.130, true)
+        add(3, "PoolCueT1v3", 1, 0.130, true)
+        add(3, "PoolCueT2v4", 2, 0.130, true)
+        add(1, "PoolBallT0v5", 0, 0.200, true)
+        add(1, "PoolBallT0v6", 0, 0.200, true)
+        add(1, "PoolBallT1v7", 1, 0.200, true)
+        add(1, "PoolBallT1v8", 1, 0.200, true)
+        add(1, "PoolBallT2v9", 2, 0.200, true)
+        add(0, "PoolRailT0v10", 0, 0.250, true)
+        add(0, "PoolRailT0v11", 0, 0.250, true)
+        add(0, "PoolRailT1v12", 1, 0.250, true)
+        add(2, "PoolPocketT0v13", 0, 0.450, false)
+        add(2, "PoolPocketT0v14", 0, 0.450, false)
+        add(2, "PoolPocketT1v15", 1, 0.450, false)
+        add(3, "PoolBreakT3v16", 3, 0.450, true)
+        add(3, "PoolBreakT3v17", 3, 0.450, true)
         return out
     }()
     /// Tuỳ chỉnh → Âm thanh: 1 = bộ 0.41 (mặc định), 0 = bộ cũ 0.17 — so sánh A/B trên máy.

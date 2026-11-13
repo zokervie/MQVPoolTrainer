@@ -120,14 +120,14 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      142.974,
-      143.118
+      51.1,
+      51.262
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "cue",
     "tier": 0,
-    "sha256": "b30d5f6512f771ca5678d43683eed86db45219d0a82453dfb442f0bfa6264c85",
-    "frames": 6350
+    "sha256": "b62a43e0a146ff1d66b40ccaa29e711108c154efd3e2eb5317663c72a7b7572b",
+    "frames": 7144
   },
   {
     "asset": "PoolCueT0v1",
@@ -138,14 +138,14 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      112.27,
-      112.414
+      19.602,
+      19.735
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "cue",
     "tier": 0,
-    "sha256": "483ca90b97a4e8a79b1c0941fa4ada5d15260a169c12453123d50a460f665eda",
-    "frames": 6350
+    "sha256": "7285e2bb2a20df68dee6456ec8c2be01b5646624e519228ed9b3a3a27a62e1b7",
+    "frames": 5865
   },
   {
     "asset": "PoolCueT1v2",
@@ -156,14 +156,14 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      164.007,
-      164.151
+      31.565,
+      31.661
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "cue",
     "tier": 1,
-    "sha256": "6fbe31262bd1d4c7475d12fe12ab7c305a393894e1638787a91bcb7a4498733e",
-    "frames": 6351
+    "sha256": "e19893172a89f5cab4cf875810ec7eab1848eca4f68225da26429e35374e40b0",
+    "frames": 4234
   },
   {
     "asset": "PoolCueT1v3",
@@ -174,17 +174,17 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      125.876,
-      126.02
+      41.039,
+      41.173
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "cue",
     "tier": 1,
-    "sha256": "b11358cf933b0c08141df5ac7727a294d567075db3f475522c6618e72d39a1dd",
-    "frames": 6351
+    "sha256": "ebebe3fb1f31b51509bc803ccaead3952a70a791c6baee991e3d0c909e18ddd8",
+    "frames": 5910
   },
   {
-    "asset": "PoolCueT1v4",
+    "asset": "PoolCueT2v4",
     "author": "dhoy42",
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -192,35 +192,17 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      94.59,
-      94.734
+      60.9,
+      61.005
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "cue",
-    "tier": 1,
-    "sha256": "903c253c428fe3b78f01b8f0988b12342b50b81f765d4d9ffb5d8be964f7dcda",
-    "frames": 6351
-  },
-  {
-    "asset": "PoolCueT2v5",
-    "author": "dhoy42",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
-    "download": "owner-supplied original (zip 13/11/2026)",
-    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
-    "trim_seconds": [
-      68.783,
-      68.927
-    ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "cue",
     "tier": 2,
-    "sha256": "ac6abcfa24329107c6572c1b05d1e77f8381c01452da10b4271a072173cddef1",
-    "frames": 6350
+    "sha256": "278943301ef3f0737f89f9fdb53bb3301ea73a489e55cb929a77cade97a6e615",
+    "frames": 4630
   },
   {
-    "asset": "PoolCueT2v6",
+    "asset": "PoolBallT0v5",
     "author": "dhoy42",
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -228,89 +210,17 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      170.063,
-      170.207
+      2.561,
+      2.785
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "cue",
-    "tier": 2,
-    "sha256": "6418dc9e02eff154406af02d788619cca4ce3db23f3eead6390f4dd9eea150aa",
-    "frames": 6350
-  },
-  {
-    "asset": "PoolCueT2v7",
-    "author": "dhoy42",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
-    "download": "owner-supplied original (zip 13/11/2026)",
-    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
-    "trim_seconds": [
-      50.803,
-      50.947
-    ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "cue",
-    "tier": 2,
-    "sha256": "c04462f9732e7626d5cfbfcbeb077b6feeb73b61cb94c84c65e5bccedae40739",
-    "frames": 6350
-  },
-  {
-    "asset": "PoolBallT0v8",
-    "author": "dhoy42",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
-    "download": "owner-supplied original (zip 13/11/2026)",
-    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
-    "trim_seconds": [
-      143.354,
-      143.578
-    ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "ball",
     "tier": 0,
-    "sha256": "6db656b5dac237418ae14895b49ea4486c64b515f285a3c9935c490ed26f04cf",
+    "sha256": "3d9a4177e5692db380f8eb3fbff3fedcc9b1c2dc0c5ab223720c9fd5e48f56cb",
     "frames": 9878
   },
   {
-    "asset": "PoolBallT0v9",
-    "author": "dhoy42",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
-    "download": "owner-supplied original (zip 13/11/2026)",
-    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
-    "trim_seconds": [
-      95.868,
-      96.08
-    ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "ball",
-    "tier": 0,
-    "sha256": "e1d82a8436d9c90950c333c714a8a7b1cbfe7d9d30436838b74e35e997b248c6",
-    "frames": 9350
-  },
-  {
-    "asset": "PoolBallT1v10",
-    "author": "dhoy42",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
-    "download": "owner-supplied original (zip 13/11/2026)",
-    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
-    "trim_seconds": [
-      144.098,
-      144.322
-    ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "ball",
-    "tier": 1,
-    "sha256": "b2b30b6334d19388cda3bd130fd4615b43fe462588743fcfe421fc075979ccff",
-    "frames": 9879
-  },
-  {
-    "asset": "PoolBallT1v11",
+    "asset": "PoolBallT0v6",
     "author": "dhoy42",
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -321,50 +231,14 @@
       33.384,
       33.608
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "ball",
-    "tier": 1,
+    "tier": 0,
     "sha256": "f5b564b246762a973c45973aee2d305370799e197dca6787215c3bb49af36a64",
     "frames": 9878
   },
   {
-    "asset": "PoolBallT1v12",
-    "author": "dhoy42",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
-    "download": "owner-supplied original (zip 13/11/2026)",
-    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
-    "trim_seconds": [
-      151.64,
-      151.864
-    ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "ball",
-    "tier": 1,
-    "sha256": "2aaf3c013081acaaedad25cff00ead3ca1edf4161d396debbf73de6c76dfc6be",
-    "frames": 9878
-  },
-  {
-    "asset": "PoolBallT1v13",
-    "author": "dhoy42",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
-    "download": "owner-supplied original (zip 13/11/2026)",
-    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
-    "trim_seconds": [
-      95.054,
-      95.278
-    ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "ball",
-    "tier": 1,
-    "sha256": "b57184bf3001b3ab8200bc20cf08cada37ddfe55ca1f0abe7e3e315e55c4b1a2",
-    "frames": 9878
-  },
-  {
-    "asset": "PoolBallT2v14",
+    "asset": "PoolBallT1v7",
     "author": "dhoy42",
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -375,14 +249,14 @@
       20.315,
       20.539
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "ball",
-    "tier": 2,
+    "tier": 1,
     "sha256": "2237f249775a2dff46a4b836b12b6aba24682c6e8d5b4c5e33a0271dbaaac020",
     "frames": 9878
   },
   {
-    "asset": "PoolBallT2v15",
+    "asset": "PoolBallT1v8",
     "author": "dhoy42",
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -390,17 +264,35 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      170.446,
-      170.67
+      5.496,
+      5.72
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
+    "category": "ball",
+    "tier": 1,
+    "sha256": "824ede39f785036535a294ca05c51dcaf265e01353f0571000cbda95261337ef",
+    "frames": 9879
+  },
+  {
+    "asset": "PoolBallT2v9",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      50.803,
+      50.937
+    ],
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "ball",
     "tier": 2,
-    "sha256": "ef03c5a2f7939962f1f6d300bed2f8a163760a2816c458e47adc8177e68f303b",
-    "frames": 9878
+    "sha256": "3b2283bbe91650de10396d08f25a31cff162d8435ec8f7455473875492d08bb5",
+    "frames": 5909
   },
   {
-    "asset": "PoolPocketT1v16",
+    "asset": "PoolRailT0v10",
     "author": "dhoy42",
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -408,17 +300,17 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      129.126,
-      129.58
+      38.195,
+      38.449
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "pocket",
-    "tier": 1,
-    "sha256": "f6dc60574e527b3f14afdc5054b543eab3a0aad721b47fb5db6766e01c7ba09b",
-    "frames": 20021
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
+    "category": "rail",
+    "tier": 0,
+    "sha256": "0b6799f0071602755164637d6dc6b796b934b66a5041bff4daddaa788b2ad577",
+    "frames": 11201
   },
   {
-    "asset": "PoolPocketT1v17",
+    "asset": "PoolRailT0v11",
     "author": "dhoy42",
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -426,17 +318,53 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
     "trim_seconds": [
-      80.163,
-      80.617
+      32.655,
+      32.909
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
-    "category": "pocket",
-    "tier": 1,
-    "sha256": "553959a267fcec3c4561f755efdaa898e13ba8f6332adfbe557874c2a101802e",
-    "frames": 20021
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
+    "category": "rail",
+    "tier": 0,
+    "sha256": "9ad6fa6c84fba0576b94788ea04e75789b3fff1a0613bda55d6b12761bd0416a",
+    "frames": 11201
   },
   {
-    "asset": "PoolPocketT0v18",
+    "asset": "PoolRailT1v12",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      41.836,
+      42.006
+    ],
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
+    "category": "rail",
+    "tier": 1,
+    "sha256": "f42bb5d605a8a16a404b7d5df94ef7380e657d0ec0e216b6c8fe3eed79b553a2",
+    "frames": 7497
+  },
+  {
+    "asset": "PoolPocketT0v13",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      126.339,
+      126.793
+    ],
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
+    "category": "pocket",
+    "tier": 0,
+    "sha256": "8fafaf5ed1e93a78ec34b7fce4bf53626883bd7d1ce6b6504af7a8b46852ab00",
+    "frames": 20022
+  },
+  {
+    "asset": "PoolPocketT0v14",
     "author": "dhoy42",
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -447,14 +375,32 @@
       87.287,
       87.741
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "pocket",
     "tier": 0,
     "sha256": "79cb98aafd7b23dee173277cd21c9a526d686eeca540d1c55584e8bf91c5e9bc",
     "frames": 20022
   },
   {
-    "asset": "PoolBreakT2v19",
+    "asset": "PoolPocketT1v15",
+    "author": "dhoy42",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/dhoy42/sounds/114308/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "94873f522415d3e576deaa99971f9f1750c986808550b0e92b35f75b317c6d3e",
+    "trim_seconds": [
+      129.126,
+      129.58
+    ],
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
+    "category": "pocket",
+    "tier": 1,
+    "sha256": "f6dc60574e527b3f14afdc5054b543eab3a0aad721b47fb5db6766e01c7ba09b",
+    "frames": 20021
+  },
+  {
+    "asset": "PoolBreakT3v16",
     "author": "cameronmusic",
     "license": "CC-BY-3.0",
     "license_url": "https://creativecommons.org/licenses/by/3.0/",
@@ -462,13 +408,31 @@
     "download": "owner-supplied original (zip 13/11/2026)",
     "source_sha256": "6c7d197eb36f5fcd47f1cf88e48516e785825f5c9f497e582b20c152a2798403",
     "trim_seconds": [
-      0.86,
-      1.16
+      0.62,
+      1.7
     ],
-    "changes": "0.41: onset-sliced from the original, downmixed to 44.1 kHz mono PCM16, DC removed, 1.5 ms fade-in / 20 ms fade-out, peak 0.89. Category/tier by transient analysis (centroid, low-band ratio, level); owner listening pass pending.",
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
     "category": "break",
-    "tier": 2,
-    "sha256": "1fc5c7a0cfcd686ad0fb34f0a22b68afc13c485a2a35725d810716826e633a83",
-    "frames": 13230
+    "tier": 3,
+    "sha256": "dc9c2fd3fe40eda58dd19e6d82c1bf60d0a027fb05e4c0a4b26b061216daad8d",
+    "frames": 47628
+  },
+  {
+    "asset": "PoolBreakT3v17",
+    "author": "reg7783",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://freesound.org/people/reg7783/sounds/204187/",
+    "download": "owner-supplied original (zip 13/11/2026)",
+    "source_sha256": "fb552e6b9ff6e3c2d42d24a5e5f521b9d910925d5ac63b3eca004a6770fff7ef",
+    "trim_seconds": [
+      0.5,
+      1.45
+    ],
+    "changes": "0.41: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak 0.89. Category approved by the owner's listening pass 13/11/2026; tier by source loudness.",
+    "category": "break",
+    "tier": 3,
+    "sha256": "c7cdf7883bb2e45495c3ebcf5c2af357eda6de94b89afbf29792a245214be809",
+    "frames": 41895
   }
 ]

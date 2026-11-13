@@ -3,7 +3,7 @@ import base64,hashlib,json,wave,io
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 items=json.loads((root/'Tools/AudioSources/manifest.json').read_text())
-assert len(items)==27   # 0.41: 7 originals + 20 slices from the owner's pack (dhoy42 CC0, cameronmusic CC-BY)
+assert len(items)==25   # 0.41: 7 originals + 18 slices the owner approved by ear (dhoy42 CC0, reg7783 CC0, cameronmusic CC-BY)
 for item in items:
  data=base64.b64decode((root/'Tools/AudioSources'/(item['asset']+'.wav.b64')).read_text())
  assert hashlib.sha256(data).hexdigest()==item['sha256']

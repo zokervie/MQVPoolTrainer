@@ -12,8 +12,9 @@ Changes: selected time ranges, decoded/resampled/downmixed to 44.1 kHz mono PCM1
 
 Final sound quality and perceived latency on device: PENDING listening acceptance. A headless Simulator scheduling check does not establish fidelity or acoustic latency.
 
-## 0.41 — gói anh sưu tầm (zip 13/11/2026), cắt theo điểm va chạm
-- male-basic01.aiff — dhoy42; CC0 1.0; https://freesound.org/people/dhoy42/sounds/114308/ — 8 tiếng cơ (3 mức), 8 tiếng bi chạm bi (3 mức), 3 tiếng rơi lỗ.
+## 0.41 — gói anh sưu tầm (zip 13/11/2026), anh nghe duyệt 13/11 07:39
+- male-basic01.aiff — dhoy42; CC0 1.0; https://freesound.org/people/dhoy42/sounds/114308/ — 5 tiếng cơ, 5 bi chạm bi, 3 chạm băng, 3 rơi lỗ.
+- pool_break_cue_sound.wav — reg7783; CC0 1.0; https://freesound.org/people/reg7783/sounds/204187/ — 1 tiếng phá bi.
 - pool break.wav — cameronmusic; Creative Commons Attribution 3.0; https://freesound.org/people/cameronmusic/sounds/138405/ ; https://creativecommons.org/licenses/by/3.0/ — 1 tiếng phá bi.
-Changes: cut at detected impacts, mono 44.1 kHz PCM16, DC removed, short fades, peak normalised. Category/tier from transient analysis; owner listening pass pending.
-Not used (licence not verified when packed, Freesound pages unreachable): 268767 rzSHI, 432592 Coral_Island_Studios, 607424, 655629, 655755 elsje, 45804 Bunyi (CC BY 4.0, verified, but the 2 s clip has clacks inside — no clean rolling loop), 204187 reg7783 (CC0, impact at the clip end — re-cut later).
+Changes: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak normalised; category approved by the owner's listening pass.
+Approved by ear but NOT shipped until their licence is confirmed on Freesound: 268767 rzSHI (5 cơ, 2 băng), 432592 Coral_Island_Studios (1 cơ, 1 bi), 607424 (1 phá), 655629 (1 rơi lỗ), 655755 elsje (1 phá).
