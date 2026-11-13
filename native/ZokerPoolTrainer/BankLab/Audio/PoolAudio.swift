@@ -35,37 +35,11 @@ final class PoolAudio {
         [Policy(name: "PoolPocket0", maximumDuration: 0.400, trimOnset: false)],
         [Policy(name: "PoolCue0", maximumDuration: 0.140, trimOnset: true)]
     ].enumerated().map { kind, list in list + PoolAudio.pack041.filter { $0.0 == kind }.map { $0.1 } }
-    /// 0.41 (owner's pack, Tools/AudioSources/ATTRIBUTION.md): sliced at the impacts, approved by ear by the owner; tiers per kind + breaks.
-    private static let pack041: [(Int, Policy)] = {
-        var out: [(Int, Policy)] = []
-        func add(_ kind: Int, _ name: String, _ tier: Int, _ length: Double, _ trim: Bool = true) {
-            out.append((kind, Policy(name: name, maximumDuration: length, trimOnset: trim, tier: tier, pack: 1)))
-        }
-        // 0.41: the owner's listening pass (13/11) chose these 18 clips; tier = source loudness within each kind.
-        add(3, "PoolCueT0v0", 0, 0.130, true)
-        add(3, "PoolCueT0v1", 0, 0.130, true)
-        add(3, "PoolCueT0v2", 0, 0.130, true)
-        add(3, "PoolCueT1v3", 1, 0.130, true)
-        add(3, "PoolCueT1v4", 1, 0.130, true)
-        add(3, "PoolCueT2v5", 2, 0.130, true)
-        add(3, "PoolCueT2v6", 2, 0.130, true)
-        add(1, "PoolBallT0v7", 0, 0.200, true)
-        add(1, "PoolBallT0v8", 0, 0.200, true)
-        add(1, "PoolBallT1v9", 1, 0.200, true)
-        add(1, "PoolBallT1v10", 1, 0.200, true)
-        add(1, "PoolBallT2v11", 2, 0.200, true)
-        add(0, "PoolRailT0v12", 0, 0.250, true)
-        add(2, "PoolPocketT0v13", 0, 0.450, false)
-        add(2, "PoolPocketT0v14", 0, 0.450, false)
-        add(2, "PoolPocketT1v15", 1, 0.450, false)
-        add(2, "PoolPocketT1v16", 1, 0.450, false)
-        add(3, "PoolBreakT3v17", 3, 0.450, true)
-        add(3, "PoolBreakT3v18", 3, 0.450, true)
-        add(3, "PoolBreakT3v19", 3, 0.450, true)
-        add(3, "PoolBreakT3v20", 3, 0.450, true)
-        return out
-    }()
-    /// Tuỳ chỉnh → Âm thanh: 1 = bộ 0.41 (mặc định), 0 = bộ cũ 0.17 — so sánh A/B trên máy.
+    /// 0.41: owner 13/11 08:22 — keep the 0.17 set for now; the owner records his own table for a later build.
+    /// Re-enable by appending `(kind, Policy(name:…, tier:…, pack: 1))` here (the 21-clip pack lives in git 36faf42).
+    private static let pack041: [(Int, Policy)] = []
+    static var hasPack041: Bool { !pack041.isEmpty }
+    /// Tuỳ chỉnh → Âm thanh: 1 = bộ mới, 0 = bộ 0.17 (mặc định từ 13/11 08:22). Nút chỉ hiện khi có bộ mới.
     static let packKey = "soundPack041"
     private let audioQueue = DispatchQueue(label: "com.ztrainer.pool-audio", qos: .userInteractive)
     private let queueKey = DispatchSpecificKey<UInt8>()
@@ -185,7 +159,7 @@ final class PoolAudio {
             let type = max(0, min(3, kind))
             guard self.groups.indices.contains(type), !self.groups[type].isEmpty else { return }
             // 0.41: pick the pack, then the tier nearest the impact (soft / medium / hard / break), rotating variants.
-            let wantPack = UserDefaults.standard.object(forKey: Self.packKey) as? Int ?? 1
+            let wantPack = UserDefaults.standard.object(forKey: Self.packKey) as? Int ?? 0
             var samples = self.groups[type].filter { $0.pack == wantPack }
             if samples.isEmpty { samples = self.groups[type] }
             let wantTier: Int = type == 3 ? (impact < 1.6 ? 0 : (impact < 3.6 ? 1 : (impact < 5.8 ? 2 : 3)))

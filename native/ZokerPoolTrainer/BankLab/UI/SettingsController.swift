@@ -325,7 +325,7 @@ final class CustomizeController:UIViewController {
         header("Âm thanh")
         slider("Âm lượng tiếng bi","tuneVolume037",0,1)
         // 0.41: owner's pack (sliced, 3 lực × biến thể + phá bi) vs the 0.17 set — A/B on the device.
-        segmented("Bộ âm thanh",["Mới 0.41 · 21 mẫu","Cũ 0.17"],(UserDefaults.standard.object(forKey:PoolAudio.packKey) as? Int ?? 1)==1 ? 0:1){UserDefaults.standard.set($0==0 ? 1:0,forKey:PoolAudio.packKey)}
+        if PoolAudio.hasPack041 { segmented("Bộ âm thanh",["Bộ mới","Cũ 0.17"],(UserDefaults.standard.object(forKey:PoolAudio.packKey) as? Int ?? 0)==1 ? 0:1){UserDefaults.standard.set($0==0 ? 1:0,forKey:PoolAudio.packKey)} }
         target=body
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in
             for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037",TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,"tuneHUDScale038","tuneHUDAlpha038","tuneAutoNumbers038","tuneGuideSkill038","tuneAimPitch038","tuneAimZoom038","tuneAimFOV038","tuneRealShadow039","tuneCueFade039","tuneFramePacing039",TableScene.tuneWeavePitch,"tuneCueGhost040"]{UserDefaults.standard.removeObject(forKey:k)}

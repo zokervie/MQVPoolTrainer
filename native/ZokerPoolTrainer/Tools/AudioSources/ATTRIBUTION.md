@@ -12,10 +12,5 @@ Changes: selected time ranges, decoded/resampled/downmixed to 44.1 kHz mono PCM1
 
 Final sound quality and perceived latency on device: PENDING listening acceptance. A headless Simulator scheduling check does not establish fidelity or acoustic latency.
 
-## 0.41 — gói anh sưu tầm (zip 13/11/2026), anh nghe duyệt lần 2 lúc 07:56 — 21 mẫu
-- male-basic01.aiff — dhoy42; CC0 1.0; https://freesound.org/people/dhoy42/sounds/114308/ — 2 cơ, 4 bi chạm bi, 3 rơi lỗ.
-- about_billiard_ball.wav — rzSHI; Creative Commons Attribution 4.0 (anh xác nhận 13/11); https://freesound.org/s/268767/ ; https://creativecommons.org/licenses/by/4.0/ — 4 cơ, 1 băng.
-- pool_break_cue_sound.wav — reg7783; CC0 1.0; https://freesound.org/people/reg7783/sounds/204187/ — 1 phá.
-- pool break.wav — cameronmusic; Creative Commons Attribution 3.0; https://freesound.org/people/cameronmusic/sounds/138405/ ; https://creativecommons.org/licenses/by/3.0/ — 1 phá.
-- 655755 elsje (1 phá), 432592 Coral_Island_Studios (1 cơ, 1 bi), 607424 (1 phá), 655629 (1 rơi lỗ): anh xác nhận 13/11 là chia sẻ miễn phí. CẦN dòng giấy phép chính xác trước khi bán app (ghi OWNER-CONFIRMED-FREE trong manifest).
-Changes: cut at the impact, mono 44.1 kHz PCM16, DC removed, short fades, peak normalised; category approved by the owner's listening pass.
+## 0.41
+Anh chọn giữ bộ 0.17 (13/11 08:22); bộ 21 mẫu cắt từ gói anh sưu tầm không đóng gói (còn trong git 36faf42). Bản sau dùng tiếng anh tự thu.

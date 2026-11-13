@@ -20,7 +20,7 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
 - ✅ Ô màu nỉ, nỉ mới/cũ, 10 mẫu bảng điểm, đèn báo lượt: đạt. 0.40c chỉ chỉnh độ cân và kích thước sợi.
 
 ## 3. ĐANG CHỜ ANH — nhắc anh khi trả lời việc lớn
-1. Thử 0.41 trên máy: 4 mục của 0.40c + 10 mục ngày 13/11 (`Docs/NGHIEM-THU-0.41.md`). Nghe A/B bộ âm thanh (21 mẫu).
+1. Thử 0.41 trên máy: 4 mục của 0.40c + 10 mục ngày 13/11 (`Docs/NGHIEM-THU-0.41.md`). Âm thanh: giữ bộ 0.17 (anh chốt 13/11 08:22), bản sau dùng tiếng anh tự thu.
    - Gửi dòng giấy phép của 4 file 655755, 432592, 607424, 655629 (rzSHI đã có: CC BY 4.0) để ghi công đúng trước khi bán.
 2. Trả lời 3 câu ở bản đánh giá ngày 12/11 (`Docs/DANH-GIA-SKILL-VA-CANH-TRANH-2026-11-12.md`):
    - (a) ĐÃ CHỐT 13/11 07:56: bản sau dồn sức cho vật lý (P0).

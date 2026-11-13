@@ -3,13 +3,13 @@ import base64,hashlib,json,wave,io
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 items=json.loads((root/'Tools/AudioSources/manifest.json').read_text())
-assert len(items)==28   # 0.41: 7 originals + 21 slices the owner approved by ear (2nd pass 13/11)
+assert len(items)==7   # 0.41: owner kept the 0.17 set (13/11 08:22); own recordings later
 for item in items:
  data=base64.b64decode((root/'Tools/AudioSources'/(item['asset']+'.wav.b64')).read_text())
  assert hashlib.sha256(data).hexdigest()==item['sha256']
  target=root/'BankLab/Assets.xcassets'/(item['asset']+'.dataset')/'audio.wav'
  assert target.read_bytes()==data
- assert item['license'] in ('CC0-1.0','CC-BY-3.0','CC-BY-4.0','OWNER-CONFIRMED-FREE') and item['source'].startswith('https://freesound.org/')
+ assert item['license'] in ('CC0-1.0','CC-BY-3.0','CC-BY-4.0') and item['source'].startswith('https://freesound.org/')
  with wave.open(io.BytesIO(data)) as f:
   assert f.getnchannels()==1 and f.getsampwidth()==2 and f.getframerate()==44100
   assert f.getnframes()==item['frames'] and f.getnframes()>4000

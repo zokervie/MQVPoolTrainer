@@ -16,13 +16,10 @@ Nhánh: `cho/native-0.40c` → build `ci/native-0.41`. Toàn bộ mục dưới 
 | 7 | Đầu tẩy Break/Jump | Break: trắng sữa trong. Jump: đen bóng. Đầu cứng, bo phẳng hơn, không còn màu xanh lơ | Chọn từng gậy, zoom vào đầu tẩy |
 | 8 | Xem lại | Bắt đầu 1 s trước khi chạm bi, kết thúc 1 s sau khi bi dừng. Thêm 5 góc: Action bám bi cái, Action bám bi mục tiêu, Đón bi ở lỗ, Cẩu quay quanh bàn, **Action Mix** (tự cắt cảnh theo va chạm và cú vào lỗ). Góc chọn được nhớ lại | Xem lại → nút góc máy → thử từng góc |
 | 9 | Không gian | Dựng lại CLB mặc định: thảm hoa văn, ốp gỗ óc chó cao ngang hông với nẹp đồng, tường vải, tranh sơ đồ bida có đèn rọi, giá cơ 8 cây, bàn tính điểm hạt, quầy bar có kệ sáng, ghế quầy, 2 bàn bên có đèn riêng, đèn âm trần, sương xa. Các vật trang trí được gộp thành một khối nên không nặng thêm | Tuỳ chỉnh → Hình ảnh → Không gian → Club, quay camera nhìn quanh |
-| 10 | Gói âm thanh | Cắt tại điểm va chạm, phân loại tự động theo tần số và độ vang (xem dưới). Có nút A/B "Bộ âm thanh" trong Tuỳ chỉnh → Máy·Âm thanh | Nghe A/B: bộ mới và bộ cũ |
+| 10 | Gói âm thanh | Giữ bộ 0.17 theo ý anh; khung 3 mức lực + tiếng phá sẵn sàng cho tiếng anh tự thu | Không cần thử |
 
-## Gói âm thanh (mục 10) — 21 mẫu theo lượt nghe duyệt thứ 2 của anh (07:56)
-- Cơ 7 (3 mức lực) · bi chạm bi 5 (3 mức) · băng 1 · rơi lỗ 4 (2 mức) · phá 4.
-- Nguồn: dhoy42 (CC0), rzSHI (CC BY 4.0), reg7783 (CC0), cameronmusic (CC BY 3.0); elsje, Coral_Island_Studios, 607424, 655629 do anh xác nhận chia sẻ miễn phí — cần dòng giấy phép chính xác trước khi bán.
-- Ghi công trong app: Hướng dẫn → phần Âm thanh. A/B: Tuỳ chỉnh → Máy·Âm thanh → "Bộ âm thanh".
-- Băng chỉ còn 1 mẫu: nghe nếu bị lặp, em cần anh thu thêm tiếng băng (kịch bản 03 trong `HUONG-DAN-THU-AM.md`).
+## Gói âm thanh (mục 10)
+Anh chốt 13/11 08:22: tạm giữ bộ 0.17, bản sau dùng tiếng anh tự thu (`HUONG-DAN-THU-AM.md`). Khung chọn bộ âm thanh theo mức lực đã có sẵn trong code, chỉ cần thêm file.
 
 ## Giả định cần anh duyệt
 - Luật vắng mặt: anh đã chốt 30 s/lượt, 1 phút 30 s thua (13/11 07:21).
