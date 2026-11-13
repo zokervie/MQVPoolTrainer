@@ -372,7 +372,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     for kind in 0...3 {self.poolAudio.play(kind:kind,impact:1.2,pan:0)}
                     // Máy CI có thể không có thiết bị âm thanh; khi engine chạy được thì cả 4 loại tiếng phải được phát.
                     if self.poolAudio.isRunning {precondition(self.poolAudio.scheduled==4,"All four impact kinds must be scheduled")}
-                    precondition(self.poolAudio.sampleCount==25,"All 25 real audio assets must load (0.41: 7 + 18 approved from the owner's pack, Tools/AudioSources/manifest.json)")
+                    precondition(self.poolAudio.sampleCount==28,"All 28 real audio assets must load (0.41: 7 + 21 approved from the owner's pack, Tools/AudioSources/manifest.json)")
                     self.recordG1QA("audio",["engineRunning":self.poolAudio.isRunning,"scheduled":self.poolAudio.scheduled,"recordedSamples":self.poolAudio.sampleCount])
                 }
             }
@@ -2136,7 +2136,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
     }
     func help(){
-        let message="Giữ B: khóa hướng. Ngón khác kéo lùi rồi đẩy tới: tốc độ vuốt quyết định lực. Buông B để hủy. C: bật/tắt toàn bộ trợ giúp. Ngang: ngắm, dọc: nâng mắt, hai ngón: quan sát. Bi đang chạy: kéo hoặc dùng hai ngón để quan sát, chụm để zoom; camera giữ góc đang chọn. Góc điện ảnh chỉ có khi xem lại. Chạm + Bi thêm từng bi, giữ để xếp ngẫu nhiên.\n\nÂm thanh thu thật: bsumusictech, Za-Games, mccarthy@bedmas.com, AmberdeMeillon (CC0). ‘Pool Ball in pocket.wav’ — jtroan, CC BY 3.0, freesound.org/people/jtroan/sounds/241373/ ; creativecommons.org/licenses/by/3.0/ . Đã cắt, đổi mono/PCM, chỉnh gain và fade. Bản dùng từ HQ MP3 preview. Bộ 0.41: dhoy42 (CC0) freesound.org/people/dhoy42/sounds/114308/ ; reg7783 (CC0) freesound.org/people/reg7783/sounds/204187/ ; ‘pool break.wav’ — cameronmusic, CC BY 3.0, freesound.org/people/cameronmusic/sounds/138405/ ."
+        let message="Giữ B: khóa hướng. Ngón khác kéo lùi rồi đẩy tới: tốc độ vuốt quyết định lực. Buông B để hủy. C: bật/tắt toàn bộ trợ giúp. Ngang: ngắm, dọc: nâng mắt, hai ngón: quan sát. Bi đang chạy: kéo hoặc dùng hai ngón để quan sát, chụm để zoom; camera giữ góc đang chọn. Góc điện ảnh chỉ có khi xem lại. Chạm + Bi thêm từng bi, giữ để xếp ngẫu nhiên.\n\nÂm thanh thu thật: bsumusictech, Za-Games, mccarthy@bedmas.com, AmberdeMeillon (CC0). ‘Pool Ball in pocket.wav’ — jtroan, CC BY 3.0, freesound.org/people/jtroan/sounds/241373/ ; creativecommons.org/licenses/by/3.0/ . Đã cắt, đổi mono/PCM, chỉnh gain và fade. Bản dùng từ HQ MP3 preview. Bộ 0.41: dhoy42 (CC0) freesound.org/people/dhoy42/sounds/114308/ ; reg7783 (CC0) freesound.org/people/reg7783/sounds/204187/ ; ‘pool break.wav’ — cameronmusic, CC BY 3.0, freesound.org/people/cameronmusic/sounds/138405/ ; ‘about_billiard_ball.wav’ — rzSHI, CC BY 4.0, freesound.org/s/268767/ ; creativecommons.org/licenses/by/4.0/ ; elsje (655755), Coral_Island_Studios (432592), freesound 607424, 655629 — chủ dự án xác nhận chia sẻ miễn phí. Đã cắt, đổi mono, chỉnh gain và fade."
         let alert=UIAlertController(title:"Điều khiển 0.18 & ghi công",message:message,preferredStyle:.alert)
         alert.addAction(UIAlertAction(title:"Xong",style:.cancel));present(alert,animated:true)
     }
