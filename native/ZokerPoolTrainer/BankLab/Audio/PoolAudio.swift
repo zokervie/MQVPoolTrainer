@@ -56,6 +56,11 @@ final class PoolAudio {
     private var canPlay = true
     private var interrupted = false
     private var restartPending = false
+    /// 0.42b: a full stop/start only after the app really left (background or interruption). Doing it on every
+    /// didBecomeActive (launch, Control Centre, alerts) raced the engine's own configuration-change restart and
+    /// froze the main thread on CI (UI tests: "main thread busy 30 s").
+    private var needsReset = false
+    private var quietUntil = DispatchTime(uptimeNanoseconds: 0)
     private var observers: [NSObjectProtocol] = []
     private let requestedBufferDuration = 256.0 / 48_000.0
 
@@ -109,6 +114,7 @@ final class PoolAudio {
             let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             if raw == AVAudioSession.InterruptionType.began.rawValue {
                 audio.interrupted = true
+                audio.needsReset = true
                 audio.suspend()
             } else if raw == AVAudioSession.InterruptionType.ended.rawValue {
                 audio.interrupted = false
@@ -122,10 +128,12 @@ final class PoolAudio {
         }
         observe(.AVAudioEngineConfigurationChange) { audio, note in
             guard let source = note.object as? AVAudioEngine, source === audio.engine else { return }
+            guard DispatchTime.now() >= audio.quietUntil else { return }   // echo of our own hard restart
             audio.restartSoon()
         }
         observe(UIApplication.didEnterBackgroundNotification) { audio, _ in
             audio.canPlay = false
+            audio.needsReset = true
             audio.suspend()
         }
         observe(UIApplication.didBecomeActiveNotification) { audio, _ in
@@ -135,7 +143,7 @@ final class PoolAudio {
             // to the foreground is therefore a full, clean restart: clear the stale flag, stop, re-activate, start.
             audio.canPlay = true
             audio.interrupted = false
-            audio.hardRestart()
+            if audio.needsReset || !audio.engine.isRunning { audio.needsReset = false; audio.hardRestart() } else { audio.start() }
         }
         observe(UIApplication.willEnterForegroundNotification) { audio, _ in
             audio.canPlay = true
@@ -294,6 +302,7 @@ final class PoolAudio {
     }
     /// Stop the engine outright (not pause) and start again with the session re-activated.
     private func hardRestart() {
+        quietUntil = .now() + 1.0
         suspend()
         engine.stop()
         engineStarted = false
