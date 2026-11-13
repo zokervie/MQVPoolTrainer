@@ -26,15 +26,15 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
    - (a) ĐÃ CHỐT 13/11 07:56: bản sau dồn sức cho vật lý (P0).
    - (b) ĐÃ CHỐT: anh mở Apple Developer khi về nhà → sau đó làm P1 TestFlight.
    - (c) Skill `zoker-pool-dev`: đã lưu.
-3. Quay 5 cú 240 fps ở CLB để hiệu chỉnh hệ số vật lý.
+3. Quay video 240 fps ở CLB theo `Docs/KE-HOACH-VAT-LY-0.42.md` §3 (5 loại cú A–E, khoảng 45 phút, cần chân máy có tay ngang cao 1,5 m).
 4. Âm thanh: tuỳ chọn tự thu ở bàn thật theo `Docs/HUONG-DAN-THU-AM.md` (thiếu nhất: tiếng băng, tiếng lăn).
-5. Bật Game Center; gộp PR #4.
+5. Game Center: làm cùng TestFlight sau khi anh có tài khoản Developer. PR #4 đã đóng (0.41 chứa toàn bộ); gộp 0.41 vào `feature/zoker-native` khi anh xác nhận trên máy.
 6. Khi về gần máy Mac có Xcode: chuyển phần code sang Claude Code chạy trên Mac (biên dịch và chạy Simulator tại chỗ, không chờ CI 50 phút).
 
 ## 4. Việc kế tiếp — theo thứ tự, yêu cầu mới nhất của anh luôn đứng đầu
 1. Theo dõi CI `ci/native-0.41`: đỏ vì lỗi biên dịch Swift thì sửa và đẩy lại cùng nhánh; xanh thì gửi anh IPA.
 2. **0.42 = VẬT LÝ** (anh chốt 13/11). Thứ tự:
-   - P0: hiệu chỉnh vật lý theo video, có test so 20 cú mẫu.
+   - P0: hiệu chỉnh vật lý theo video (`Docs/KE-HOACH-VAT-LY-0.42.md`). Làm ngay, không cần chờ video: test khớp hệ số trên dữ liệu tổng hợp + công cụ dò bi.
    - P1: lên TestFlight.
    - P2: Z-Assess (đánh giá trình độ), lộ trình tự sinh, "Vì sao trượt", báo cáo tuần.
    - Sau đó: Bàn nhà tôi, Cú quyết định, intro, logo, hệ thiết kế giao diện, âm thanh giao diện tự tạo.
