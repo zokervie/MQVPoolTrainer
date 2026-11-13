@@ -7,7 +7,7 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 |---|---|---|
 | 0.40b | `ci/native-0.40b` @ 1626168 | CI 132 xanh (PASSED_SIMULATOR_UNSIGNED). IPA: artifact `zoker-ipa-candidate-132`. Anh đã nghiệm thu 12/11 23:36 |
 | 0.41 (gồm 0.40c) | `cho/native-0.40c` → build `ci/native-0.41` | Anh dặn gộp 0.40c + 10 mục ngày 13/11 vào MỘT lần build. CI 136 @452f1fe: 6/7 cổng PASS, chỉ test UI xem lại hỏng do test cũ chờ đồng hồ âm (xem lại giờ chỉ 1 s). IPA `zoker-ipa-candidate-136` đã gửi anh thử. Test đã sửa ở 0a41f44, đi cùng lần build sau. Cách thử: `Docs/NGHIEM-THU-0.41.md` + `Docs/CHO-0.40c-NGHIEM-THU-12-11.md` |
-| 0.42 | `cho/native-0.40c` → build `ci/native-0.42` | Nghiệm thu 0.41 của anh (12 mục + 5 lỗi chen) + vật lý + AI. Cách thử: `Docs/NGHIEM-THU-0.42.md` |
+| 0.42 | `cho/native-0.40c` → build `ci/native-0.42` | Nghiệm thu 0.41 của anh (12 mục + 5 lỗi chen) + vật lý + AI. **CI 140 xanh (04fc26e, 14/11)**, IPA `zoker-ipa-candidate-140` (run 43478261561). Đã gửi anh — chưa xác minh trên thiết bị. Cách thử: `Docs/NGHIEM-THU-0.42.md` |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
 Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
