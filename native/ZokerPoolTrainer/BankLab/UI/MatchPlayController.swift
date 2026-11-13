@@ -1525,8 +1525,8 @@ extension TrainingController {
 // MARK: - 0.41 Cơ của đối thủ hiện trên màn hình · luật vắng mặt khi chơi mạng
 extension TrainingController {
     /// A player away (screen off, other app, lost link) gets a foul after this long on their own turn, and loses the
-    /// match after this long away in total. ASSUMED values (owner to tune): 45 s ≈ shot clock + extension.
-    static let awayTurnSeconds = 45.0, awayForfeitSeconds = 180.0
+    /// match after this long away in total. Values set by the owner 13/11/2026.
+    static let awayTurnSeconds = 30.0, awayForfeitSeconds = 90.0   // owner 13/11 07:21: 30 s per turn, 1 min 30 s away = match lost
 
     /// Local shooter → the other screen: angle, tip point, lift, pull and cue, ~15 Hz while aiming.
     func matchPublishAim() {
@@ -1592,7 +1592,7 @@ extension TrainingController {
             let me = session.localPlayer
             matchPlay.matchWinner = me; matchPlay.forfeitWinner = me
             updateMatchState(); updateScoreboard()
-            notifyStatus("\(matchPlay.names[me]) thắng · đối thủ rời trận quá \(Int(Self.awayForfeitSeconds / 60)) phút")
+            notifyStatus("\(matchPlay.names[me]) thắng · đối thủ rời trận quá \(Int(Self.awayForfeitSeconds)) giây")
             if session.role == .host { publishMatchSnapshot(force: true) }
             syncMatchControls(); updateControls()
             return
