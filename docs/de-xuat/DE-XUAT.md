@@ -68,3 +68,18 @@ Tình hình: CI `ci/native-0.40` xanh (11/11, đấu với máy 6 cấp + Oppone
 Còn chờ anh: quay 5 cú 240 fps ở CLB · thu âm theo kịch bản 15 phút.
 
 → Anh duyệt cả 3 ngày 12/11/2026, kèm tối ưu giao diện · âm thanh · logo · intro. Danh sách việc: `docs/de-xuat/NHIEM-VU-0.41.md`.
+
+### Đề xuất ngày 13/11/2026
+Tình hình: nhánh `ci/native-0.41` — CI 133 đỏ (đầu dò âm thanh chỉ thấy 7 mẫu), CI 134 (đầu dò đếm 27 mẫu) đang chạy lúc viết. 0.40c ở nhánh chờ, chưa build. Chủ đề tìm hiểu: các app bida mới ra năm 2026 trên App Store — "Bricole" (luyện 3 băng, 8 hệ thống ngắm có tên, 64 bài, sao đồng/bạc/vàng, câu đố mỗi ngày có "đóng băng chuỗi", có tiếng Việt — ra 02/07/2026) ([Bricole – App Store](https://apps.apple.com/app/id6782375615), [mwm.ai](https://mwm.ai/apps/bricole/6782375615)) và "CueMetrics" (sổ luyện tập, đo tốc độ phá bằng micro điện thoại, AI coach) ([CueMetrics – App Store](https://apps.apple.com/pl/app/cuemetrics/id6761289108), [mwm.ai](https://mwm.ai/apps/cuemetrics/6761289108)). Lưu ý: đã có đối thủ 3 băng nói tiếng Việt → gói Carom của mình cần ra sớm hơn hoặc khác biệt bằng vật lý thật.
+
+1. 🟡 **"Học hệ thống ngắm" — bài theo hệ thống có tên, chấm sao đồng/bạc/vàng**
+   - Vì sao: người chơi phong trào học bằng "hệ thống" (độ dày ½–¼–¾, bi ma, hệ kim cương cho kick 1–2 băng, hệ 3 băng cho carom) chứ không học bằng góc độ. Bricole chứng minh mô hình này bán được. Mình hơn họ ở chỗ có lõi vật lý thật: bước 1 xem hệ thống trên chế độ phân tích (có đường), bước 2 đánh không đường, app chấm sai số so với hệ thống và cho biết khi nào hệ thống "nói dối" (do throw/xoáy/tốc độ — nối với "Vì sao trượt"). Sao đồng/bạc/vàng theo tỉ lệ vào trong 10 cú.
+   - Công sức: vừa (dữ liệu bài + màn chấm sao; test C++ kiểm tra công thức kim cương khớp lõi vật lý trong sai số cho phép). Bản: sau 0.41 (0.42). Gói: Z-Drill "Hệ thống" (pool) + "Hệ 3 băng" (carom), 1 hệ miễn phí.
+2. 🟡 **"Đo cú phá bằng micro" trên bàn thật → nối vào thang lực trong app**
+   - Vì sao: CueMetrics đã có (Break Dojo). Vật lý đơn giản: micro bắt 2 tiếng va (đầu cơ chạm bi chủ, bi chủ chạm bi đầu dàn), khoảng cách đã biết (vạch phá → điểm đặt bi) ÷ thời gian = tốc độ km/h (chỉnh hãm lăn trên nỉ). Người chơi thấy "phá thật 28 km/h = mức lực 6/7 trong app", giúp thang lực 7 màu có nghĩa thực tế, và dữ liệu đưa vào bảng tiến bộ. Chạy trên máy, không máy chủ, không ghi âm lưu lại (chỉ phân tích, nói rõ quyền micro).
+   - Công sức: vừa (AVAudioEngine bắt đỉnh âm + lọc ồn CLB; test C++ hàm thời gian → tốc độ với tín hiệu giả). Bản: sau (0.42), trước "Apple Watch đo nhịp ra cơ" vì không cần thêm thiết bị. Gói: Z-Lab Phân tích (bản thử 3 lần đo miễn phí).
+3. 🟡 **"Đóng băng chuỗi" — giữ chuỗi ngày mà không ép tiền**
+   - Vì sao: chuỗi ngày (đã duyệt) dễ làm người chơi bỏ app khi mất chuỗi dài vì một ngày bận; "đóng băng chuỗi" (Bricole, Duolingo dùng) giảm tỉ lệ bỏ. Cách làm lành mạnh: kiếm được 1 thẻ đóng băng mỗi 7 ngày liên tục (tối đa giữ 2), Z-Pro có thêm 2 thẻ/tháng; không bán lẻ thẻ (tránh cảm giác "trả tiền để khỏi mất") — phù hợp định hướng không quảng cáo ép.
+   - Công sức: nhỏ (đếm ngày theo lịch máy + múi giờ, hiển thị trên widget chuỗi ngày đã duyệt). Bản: 0.41 (đi cùng widget chuỗi ngày). Gói: miễn phí; thêm thẻ trong Z-Pro.
+
+Còn chờ anh: quay 5 cú 240 fps ở CLB · thu âm theo kịch bản 15 phút.
