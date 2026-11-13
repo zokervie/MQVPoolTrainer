@@ -94,9 +94,12 @@ struct Config {
     ///    cue ball's side spin gears into the object ball (owner 04/11/2026: reverse english makes the object ball
     ///    spin the other way and jerk back off the rail). With the literature floor the object ball got
     ///    R*w/v ~ 0.03 and the clip's -30 rad/s (R*w/v ~ 0.13) was unreachable from a real collision.
-    ///  - spinDecay 15: top of the published 5-15 rad/s^2 range [PP] (owner wanted side spin to die faster; 0.30 had 18).
+    ///  - spinDecay 11 (0.42 standardisation): 5 mu_sp g/(2R) with pooltool mu_sp R = (4/9)R -> 10.9 rad/s^2, = the
+    ///    ~11 of the Colorado State page; published range 5-15 [PP]. Was 15 (owner taste), now the cited value.
+    ///    ballFrictionMin stays .05: FITTED to a real clip, which outranks the Marlow fit (literature throw at 3 m/s is
+    ///    1.7 deg; ours 3.6 deg). Tests/Standard042Tests.cpp prints both.
     ///  - squirt only with a raised cue, break-cue gain 1.4, massé gain 1.2 [owner decisions], settle spin-in-place [0.29].
-    static Config app(){Config c;c.coupledCushions=true;c.railTangentialRestitution=.30;c.railFriction=.20;c.railGrip={{.20,.20,.20,.20}};c.spinDecay=15;c.ballFrictionMin=.05;
+    static Config app(){Config c;c.coupledCushions=true;c.railTangentialRestitution=.30;c.railFriction=.20;c.railGrip={{.20,.20,.20,.20}};c.spinDecay=11;c.ballFrictionMin=.05;
         c.squirtRampDegrees=15;c.breakSpeedGain=1.4;c.masseSpeedGain=1.2;c.settleSpinInPlace=true;return c;}
 };
 struct Rotation {double x=0,y=0,z=0,w=1;};

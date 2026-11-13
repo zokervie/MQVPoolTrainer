@@ -72,7 +72,7 @@ launch_camera(){
   xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --visual-qa "--camera-$camera"
  fi
 }
-for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation space-0 space-2 space-3 space-5 table-zmax; do
+for camera in premium-aim premium-top premium-overview premium-high-aim premium-high-top premium-high-overview g1-default g1-hud g1-hud-expanded g1-return g1-spectator g1-audio overview top aim spin jump table-arc table-classic library cue-library calibration retry orbit-zoom drill-list drill-detail cue-contact observation space-0 space-1 space-2 space-3 space-4 space-5 space-6 space-7 space-8 space-9 table-zmax; do
  launch_camera "$camera"
  # Cold-start shader compilation can outlast the first eight seconds.
  # Retry only first-scene readiness; retain the same final visibility gate.

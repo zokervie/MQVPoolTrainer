@@ -17,7 +17,7 @@ final class TableScene {
     }
     private struct KitSights:Decodable {struct Site:Decodable{let x_mm:Float,z_mm:Float};let sites:[Site]}
     private var premiumCueCache:[String:SCNGeometry]=[:]
-    private func premiumMaterial(_ name:String)->SCNMaterial {
+    func premiumMaterial(_ name:String)->SCNMaterial {
         let m=mat(.white)
         m.diffuse.contents=materialMap("PC_"+name+"_albedo",fallback:clothTexture)
         m.normal.contents=materialMap("PC_"+name+"_normal",fallback:clothNormal)
@@ -129,7 +129,7 @@ final class TableScene {
     private let radius:CGFloat=0.028575
     private lazy var shadowTexture=contactShadowTexture()
     private lazy var clothImage=materialMap("PC_FeltEmerald_albedo",fallback:clothTexture)
-    private lazy var normalImage=materialMap("PC_FeltEmerald_normal",fallback:clothNormal)
+    lazy var normalImage=materialMap("PC_FeltEmerald_normal",fallback:clothNormal)
     private lazy var environment=studioEnvironment()
     /// 0.21: cloth / ball wear (Thư viện). Old cloth adds ball tracks, spot burns and chalk; old balls lose gloss.
     private(set) var oldCloth=UserDefaults.standard.bool(forKey:"clothWear021")
@@ -424,13 +424,13 @@ final class TableScene {
         let n=SCNNode(geometry:g);n.name="shadow-occluder";n.position=SCNVector3(0,-0.035,0);return n
     }()
     static var realShadows:Bool{UserDefaults.standard.object(forKey:"tuneRealShadow039") as? Bool ?? true}
-    private func mat(_ color:UIColor,roughness:CGFloat=0.6,metal:CGFloat=0)->SCNMaterial {
+    func mat(_ color:UIColor,roughness:CGFloat=0.6,metal:CGFloat=0)->SCNMaterial {
         let m=SCNMaterial();m.lightingModel = .physicallyBased;m.diffuse.contents=color
         m.roughness.contents=roughness;m.metalness.contents=metal
         m.shaderModifiers=[.fragment:Self.ditherModifier]   // 0.39: no 8-bit bands on any large flat surface (floors, runner, walls)
         return m
     }
-    private func box(_ w:CGFloat,_ h:CGFloat,_ l:CGFloat,_ p:SCNVector3,_ material:SCNMaterial,chamfer:CGFloat=0.004,parent:SCNNode?=nil)->SCNNode {
+    func box(_ w:CGFloat,_ h:CGFloat,_ l:CGFloat,_ p:SCNVector3,_ material:SCNMaterial,chamfer:CGFloat=0.004,parent:SCNNode?=nil)->SCNNode {
         let g=SCNBox(width:w,height:h,length:l,chamferRadius:chamfer)
         g.chamferSegmentCount=3;g.materials=[material]
         let n=SCNNode(geometry:g);n.position=p;(parent ?? scene.rootNode).addChildNode(n);return n
@@ -855,7 +855,7 @@ final class TableScene {
         scene.rootNode.addChildNode(node)
     }
     // ---- 0.34 không gian bàn ----------------------------------------------------------------------------------------
-    static let spaces=["Club (mặc định)","Trong nhà","Ngoài trời","Cung điện","Hoàng gia","Thi đấu quốc tế","Club cổ điển"]
+    static var spaces:[String]{spaces042}   // 0.42: ten rooms (Rooms042.swift)
     /// Rebuilds the surroundings only (table, balls and table lights stay). Every room node lives under roomRoot.
     func selectSpace(_ k:Int){
         space=max(0,min(Self.spaces.count-1,k));UserDefaults.standard.set(space,forKey:"tableSpace034")
@@ -863,12 +863,15 @@ final class TableScene {
         scene.fogColor=UIColor(red:0.025,green:0.032,blue:0.042,alpha:1);scene.fogStartDistance=9;scene.fogEndDistance=19   // per-space override below
         let before=Set(scene.rootNode.childNodes.map{ObjectIdentifier($0)})
         switch space {
-        case 1: buildHome()
-        case 2: buildOutdoor()
-        case 3: buildPalace()
-        case 4: buildRoyal()
-        case 5: buildArena()
-        case 6: buildRoom()
+        case 1: buildHome042()
+        case 2: buildGarden042()
+        case 3: buildPalace042()
+        case 4: buildRoyal042()
+        case 5: buildArena042()
+        case 6: buildClassic042()
+        case 7: buildVIP042()
+        case 8: buildRooftop042()
+        case 9: buildCellar042()
         default: buildClub()
         }
         // 0.41: static decor is merged into ONE node (one draw-call batch per material) — the richer rooms cost no
@@ -880,18 +883,18 @@ final class TableScene {
         let merged=decor.flattenedClone();merged.name="room-decor";merged.castsShadow=false;roomRoot.addChildNode(merged)
     }
     /// Rectangular lamp over the table (visual; the table light itself is in buildLights).
-    private func tableFixture(){
+    func tableFixture(){
         let frame=mat(UIColor(white:0.09,alpha:1),roughness:0.3,metal:0.7)
         for x:Float in [-0.47,0.47]{_ = box(0.045,0.035,2.10,SCNVector3(x,2.45,0),frame)}
         for z:Float in [-1.03,1.03]{_ = box(0.98,0.035,0.045,SCNVector3(0,2.45,z),frame)}
         let diffuser=mat(UIColor(white:0.9,alpha:1));diffuser.emission.contents=UIColor(white:0.85,alpha:1)
         for x:Float in [-0.25,0.25]{_ = box(0.13,0.015,1.88,SCNVector3(x,2.43,0),diffuser)}
     }
-    private func roomLamp(_ p:SCNVector3,_ intensity:CGFloat,_ kelvin:CGFloat,end:CGFloat=5){
+    func roomLamp(_ p:SCNVector3,_ intensity:CGFloat,_ kelvin:CGFloat,end:CGFloat=5){
         let lamp=SCNNode();lamp.light=SCNLight();lamp.light?.type = .omni;lamp.light?.intensity=intensity;lamp.light?.temperature=kelvin
         lamp.light?.castsShadow=false;lamp.light?.attenuationStartDistance=0.3;lamp.light?.attenuationEndDistance=end;lamp.position=p;scene.rootNode.addChildNode(lamp)
     }
-    private func emissive(_ c:UIColor,_ glow:UIColor)->SCNMaterial{let m=mat(c,roughness:0.6);m.emission.contents=glow;return m}
+    func emissive(_ c:UIColor,_ glow:UIColor)->SCNMaterial{let m=mat(c,roughness:0.6);m.emission.contents=glow;return m}
     /// 0.39 (owner: the floor shows flickering stripes like the cloth did). Two causes, both fixed: the floor/walls cast
     /// and received the key-light shadow map (acne; shadow map now off and non-ball nodes never cast), and big smooth
     /// dark gradients band in 8-bit — same sub-level dithering as the cloth.
@@ -901,7 +904,7 @@ final class TableScene {
     float n2 = fract(sin(dot(dp, float3(39.346, 11.135, 83.155))) * 24634.6345);
     _output.color.rgb *= 1.0 + (n1 + n2 - 1.0) * 0.018;
     """
-    private func shell(floor:SCNMaterial,wall:SCNMaterial,height:Float=3.5){
+    func shell(floor:SCNMaterial,wall:SCNMaterial,height:Float=3.5){
         for m in [floor,wall] where m.shaderModifiers?[.fragment]==nil {m.shaderModifiers=[.fragment:Self.ditherModifier]}
         _=box(9,0.08,10,SCNVector3(0,-0.79,0),floor,chamfer:0)
         for side:Float in [-1,1]{
@@ -944,7 +947,10 @@ final class TableScene {
         }
         // framed pool diagrams (procedural art) along both long walls
         let art=mat(.white,roughness:0.6);art.diffuse.contents=diagramArt();art.emission.contents=diagramArt();art.emission.intensity=0.08
-        for side:Float in [-1,1]{for z:Float in [-2.6,0,2.6]{
+        sideGallery([1,10,7],side:-1,y:1.05,size:0.9,from:-2.6,to:2.6)   // 0.42: owner's photos on the left wall
+        brandWall(SCNVector3(1.2,1.65,-4.6),yaw:0,width:2.4)
+        hangPhoto(4,SCNVector3(3.25,0.8,-4.6),yaw:0,size:0.7);hangPhoto(13,SCNVector3(-3.1,0.8,-4.6),yaw:0,size:0.7)
+        for side:Float in [1]{for z:Float in [-2.6,0,2.6]{
             _=box(0.03,0.86,1.16,SCNVector3(side*3.935,1.05,z),walnut,chamfer:0.01)
             let canvas=box(0.012,0.74,1.04,SCNVector3(side*3.915,1.05,z),art,chamfer:0);canvas.eulerAngles.y = side>0 ? Float.pi:0
             let lampBar=box(0.06,0.025,0.5,SCNVector3(side*3.86,1.56,z),brass,chamfer:0.005);_=lampBar
@@ -1001,7 +1007,7 @@ final class TableScene {
         roomLamp(SCNVector3(-2.65,1.6,-1.6),16,4800,end:3.2);roomLamp(SCNVector3(2.65,1.6,1.6),16,4800,end:3.2);roomLamp(SCNVector3(0.6,1.3,4.0),12,2700,end:3)
     }
     /// Low-pile club carpet: deep teal-charcoal with a small diamond motif (no hard edges, mip-safe).
-    private func carpetTexture()->UIImage{
+    func carpetTexture()->UIImage{
         let format=UIGraphicsImageRendererFormat();format.scale=1
         return UIGraphicsImageRenderer(size:CGSize(width:128,height:128),format:format).image{ctx in
             UIColor(red:0.075,green:0.09,blue:0.10,alpha:1).setFill();ctx.fill(CGRect(x:0,y:0,width:128,height:128))
@@ -1028,8 +1034,8 @@ final class TableScene {
             text.draw(at:CGPoint(x:56,y:300),withAttributes:[.font:UIFont.systemFont(ofSize:22,weight:.semibold),.foregroundColor:cream])
         }
     }()
-    private func diagramArt()->UIImage{diagramImage}
-    private func neighbourTable(_ p:SCNVector3){
+    func diagramArt()->UIImage{diagramImage}
+    func neighbourTable(_ p:SCNVector3){
         let black=mat(UIColor(white:0.05,alpha:1),roughness:0.35),grey=mat(.rgb(0x6e767d),roughness:0.97),alu=mat(.rgb(0xc4c9cd),roughness:0.35,metal:0.8)
         _=box(1.55,0.18,2.85,SCNVector3(p.x,-0.10,p.z),black,chamfer:0.02)
         _=box(1.40,0.012,2.70,SCNVector3(p.x,0.0,p.z),grey,chamfer:0.004)
@@ -1110,7 +1116,7 @@ final class TableScene {
         let spot=SCNNode();spot.light=SCNLight();spot.light?.type = .spot;spot.light?.intensity=320;spot.light?.temperature=5000
         spot.light?.spotInnerAngle=30;spot.light?.spotOuterAngle=55;spot.position=SCNVector3(0,4.2,0);spot.eulerAngles.x = -.pi/2;scene.rootNode.addChildNode(spot)
     }
-    private func buildRoom(){
+    func buildRoomBase(){
         let charcoal=mat(UIColor(red:0.045,green:0.052,blue:0.064,alpha:1),roughness:0.9)
         let floor=mat(.white,roughness:0.65)
         floor.diffuse.contents=materialMap("PC_WalnutDark_albedo"){self.woodTexture(light:false)}
@@ -1249,7 +1255,7 @@ final class TableScene {
         leather.isDoubleSided=true;g.materials=[leather]
         let node=SCNNode(geometry:g);node.name="cue-tip";node.castsShadow=false;node.scale=SCNVector3(1,scale,1);return node
     }
-    private func materialMap(_ name:String,fallback:()->UIImage)->UIImage {
+    func materialMap(_ name:String,fallback:()->UIImage)->UIImage {
         if let cached=cachedMaterialMaps[name]{return cached}
         guard let asset=NSDataAsset(name:name),let image=UIImage(data:asset.data) else {
             assertionFailure("Missing material map: "+name)
@@ -1317,7 +1323,7 @@ final class TableScene {
             }}
         }
     }
-    private func clothNormal()->UIImage{
+    func clothNormal()->UIImage{
         texture(CGSize(width:128,height:128)){c in
             for y in 0..<128 {for x in 0..<128{
                 let phaseX:Double = Double(x)*Double.pi/2.0
@@ -1329,7 +1335,7 @@ final class TableScene {
             }}
         }
     }
-    private func woodTexture(light:Bool)->UIImage{
+    func woodTexture(light:Bool)->UIImage{
         if let cached=cachedWood[light]{return cached}
         let image=texture(CGSize(width:256,height:1024)){c in
             for y in stride(from:0,to:1024,by:2){for x in 0..<256{

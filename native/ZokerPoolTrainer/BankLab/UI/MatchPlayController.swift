@@ -484,6 +484,7 @@ extension TrainingController {
         }
         set(12, "R\(matchPlay.raceTo) · V\(matchPlay.rackNo)", rounded(10, .bold), style.centreText, plate: style.centre)
         view.bringSubviewToFront(board)
+        updateGroupStrips()
     }
     /// Display name for a plate: upper case; long names keep the given name whole and shorten the rest to initials
     /// ("Nguyễn Văn Anh" → "N.V. ANH"); the computer's level is abbreviated ("Máy · Quarter Pro" → "MÁY · QP").
@@ -894,11 +895,12 @@ extension TrainingController {
         if decided >= 0 {
             matchPlay.matchWinner = decided
             notifyStatus("\(matchPlay.names[decided]) thắng trận \(matchPlay.frames[decided])–\(matchPlay.frames[1 - decided])")
-            publishMatchSnapshot(force: true); return
+            publishMatchSnapshot(force: true); showRackBroadcast(winner: decided, final: true); return
         }
         notifyStatus("\(matchPlay.names[winner]) thắng ván \(matchPlay.rackNo) · \(matchPlay.frames[0])–\(matchPlay.frames[1])")
         publishMatchSnapshot(force: true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.startNextRack() }
+        showRackBroadcast(winner: winner, final: false)   // 0.42 item 3: TV score card, 3.5 s, then the next rack
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.8) { [weak self] in self?.startNextRack() }
     }
     func startNextRack() {
         guard matchPlay.active, matchPlay.matchWinner < 0, let rules = matchPlay.rules, !shotActive else { return }
@@ -1069,10 +1071,16 @@ extension TrainingController {
         matchPlay.safety = (state["safety"] as? NSNumber)?.boolValue ?? false
         matchPlay.pushOut = (state["pushOut"] as? NSNumber)?.boolValue ?? false
         if let race = (state["raceTo"] as? NSNumber)?.intValue { matchPlay.raceTo = Int(BLRaceClamp(Int32(race))) }
+        let framesBefore = matchPlay.frames, winnerBefore = matchPlay.matchWinner
         if let f = state["frames"] as? [NSNumber], f.count == 2 { matchPlay.frames = f.map { max(0, min(99, $0.intValue)) } }
         if let n = state["names"] as? [String], n.count == 2 { matchPlay.names = n.map { String($0.prefix(16)) } }
         matchPlay.rackNo = (state["rackNo"] as? NSNumber)?.intValue ?? matchPlay.rackNo
         matchPlay.matchWinner = (state["matchWinner"] as? NSNumber)?.intValue ?? -1
+        // 0.42 item 3: the guest shows the same broadcast card when the host counts a rack.
+        if !isFirst, matchPlay.frames != framesBefore, matchPlay.frames.reduce(0, +) > framesBefore.reduce(0, +) {
+            let won = matchPlay.frames[0] > framesBefore[0] ? 0 : 1
+            showRackBroadcast(winner: matchPlay.matchWinner >= 0 ? matchPlay.matchWinner : won, final: matchPlay.matchWinner >= 0 && winnerBefore < 0)
+        }
         if newShot {
             matchPlay.snapshots = []
             matchPlay.guestClock = max(0, snapshot.elapsed - matchPlay.playout.delay)

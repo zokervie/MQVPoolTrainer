@@ -128,7 +128,7 @@ int main() {
     }
     { // curve grows with elevation and follows the english side
         auto bend = [&](double el, double s) { Config c = app; c.cueElevationDegrees = el; c.experimental3D = true; c.masseCoupledContact = el >= 60;
-            const Track t = play(c, {mk(0, {0, -.8})}, 0, pi / 2, 2, s, -.2, el, 3); return deg(t.end.p - V2{0, -.8}) - 90; };
+            const Track t = play(c, {mk(0, {0, -.8})}, 0, pi / 2, 2, s, -.2, el, 3); double a = deg(t.end.p - V2{0, -.8}) - 90; while (a > 180) a -= 360; while (a <= -180) a += 360; return a; };   // 0.42: wrap (spin decay 11 lets the 75-deg massé hook past 180)
         const double l30 = bend(30, -.4), l75 = bend(75, -.4), r75 = bend(75, .4);
         bench("M-a", "massé: more elevation curves more (|75| - |30|, deg)", std::abs(l75) - std::abs(l30), 5, 120, "[TP massé]");
         bench("M-b", "massé: left and right english curve opposite ways", l75 * r75 < 0 ? 1 : 0, 1, 1, "[TP massé]"); }
