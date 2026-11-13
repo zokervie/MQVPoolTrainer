@@ -450,7 +450,10 @@ final class InteractionTests: XCTestCase {
         let button=quick(app,"QuickReplay")
         expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:button)
         waitForExpectations(timeout:15 * slow);button.tap()
-        wait(scene,timeout:5 * slow){self.field(scene,"replay")==1 && self.field(scene,"replayTime")<0}
+        // 0.41 (owner 13/11): replay starts exactly 1 s before cue contact (was the whole preparation). The
+        // negative clock lasts only 1 s, shorter than one XCUITest snapshot on CI, so assert the lead itself.
+        wait(scene,timeout:5 * slow){self.field(scene,"replay")==1}
+        XCTAssertEqual(field(scene,"replayLead"),1.0,accuracy:0.01)
         app.buttons["ReplayPause"].tap()
         app.buttons["ReplayDone"].tap()
         wait(scene,timeout:5 * slow){self.field(scene,"replay")==0}
