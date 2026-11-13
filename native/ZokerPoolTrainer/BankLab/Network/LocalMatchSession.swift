@@ -683,12 +683,6 @@ final class RelayLink: NSObject, URLSessionWebSocketDelegate {
         receiveNext()
     }
 
-    /// 0.42: music to the guest — nearby (same Wi-Fi) only; never over the internet relay or Game Center.
-    func sendMusic(_ data: Data) {
-        guard transport == .nearby, role == .host, let session = session, !session.connectedPeers.isEmpty,
-              data.count <= LANEnvelope.maximumBytes else { return }
-        try? session.send(data, toPeers: session.connectedPeers, with: .unreliable)
-    }
     func send(_ data: Data) {
         guard isOpen, let task = task else { return }
         task.send(.data(data)) { [weak self] error in
@@ -753,6 +747,15 @@ final class RelayLink: NSObject, URLSessionWebSocketDelegate {
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         finish((task as? URLSessionWebSocketTask)?.closeCode.rawValue ?? 1006)
+    }
+}
+
+extension LocalMatchSession {
+    /// 0.42: music to the guest — nearby (same Wi-Fi) only; never over the internet relay or Game Center.
+    func sendMusic(_ data: Data) {
+        guard transport == .nearby, role == .host, let session = session, !session.connectedPeers.isEmpty,
+              data.count <= LANEnvelope.maximumBytes else { return }
+        try? session.send(data, toPeers: session.connectedPeers, with: .unreliable)
     }
 }
 
