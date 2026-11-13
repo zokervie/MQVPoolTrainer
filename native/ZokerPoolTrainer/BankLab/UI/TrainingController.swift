@@ -372,7 +372,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     for kind in 0...3 {self.poolAudio.play(kind:kind,impact:1.2,pan:0)}
                     // Máy CI có thể không có thiết bị âm thanh; khi engine chạy được thì cả 4 loại tiếng phải được phát.
                     if self.poolAudio.isRunning {precondition(self.poolAudio.scheduled==4,"All four impact kinds must be scheduled")}
-                    precondition(self.poolAudio.sampleCount==7,"Seven real audio assets must load")
+                    precondition(self.poolAudio.sampleCount==27,"All 27 real audio assets must load (0.41: 7 + 20 from the owner's pack, Tools/AudioSources/manifest.json)")
                     self.recordG1QA("audio",["engineRunning":self.poolAudio.isRunning,"scheduled":self.poolAudio.scheduled,"recordedSamples":self.poolAudio.sampleCount])
                 }
             }
