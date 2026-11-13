@@ -21,14 +21,14 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
 - ✅ Ô màu nỉ, nỉ mới/cũ, 10 mẫu bảng điểm, đèn báo lượt: đạt. 0.40c chỉ chỉnh độ cân và kích thước sợi.
 
 ## 3. ĐANG CHỜ ANH — nhắc anh khi trả lời việc lớn
-1. Thử 0.41 trên máy: 4 mục của 0.40c + 10 mục ngày 13/11 (`Docs/NGHIEM-THU-0.41.md`). Âm thanh: giữ bộ 0.17 (anh chốt 13/11 08:22), bản sau dùng tiếng anh tự thu.
+1. Thử 0.42 trên máy khi có IPA (`Docs/NGHIEM-THU-0.42.md`). Âm thanh: dùng gói đang có, CHỈ đổi khi anh gửi gói mới — KHÔNG hỏi lại (anh chốt 13/11 23:56).
    - Gửi dòng giấy phép của 4 file 655755, 432592, 607424, 655629 (rzSHI đã có: CC BY 4.0) để ghi công đúng trước khi bán.
 2. Trả lời 3 câu ở bản đánh giá ngày 12/11 (`Docs/DANH-GIA-SKILL-VA-CANH-TRANH-2026-11-12.md`):
    - (a) ĐÃ CHỐT 13/11 07:56: bản sau dồn sức cho vật lý (P0).
-   - (b) ĐÃ CHỐT: anh mở Apple Developer khi về nhà → sau đó làm P1 TestFlight.
+   - (b) HOÃN (13/11 23:56): Apple Developer 99 USD/năm → chỉ mở khi bản chơi hoàn chỉnh; giờ ưu tiên sửa lỗi nhỏ. Không nhắc TestFlight/Game Center cho tới lúc đó.
    - (c) Skill `zoker-pool-dev`: đã lưu.
 3. Quay video 240 fps ở CLB theo `Docs/KE-HOACH-VAT-LY-0.42.md` §3 (5 loại cú A–E, khoảng 45 phút, cần chân máy có tay ngang cao 1,5 m).
-4. Âm thanh: tuỳ chọn tự thu ở bàn thật theo `Docs/HUONG-DAN-THU-AM.md` (thiếu nhất: tiếng băng, tiếng lăn).
+4. Âm thanh: anh tự gửi gói mới khi có (không nhắc).
 5. Game Center: làm cùng TestFlight sau khi anh có tài khoản Developer. PR #4 đã đóng (0.41 chứa toàn bộ); gộp 0.41 vào `feature/zoker-native` khi anh xác nhận trên máy.
 6. Khi về gần máy Mac có Xcode: chuyển phần code sang Claude Code chạy trên Mac (biên dịch và chạy Simulator tại chỗ, không chờ CI 50 phút).
 
