@@ -23,6 +23,8 @@ final class LocalMatchSession: NSObject {
     var onError: ((String) -> Void)?
     /// 0.41: the remote shooter's live cue pose (display only).
     var onAim: ((LANAim) -> Void)?
+    /// 0.42: shared music chunks (same Wi-Fi only, MusicPlayer042 format).
+    var onMusic: ((Data) -> Void)?
 
     private(set) var role: Role = .none
     private(set) var transport: Transport = .nearby
@@ -681,6 +683,12 @@ final class RelayLink: NSObject, URLSessionWebSocketDelegate {
         receiveNext()
     }
 
+    /// 0.42: music to the guest — nearby (same Wi-Fi) only; never over the internet relay or Game Center.
+    func sendMusic(_ data: Data) {
+        guard transport == .nearby, role == .host, let session = session, !session.connectedPeers.isEmpty,
+              data.count <= LANEnvelope.maximumBytes else { return }
+        try? session.send(data, toPeers: session.connectedPeers, with: .unreliable)
+    }
     func send(_ data: Data) {
         guard isOpen, let task = task else { return }
         task.send(.data(data)) { [weak self] error in
@@ -784,6 +792,7 @@ extension LocalMatchSession: MCSessionDelegate {
         guard data.count <= LANEnvelope.maximumBytes else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self = self, session === self.session else { return }
+            if data.prefix(4) == MusicPlayer042.magic { if self.role == .guest { self.onMusic?(data) }; return }
             self.receive(data, from: peerID)
         }
     }

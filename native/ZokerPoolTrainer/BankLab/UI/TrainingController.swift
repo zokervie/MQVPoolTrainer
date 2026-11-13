@@ -165,6 +165,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var frameLayoutAdopted=false
     var replayBarRight:[NSLayoutConstraint]=[],replayBarLeft:[NSLayoutConstraint]=[]
     var matchCallPicking=0,matchCallBall=0,matchCallPose:CameraPose?
+    var placementGrab=SIMD2<Double>(0,0),placementPose:CameraPose?   // 0.42 ball in hand
     // 0.25: practice history (step back / forward per shot or whole session) and session highlights.
     /// 0.30: each step keeps the layout AND the setup used for the shot taken from it (gậy, độ dốc, effect, hướng).
     struct ShotSetup{var angle:Double,side:Double,top:Double,kind:Int,elevation:Double}
@@ -444,7 +445,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         NotificationCenter.default.addObserver(self,selector:#selector(thermalChanged),name:ProcessInfo.thermalStateDidChangeNotification,object:nil);thermalChanged()
 
         stroke.sensitivity=UserDefaults.standard.double(forKey:"sensitivity");if stroke.sensitivity==0{stroke.sensitivity=1}
-        spin.changed={[weak self]x,y in self?.side=x;self?.top=y;self?.guideDirty=true;self?.wakeRendering()}
+        spin.changed={[weak self]x,y in self?.side=x;self?.top=y;self?.guideDirty=true;self?.wakeRendering();self?.updateSpinLoupe()}
         if ProcessInfo.processInfo.arguments.contains("--cue-contact-qa") {spin.select(side:-0.5,top:0.49)}
         if ProcessInfo.processInfo.arguments.contains("--spin-detail") {
             spinWidth.constant=190;spinHeight.constant=190;spin.alpha=0.97
@@ -670,6 +671,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             // 0.30b (owner): touching the effect ball (hold or tap) LATCHES the aim lock. Lifting the finger keeps it;
             // the next stroke on the empty table fires, then everything resets. A non-firing touch on the table unlocks.
             self.spinExpanded=expanded
+            self.updateSpinLoupe(expanded:expanded && !ProcessInfo.processInfo.arguments.contains("--spin-detail"))
             // 0.37 (owner): by default only B locks; the effect ball just chooses the tip contact. Old latch in Tuỳ chỉnh.
             if expanded{self.hideCoach();if !self.locked && Tuning.effectLock{self.setHold(!self.presentationBusy && self.localTurn && !self.isPlacingBalls)}}
             self.spin.alpha=expanded ? 0.97:0.60
@@ -947,7 +949,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             elevationPad.widthAnchor.constraint(equalToConstant:44),elevationPad.heightAnchor.constraint(equalToConstant:96),
             fineWheel.centerXAnchor.constraint(equalTo:spin.centerXAnchor),fineWheel.bottomAnchor.constraint(equalTo:spin.topAnchor,constant:-8),fineWheel.widthAnchor.constraint(equalToConstant:44),fineWheel.heightAnchor.constraint(equalToConstant:100),
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
-        elevationPad.changed={[weak self] value in self?.setElevation(value)}
+        elevationPad.changed={[weak self] value in self?.setElevation(value);self?.updateElevationLoupe()}
         buildCueIcons()
         for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Board","CoachCardToggle")] {
             var c=UIButton.Configuration.plain();c.title=title;c.background.backgroundColor=UIColor(white:0.03,alpha:0.42);c.background.cornerRadius=10
@@ -1676,7 +1678,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
-            table.showCue(displayCue,angle:sample.angle,visible:true,pull:sample.pull,side:sample.side,top:sample.top)
+            table.showCue(displayCue,angle:sample.angle,visible:true,pull:replayStrokePull(sample.pull,clock:replayClock),side:sample.side,top:sample.top)
+        }else if replayIndex != nil,replayClock>=0,replayClock<0.26,let last=lastPreparation.last,let origin=frames.first?.first(where:{$0.id==0}){
+            // 0.42: the tip meets the ball and follows through at the strike position while the ball leaves.
+            table.cueElevation=last.elevation
+            table.showCue(origin,angle:last.angle,visible:true,pull:-Self.followThrough(replayClock),side:last.side,top:last.top)
+        }else if let strike=cueStrikeAnimPose(){
+            table.selectCue(strike.anim.cueType);table.cueElevation=strike.anim.elevation
+            table.showCue(strike.anim.origin,angle:strike.anim.angle,visible:true,pull:strike.pull,side:strike.anim.side,top:strike.anim.top)
         }else if let remote=matchRemoteCue(dt){
             // 0.41 (owner: "đối thủ đang đánh không thấy hình cơ"): the other player's live cue, eased.
             table.showCue(displayCue,angle:remote.angle,visible:true,pull:remote.pull,side:remote.side,top:remote.top)
@@ -2011,9 +2020,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if isPlacingBalls {
             guard let p=tablePoint(g.location(in:scn)) else{return}
             if g.state == .began {
-                draggedBall=balls.filter{!$0.sunk}.min{hypot($0.x-p.x,$0.y-p.y)<hypot($1.x-p.x,$1.y-p.y)}.flatMap{hypot($0.x-p.x,$0.y-p.y)<0.12 ? $0.id:nil}
+                if matchPlay.placementDraft != nil, let c=balls.first(where:{$0.id==0}) {
+                    // 0.42 (owner: ball in hand is awkward): in a match only the cue ball moves, so a drag ANYWHERE
+                    // moves it, keeping the finger's offset — the finger never covers the ball and nothing jumps.
+                    draggedBall=0;placementGrab=SIMD2(c.x-p.x,c.y-p.y)
+                }else{
+                    placementGrab = .zero
+                    draggedBall=balls.filter{!$0.sunk}.min{hypot($0.x-p.x,$0.y-p.y)<hypot($1.x-p.x,$1.y-p.y)}.flatMap{hypot($0.x-p.x,$0.y-p.y)<0.12 ? $0.id:nil}
+                }
             }
-            if let id=draggedBall {moveBall(id,to:p)}
+            if let id=draggedBall {moveBall(id,to:p+placementGrab)}
             if g.state == .ended || g.state == .cancelled {draggedBall=nil}
         }else{
             guard g.numberOfTouches<=1 else{return}

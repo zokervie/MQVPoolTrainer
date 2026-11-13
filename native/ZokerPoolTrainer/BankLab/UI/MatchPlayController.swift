@@ -117,21 +117,26 @@ extension TrainingController {
         matchPlay.bannerConfigured = true
         let button = matchPlay.banner
         button.accessibilityIdentifier = "MatchStatus"
-        button.titleLabel?.numberOfLines = 2
-        button.titleLabel?.font = .systemFont(ofSize: 11, weight: .medium)
-        button.titleLabel?.textAlignment = .left
+        // 0.42 (owner screenshot 13/11 18:12: the status box covered the spin ball): a thin one-line strip at the very
+        // bottom centre, clear of the left (B / spin) and right (elevation / camera) clusters.
+        button.titleLabel?.numberOfLines = 1
+        button.titleLabel?.font = .systemFont(ofSize: 10.5, weight: .semibold)
+        button.titleLabel?.textAlignment = .center
         button.titleLabel?.lineBreakMode = .byTruncatingTail
-        button.contentHorizontalAlignment = .left
+        button.titleLabel?.adjustsFontSizeToFitWidth = true; button.titleLabel?.minimumScaleFactor = 0.8
+        button.contentHorizontalAlignment = .center
+        button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
         button.setTitleColor(.white, for: .normal)
-        button.backgroundColor = UIColor(white: 0.025, alpha: 0.7)
-        button.layer.cornerRadius = 8
+        button.backgroundColor = UIColor(white: 0.025, alpha: 0.62)
+        button.layer.cornerRadius = 10
         button.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(button)
+        let width = button.widthAnchor.constraint(equalTo: view.safeAreaLayoutGuide.widthAnchor, multiplier: 0.42); width.priority = .defaultHigh
         NSLayoutConstraint.activate([
-            button.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 84),
-            button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
-            button.widthAnchor.constraint(equalToConstant: 244),
-            button.heightAnchor.constraint(equalToConstant: 44)
+            button.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+            button.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -3),
+            width, button.widthAnchor.constraint(lessThanOrEqualToConstant: 460),
+            button.heightAnchor.constraint(equalToConstant: 20)
         ])
         button.addAction(UIAction { [weak self] _ in self?.openMatchActions() }, for: .touchUpInside)
         button.isHidden = true
@@ -161,6 +166,8 @@ extension TrainingController {
             self.syncMatchControls()
         }
         session.onSnapshot = { [weak self] snapshot in self?.receiveMatchSnapshot(snapshot) }
+        session.onMusic = { data in MusicPlayer042.shared.receiveShared(data) }
+        MusicPlayer042.shared.setSharing({ [weak session] data in session?.sendMusic(data) })
         session.onAim = { [weak self] aim in
             guard let self = self else { return }
             self.matchPlay.remoteAim = aim; self.matchPlay.remoteAimAt = ProcessInfo.processInfo.systemUptime
@@ -267,7 +274,7 @@ extension TrainingController {
             configureOnlineRelay { [weak self] in self?.startMatch(rule: rule, network: true, online: true) }
             return
         }
-        matchPlay.session.leave()
+        matchPlay.session.leave(); MusicPlayer042.shared.setSharing(nil)
         clearShot()
         matchPlay.active = true
         matchPlay.rules = BLMatch(rule: rule)
@@ -527,8 +534,21 @@ extension TrainingController {
         if localTurn && !wasLocal && !shotActive && replayIndex == nil && table.cameraMode != 2 {
             aimCameraYaw = 0; shotCameraAnchor = nil; selectCamera(2)
         }
+        // 0.42 item 6 (owner: watching the opponent's turn followed every aim twitch — dizzy). Tuỳ chỉnh → Camera lượt
+        // đối thủ: 0 broadcast (fixed high side view of the whole table, default), 1 top, 2 follow the opponent's cue.
+        if !localTurn && wasLocal && replayIndex == nil {
+            switch UserDefaults.standard.object(forKey: "spectatorCam042") as? Int ?? 0 {
+            case 1: beginCameraTransition(0.6); selectCamera(1)
+            case 2: break
+            default:
+                beginCameraTransition(0.6); selectCamera(0)
+                table.focusBounds = nil; table.orbitPitch = 0.62; table.zoom = 1.0
+                table.orbit = -0.20   // yaw 0 in placeCamera: from the long side, the whole table across a landscape screen
+            }
+        }
         matchPlay.banner.isHidden = locked || menuOpen
-        matchPlay.banner.setTitle(matchStatusText(), for: .normal)
+        matchPlay.banner.setTitle(matchStatusText().replacingOccurrences(of: "\n", with: "  ·  "), for: .normal)
+        presentPendingChoiceIfNeeded()
         coachButton.setTitle(matchPlay.showNumbers ? "123 ✓" : "123", for: .normal)
         coachButton.accessibilityLabel = "Bật tắt nút số băng · không có đường hướng dẫn"
         coachButton.accessibilityValue = matchPlay.showNumbers ? "Bật" : "Tắt"
@@ -628,9 +648,11 @@ extension TrainingController {
         guard matchAllowsInput, !shotActive, matchBool("requiresCall") else { return }
         if matchCallPicking != 0 { endMatchCallPick(); notifyStatus("Đã hủy gọi lỗ"); return }
         matchCallPose = captureCamera(); selectCamera(1); matchCallPicking = 1; matchCallBall = 0
-        notifyStatus("Call · chạm vào bi muốn gọi")
+        showCallPockets(1)
+        notifyStatus("Gọi lỗ · chạm vào bi muốn gọi, rồi chạm lỗ đang nhấp nháy")
     }
     func endMatchCallPick() {
+        if matchCallPicking != 0 && matchPlay.calledBall == 0 { showCallPockets(0) }
         matchCallPicking = 0; matchCallBall = 0
         if let pose = matchCallPose { applyCamera(pose) }; matchCallPose = nil; syncQuickRail()
     }
@@ -650,7 +672,8 @@ extension TrainingController {
         guard hypot(holes[pocket].0 - p.x, holes[pocket].1 - p.y) < 0.35 else { notifyStatus("Chạm gần một lỗ hơn"); return true }
         let ball = matchCallBall; endMatchCallPick()
         submitMatchAction(.callShot, call: LANCall(ball: ball, pocket: pocket))
-        notifyStatus("Đã gọi bi \(ball) · lỗ \(pocket + 1)")
+        showCallPockets(2, chosen: pocket)
+        notifyStatus("✓ Đã gọi bi \(ball) · lỗ \(pocket + 1)")
         return true
     }
     /// 0.28: ~3.4 s racking intro at the start of every rack; tap the table to skip. Input waits for it.
@@ -695,19 +718,8 @@ extension TrainingController {
         if matchPlay.session.isApplyingCommand || matchPlay.applyingOfflineCommand { return false }
         guard locked, speed.isFinite, speed > 0, speed <= 8,
               matchCanStroke, !presentationBusy else { return true }
-        if let warnings = matchPlay.state["twoFoulWarning"] as? [Bool] {
-            let player = matchInt("currentPlayer")
-            let warningID = "\(player)-\(matchInt("shotCount"))"
-            if warnings.indices.contains(player), warnings[player], matchPlay.warningAcknowledged != warningID {
-                setHold(false)
-                let alert = UIAlertController(title: "Cảnh báo hai lỗi liên tiếp", message: "Người \(player + 1) đã phạm hai lỗi liên tiếp. Một lỗi nữa ở cú này sẽ thua ván theo luật 9/10 Ball.", preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Đã hiểu", style: .default) { [weak self] _ in
-                    self?.matchPlay.warningAcknowledged = warningID
-                    self?.notifyStatus("Đã cảnh báo · giữ B và ra cơ khi sẵn sàng")
-                })
-                present(alert, animated: true); return true
-            }
-        }
+        // 0.42 (owner 13/11 18:19: the two-foul warning popped up while stroking and swallowed the stroke). The warning
+        // is now shown once when the turn starts (presentPendingChoiceIfNeeded) and never blocks or cancels a stroke.
         // 0.26: no forced call. Uncalled shots are adjudicated by the straight-in rule (MatchRules::autoCall).
         if matchPlay.session.role == .none { return false }
         let shot = LANShot(angle: angle, speed: speed, side: side, top: top,
@@ -796,6 +808,19 @@ extension TrainingController {
             guard cueClearance(side: shot.side, top: shot.top) <= shot.elevation + 0.01 else { return false }
             localTurn = true; locked = true; menuOpen = false
             isPlacingBalls = false; matchPlay.placementDraft = nil
+            recordStrikeInfo(shot, player: command.player)
+            let byOpponent = (matchPlay.session.role == .host && command.player != matchPlay.session.localPlayer) ||
+                (matchPlay.session.role == .none && matchPlay.computerLevel != nil && command.player == 1)
+            if byOpponent {
+                showOpponentShot(speed: shot.speed, side: shot.side, top: shot.top, elevation: shot.elevation, cueType: shot.cueType,
+                                 who: matchPlay.names[min(1, max(0, command.player))])
+            }
+            if matchPlay.session.role == .host, command.player != matchPlay.session.localPlayer,
+               let origin = engine.states.map({ BallState($0) }).first(where: { $0.id == 0 }) {
+                // 0.42 item 10: the guest's cue is seen meeting the ball and following through on the host too.
+                beginCueStrikeAnim(origin: origin, angle: shot.angle, side: shot.side, top: shot.top, elevation: shot.elevation,
+                                   cueType: shot.cueType, fromPull: 0, lead: 0)
+            }
             shoot(shot.speed)
             guard shotActive else { syncMatchControls(); return false }
             // A remote player has no physical B release on this host. Unlock
@@ -848,7 +873,7 @@ extension TrainingController {
         return true
     }
     func resetMatchCall() {
-        matchPlay.calledBall = 0; matchPlay.calledPocket = -1
+        matchPlay.calledBall = 0; matchPlay.calledPocket = -1; showCallPockets(0)
         matchPlay.safety = false; matchPlay.pushOut = false
         matchPlay.rules?.setCall(ball: 0, pocket: -1, safety: false, pushOut: false)
     }
@@ -895,11 +920,11 @@ extension TrainingController {
         if decided >= 0 {
             matchPlay.matchWinner = decided
             notifyStatus("\(matchPlay.names[decided]) thắng trận \(matchPlay.frames[decided])–\(matchPlay.frames[1 - decided])")
-            publishMatchSnapshot(force: true); showRackBroadcast(winner: decided, final: true); return
+            publishMatchSnapshot(force: true); showRackBroadcast(winner: decided, isFinal: true); return
         }
         notifyStatus("\(matchPlay.names[winner]) thắng ván \(matchPlay.rackNo) · \(matchPlay.frames[0])–\(matchPlay.frames[1])")
         publishMatchSnapshot(force: true)
-        showRackBroadcast(winner: winner, final: false)   // 0.42 item 3: TV score card, 3.5 s, then the next rack
+        showRackBroadcast(winner: winner, isFinal: false)   // 0.42 item 3: TV score card, 3.5 s, then the next rack
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.8) { [weak self] in self?.startNextRack() }
     }
     func startNextRack() {
@@ -962,6 +987,7 @@ extension TrainingController {
         if let draft = matchPlay.placementDraft, let cue = draft.first(where: { $0.id == 0 }) {
             guard matchCuePositionValid(draft) else { notifyStatus("Vị trí vướng bi / ngoài vùng đặt hợp lệ"); return true }
             submitMatchAction(.placeCue, placement: LANPlacement(x: cue.x, y: cue.y))
+            if let pose = placementPose { applyCamera(pose) }; placementPose = nil
             if matchPlay.session.role == .guest {
                 // Only the authoritative snapshot confirms this placement.
                 notifyStatus("Đang xác nhận vị trí với máy chủ")
@@ -975,8 +1001,10 @@ extension TrainingController {
             }
             matchPlay.placementDraft = state
             isPlacingBalls = true
+            // 0.42 item 9: top-down view while placing (restored on confirm / cancel).
+            if placementPose == nil { placementPose = captureCamera(); selectCamera(1) }
             table.placementBlocked = !matchCuePositionValid(state)
-            notifyStatus("Kéo bi cái · chạm Đặt bi lần nữa để xác nhận")
+            notifyStatus("Chạm chỗ muốn đặt hoặc kéo ở bất kỳ đâu · chạm Đặt bi lần nữa để xác nhận")
             refresh()
         }
         updateControls(); syncMatchControls(); return true
@@ -996,6 +1024,7 @@ extension TrainingController {
         guard matchPlay.active else { return false }
         matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
         isPlacingBalls = false; table.placementBlocked = false
+        if let pose = placementPose { applyCamera(pose) }; placementPose = nil
         refresh(); updateControls(); syncMatchControls(); return true
     }
 
@@ -1032,7 +1061,7 @@ extension TrainingController {
         var state = matchPlay.state
         state["calledBall"] = matchPlay.calledBall; state["calledPocket"] = matchPlay.calledPocket
         state["safety"] = matchPlay.safety; state["pushOut"] = matchPlay.pushOut
-        state["raceTo"] = matchPlay.raceTo; state["frames"] = matchPlay.frames; state["names"] = matchPlay.names
+        state["raceTo"] = matchPlay.raceTo; state["frames"] = matchPlay.frames; state["names"] = matchPlay.names; state["lastShot"] = Self.lastShotInfo
         state["rackNo"] = matchPlay.rackNo; state["matchWinner"] = matchPlay.matchWinner
         guard let json = try? JSONSerialization.data(withJSONObject: state) else { return }
         let events = engine.events.enumerated().suffix(128).compactMap { matchEvent($0.element, index: $0.offset) }
@@ -1058,6 +1087,18 @@ extension TrainingController {
             shotCameraAnchor = matchPlay.guestBalls.first(where: { $0.id == 0 }) ??
                 snapshot.balls.first(where: { $0.id == 0 }).map { matchRenderBall($0) }
             liveCameraAngle = angle
+            // 0.42 item 10: the host's stroke — close the back-swing onto the ball, then follow through.
+            if newShot, snapshot.isMoving, snapshot.currentPlayer != matchPlay.session.localPlayer, let shown = matchPlay.remoteShown ?? matchPlay.remoteAim, shown.visible,
+               let origin = matchPlay.guestBalls.first(where: { $0.id == 0 }) {
+                beginCueStrikeAnim(origin: origin, angle: shown.angle, side: shown.side, top: shown.top, elevation: shown.elevation,
+                                   cueType: shown.cueType, fromPull: shown.pull, lead: 0.1)
+            }
+            if newShot, snapshot.isMoving, snapshot.currentPlayer != matchPlay.session.localPlayer,
+               let info = state["lastShot"] as? [String: NSNumber], let speed = info["speed"]?.doubleValue {
+                showOpponentShot(speed: speed, side: info["side"]?.doubleValue ?? 0, top: info["top"]?.doubleValue ?? 0,
+                                 elevation: info["elevation"]?.doubleValue ?? 0, cueType: info["cueType"]?.intValue ?? 0,
+                                 who: matchPlay.names[min(1, max(0, snapshot.currentPlayer))])
+            }
         }
         let gap = snapshot.elapsed - (matchPlay.snapshots.last?.elapsed ?? snapshot.elapsed)
         let resync = isFirst || matchPlay.needsFullSync || (!newShot && gap > 0.5)
@@ -1079,7 +1120,7 @@ extension TrainingController {
         // 0.42 item 3: the guest shows the same broadcast card when the host counts a rack.
         if !isFirst, matchPlay.frames != framesBefore, matchPlay.frames.reduce(0, +) > framesBefore.reduce(0, +) {
             let won = matchPlay.frames[0] > framesBefore[0] ? 0 : 1
-            showRackBroadcast(winner: matchPlay.matchWinner >= 0 ? matchPlay.matchWinner : won, final: matchPlay.matchWinner >= 0 && winnerBefore < 0)
+            showRackBroadcast(winner: matchPlay.matchWinner >= 0 ? matchPlay.matchWinner : won, isFinal: matchPlay.matchWinner >= 0 && winnerBefore < 0)
         }
         if newShot {
             matchPlay.snapshots = []
@@ -1429,7 +1470,8 @@ extension TrainingController {
         let preset = Self.shotClock
         let running = matchPlay.active && preset.seconds > 0 && matchPlay.session.role != .guest &&
             matchInt("winner", fallback: -1) < 0 && matchPlay.matchWinner < 0 && !matchBool("breakShot") &&
-            (matchPlay.state["pendingChoice"] as? String ?? "").isEmpty && !shotActive && !presentationBusy && !table.rackIntroPlaying
+            (matchPlay.state["pendingChoice"] as? String ?? "").isEmpty && !shotActive && !presentationBusy && !table.rackIntroPlaying &&
+            presentedViewController == nil && (matchCanStroke || matchPlay.computerLevel != nil)   // 0.42: never tick under a dialog or while B is disabled
         buildShotClock()
         let showing = matchPlay.active && preset.seconds > 0
         if matchPlay.clockBar.isHidden == showing { matchPlay.clockBar.isHidden = !showing }
@@ -1595,7 +1637,7 @@ extension TrainingController {
             syncMatchControls()
         }
         let away = now - (matchPlay.awaySince ?? now)
-        matchPlay.banner.setTitle(matchStatusText(), for: .normal)
+        matchPlay.banner.setTitle(matchStatusText().replacingOccurrences(of: "\n", with: "  ·  "), for: .normal)
         if away >= Self.awayForfeitSeconds {
             let me = session.localPlayer
             matchPlay.matchWinner = me; matchPlay.forfeitWinner = me
@@ -1617,5 +1659,49 @@ extension TrainingController {
         applyMatchResult(result)
         notifyStatus("Đối thủ vắng quá \(Int(Self.awayTurnSeconds)) s · phạm lỗi · bạn có bi trong tay")
         refresh(); updateControls(); syncMatchControls(); publishMatchSnapshot(force: true)
+    }
+}
+
+extension TrainingController {
+    /// 0.42: pocket markers for the call (0 off · 1 blinking picker · 2 chosen with a check mark).
+    func showCallPockets(_ mode: Int, chosen: Int = -1) {
+        let g = engine.settings
+        table.showPocketMarkers(mode: mode, chosen: chosen, width: g["tableWidth"]?.doubleValue ?? 1.27, length: g["tableLength"]?.doubleValue ?? 2.54)
+        wakeRendering()
+    }
+}
+
+extension TrainingController {
+    /// 0.42 (owner 13/11 18:15: "đối thủ vẫn chưa ra cơ được, phím B bị ẩn"). After a weak 9-ball break, a push-out,
+    /// an 8-ball break foul or an uncalled 10-ball pot, the rules wait for the incoming player's CHOICE (accept / pass /
+    /// ball in hand / re-rack) and B stays disabled until it is made — but the choice was only reachable by tapping the
+    /// status strip, which nobody knew. The choice now opens by itself, once per decision, on the device that decides.
+    func presentPendingChoiceIfNeeded() {
+        if let warnings = matchPlay.state["twoFoulWarning"] as? [Bool], matchPlay.active, matchAllowsInput, !shotActive {
+            let player = matchInt("currentPlayer"), warningID = "\(player)-\(matchInt("shotCount"))"
+            if warnings.indices.contains(player), warnings[player], matchPlay.warningAcknowledged != warningID {
+                matchPlay.warningAcknowledged = warningID
+                notifyStatus("⚠︎ \(matchPlay.names[player]): đã 2 lỗi liên tiếp · lỗi nữa thua ván (9/10 Ball)")
+            }
+        }
+        let kind = matchPlay.state["pendingChoice"] as? String ?? ""
+        let options = matchPlay.state["choiceOptions"] as? [String] ?? []
+        guard matchPlay.active, !kind.isEmpty, !options.isEmpty, matchAllowsInput, !shotActive, !L10n.qa,
+              matchPlay.computerLevel == nil || matchInt("currentPlayer") == 0,
+              presentedViewController == nil else { if kind.isEmpty { matchPlay.pendingChoiceKey = "" }; return }
+        let key = "\(kind)-\(matchInt("shotCount"))-\(matchInt("currentPlayer"))-\(matchPlay.rackNo)"
+        guard matchPlay.pendingChoiceKey != key else { return }
+        matchPlay.pendingChoiceKey = key
+        let who = matchPlay.names[min(1, max(0, matchInt("currentPlayer")))]
+        let alert = UIAlertController(title: "\(who) chọn", message: matchReason(matchPlay.state["reason"] as? String ?? ""), preferredStyle: .alert)
+        for option in options {
+            alert.addAction(UIAlertAction(title: matchChoiceTitle(option), style: .default) { [weak self] _ in
+                self?.submitMatchAction(.chooseOption, option: option)
+            })
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.presentedViewController == nil else { self?.matchPlay.pendingChoiceKey = ""; return }
+            self.present(alert, animated: true)
+        }
     }
 }

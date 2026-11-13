@@ -325,6 +325,18 @@ final class CustomizeController:UIViewController {
         header("Âm thanh")
         slider("Âm lượng tiếng bi","tuneVolume037",0,1)
         // 0.41: owner's pack (sliced, 3 lực × biến thể + phá bi) vs the 0.17 set — A/B on the device.
+        segmented("Ngôn ngữ · Language",L10n.languages.map{$0.code.uppercased()},max(0,L10n.languages.firstIndex{$0.code==L10n.code} ?? 0)){[weak self] i in
+            L10n.set(L10n.languages[i].code)
+            let a=UIAlertController(title:L10n.languages[i].name,message:"Mở lại màn hình để áp dụng toàn bộ.",preferredStyle:.alert)
+            a.addAction(UIAlertAction(title:"OK",style:.default));self?.present(a,animated:true)}
+        let musicButton=UIButton(type:.system);musicButton.setTitle("♫ Nhạc của tôi · thêm bài từ app Tệp",for:.normal)
+        musicButton.titleLabel?.font = .systemFont(ofSize:14,weight:.semibold);musicButton.contentHorizontalAlignment = .left
+        musicButton.addAction(UIAction{[weak self]_ in let nav=UINavigationController(rootViewController:MusicController(style:.insetGrouped));self?.present(nav,animated:true)},for:.touchUpInside)
+        target.addArrangedSubview(musicButton)
+        segmented("Camera lượt đối thủ",["Truyền hình","Trên cao","Theo cơ"],UserDefaults.standard.object(forKey:"spectatorCam042") as? Int ?? 0){UserDefaults.standard.set($0,forKey:"spectatorCam042")}
+        segmented("Thẻ cú đánh của đối thủ",["Hiện","Ẩn"],(UserDefaults.standard.object(forKey:"opponentShotCard042") as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:"opponentShotCard042")}
+        segmented("Phóng to bi effect / độ dốc",["Bật","Tắt"],(UserDefaults.standard.object(forKey:"loupes042") as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:"loupes042")}
+        segmented("Âm hiệu ứng tỉ số",["Bật","Tắt"],(UserDefaults.standard.object(forKey:"broadcastSound042") as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:"broadcastSound042")}
         if PoolAudio.hasPack041 { segmented("Bộ âm thanh",["Bộ mới","Cũ 0.17"],(UserDefaults.standard.object(forKey:PoolAudio.packKey) as? Int ?? 0)==1 ? 0:1){UserDefaults.standard.set($0==0 ? 1:0,forKey:PoolAudio.packKey)} }
         target=body
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in

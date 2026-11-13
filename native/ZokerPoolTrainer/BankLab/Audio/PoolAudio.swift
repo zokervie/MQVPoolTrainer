@@ -129,8 +129,17 @@ final class PoolAudio {
             audio.suspend()
         }
         observe(UIApplication.didBecomeActiveNotification) { audio, _ in
+            // 0.42 (owner: sound is lost after switching to another app and back). iOS does not always send
+            // "interruption ended" (another app took the session without notifying), so `interrupted` stayed true and
+            // every hit was dropped; and a paused engine can report isRunning while its output is dead. Coming back
+            // to the foreground is therefore a full, clean restart: clear the stale flag, stop, re-activate, start.
             audio.canPlay = true
-            audio.start()
+            audio.interrupted = false
+            audio.hardRestart()
+        }
+        observe(UIApplication.willEnterForegroundNotification) { audio, _ in
+            audio.canPlay = true
+            audio.interrupted = false
         }
     }
 
@@ -146,6 +155,7 @@ final class PoolAudio {
     /// catch-up burst is dropped rather than producing impacts long after contact.
     func play(kind: Int, impact: Double, pan: Double, eventAge: Double = 0) {
         guard (0...3).contains(kind), impact.isFinite, pan.isFinite, eventAge.isFinite, impact > 0 else { return }
+        if eventAge < 0.35 { DispatchQueue.main.async { MusicPlayer042.shared.duck(kind: kind, impact: impact) } }   // 0.42 spectral duck
         audioQueue.async { [weak self] in
             guard let self = self else { return }
             // 0.21: physics advances up to 0.1 s per frame and a slow frame adds more, so a 120 ms cut-off silently
@@ -280,6 +290,20 @@ final class PoolAudio {
         } catch {
             engineStarted = false
             NSLog("PoolAudio: engine unavailable: %@", String(describing: error))
+        }
+    }
+    /// Stop the engine outright (not pause) and start again with the session re-activated.
+    private func hardRestart() {
+        suspend()
+        engine.stop()
+        engineStarted = false
+        start()
+        if !engine.isRunning {   // the session may still be held by the other app for a moment: retry once
+            audioQueue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self = self, !self.engine.isRunning else { return }
+                self.interrupted = false
+                self.start()
+            }
         }
     }
     private func restartSoon() {

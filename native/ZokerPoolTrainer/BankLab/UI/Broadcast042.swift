@@ -11,14 +11,14 @@ final class BroadcastCard: UIView {
     static let gold = UIColor(red: 0.95, green: 0.76, blue: 0.32, alpha: 1)
 
     func present(in host: UIView, kicker: String, names: [String], scores: [Int], winner: Int, headline: String,
-                 final: Bool, actions: [Action], hold: Double) {
+                 isFinal: Bool, actions: [Action], hold: Double) {
         removeFromSuperview(); subviews.forEach { $0.removeFromSuperview() }; layer.sublayers?.removeAll()
         self.actions = actions
         frame = host.bounds; autoresizingMask = [.flexibleWidth, .flexibleHeight]; accessibilityIdentifier = "BroadcastCard"
         backgroundColor = UIColor(white: 0, alpha: 0); isUserInteractionEnabled = !actions.isEmpty
         host.addSubview(self)
-        let w = min(bounds.width - 40, 560), h: CGFloat = final ? 210 : 150
-        panel.frame = CGRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2 - (final ? 10 : 0), width: w, height: h)
+        let w = min(bounds.width - 40, 560), h: CGFloat = isFinal ? 210 : 150
+        panel.frame = CGRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2 - (isFinal ? 10 : 0), width: w, height: h)
         panel.subviews.forEach { $0.removeFromSuperview() }; panel.layer.sublayers?.removeAll()
         panel.layer.cornerRadius = 14; panel.layer.cornerCurve = .continuous; panel.clipsToBounds = true
         let bg = CAGradientLayer(); bg.frame = panel.bounds
@@ -53,8 +53,8 @@ final class BroadcastCard: UIView {
         let dash = UILabel(frame: CGRect(x: w / 2 - 6, y: rowY + 6, width: 12, height: 36)); dash.text = "–"
         dash.textColor = Self.gold; dash.font = .systemFont(ofSize: 26, weight: .black); dash.textAlignment = .center; panel.addSubview(dash)
         let line = UILabel(frame: CGRect(x: 12, y: rowY + 58, width: w - 24, height: 30)); line.textAlignment = .center
-        line.text = headline; line.font = .systemFont(ofSize: final ? 20 : 15, weight: .heavy)
-        line.textColor = final ? Self.gold : UIColor(white: 0.95, alpha: 1); line.adjustsFontSizeToFitWidth = true; line.minimumScaleFactor = 0.6
+        line.text = headline; line.font = .systemFont(ofSize: isFinal ? 20 : 15, weight: .heavy)
+        line.textColor = isFinal ? Self.gold : UIColor(white: 0.95, alpha: 1); line.adjustsFontSizeToFitWidth = true; line.minimumScaleFactor = 0.6
         panel.addSubview(line)
         // buttons
         if !actions.isEmpty {
@@ -82,8 +82,8 @@ final class BroadcastCard: UIView {
             s.transform = CGAffineTransform(scaleX: 0.2, y: 0.2)
             UIView.animate(withDuration: 0.5, delay: 0.45 + Double(k) * 0.08, usingSpringWithDamping: 0.45, initialSpringVelocity: 0.9) { s.transform = .identity }
         }
-        burst(final: final, around: panel.frame)
-        BroadcastSting.shared.play(final: final)
+        burst(isFinal: isFinal, around: panel.frame)
+        BroadcastSting.shared.play(isFinal: isFinal)
         if hold > 0 {
             DispatchQueue.main.asyncAfter(deadline: .now() + hold) { [weak self] in self?.dismiss() }
         }
@@ -95,22 +95,22 @@ final class BroadcastCard: UIView {
     func dismiss() {
         UIView.animate(withDuration: 0.25, animations: { self.alpha = 0 }) { _ in self.removeFromSuperview(); self.alpha = 1 }
     }
-    private func burst(final: Bool, around rect: CGRect) {
+    private func burst(isFinal: Bool, around rect: CGRect) {
         emitter.removeFromSuperlayer()
-        emitter.emitterPosition = CGPoint(x: rect.midX, y: final ? rect.minY - 10 : rect.midY)
-        emitter.emitterShape = final ? .line : .circle; emitter.emitterSize = CGSize(width: final ? rect.width : 40, height: 1)
+        emitter.emitterPosition = CGPoint(x: rect.midX, y: isFinal ? rect.minY - 10 : rect.midY)
+        emitter.emitterShape = isFinal ? .line : .circle; emitter.emitterSize = CGSize(width: isFinal ? rect.width : 40, height: 1)
         emitter.renderMode = .additive
-        let colors: [UIColor] = final ? [Self.gold, .white, UIColor(red: 0.3, green: 0.6, blue: 1, alpha: 1), UIColor(red: 1, green: 0.35, blue: 0.3, alpha: 1)] : [Self.gold, .white]
+        let colors: [UIColor] = isFinal ? [Self.gold, .white, UIColor(red: 0.3, green: 0.6, blue: 1, alpha: 1), UIColor(red: 1, green: 0.35, blue: 0.3, alpha: 1)] : [Self.gold, .white]
         emitter.emitterCells = colors.map { color in
             let c = CAEmitterCell(); c.contents = Self.spark.cgImage; c.color = color.cgColor
-            c.birthRate = final ? 60 : 90; c.lifetime = final ? 3.2 : 0.9; c.velocity = final ? 140 : 260; c.velocityRange = 90
-            c.emissionLongitude = final ? .pi / 2 : 0; c.emissionRange = final ? .pi / 4 : .pi * 2
-            c.yAcceleration = final ? 120 : 0; c.spin = 3; c.spinRange = 6; c.scale = final ? 0.55 : 0.35; c.scaleRange = 0.25; c.alphaSpeed = final ? -0.25 : -1.1
+            c.birthRate = isFinal ? 60 : 90; c.lifetime = isFinal ? 3.2 : 0.9; c.velocity = isFinal ? 140 : 260; c.velocityRange = 90
+            c.emissionLongitude = isFinal ? .pi / 2 : 0; c.emissionRange = isFinal ? .pi / 4 : .pi * 2
+            c.yAcceleration = isFinal ? 120 : 0; c.spin = 3; c.spinRange = 6; c.scale = isFinal ? 0.55 : 0.35; c.scaleRange = 0.25; c.alphaSpeed = isFinal ? -0.25 : -1.1
             return c
         }
         emitter.frame = bounds; layer.addSublayer(emitter)
         emitter.beginTime = CACurrentMediaTime()
-        DispatchQueue.main.asyncAfter(deadline: .now() + (final ? 1.4 : 0.25)) { [weak self] in self?.emitter.birthRate = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (isFinal ? 1.4 : 0.25)) { [weak self] in self?.emitter.birthRate = 0 }
         emitter.birthRate = 1
     }
     private static let spark: UIImage = {
@@ -125,8 +125,8 @@ final class BroadcastSting {
     static let shared = BroadcastSting()
     private let engine = AVAudioEngine(), player = AVAudioPlayerNode()
     private var ready = false
-    private lazy var rack: AVAudioPCMBuffer? = make(final: false)
-    private lazy var match: AVAudioPCMBuffer? = make(final: true)
+    private lazy var rack: AVAudioPCMBuffer? = make(isFinal: false)
+    private lazy var match: AVAudioPCMBuffer? = make(isFinal: true)
     private func setup() {
         guard !ready else { return }
         engine.attach(player)
@@ -134,18 +134,18 @@ final class BroadcastSting {
         engine.connect(player, to: engine.mainMixerNode, format: format)
         ready = (try? engine.start()) != nil
     }
-    func play(final: Bool) {
+    func play(isFinal: Bool) {
         guard UserDefaults.standard.object(forKey: "broadcastSound042") as? Bool ?? true else { return }
-        setup(); guard ready, let buffer = final ? match : rack else { return }
+        setup(); guard ready, let buffer = isFinal ? match : rack else { return }
         player.stop(); player.volume = 0.55; player.scheduleBuffer(buffer, at: nil); player.play()
     }
-    private func make(final: Bool) -> AVAudioPCMBuffer? {
-        let sr = 44100.0, seconds = final ? 2.4 : 1.3
+    private func make(isFinal: Bool) -> AVAudioPCMBuffer? {
+        let sr = 44100.0, seconds = isFinal ? 2.4 : 1.3
         guard let format = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 1),
               let b = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sr * seconds)) else { return nil }
         b.frameLength = b.frameCapacity
         let out = b.floatChannelData![0]; var seed: UInt32 = 3; var lp = 0.0
-        let notes: [(Double, Double)] = final ? [(0.25, 392), (0.25, 493.9), (0.25, 587.3), (0.55, 784), (0.55, 987.8), (0.55, 1174.7)]
+        let notes: [(Double, Double)] = isFinal ? [(0.25, 392), (0.25, 493.9), (0.25, 587.3), (0.55, 784), (0.55, 987.8), (0.55, 1174.7)]
                                               : [(0.18, 523.3), (0.18, 659.3), (0.18, 784)]
         for i in 0..<Int(b.frameLength) {
             let t = Double(i) / sr
@@ -154,7 +154,7 @@ final class BroadcastSting {
             let whoosh = lp * 0.35 * sin(min(1, t / 0.35) * .pi)
             var chord = 0.0
             for (start, f) in notes where t >= start {
-                let u = t - start, env = min(1, u / 0.012) * exp(-u * (final ? 1.2 : 2.6))
+                let u = t - start, env = min(1, u / 0.012) * exp(-u * (isFinal ? 1.2 : 2.6))
                 chord += env * (sin(2 * .pi * f * u) + 0.35 * sin(4 * .pi * f * u) + 0.12 * sin(6 * .pi * f * u))
             }
             out[i] = Float(max(-1, min(1, whoosh + chord * 0.16)))
@@ -166,11 +166,11 @@ final class BroadcastSting {
 extension TrainingController {
     private static var broadcastCard = BroadcastCard()
     /// Host and guest both call this when the frames change. `final` = the race is decided.
-    func showRackBroadcast(winner: Int, final: Bool) {
+    func showRackBroadcast(winner: Int, isFinal: Bool) {
         guard matchPlay.active, matchPlay.names.count == 2, matchPlay.frames.count == 2 else { return }
         let names = matchPlay.names, scores = matchPlay.frames
         let rack = max(1, matchPlay.rackNo)
-        if final {
+        if isFinal {
             var actions: [BroadcastCard.Action] = []
             if matchPlay.session.role != .guest {
                 actions.append(.init(title: "Chơi tiếp", primary: true) { [weak self] in
@@ -184,11 +184,11 @@ extension TrainingController {
                 self.leaveMatch(); self.openLobby()
             })
             Self.broadcastCard.present(in: view, kicker: "Kết thúc trận · Race \(matchPlay.raceTo)", names: names, scores: scores, winner: winner,
-                                       headline: "🏆 \(names[winner]) thắng trận \(scores[winner])–\(scores[1 - winner])", final: true,
+                                       headline: "🏆 \(names[winner]) thắng trận \(scores[winner])–\(scores[1 - winner])", isFinal: true,
                                        actions: actions, hold: 0)
         } else {
             Self.broadcastCard.present(in: view, kicker: "Kết thúc ván \(rack) · Race \(matchPlay.raceTo)", names: names, scores: scores, winner: winner,
-                                       headline: "\(names[winner]) thắng ván \(rack) · ván \(rack + 1) bắt đầu", final: false, actions: [], hold: 3.4)
+                                       headline: "\(names[winner]) thắng ván \(rack) · ván \(rack + 1) bắt đầu", isFinal: false, actions: [], hold: 3.4)
         }
     }
 

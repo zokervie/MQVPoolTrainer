@@ -76,7 +76,7 @@ inline const Skill& skill(int level){
         {"Beginner",   0.65*kPi/180,.20,.10,false,0,0.00,false,.25,4.0, 3,  2,  1,  false,false,false,false,false,0, 0.0},
         {"Amateur",    0.47*kPi/180,.14,.08,true, 0,0.00,false,.12,5.0, 4,  2,  2,  false,false,false,false,false,0, 0.0},
         {"Quarter Pro",0.33*kPi/180,.10,.06,true, 1,0.20,true, .06,6.0, 5,  3,  3,  false,true, false,false,false,3, 1.0},
-        {"Semi Pro",   0.24*kPi/180,.07,.04,true, 1,0.30,true, .03,6.8, 6,  4,  5,  false,true, true, false,false,4, 1.4},
+        {"Semi Pro",   0.24*kPi/180,.07,.04,true, 2,0.30,true, .03,6.8, 6,  4,  5,  true, true, true, false,false,4, 1.4},
         {"Pro",        0.17*kPi/180,.05,.03,true, 2,0.40,true, .00,7.4, 7,  5,  5,  true, true, true, true, false,5, 1.7},
         {"AI",         0.08*kPi/180,.02,.02,true, 2,0.45,true, .00,7.8, 8,  5,  5,  true, true, true, true, true, 6, 2.0}}};
     return table[static_cast<size_t>(std::clamp(level,0,kLevels-1))];
@@ -248,7 +248,7 @@ inline double leave(const World& after,const match::State& s,V2 cue,int player,i
             const Ball* next=find(after.balls,eases.front().second);
             int second=99;for(const auto& b:after.balls)if(!b.sunk&&b.id>0&&next&&b.id!=next->id)second=std::min(second,b.id);
             if(next&&second<99)if(const Ball* nb=find(after.balls,second)){double e=0;for(int k=0;k<6;++k)e=std::max(e,ease(after,next->p,*nb,k));v+=0.35*e;}
-        }else if(eases.size()>1)v+=0.3*eases[1].first;
+        }else{if(eases.size()>1)v+=0.33*eases[1].first;if(eases.size()>2)v+=0.15*eases[2].first;}   // 0.42: PickPocket top-3 weights 1/.33/.15
     }
     const double r=after.config.radius;
     for(const V2 p:mouths(after.config))if((p-cue).length()<0.10)v-=0.05;
@@ -470,7 +470,30 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
         const Ball* a=find(world.balls,apex);
         out.angle=std::atan2(a->p.y-cue->p.y,a->p.x-cue->p.x);out.speed=k.breakSpeed;out.top=level>=3?0.15:0;
         out.elevation=std::max(0.0,liftFor(world,cue->p,out.angle,0,out.top));
-        out.target=apex;out.valid=true;out.value=0;out.intent=Break;out.think=1.2+0.4*level/5.0;return out;
+        out.target=apex;out.valid=true;out.value=0;out.intent=Break;out.think=1.2+0.4*level/5.0;
+        // 0.42 (research: an optimised break is worth ~10 % of games — CueCard): Semi Pro and up try a small menu of
+        // breaks with their own hand error and keep the one that most often keeps the turn without scratching and
+        // parks the cue ball near the centre (pros: "cue ball in the middle"). Anytime: the plain break stands.
+        if(level>=3){
+            Random br(seed^0xB4EAull);double bestScore=-1e9;Shot best=out;
+            const double baseAngle=out.angle;
+            for(double off:{0.0,0.35,-0.35,0.7,-0.7})for(double top:{-0.12,0.05,0.18})for(double pace:{1.0,0.92}){
+                if(deadline.past(0.85))break;
+                Shot st=out;st.angle=baseAngle+off*kPi/180;st.top=top;st.speed=k.breakSpeed*pace;
+                const double lift=liftFor(world,cue->p,st.angle,0,top);if(lift<0)continue;st.elevation=std::max(0.0,lift);
+                double sc=0;int n=0;
+                for(int t=0;t<3&&!deadline.past(0.9);++t){
+                    Shot h=st;h.angle+=k.aimSigma*br.normal();h.speed=std::clamp(h.speed*(1+k.speedSigma*br.normal()),0.4,8.0);h.top+=k.tipSigma*br.normal();
+                    const Outcome o=play(world,h,6);const Judgement j=judge(world,s,o,player,-1,-1);++n;
+                    if(j.lost)sc-=4;else if(j.foul)sc-=2;else if(j.keepsTurn)sc+=1.0-0.35*j.cue.length();else sc-=0.1*j.cue.length();
+                }
+                if(n==0){continue;}
+                sc/=n;
+                if(sc>bestScore){bestScore=sc;best=st;}
+            }
+            out=best;
+        }
+        return out;
     }
 
     // Evaluate one concrete stroke: simulate it, judge it, value the leave.
@@ -571,28 +594,42 @@ inline Shot plan(const World& world,const match::State& s,int level,std::uint64_
         std::sort(pots.begin(),pots.end(),[](const Candidate& a,const Candidate& b){return a.value>b.value;});
     }
 
-    // 3. Monte Carlo with the level's own hand: replay the best few strokes with execution error (CueCard).
+    // 3. Monte Carlo with the level's own hand (CueCard: fewer than 30 replays per deciding candidate loses; 30–50 is
+    //    enough). 0.42: successive halving — every candidate gets a first round, the better half more, the top few up to
+    //    50 — all under the anytime deadline. The analytic window chance is a prior worth 4 replays (Bayes), so a
+    //    candidate the clock cut short is not swung by luck. Quarter Pro: 6/15; Semi Pro and up: 10/30/50.
     if(k.samples>0&&!pots.empty()){
-        const size_t top=std::min<size_t>(pots.size(),4);
         Random mc(seed*0x2545F4914F6CDD1DULL+static_cast<std::uint64_t>(level));
-        for(size_t i=0;i<top;++i){
-            if(deadline.past(0.88))break;
-            Candidate& c=pots[i];int potted=0,fouls=0,lost=0,n=0;double leaveSum=0;
-            for(int t=0;t<k.samples;++t){
-                if(deadline.over())break;
-                Shot h=c.shot;h.angle+=k.aimSigma*mc.normal();h.speed=std::clamp(h.speed*(1+k.speedSigma*mc.normal()),0.4,8.0);
-                h.side=std::clamp(h.side+k.tipSigma*mc.normal(),-0.6,0.6);h.top=std::clamp(h.top+k.tipSigma*mc.normal(),-0.7,0.7);
-                const Outcome o=play(world,h);const Judgement j=judge(world,s,o,player,c.shot.target,c.shot.pocket);++n;
-                if(j.lost)++lost;else if(j.foul)++fouls;
-                if(j.potted&&!j.lost){++potted;if(!j.won){World after(world.config);after.reset(o.balls);leaveSum+=leave(after,next,j.cue,player,k.lookahead);}}
-            }
-            if(n<3)continue;
-            const double p=static_cast<double>(potted)/n,f=static_cast<double>(fouls)/n,l=static_cast<double>(lost)/n;
-            // Blend with the analytic estimate so 4–6 samples do not swing the choice on luck alone.
-            c.chance=0.5*c.chance+0.5*p;
-            const double avgLeave=potted>0?leaveSum/potted:c.leave;
-            c.leave=0.5*c.leave+0.5*avgLeave;
+        struct Tally{int n=0,potted=0,fouls=0,lost=0;double leaveSum=0,prior=0,priorLeave=0;};
+        std::vector<Tally> tally(pots.size());
+        for(size_t i=0;i<pots.size();++i){tally[i].prior=pots[i].chance;tally[i].priorLeave=pots[i].leave;}
+        const std::vector<int> rounds=k.samples>=4?std::vector<int>{10,30,50}:std::vector<int>{6,15};
+        const std::vector<size_t> keep=k.samples>=4?std::vector<size_t>{8,4,2}:std::vector<size_t>{5,2};
+        auto rescore=[&](size_t i){
+            Candidate& c=pots[i];const Tally& t=tally[i];if(t.n==0)return;
+            const double w=4.0,p=static_cast<double>(t.potted)/t.n,f=static_cast<double>(t.fouls)/t.n,l=static_cast<double>(t.lost)/t.n;
+            c.chance=(w*t.prior+t.n*p)/(w+t.n);
+            const double avgLeave=t.potted>0?t.leaveSum/t.potted:t.priorLeave;
+            c.leave=(w*t.priorLeave+t.potted*avgLeave)/(w+t.potted);
             score(c);c.value-=0.8*f+6.0*l;
+        };
+        std::vector<size_t> alive;for(size_t i=0;i<std::min(pots.size(),keep[0]);++i)alive.push_back(i);
+        for(size_t round=0;round<rounds.size()&&!alive.empty();++round){
+            if(deadline.past(0.88))break;
+            for(size_t i:alive){
+                Candidate& c=pots[i];Tally& t=tally[i];
+                while(t.n<rounds[round]){
+                    if(deadline.past(0.88))break;
+                    Shot h=c.shot;h.angle+=k.aimSigma*mc.normal()*(c.shot.kind==Jump?1.6:1.0);h.speed=std::clamp(h.speed*(1+k.speedSigma*mc.normal()),0.4,8.0);
+                    h.side=std::clamp(h.side+k.tipSigma*mc.normal(),-0.6,0.6);h.top=std::clamp(h.top+k.tipSigma*mc.normal(),-0.7,0.7);
+                    const Outcome o=play(world,h);const Judgement j=judge(world,s,o,player,c.shot.target,c.shot.pocket);++t.n;
+                    if(j.lost)++t.lost;else if(j.foul)++t.fouls;
+                    if(j.potted&&!j.lost){++t.potted;if(!j.won){World after(world.config);after.reset(o.balls);t.leaveSum+=leave(after,next,j.cue,player,k.lookahead);}}
+                }
+                rescore(i);
+            }
+            std::sort(alive.begin(),alive.end(),[&](size_t x,size_t y){return pots[x].value>pots[y].value;});
+            if(round+1<keep.size()&&alive.size()>keep[round+1])alive.resize(keep[round+1]);
         }
         std::sort(pots.begin(),pots.end(),[](const Candidate& a,const Candidate& b){return a.value>b.value;});
     }

@@ -442,8 +442,10 @@ final class PowerFX:UIView {
     }
     required init?(coder:NSCoder){fatalError()}
     private var meterFrame:CGRect{
-        let w=min(bounds.width*0.42,340),top=safeAreaInsets.top+46
-        return CGRect(x:bounds.midX-w/2,y:top,width:w,height:8)
+        // 0.42 (owner 13/11 18:17): in the free space RIGHT of the top scoreboard, clear of the play area.
+        let boardHalf=min(bounds.width*0.25,200)+14,left=bounds.midX+boardHalf,right=bounds.maxX-safeAreaInsets.right-14
+        let w=max(90,min(right-left,240)),top=safeAreaInsets.top+24
+        return CGRect(x:right-w,y:top,width:w,height:8)
     }
     override func layoutSubviews(){
         super.layoutSubviews()
