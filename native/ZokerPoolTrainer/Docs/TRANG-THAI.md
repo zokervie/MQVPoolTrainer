@@ -1,4 +1,4 @@
-# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 13/11/2026 06:40)
+# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 13/11/2026 08:20)
 
 Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất của anh. Cuối phiên cập nhật lại file này, và bản trong Project `claude/zoker-trang-thai.md`.
 
@@ -6,10 +6,10 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 | Bản | Nhánh / commit | Trạng thái |
 |---|---|---|
 | 0.40b | `ci/native-0.40b` @ 1626168 | CI 132 xanh (PASSED_SIMULATOR_UNSIGNED). IPA: artifact `zoker-ipa-candidate-132`. Anh đã nghiệm thu 12/11 23:36 |
-| 0.41 (gồm 0.40c) | `cho/native-0.40c` → build `ci/native-0.41` | Anh dặn gộp 0.40c + 10 mục ngày 13/11 vào MỘT lần build. Cách thử: `Docs/NGHIEM-THU-0.41.md` + `Docs/CHO-0.40c-NGHIEM-THU-12-11.md` |
+| 0.41 (gồm 0.40c) | `cho/native-0.40c` → build `ci/native-0.41` | Anh dặn gộp 0.40c + 10 mục ngày 13/11 vào MỘT lần build. Run 135 (đủ luật vắng 30/90 s + 21 mẫu âm thanh) — run 134 bị huỷ vì thiếu 2 phần này. Cách thử: `Docs/NGHIEM-THU-0.41.md` + `Docs/CHO-0.40c-NGHIEM-THU-12-11.md` |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
-Lệnh build khi anh chốt: `git push origin cho/native-0.40c:ci/native-0.40c`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
+Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
 
 ## 2. ĐÃ ĐẠT — không làm lại (anh xác nhận trên máy, 12/11)
 - ✅ Gậy mờ khi che bi đích, độ rõ chỉnh được (Tuỳ chỉnh → Ngắm).
@@ -20,19 +20,20 @@ Lệnh build khi anh chốt: `git push origin cho/native-0.40c:ci/native-0.40c`,
 - ✅ Ô màu nỉ, nỉ mới/cũ, 10 mẫu bảng điểm, đèn báo lượt: đạt. 0.40c chỉ chỉnh độ cân và kích thước sợi.
 
 ## 3. ĐANG CHỜ ANH — nhắc anh khi trả lời việc lớn
-1. Thử 0.41 trên máy: 4 mục của 0.40c + 10 mục ngày 13/11 (`Docs/NGHIEM-THU-0.41.md`). Nghe A/B bộ âm thanh. Duyệt luật vắng mặt (45 s/lượt, 3 phút thua) và xác nhận giấy phép 5 file âm thanh chưa kiểm.
+1. Thử 0.41 trên máy: 4 mục của 0.40c + 10 mục ngày 13/11 (`Docs/NGHIEM-THU-0.41.md`). Nghe A/B bộ âm thanh (21 mẫu).
+   - Gửi dòng giấy phép của 4 file 655755, 432592, 607424, 655629 (rzSHI đã có: CC BY 4.0) để ghi công đúng trước khi bán.
 2. Trả lời 3 câu ở bản đánh giá ngày 12/11 (`Docs/DANH-GIA-SKILL-VA-CANH-TRANH-2026-11-12.md`):
-   - (a) 0.41 có dồn sức vào P0–P2 (vật lý thật, TestFlight, vòng luyện tập) thay cho phần trang trí không?
-   - (b) Có mở tài khoản Apple Developer ($99/năm) để lên TestFlight không?
+   - (a) ĐÃ CHỐT 13/11 07:56: bản sau dồn sức cho vật lý (P0).
+   - (b) ĐÃ CHỐT: anh mở Apple Developer khi về nhà → sau đó làm P1 TestFlight.
    - (c) Skill `zoker-pool-dev`: đã lưu.
 3. Quay 5 cú 240 fps ở CLB để hiệu chỉnh hệ số vật lý.
-4. Âm thanh: gói CC0 anh tải về, hoặc tự thu theo kịch bản.
+4. Âm thanh: tuỳ chọn tự thu ở bàn thật theo `Docs/HUONG-DAN-THU-AM.md` (thiếu nhất: tiếng băng, tiếng lăn).
 5. Bật Game Center; gộp PR #4.
 6. Khi về gần máy Mac có Xcode: chuyển phần code sang Claude Code chạy trên Mac (biên dịch và chạy Simulator tại chỗ, không chờ CI 50 phút).
 
 ## 4. Việc kế tiếp — theo thứ tự, yêu cầu mới nhất của anh luôn đứng đầu
 1. Theo dõi CI `ci/native-0.41`: đỏ vì lỗi biên dịch Swift thì sửa và đẩy lại cùng nhánh; xanh thì gửi anh IPA.
-2. **0.42** (phần còn lại của kế hoạch cũ `Docs/KE-HOACH-0.41.md`). Thứ tự đề xuất, chờ anh chọn ở câu 3(a):
+2. **0.42 = VẬT LÝ** (anh chốt 13/11). Thứ tự:
    - P0: hiệu chỉnh vật lý theo video, có test so 20 cú mẫu.
    - P1: lên TestFlight.
    - P2: Z-Assess (đánh giá trình độ), lộ trình tự sinh, "Vì sao trượt", báo cáo tuần.
