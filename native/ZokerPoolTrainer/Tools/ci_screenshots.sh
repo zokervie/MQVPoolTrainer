@@ -78,7 +78,8 @@ for camera in premium-aim premium-top premium-overview premium-high-aim premium-
  # Retry only first-scene readiness; retain the same final visibility gate.
  for attempt in $(seq 1 16); do   # 0.32: up to ~128 s — slow Intel runners missed premium-aim at 64 s
   if [ "$camera" = observation ]; then sleep 2; else sleep 8; fi
-  xcrun simctl io "$device_id" screenshot "build/screenshots/$camera.png"
+  # 0.42b: run 43470155409 — simctl "Error creating the image" (transient display error) aborted the whole stage.
+  xcrun simctl io "$device_id" screenshot "build/screenshots/$camera.png" || { echo "$camera: screenshot error at attempt $attempt — retry"; continue; }
   case "$camera" in cue-library|calibration|drill-list) break;; esac
   # Đầu dò G1: chờ tới khi controller thật ghi bản ghi PASS (máy Mac Intel biên dịch shader lâu hơn 8 giây,
   # đầu dò "return" còn phải đánh và chờ bi dừng). Cổng kiểm tra bản ghi phía dưới giữ nguyên.
