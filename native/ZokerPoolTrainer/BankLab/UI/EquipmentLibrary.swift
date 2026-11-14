@@ -32,9 +32,9 @@ struct TableLook {
         .init(id:"tournament",brand:"Z-Ol",name:"Tournament Pro",base:4,cabinet:0x38332f,cloth:0x2d7d96,trim:0x94918a,wood:false,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament"),
         .init(id:"champion",brand:"Z-Ol",name:"Grand Champion III",base:1,cabinet:0x775136,cloth:0x31795b,trim:0xaaa49c,wood:true,source:"https://www.olhausenbilliards.com/departments/pool-tables/tournament"),
         // 0.35: bar-box bodies (solid cabinet to the floor, coin door) — Zoker designs; the bed stays the 9 ft physics bed.
-        .init(id:"zbar",brand:"Z-Va",name:"Bar Box Classic",base:6,cabinet:0x1b1d20,cloth:0x7a2529,trim:0xb9bdc1,wood:false,source:"Zoker design (bar-box style)"),
-        .init(id:"zbaroak",brand:"Z-Va",name:"Bar Box Oak",base:6,cabinet:0x6a4a30,cloth:0x2f6e4a,trim:0xc8b27a,wood:true,source:"Zoker design (bar-box style)"),
-        .init(id:"zbarpro",brand:"Z-Di",name:"Bar Box Pro",base:6,cabinet:0x26292e,cloth:0x2a6fa8,trim:0x9aa3aa,wood:false,source:"Zoker design (bar-box style)"),
+        .init(id:"zbar",brand:"Z-Va",name:"Bar Box Classic · mặt 9 ft",base:6,cabinet:0x1b1d20,cloth:0x7a2529,trim:0xb9bdc1,wood:false,source:"Zoker design (bar-box style)"),
+        .init(id:"zbaroak",brand:"Z-Va",name:"Bar Box Oak · mặt 9 ft",base:6,cabinet:0x6a4a30,cloth:0x2f6e4a,trim:0xc8b27a,wood:true,source:"Zoker design (bar-box style)"),
+        .init(id:"zbarpro",brand:"Z-Di",name:"Bar Box Pro · mặt 9 ft",base:6,cabinet:0x26292e,cloth:0x2a6fa8,trim:0x9aa3aa,wood:false,source:"Zoker design (bar-box style)"),
     ]
     static var selected:TableLook {
         // 0.34: make the owner's reference table the default once, then respect later choices
