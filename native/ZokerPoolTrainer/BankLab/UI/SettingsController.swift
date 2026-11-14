@@ -36,7 +36,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         body.addArrangedSubview(presetTitle)
         let presets:[(String,[String:Double])]=[
             ("Nỉ mới · nhanh",["rolling":0.007,"sliding":0.17,"railRestitution":0.86,"spinDecay":12]),
-            ("Tiêu chuẩn",["rolling":0.012,"sliding":0.20,"railRestitution":0.82,"spinDecay":15]),
+            ("Tiêu chuẩn",["rolling":0.012,"sliding":0.20,"railRestitution":0.82,"spinDecay":11]),
             ("Nỉ cũ, ẩm · chậm",["rolling":0.015,"sliding":0.28,"railRestitution":0.76,"spinDecay":15])]
         let row=UIStackView();row.axis = .horizontal;row.spacing=10;row.distribution = .fillEqually
         for (name,set) in presets {
@@ -66,7 +66,11 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         slider("Truyền xoáy bi–bi (bánh răng) — ma sát khi trượt nhanh, 0.30: 0,05","ballFrictionMin",0,0.1,0.05)
         slider("Giảm ép phê ngang (rad/s²) — 0.42: 11 (pooltool; Dr. Dave đo ~10)","spinDecay",1,40,11,real:(5,15))
         slider("Băng nảy ngược tiếp tuyến β (grip-slip) — 0.21: 0,30, fit clip zigzag","railTangentialRestitution",0,0.9,0.30)
-        toggle("Squirt thực tế — bi lệch khỏi đường ngắm khi đánh effect, cả khi cơ nằm ngang (TP A.31). Tắt: cơ ngang đi đúng đường ngắm","squirtRealistic043",false)
+        let squirtSwitch=UISwitch();squirtSwitch.isOn=UserDefaults.standard.bool(forKey:"squirtRealistic043");squirtSwitch.accessibilityIdentifier="squirtRealistic043"
+        squirtSwitch.addAction(UIAction{[weak squirtSwitch]_ in UserDefaults.standard.set(squirtSwitch?.isOn ?? false,forKey:"squirtRealistic043")},for:.valueChanged)
+        let squirtLabel=UILabel();squirtLabel.numberOfLines=0;squirtLabel.textColor = .white;squirtLabel.font = .systemFont(ofSize:13,weight:.medium)
+        squirtLabel.text="Squirt thực tế — bi lệch khỏi đường ngắm khi đánh effect, cả khi cơ nằm ngang (TP A.31). Tắt: cơ ngang đi đúng đường ngắm"
+        let squirtRow=UIStackView(arrangedSubviews:[squirtLabel,squirtSwitch]);squirtRow.spacing=12;squirtRow.alignment = .center;body.addArrangedSubview(squirtRow)
         slider("Gậy phá · hệ số lực","breakSpeedGain",1,1.8,1.4)
         slider("Massé · hệ số lực (0.30: 1,2 = +20%)","masseSpeedGain",1,1.6,1.2)
         slider("Massé · đàn hồi cơ–bi (thấp: dính lâu, xoáy nhiều)","masseCueRestitution",0.1,0.9,0.35)
