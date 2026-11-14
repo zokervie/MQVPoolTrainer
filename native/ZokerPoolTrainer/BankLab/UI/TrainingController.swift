@@ -358,7 +358,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 self.spin.select(side:0.2,top:0.3)
                 // 0.38: retry until the stroke really starts (a rack intro or busy gate on a slow CI start swallowed it).
                 func fire(_ left:Int){
-                    DispatchQueue.main.asyncAfter(deadline:.now()+(left==40 ? (args.contains("--ux018-jump-qa") ? 2:0.8):0.5)){[weak self] in
+                    DispatchQueue.main.asyncAfter(deadline:.now()+(left==40 ? (args.contains("--ux018-jump-qa") ? 2:2.5):0.5)){[weak self] in   // 0.43: 2.5 s — the UI test must see the balls running (CI 144/145)
                         guard let self=self,!self.shotActive,self.frames.isEmpty else{return}
                         // 0.39d: a startup gate can swallow chooseShotKind(1) — re-select before every attempt.
                         if args.contains("--ux018-jump-qa") && self.shotKind != 1 {self.locked=false;self.chooseShotKind(1)}

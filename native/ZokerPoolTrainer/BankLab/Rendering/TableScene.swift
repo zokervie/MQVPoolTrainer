@@ -223,8 +223,8 @@ final class TableScene {
         // 0.43 (owner 14/11 macro photos: "giống ô đan nylon/rổ"): the weave is now a soft undertone (≈ half the relief,
         // shallow gaps) broken by a slow cloud so rows never form a grid, and a cross-fibre fuzz layer lies over it —
         // worsted felt reads as fibres first, threads second.
-        float cloud = fiberMap.sample(fs, plane * 7.0).r;
-        float weaveW = 0.55 * fiberStrength * (1.0 - 0.6 * clothAge) * (0.65 + 0.7 * cloud) * saturate((0.45 - length(fwidth(wv))) / 0.17);
+        float weaveW = 0.55 * fiberStrength * (1.0 - 0.6 * clothAge) * saturate((0.45 - length(fwidth(wv))) / 0.17);
+        if (weaveW > 0.001) weaveW *= 0.65 + 0.7 * fiberMap.sample(fs, plane * 7.0).r;   // cloud: only when the weave shows
         if (weaveW > 0.001) {
             float2 cell = floor(wv), f = fract(wv);
             float odd = fmod(abs(cell.x + cell.y), 2.0);
