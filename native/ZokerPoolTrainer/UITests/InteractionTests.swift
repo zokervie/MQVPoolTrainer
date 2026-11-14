@@ -391,8 +391,10 @@ final class InteractionTests: XCTestCase {
 
     func testArchivedReplayPreservesLiveTableAndRemembersItsCoachChoice() {
         let (app,scene)=launch(["--ux018-live-qa"])
-        wait(scene){self.field(scene,"moving")==1}
-        wait(scene){self.field(scene,"moving")==0}
+        // 0.43 (CI 144): the scripted shot can start AND settle before the first 0.5 s poll (faster state bridge) —
+        // a finished shot (shots ≥ 1) counts as having moved.
+        wait(scene){self.field(scene,"moving")==1 || self.field(scene,"shots")>=1}
+        wait(scene){self.field(scene,"moving")==0 && self.field(scene,"shots")>=1}
         // Wait for settlement: archive actions are intentionally unavailable
         // while any pocket presentation or shot-ready guard remains active.
         let replay=app.buttons["QuickReplay"]
