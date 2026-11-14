@@ -83,3 +83,18 @@ Tình hình: nhánh `ci/native-0.41` — CI 133 đỏ (đầu dò âm thanh ch�
    - Công sức: nhỏ (đếm ngày theo lịch máy + múi giờ, hiển thị trên widget chuỗi ngày đã duyệt). Bản: 0.41 (đi cùng widget chuỗi ngày). Gói: miễn phí; thêm thẻ trong Z-Pro.
 
 Còn chờ anh: quay 5 cú 240 fps ở CLB · thu âm theo kịch bản 15 phút.
+
+### Đề xuất ngày 14/11/2026
+Tình hình: nhánh `ci/native-0.42` — CI 140 xanh (lần chạy thứ 3, commit `04fc26e` sửa chụp ảnh simctl); CI 141 chạy tay cùng commit: 2 cổng Linux xanh, job Mac bị huỷ (không phải lỗi mã). Chủ đề tìm hiểu: các app "sổ luyện tập" bida trên App Store 2026 — "Pool & Billiards Self-Trainer" (30 bài có sơ đồ, tự lên/xuống cấp theo ngưỡng đạt, giáo án dựng sẵn, buổi tập có hướng dẫn, ghi trận thật kèm thay đổi điểm xếp hạng; thuê bao Pro 8,99 USD/tháng – 49,99 USD/năm, chỉ mở rộng lịch sử quá 30 ngày) ([App Store](https://apps.apple.com/us/app/id6748546651)) và "Shot Lab: Billiards" (bài + chế độ sinh tồn, điểm kỹ năng, miễn phí kèm quảng cáo) ([App Store](https://apps.apple.com/app/id6759288094)). Cả hai chấm điểm bằng tay, không camera/AI. Công nghệ: Vision nhận dạng tư thế cơ thể trên máy ([Apple WWDC20 – Detect Body and Hand Pose with Vision](https://developer.apple.com/wwdc20/10653)).
+
+1. 🟡 **"Giáo án 4 tuần tự điều chỉnh"**
+   - Vì sao: hiện mình có bài mỗi ngày + bài theo cấp, nhưng chưa có "lộ trình" — người chơi phong trào không biết hôm nay nên tập gì. Đối thủ bán được thuê bao chủ yếu nhờ giáo án + tự lên/xuống cấp. Mình làm tốt hơn vì app tự chấm (không phải bấm tay): mỗi buổi 20–30 phút gồm khởi động (đường thẳng/dừng bi) → bài trọng tâm tuần (cắt mỏng, kéo/đẩy, kick) → 1 bài "Cú quyết định"; bài nâng cấp khi đạt ≥ 70 % hai buổi liên tiếp, hạ cấp khi < 40 %. 3 giáo án sẵn: Người mới · Vào lỗ chắc · Chạy bi 9 Ball.
+   - Công sức: vừa (dữ liệu giáo án JSON + bộ điều chỉnh cấp; test C++/XCTest cho luật lên/xuống cấp). Bản: 0.42. Gói: 1 giáo án miễn phí; còn lại trong Z-Drill (mỗi giáo án một gói) hoặc Z-Pro.
+2. 🟡 **"Sổ trận thật" + điểm Z-Rating**
+   - Vì sao: người chơi muốn biết luyện trong app có giúp thắng ngoài CLB không. Cho ghi nhanh trận thật (luật, race, tỉ số, đối thủ tự đặt tên + mức tự khai) → tính Z-Rating kiểu Elo trên máy, vẽ cạnh biểu đồ kết quả bài tập ("tuần tập cắt mỏng 80 % → rating +12"). Không dùng tên/hệ điểm thương mại thật (đặt tên Z-Rating). Dữ liệu chỉ trên máy/iCloud, không máy chủ.
+   - Công sức: nhỏ–vừa (màn nhập 1 trang ≤ 3 chạm, công thức Elo có test, biểu đồ Swift Charts). Bản: 0.42. Gói: ghi trận miễn phí; biểu đồ tương quan luyện ↔ kết quả + lịch sử dài trong Z-Stats & Exam.
+3. 🟡 **"Soi tư thế ra cơ" bằng camera iPhone (Vision body pose)**
+   - Vì sao: lỗi gốc của người chơi phong trào là cơ không thẳng — khuỷu tay rơi, vai/đầu nhấc khi ra cơ — và hai đối thủ trên đều không có. Đặt iPhone trên giá phía sau hoặc bên hông, Vision (chạy trên máy, không gửi video đi) bắt vai–khuỷu–cổ tay–đầu mỗi khung, đo: độ rơi khuỷu (cm), dao động đầu, nhịp lùi/đẩy (tempo), độ dừng sau cú. Bổ sung cho "Apple Watch đo nhịp ra cơ" (đã duyệt, cần thêm thiết bị) — đây chỉ cần điện thoại. Nối với "Giữ mắt": cho điểm "giữ yên" trên bàn thật.
+   - Công sức: lớn (thu video + Vision 30–60 fps, lọc nhiễu khớp, hiệu chỉnh tỉ lệ cm theo chiều dài cơ; test với video mẫu tự quay — không dùng video YouTube). Bản: sau (sau "Đo cú phá bằng micro"). Gói: Z-Cam (bản thử 3 lần soi miễn phí).
+
+Còn chờ anh: quay 5 cú 240 fps ở CLB · thử xuất highlight khi chơi Wi‑Fi.
