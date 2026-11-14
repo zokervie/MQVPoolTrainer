@@ -265,6 +265,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 for key in ["railFriction","spinDecay","ballFrictionMin","railGrip0","railGrip1","railGrip2","railGrip3"]{config[key]=nil}
                 UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(31,forKey:"physicsModelVersion")
             }
+            // 0.43: xoáy ngang 11 rad/s² của 0.42 — 0.42 quên bỏ giá trị 15 đã lưu nên máy cũ vẫn chạy 15; squirt theo
+            // tuỳ chọn mới. Bỏ giá trị đã lưu của các khóa này để dùng mặc định mới.
+            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<43 {
+                for key in ["spinDecay","squirtRampDegrees"]{config[key]=nil}
+                UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(43,forKey:"physicsModelVersion")
+            }
             engine.settings=config
         }
         table=TableScene(rails:engine.rails)
@@ -483,7 +489,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         super.viewDidLayoutSubviews()
         if shotActive {shotProfile.layoutPasses+=1}
         let safe=hudSafeFrame
-        let key="\(view.bounds.size)|\(safe)|\(leftHanded)|\(spinExpanded)|\(menuOpen)|\(matchIsCompetitive)|\(matchIsCompetitive && matchBool("requiresCall"))|\(Tuning.hudScale)|\(replayIndex != nil)"
+        let key="\(view.bounds.size)|\(safe)|\(leftHanded)|\(spinExpanded)|\(UserDefaults.standard.object(forKey:"loupes042") as? Bool ?? true)|\(menuOpen)|\(matchIsCompetitive)|\(matchIsCompetitive && matchBool("requiresCall"))|\(Tuning.hudScale)|\(replayIndex != nil)"
         // 0.39d (CI 125): skip ONLY while balls are moving (live shot / replay) and nothing that places keys changed.
         // At rest every pass lays the HUD out exactly like 0.39 (shot kind, coach, ball editing… all rely on it);
         // a pass skipped mid-motion is replayed once the table is still.
@@ -512,7 +518,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let safe=hudSafeFrame,pad=UIDevice.current.userInterfaceIdiom == .pad
         // 6 shortcuts in practice (Lùi cú) and in called-shot matches (Call); 5 otherwise.
         let sixItems = !matchIsCompetitive || matchBool("requiresCall")
-        let f=BLHUDLayout(Double(safe.minX),Double(safe.minY),Double(safe.width),Double(safe.height),pad ? 1:0,leftHanded ? 1:0,sixItems ? 1:0,spinExpanded ? 1:0)
+        let loupeOn=(UserDefaults.standard.object(forKey:"loupes042") as? Bool ?? true) && !ProcessInfo.processInfo.arguments.contains("--spin-detail")   // 0.43: loupe only, no in-place zoom (QA --spin-detail keeps the big pad)
+        spin.dragRadius=loupeOn ? Double(pad ? 240:170)*0.43:nil
+        let f=BLHUDLayout(Double(safe.minX),Double(safe.minY),Double(safe.width),Double(safe.height),pad ? 1:0,leftHanded ? 1:0,sixItems ? 1:0,spinExpanded && !loupeOn ? 1:0)
         // bounds + center (not frame): elevation/wheel may carry a zoom transform while touched.
         func place(_ v:UIView,_ b:BLRect){v.bounds=CGRect(x:0,y:0,width:b.w,height:b.h);v.center=CGPoint(x:b.x+b.w/2,y:b.y+b.h/2)}
         place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
@@ -951,7 +959,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
         elevationPad.changed={[weak self] value in self?.setElevation(value);self?.updateElevationLoupe()}
         buildCueIcons()
-        for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Board","CoachCardToggle")] {
+        for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Bảng","CoachCardToggle")] {
             var c=UIButton.Configuration.plain();c.title=title;c.background.backgroundColor=UIColor(white:0.03,alpha:0.42);c.background.cornerRadius=10
             c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:12,weight:.semibold);return a}
             b.configuration=c;b.accessibilityIdentifier=id;view.addSubview(b)
@@ -1044,21 +1052,26 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             UIMenu(title:"Tạo thế mới",children:Array(1...15).map{n in UIAction(title:"Tạo thế \(n) bi"){[weak self]_ in self?.addRandomBalls(n,replacing:true)}})])
         // Camera: hold = overview, release = back to the aim view; quick tap = toggle. No long-press menu (it would steal the hold).
         quickCamera.menu=nil
-        quickCamera.configuration?.title=table.cameraMode==2 ? "Camera · ngắm":"Camera · toàn cảnh"
+        quickCamera.configuration?.title=table.cameraMode==2 ? "Camera · ngắm":"Toàn cảnh"   // 0.43: was 3 lines (overflow)
         quickCue.menu=UIMenu(title:"Cơ",children:(0...2).map{i in UIAction(title:CueBag.cue(i).title){[weak self]_ in self?.chooseRole(i)}})
         quickBag.menu=UIMenu(title:"Bao cơ",children:[quickCue.menu!,UIMenu(title:"Đổi bao",children:CueBag.names.enumerated().map{i,title in UIAction(title:title){[weak self]_ in CueBag.active=i;self?.chooseRole(role)}}),UIAction(title:"Thư viện bàn & cơ"){[weak self]_ in self?.openLibrary()}])
     }
     // Đánh/Phá: no squirt, the ball leaves on the aim line. Jump/Massé keep TP A.31 squirt.
     /// 0.21: squirt on for every cue but faded in by elevation (level cue = aim line); tip by shot kind.
     func shotKindPhysics(_ kind:Int,_ values:inout [String:NSNumber]){
-        values["squirtEnabled"]=1;values["squirtRampDegrees"]=NSNumber(value:BL_SQUIRT_RAMP_DEGREES)
+        // 0.43 (anh 14/11: "miễn vật lý chân thực"): Tuỳ chỉnh → "Squirt thực tế" = squirt ở mọi độ nâng (TP A.31);
+        // tắt (mặc định, quyết định 03/11) = cơ ngang bi đi đúng đường ngắm, squirt tăng dần theo độ nâng.
+        let realistic=UserDefaults.standard.bool(forKey:"squirtRealistic043")
+        values["squirtEnabled"]=1;values["squirtRampDegrees"]=NSNumber(value:realistic ? 0:BL_SQUIRT_RAMP_DEGREES)
         values["masseCoupledContact"]=NSNumber(value:BLMasseCoupledForShotKind(Int32(kind))>0)
         values["tipProfile"]=NSNumber(value:BLTipForShotKind(Int32(kind)))
     }
-    /// Largest effect offset (fraction of R) before a miscue, by tip (Config::tipMaxOffset).
+    /// Largest effect offset (fraction of R), by tip — 0.43: the ONE source shared with the core (BLTipMaxOffset,
+    /// Config::tipMaxOffset). Also handed to the 3D cue so the drawn contact is the contact the physics uses.
     func tipLimit(elevated:Bool)->Double{
-        let tip=Int(BLTipForShotKind(Int32(shotKind)))
-        return (elevated ? 0.60:0.70)+(tip==1 ? 0.08:(tip==2 ? -0.05:0))
+        let limit=BLTipMaxOffset(BLTipForShotKind(Int32(shotKind)),elevated ? 1:0)
+        table.tipLimit=limit
+        return limit
     }
     func applySquirtPolicy(){
         var values=engine.settings;shotKindPhysics(shotKind,&values);engine.settings=values
@@ -1207,7 +1220,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var strokeAllowed:Bool{
         BLStrokeAllowed(localTurn && matchCanStroke,presentationBusy,menuOpen,spinExpanded,isPlacingBalls,cue?.sunk==false)
     }
-    var balls:[BallState]{matchDisplayedBalls ?? frameStateCache ?? engine.states.map{BallState($0)}}
+    var balls:[BallState]{matchDisplayedBalls ?? frameStateCache ?? engine.ballStates}
     var cue:BallState?{balls.first{$0.id==0}}
     func loadDrill(_ index:Int){
         guard matchAllowsEditing else{return}
@@ -1437,6 +1450,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0
         // 0.37 (owner): a cue raised over the rail / a ball behind is a REAL elevated stroke — squirt fades in with the
         // elevation (squirtRampDegrees) and the 3D strike adds swerve/hop by speed. Restored when the shot ends.
+        applySquirtPolicy()   // 0.43: picks up "Squirt thực tế" changed in Tuỳ chỉnh before this stroke
         var strikeElevation=table.cueElevation
         let forced=min(table.clearanceElevation,85)
         if forced>table.cueElevation+0.25 {
@@ -1577,7 +1591,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 let interval=fastest>0.8 ? 1.0/240.0:(fastest>0.25 ? 1.0/60.0:1.0/30.0)
                 if sampleClock>=interval-1e-9 {
                     shotProfile.recordedSamples+=1
-                    let chunk=engine.states.map{BallState($0)}
+                    let chunk=engine.ballStates
                     sampleClock=0
                     frames.append(chunk);frameTimes.append(engine.elapsed)
                     if frames.count%4==0{for b in chunk where !b.sunk {paths[b.id,default:[]].append(SIMD3<Float>(Float(b.x),Float((b.height ?? 0)+0.004),Float(b.y)))}}
@@ -1594,8 +1608,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
             didAdvanceMatchShot()
             let s0=CACurrentMediaTime()
-            let state=engine.states.map{BallState($0)};frameStateCache=state
-            table.update(engine.presentationStates.map{BallState($0)},dt:dt)
+            let state=engine.ballStates;frameStateCache=state
+            table.update(engine.presentationBallStates,dt:dt)
             let s1=CACurrentMediaTime()
             if shotProfile.tick.count<3600 {
                 shotProfile.physics.append(physicsTime);shotProfile.record.append(recordTime)

@@ -168,3 +168,16 @@ for name in ("premium-top","top"):
   if mean>40:failed.append(name+" (cloth banding)")
 if failed:raise SystemExit("Visual QA failed: "+", ".join(failed))
 PY
+
+# 0.43: intro "The Golden Break" — screen recording (no audio in simctl) + 4 stills, for review only (never a gate).
+set +e
+xcrun simctl terminate "$device_id" com.maiquocviet.BankLabS 2>/dev/null
+xcrun simctl io "$device_id" recordVideo --codec h264 --force build/screenshots/intro.mp4 > build/intro-record.log 2>&1 &
+rec_pid=$!
+sleep 1
+xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --intro-qa
+i=0; for t in 1.2 0.8 1.6 1.4; do sleep "$t"; i=$((i+1)); xcrun simctl io "$device_id" screenshot "build/screenshots/intro-$i.png" 2>/dev/null; done
+sleep 3
+kill -INT "$rec_pid" 2>/dev/null; wait "$rec_pid" 2>/dev/null
+ls -la build/screenshots/intro* 2>/dev/null
+set -e

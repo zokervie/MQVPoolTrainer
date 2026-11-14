@@ -108,6 +108,26 @@ int main() {
         std::printf("REPORT: draw shot into a ball: cue ends at x=%.3f m (furthest %.3f) with settle, %.3f without\n", a[0], a[1], b[0]);
         check(std::abs(a[0] - b[0]) < .002 && a[0] < a[1] - .05, "draw shot path unchanged (still draws back), within 2 mm");
     }
+    // ---- 0.43: ONE effect limit (UI pad, 3D cue, core) and a level cue strokes along the aim line ----
+    for (int tip : {0, 1, 2}) for (int el : {0, 1}) {
+        Config c; c.tipProfile = tip;
+        check(std::abs(c.tipMaxOffset(el) - BLTipMaxOffset(tip, el)) < 1e-12, "core tip limit == shared BLTipMaxOffset");
+    }
+    check(std::abs(BLTipMaxOffset(0, 0) - .55) < 1e-12 && std::abs(BLTipMaxOffset(0, 1) - .50) < 1e-12, "level .55R, raised .50R (owner 14/11: no miscue)");
+    {   // beyond the limit the core uses the limit: .55 and .70 strike identically (the pad can no longer show .70)
+        Config c; World a = one(c), b = one(c); a.strike(.3, 2, .55, 0); b.strike(.3, 2, .70, 0);
+        check((a.balls[0].v - b.balls[0].v).length() < 1e-12 && std::abs(a.balls[0].spin - b.balls[0].spin) < 1e-12, "offset clamped to the shared limit");
+    }
+    {   // squirt ramp 15 (default): level cue with full side english leaves exactly on the aim line
+        Config c = Config::app(); c.cueElevationDegrees = 0; World w(c);
+        Ball cue; cue.id = 0; cue.p = {0, -.8}; w.reset({cue});
+        w.strike(.3, 2, .55, 0); const V2 v = w.balls[0].v;
+        check(std::abs(std::atan2(v.y, v.x) - .3) < 1e-9, "level cue, .55R side: cue ball on the aim line (ramp design)");
+        c.squirtRampDegrees = 0; World r(c); r.reset({cue}); r.strike(.3, 2, .55, 0); const V2 u = r.balls[0].v;
+        const double sq = std::abs(std::atan2(u.y, u.x) - .3) * 180 / 3.14159265358979;
+        std::printf("REPORT: realistic squirt at .55R level cue: %.2f deg\n", sq);
+        check(sq > 1.5 && sq < 4.5, "\"Squirt thực tế\": 1.5-4.5 deg at .55R (TP A.31, low/standard shafts)");
+    }
     std::printf("%s\n", failures ? "CueTip: FAILED" : "CueTip: all checks passed");
     return failures ? 1 : 0;
 }

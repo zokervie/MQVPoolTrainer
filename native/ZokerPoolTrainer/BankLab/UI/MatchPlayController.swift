@@ -781,7 +781,7 @@ extension TrainingController {
             rules.setCall(ball: 0, pocket: -1, safety: false, pushOut: true)
         case .placeCue:
             guard choices.isEmpty, matchBool("ballInHand"), let placement = command.placement else { return false }
-            var state = engine.states.map { BallState($0) }
+            var state = engine.ballStates
             guard let index = state.firstIndex(where: { $0.id == 0 }) else { return false }
             state[index].x = placement.x; state[index].y = placement.y; state[index].sunk = false
             state[index].height = 0; state[index].vertical = 0
@@ -793,7 +793,7 @@ extension TrainingController {
             refresh()
         case .strike:
             guard choices.isEmpty, let shot = command.shot, shot.isValid,
-                  matchCuePositionValid(engine.states.map { BallState($0) }),
+                  matchCuePositionValid(engine.ballStates),
                   true else { return false }
             angle = shot.angle; side = shot.side; top = shot.top
             var config = engine.settings
@@ -816,7 +816,7 @@ extension TrainingController {
                                  who: matchPlay.names[min(1, max(0, command.player))])
             }
             if matchPlay.session.role == .host, command.player != matchPlay.session.localPlayer,
-               let origin = engine.states.map({ BallState($0) }).first(where: { $0.id == 0 }) {
+               let origin = engine.ballStates.first(where: { $0.id == 0 }) {
                 // 0.42 item 10: the guest's cue is seen meeting the ball and following through on the host too.
                 beginCueStrikeAnim(origin: origin, angle: shot.angle, side: shot.side, top: shot.top, elevation: shot.elevation,
                                    cueType: shot.cueType, fromPull: 0, lead: 0)
@@ -844,13 +844,16 @@ extension TrainingController {
         guard matchPlay.active, matchPlay.session.role != .guest else { return }
         matchPlay.elapsed = engine.elapsed
         for ball in balls where ball.id > 0 && !ball.sunk && ball.y < -0.635 { matchPlay.crossed.insert(ball.id) }
-        let events = engine.events
-        if events.count > matchPlay.publishedEvents {
-            let fresh = events.enumerated().dropFirst(matchPlay.publishedEvents).compactMap { matchEvent($0.element, index: $0.offset) }
+        // 0.43 (anh: "đấu không mượt như lúc tập"): was `engine.events` — the WHOLE shot's event list bridged into
+        // dictionaries every frame (hundreds after a break). Now only the new ones.
+        let newEvents = engine.events(since: UInt(matchPlay.publishedEvents))
+        if !newEvents.isEmpty {
+            let base = matchPlay.publishedEvents
+            let fresh = newEvents.enumerated().compactMap { matchEvent($0.element, index: base + $0.offset) }
             for start in stride(from: 0, to: fresh.count, by: 128) {
                 matchPlay.session.publishEvents(Array(fresh[start..<min(start + 128, fresh.count)]), shotID: matchPlay.shotID)
             }
-            matchPlay.publishedEvents = events.count
+            matchPlay.publishedEvents = base + newEvents.count
         }
         publishMatchSnapshot()
     }
@@ -893,7 +896,7 @@ extension TrainingController {
             startRackIntro()
             table.resetPocketPresentation()
         } else {
-            var state = engine.states.map { BallState($0) }
+            var state = engine.ballStates
             let spots = (result["spotBalls"] as? [NSNumber] ?? []).map { $0.intValue }
             for id in Set(spots).sorted() { spotMatchBall(id, in: &state) }
             if matchBool("ballInHand"), let index = state.firstIndex(where: { $0.id == 0 }), state[index].sunk {
@@ -1064,7 +1067,10 @@ extension TrainingController {
         state["raceTo"] = matchPlay.raceTo; state["frames"] = matchPlay.frames; state["names"] = matchPlay.names; state["lastShot"] = Self.lastShotInfo
         state["rackNo"] = matchPlay.rackNo; state["matchWinner"] = matchPlay.matchWinner
         guard let json = try? JSONSerialization.data(withJSONObject: state) else { return }
-        let events = engine.events.enumerated().suffix(128).compactMap { matchEvent($0.element, index: $0.offset) }
+        // 0.43: bridge only the last 128 (was the whole list, then suffix). publishedEvents tracks the world's count.
+        let tailStart = max(0, matchPlay.publishedEvents - 128)
+        let tail = engine.events(since: UInt(tailStart))
+        let events = tail.suffix(128).enumerated().compactMap { matchEvent($0.element, index: tailStart + max(0, tail.count - 128) + $0.offset) }
         // Read the world rather than the placement preview or presentation
         // cache: a guest's unconfirmed placement is never authoritative.
         let snapshot = LANSnapshot(shotID: matchPlay.shotID, elapsed: matchPlay.elapsed,

@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "brand_text": "Zoker Pool / Trainer",
-  "description": "0.37: same 9-ball art, lettering changed to \"Zoker Pool\" + gold \"TRAINER\" (owner request 09/11/2026).",
+  "brand_text": "Zoker Pool (Z + 9 ball)",
+  "description": "0.43: owner-supplied logo (gold Z + 9 ball, navy) 14/11/2026 — replaces the 0.37 Zoker Pool / Trainer icon.",
   "generation": {
-    "tool": "image_gen.imagegen",
-    "type": "new artwork",
+    "tool": "owner supplied",
+    "type": "owner artwork",
     "reference_images": false,
     "transparent_background": false,
-    "created_utc": "2026-10-30T01:59:12.024655+00:00",
-    "original_local_path": "/workspace/generated_images/exec-6abc9877-497d-48f7-92f0-3213651c5fad.png"
+    "created_utc": "2026-11-14T09:10:00+00:00",
+    "original_local_path": "chat attachment 97EF6E64-105A-4EBF-BFEA-AB1E60AA68CD.png"
   },
   "master": {
     "file": "ZTrainerIcon.master.png",
     "encoded_file": "ZTrainerIcon.master.png.b64",
-    "sha256": "13caeac6f34a9ad467cb54ae9cca47b21b870f3444eaf5768b9da88403dc38de",
-    "bytes": 612394,
+    "sha256": "33ccc97e02c4c485b79395ddbe00f4967b4f4132a676f624d98cbc252ba1688c",
+    "bytes": 1766608,
     "width": 1254,
     "height": 1254,
     "mode": "RGB",
@@ -27,9 +27,9 @@
   ],
   "derivative_policy": "Preserve generated master bytes. Resize to 1024 and smaller icon renditions in the app asset preparation pipeline.",
   "visual_review": {
-    "text": "Z-Trainer exact spelling and hyphen visible",
-    "ball": "Yellow-striped white ball with readable black 9",
-    "background": "Opaque dark teal, full bleed",
+    "text": "no lettering in the icon (ZOKER POOL is set in the intro and rooms)",
+    "ball": "Yellow-striped 9 ball, readable black 9",
+    "background": "Opaque navy, full bleed",
     "status": "VISUALLY_INSPECTED"
   }
 }

@@ -88,6 +88,52 @@ int main() {
     bench(19, "ball-ball friction at 1 m/s slip", app.ballFrictionAt(1.0), .03, .08, "[PP]");
     // B20 ball-ball friction at fast slip (4 m/s) within 0.03-0.08 [PP] (app floor .05 for gear effect)
     bench(20, "ball-ball friction at 4 m/s slip", app.ballFrictionAt(4.0), .03, .08, "[PP]");
+    // ---- 0.43: Mathavan, Jackson & Parkin 2009 (Am. J. Phys. 77, 788) — high-speed overhead camera, 120-1000 fps,
+    // snooker table [M09]. Snooker and pool cloth/cushions are close but not identical: ranges keep a margin.
+    // B21 rolling deceleration 0.124-0.126 m/s^2 [M09] (pool cloth spread: 0.10-0.16)
+    { Config c = open(app); World w(c); Ball b = make(0, {0, 0}); b.v = {0, 1}; b.w = b.v.perp() * (1 / R); w.balls = {b}; run(w, 2);
+      bench(21, "rolling deceleration (m/s^2)", (1 - w.balls[0].v.length()) / 2, .10, .16, "[M09] 0.124-0.126"); }
+    // B22 sliding friction 0.178-0.245 [M09]
+    bench(22, "ball-cloth sliding friction mu_s", app.sliding, .178, .245, "[M09] 1.75-2.40 m/s^2");
+    // B23-25 rolling ball straight into a cushion, no side: rebound speed right after the impulse vs the measured fit
+    // y = -0.0877x^2 + 1.131x - 0.0953 (31 shots, 0.28-3.5 m/s) [M09 Fig. 9], +-12 % (snooker cushions: pool sources
+    // read lower — DigiBall 0.73-0.77 — so the app sits between; see Config::app railRestitution)
+    {   int n = 23;
+        for (double vin : {0.6, 1.5, 3.0}) {
+            Config c = app; c.squirtEnabled = false; c.width = 1.27; c.length = 2.54; World w(c);
+            Ball b = make(0, {0, 0.6}); b.v = {vin, 0}; b.w = b.v.perp() * (1 / R); w.balls = {b};   // y 0.6: clear of the side pocket
+            // run to the cushion, then 6 ms past the end of contact (impulse over, before cloth friction acts much)
+            // speed of the ball as it leaves the cushion: peak outward speed within 25 ms after the velocity reverses
+            bool hitRail = false; int after = 0; double out = 0;
+            for (int i = 0; i < 960 * 4 && after < 24; ++i) { w.step(); if (!hitRail && w.balls[0].v.x < 0) hitRail = true;
+                if (hitRail) { ++after; out = std::max(out, w.balls[0].v.length()); } }
+            double vi = vin; for (const auto& e : w.events) if (e.kind == 0) { vi = e.impact; break; }   // speed AT impact
+            const double fit = -0.0877 * vi * vi + 1.131 * vi - 0.0953;
+            char label[96]; std::snprintf(label, sizeof label, "cushion rebound/fit, rolling %.1f m/s straight in", vi);
+            bench(n++, label, out / fit, .88, 1.12, "[M09 Fig.9] +-12%");
+        }
+    }
+    // B26 oblique ball-ball collisions, rolling cue ball: post-slip object-ball speed / measured (5 shots, Table I) [M09]
+    {   const double table1[5][4] = {{1.539, 33.83, .816, .836}, {1.032, 26.36, .520, .629}, {1.364, 40.52, .925, .700},
+                                     {1.731, 46.50, 1.275, .787}, {.942, 18.05, .365, .581}};
+        double worst = 0;
+        for (const auto& r : table1) {
+            Config c = open(app); World w(c); const double cut = r[1] * pi / 180;
+            Ball cue = make(0, {0, -0.3}), ob = make(1, {-2 * R * std::sin(cut), 2 * R * std::cos(cut)});
+            // rolling at r[0] when it reaches the object ball: start a little faster to cover 0.3 m of rolling drag
+            const double v0 = std::sqrt(r[0] * r[0] + 2 * c.rolling * g * 0.3);
+            cue.v = {0, v0}; cue.w = cue.v.perp() * (1 / R); w.balls = {cue, ob};
+            double vo = -1, vc = -1; bool contact = false;
+            for (int i = 0; i < 960 * 3 && (vo < 0 || vc < 0); ++i) {
+                w.step(); if (!contact && w.balls[1].v.length() > 1e-3) contact = true; if (!contact) continue;
+                for (int k = 0; k < 2; ++k) { const Ball& q = w.balls[size_t(k)]; const double slip = (q.v + q.w.perp() * R).length();
+                    double& out = k ? vo : vc; if (out < 0 && slip < 2e-3 && q.v.length() > 1e-3) out = q.v.length(); }
+            }
+            worst = std::max({worst, std::abs(vo / r[3] - 1), std::abs(vc / r[2] - 1)});
+            std::printf("REPORT M09 Table I V %.3f cut %.1f: OB %.3f (meas %.3f)  CB %.3f (meas %.3f)\n", r[0], r[1], vo, r[3], vc, r[2]);
+        }
+        bench(26, "oblique collisions: worst post-slip speed error vs measured", worst, 0, .15, "[M09 Table I] theory itself 2-12%");
+    }
     std::printf("%d/%d published benchmarks in range\n", total - failures, total);
     return failures ? 1 : 0;
 }

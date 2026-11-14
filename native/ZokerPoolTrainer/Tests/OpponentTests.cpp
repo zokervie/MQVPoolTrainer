@@ -28,7 +28,9 @@ bool scratched(const Outcome& o){for(const auto& e:o.events)if(e.kind==2&&e.a==0
 }
 int main(){
     const auto started=std::chrono::steady_clock::now();
-    const Config config;
+    // 0.43: strokeConfig no longer forces the squirt ramp — it plays the app's setting. The app default is the ramp
+    // (level cue on the aim line, owner 03/11); "Squirt thực tế" is checked separately in CueTipTests.
+    const Config config=[]{Config c;c.squirtRampDegrees=BL_SQUIRT_RAMP_DEGREES;return c;}();
     // 1. Determinism and validity on a fresh 9-ball rack (break) and after it.
     {
         match::Rules rules(match::Discipline::NineBall);World w(config);w.reset(rules.rack(7));

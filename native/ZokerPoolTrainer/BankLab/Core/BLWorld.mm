@@ -28,6 +28,14 @@ using namespace banklab;
     for(const auto&b:_world->presentation())[a addObject:@{@"id":@(b.id),@"x":@(b.p.x),@"y":@(b.p.y),@"vx":@(b.v.x),@"vy":@(b.v.y),@"wx":@(b.w.x),@"wy":@(b.w.y),@"spin":@(b.spin),@"sunk":@(b.sunk),@"rails":@(b.rails),@"height":@(b.height),@"vertical":@(b.vertical),@"qx":@(b.rotation.x),@"qy":@(b.rotation.y),@"qz":@(b.rotation.z),@"qw":@(b.rotation.w)}];
     return a;
 }
+static NSData *BLPack(const std::vector<banklab::Ball>&balls){
+    NSMutableData *d=[NSMutableData dataWithLength:balls.size()*16*sizeof(double)];double *o=(double*)d.mutableBytes;
+    for(const auto&b:balls){const double v[16]={(double)b.id,b.p.x,b.p.y,b.v.x,b.v.y,b.w.x,b.w.y,b.spin,b.sunk?1.0:0.0,(double)b.rails,b.height,b.vertical,b.rotation.x,b.rotation.y,b.rotation.z,b.rotation.w};
+        for(int i=0;i<16;++i)*o++=v[i];}
+    return d;
+}
+- (NSData*)packedStates{return BLPack(_world->balls);}
+- (NSData*)packedPresentationStates{return BLPack(_world->presentation());}
 - (NSArray*)rails{
     NSMutableArray*a=[NSMutableArray array];
     for(const auto&s:_world->segments)[a addObject:@{@"ax":@(s.a.x),@"ay":@(s.a.y),@"bx":@(s.b.x),@"by":@(s.b.y),@"id":@(s.rail)}];return a;

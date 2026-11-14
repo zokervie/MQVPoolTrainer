@@ -142,6 +142,7 @@ jobs:
           set -euo pipefail
           mkdir -p _shots/g1-qa
           cp build/screenshots/*.png _shots/ 2>/dev/null || true
+          cp build/screenshots/intro.mp4 _shots/ 2>/dev/null || true   # 0.43 intro recording
           cp build/screenshots/g1-qa/*.json _shots/g1-qa/ 2>/dev/null || true
           cp dist/ACCEPTANCE-*.json build/ui-tests.log _shots/ 2>/dev/null || true
           ls _shots/*.png > /dev/null 2>&1 && (cd _shots && for f in *.png; do sips -Z 1400 "$f" > /dev/null; done) || true

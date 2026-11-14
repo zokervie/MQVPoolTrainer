@@ -5,6 +5,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic,readonly) NSArray<NSDictionary<NSString*,NSNumber*>*> *rails;
 @property(nonatomic,readonly) NSArray<NSDictionary<NSString*,NSNumber*>*> *events;
 @property(nonatomic,readonly) NSArray<NSDictionary<NSString*,NSNumber*>*> *presentationStates;
+/// 0.43: the same states as 16 doubles per ball (id x y vx vy wx wy spin sunk rails height vertical qx qy qz qw) —
+/// one allocation instead of 16 dictionaries; used on the per-frame/per-sample path (BallState.unpack).
+@property(nonatomic,readonly) NSData *packedStates;
+@property(nonatomic,readonly) NSData *packedPresentationStates;
 @property(nonatomic,readonly) BOOL moving;
 @property(nonatomic,readonly) double elapsed;
 /// Fast scalar query: no per-ball NSDictionary/NSNumber allocation in the replay sampling loop.

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <algorithm>
 #include <array>
+#include "../UI/ShotKindPolicy.h"
 
 namespace banklab {
 constexpr double pi=3.14159265358979323846;
@@ -51,7 +52,7 @@ struct Config {
     // Offsets and efficiency ratios are ASSUMED (tip restitution .70/.75/.86 relative, TP A.30 (1+e) scaling).
     int tipProfile=0;
     double tipSpeedFactor()const{return tipProfile==1?.971:tipProfile==2?1.063:1.0;}
-    double tipMaxOffset(bool elevated)const{const double base=elevated?.50:.55;return base+(tipProfile==1?.05:tipProfile==2?-.05:0.0);}   // 0.31: miscue limit ~0.5R contact point [TP, B17]; soft +.05
+    double tipMaxOffset(bool elevated)const{return BLTipMaxOffset(tipProfile,elevated?1:0);}   // 0.31: miscue limit ~0.5R contact point [TP, B17]; soft +.05
     // Break cue: heavier stroke the player can deliver with it [design gain]. Level 30 (8 m/s) x 1.4 x hard tip
     // ~= 11.9 m/s, inside published pro break speeds (~25-30 mph = 11-13 m/s).
     double breakSpeedGain=1.0;
@@ -90,6 +91,10 @@ struct Config {
     ///  - railFriction .20 (0.31): published ball-cushion friction 0.14-0.2 (Mathavan et al. 2010; pooltool
     ///    default f_c 0.2). 0.30 used .45 to match the owner's eyeballed "~45 deg with max english" — outside every
     ///    published value, so it is now only a tuning option (Menu > Hiệu chỉnh vật lý). Tests/PublishedBenchmarkTests.cpp.
+    ///  - railRestitution .82 (0.43 checked): straight-in rolling rebound ≈ 0.85 of the impact speed. Mathavan 2009 measured
+    ///    0.91–0.94 at 0.6–1.5 m/s and 0.84 at 3 m/s on SNOOKER cushions; a pool DigiBall test (AZB 05/2026) implies
+    ///    0.73–0.77; the owner's real-table zigzag clip fits .82 with rail friction .20. Kept: between the two pool-relevant
+    ///    sources, within 9 % of Mathavan [Tests/PublishedBenchmarkTests B23–25]. Re-fit with the owner's table profile.
     ///  - ballFrictionMin .05 (high-slip floor of the ball-ball friction, literature .00995): FITTED so the
     ///    cue ball's side spin gears into the object ball (owner 04/11/2026: reverse english makes the object ball
     ///    spin the other way and jerk back off the rail). With the literature floor the object ball got

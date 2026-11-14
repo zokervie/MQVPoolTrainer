@@ -220,7 +220,11 @@ final class TableScene {
         float2 wv = plane / max(weavePitch, 0.0004);
         // 0.40b (owner photos, 60/40 wool-nylon "300" speed cloth): up close every thread reads as a rounded grain with a
         // dark gap — stronger relief and gaps than 0.39; worn cloth keeps only ~40 % of it under the fuzz.
-        float weaveW = fiberStrength * (1.0 - 0.6 * clothAge) * saturate((0.45 - length(fwidth(wv))) / 0.17);
+        // 0.43 (owner 14/11 macro photos: "giống ô đan nylon/rổ"): the weave is now a soft undertone (≈ half the relief,
+        // shallow gaps) broken by a slow cloud so rows never form a grid, and a cross-fibre fuzz layer lies over it —
+        // worsted felt reads as fibres first, threads second.
+        float cloud = fiberMap.sample(fs, plane * 7.0).r;
+        float weaveW = 0.55 * fiberStrength * (1.0 - 0.6 * clothAge) * (0.65 + 0.7 * cloud) * saturate((0.45 - length(fwidth(wv))) / 0.17);
         if (weaveW > 0.001) {
             float2 cell = floor(wv), f = fract(wv);
             float odd = fmod(abs(cell.x + cell.y), 2.0);
@@ -231,9 +235,16 @@ final class TableScene {
             float twist = 0.5 + 0.5 * sin(6.2832 * (mix(f.y, f.x, odd) * 3.0 + mix(f.x, f.y, odd) * 1.2 + hcell));
             float gap = saturate(min(sin(3.14159 * f.x), sin(3.14159 * f.y)) * 3.0);
             _surface.diffuse.rgb *= 1.0 + weaveW * (0.50 * (hw - 0.55) + 0.12 * (hcell - 0.5) + 0.08 * (twist - 0.5));
-            _surface.diffuse.rgb *= mix(1.0, 0.64 + 0.36 * gap, weaveW);
+            _surface.diffuse.rgb *= mix(1.0, 0.84 + 0.16 * gap, weaveW);
             float gx = (1.0 - odd) * cos(3.14159 * f.x) + odd * 0.25 * (twist - 0.5), gy = odd * cos(3.14159 * f.y) + (1.0 - odd) * 0.25 * (twist - 0.5);
-            _surface.normal = normalize(_surface.normal + weaveW * 1.3 * (gx * _surface.tangent + gy * _surface.bitangent));
+            _surface.normal = normalize(_surface.normal + weaveW * 0.75 * (gx * _surface.tangent + gy * _surface.bitangent));
+            // fuzz: two rotated fibre layers over the threads (stray fibres bridge the gaps)
+            float2 r1 = float2(wv.x * 0.81 - wv.y * 0.59, wv.x * 0.59 + wv.y * 0.81) * 0.23;
+            float fz = fiberMap.sample(fs, r1).r * 0.6 + fiberMap.sample(fs, r1 * 1.9 + float2(0.37, 0.11)).r * 0.4;
+            float fuzzW = saturate(weaveW * 1.6);
+            _surface.diffuse.rgb *= 1.0 + fuzzW * 0.22 * (fz - 0.5);
+            float fx = fiberMap.sample(fs, r1 + float2(0.004, 0.0)).r, fy = fiberMap.sample(fs, r1 + float2(0.0, 0.004)).r;
+            _surface.normal = normalize(_surface.normal + fuzzW * 0.9 * ((fz - fx) * _surface.tangent + (fz - fy) * _surface.bitangent));
         }
         _surface.roughness = 1.0;   // 0.37: worsted cloth has no sheen; a sliding highlight made the bands move/flicker
         """,.fragment:"""
@@ -1825,13 +1836,15 @@ final class TableScene {
         lastCameraTarget=target
         camera.simdPosition=eye;camera.look(at:SCNVector3(target.x,target.y,target.z),up:up,localFront:SCNVector3(0,0,-1))
     }
+    /// 0.43: effect limit (fraction of R) shared with the core — set by TrainingController.tipLimit.
+    var tipLimit:Double=0.55
     private func cuePose(_ c:BallState,angle:Double,side:Double,top:Double)->(contact:SIMD3<Float>,axis:SIMD3<Float>,tipBack:Float){
         let d=SIMD3<Float>(Float(cos(angle)),0,Float(sin(angle)))
         let elevation=Float(max(cueElevation,min(clearanceElevation,85))*Double.pi/180)
         let axis=d*cos(elevation)-SIMD3<Float>(0,1,0)*sin(elevation)
         let right=SIMD3<Float>(-d.z,0,d.x)
         let up=d*sin(elevation)+SIMD3<Float>(0,1,0)*cos(elevation)
-        let limit:Float=cueElevation>0 ? 0.6:0.7
+        let limit=Float(tipLimit)   // 0.43: same limit as the core (BLTipMaxOffset)
         var x=Float(side),y=Float(top);let size=sqrt(x*x+y*y)
         if size>limit{x *= limit/size;y *= limit/size}
         let center=SIMD3<Float>(Float(c.x),Float(radius)+Float(c.height ?? 0),Float(c.y))
@@ -1841,10 +1854,9 @@ final class TableScene {
         let rearOffset: SIMD3<Float> = axis*radial
         let surfaceOffset: SIMD3<Float> = (lateralOffset+verticalOffset-rearOffset)*Float(radius)
         let contact: SIMD3<Float> = center+surfaceOffset
-        // Rear-hand point remains fixed while the selected tip point moves: it sets the HORIZONTAL stroke direction.
-        let pivot=center-axis*(cueType==1 ? 0.80:1.12)
-        let raw=contact-pivot,flatLength=sqrt(raw.x*raw.x+raw.z*raw.z)
-        let flat=flatLength>1e-6 ? SIMD3<Float>(raw.x/flatLength,0,raw.z/flatLength):d
+        // 0.43: the cue strokes PARALLEL to the aim line. The old fixed rear-hand pivot (1.12 m) turned side english into
+        // a 0.8–1.0° stroke error TOWARD the english side — the opposite of real squirt. Squirt is the physics' job.
+        let flat=d
         // 0.35 (owner: the cue still goes through the ball and the table). The pitch is the selected elevation, not the
         // pivot→tip line: a high tip no longer tilts the butt down into the rail, and a low tip on a level cue gets the
         // tiny lift that keeps the 14.7 mm butt above the cloth.

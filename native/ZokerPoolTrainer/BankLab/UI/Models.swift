@@ -18,6 +18,21 @@ struct BallState: Codable {
     var qz:Double? = nil
     var qw:Double? = nil
     init(id: Int, x: Double, y: Double) { self.id=id; self.x=x; self.y=y }
+    /// 0.43: decode BLWorld.packedStates (16 doubles per ball, same fields as the dictionary init).
+    static func unpack(_ data: Data) -> [BallState] {
+        data.withUnsafeBytes { raw in
+            let v = raw.bindMemory(to: Double.self); var out: [BallState] = []; out.reserveCapacity(v.count / 16)
+            var i = 0
+            while i + 16 <= v.count {
+                var b = BallState(id: Int(v[i]), x: v[i+1], y: v[i+2])
+                b.vx = v[i+3]; b.vy = v[i+4]; b.wx = v[i+5]; b.wy = v[i+6]; b.spin = v[i+7]; b.sunk = v[i+8] != 0
+                b.rails = Int(v[i+9]); b.height = v[i+10]; b.vertical = v[i+11]
+                b.qx = v[i+12]; b.qy = v[i+13]; b.qz = v[i+14]; b.qw = v[i+15]
+                out.append(b); i += 16
+            }
+            return out
+        }
+    }
     init(_ d: [String:NSNumber]) {
         id=d["id"]!.intValue; x=d["x"]!.doubleValue; y=d["y"]!.doubleValue
         height=d["height"]?.doubleValue;vertical=d["vertical"]?.doubleValue
@@ -337,4 +352,10 @@ private final class DrillPreviewView:UIView {
         let note="Trắng: bi cái · Cam: bi 1 · Xám: bi cản · Nét đứt: hướng ngắm gợi ý ban đầu" as NSString
         note.draw(at:CGPoint(x:bounds.minX,y:self.bounds.maxY-18),withAttributes:[.font:UIFont.systemFont(ofSize:11,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.85)])
     }
+}
+
+extension BLWorld {
+    /// 0.43: fast path (no per-ball dictionaries) — identical values to `states.map{BallState($0)}`.
+    var ballStates: [BallState] { BallState.unpack(packedStates) }
+    var presentationBallStates: [BallState] { BallState.unpack(packedPresentationStates) }
 }

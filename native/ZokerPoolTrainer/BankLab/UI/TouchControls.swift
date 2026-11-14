@@ -71,6 +71,9 @@ final class SpinPad:UIControl {
     /// Đưa điểm không với tới về điểm gần nhất phía trên (giữ ngang), như ngoài đời chỉ đánh được phần trên bi.
     var clampTop:((Double,Double)->Double)?
     var expandedChanged:((Bool)->Void)?
+    /// 0.43 (owner 0.40 #3 "chỉ zoom khỏi vị trí ban đầu, không double"): with the loupe on, the pad stays small and only
+    /// the loupe grows; the drag keeps the loupe's sensitivity (points of finger travel per R).
+    var dragRadius:Double?
     private var finger:UITouch?
     private var origin=CGPoint.zero
     private var initialSide=0.0,initialTop=0.0
@@ -144,7 +147,7 @@ final class SpinPad:UIControl {
     }
 
     private func apply(_ touch:UITouch){
-        let p=touch.location(in:self),r=Double(min(bounds.width,bounds.height)*0.43)
+        let p=touch.location(in:self),r=dragRadius ?? Double(min(bounds.width,bounds.height)*0.43)
         var x=initialSide+Double(p.x-origin.x)/r,y=initialTop-Double(p.y-origin.y)/r
         let length=hypot(x,y);if length>maximumOffset{x*=maximumOffset/length;y*=maximumOffset/length}
         if hypot(x,y)<0.045{x=0;y=0}

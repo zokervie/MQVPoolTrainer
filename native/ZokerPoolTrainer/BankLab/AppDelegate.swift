@@ -12,6 +12,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.rootViewController = TrainingController()
         window.makeKeyAndVisible()
         self.window = window
+        IntroOverlay.present(in: window)   // 0.43: "The Golden Break" (full once, then a 1 s sting; tap to skip)
         return true
     }
 }

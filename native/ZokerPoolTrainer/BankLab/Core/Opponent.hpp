@@ -87,7 +87,7 @@ constexpr std::array<double,5> kSpeeds{{1.1,0.6,1.8,0.3,2.9}};
 constexpr std::array<double,5> kSpins{{0.0,0.42,-0.45,-0.18,0.55}};
 
 /// A planned or executed stroke. `angle` is the direction the cue ball is struck (physics); the app's aim angle is
-/// `aimAngle()` (the cue pivots at the bridge hand, so side english moves the stroke line — TableScene.cuePose).
+/// `aimAngle()` (0.43: identical — the cue strokes parallel to the aim line).
 struct Shot {
     double angle=0,speed=0,side=0,top=0,elevation=0;
     int kind=Normal,intent=Roll;
@@ -114,7 +114,7 @@ inline Config strokeConfig(Config c,int kind,double elevation){
     c.cueType=kind==Jump?1:kind==BreakCue?2:0;
     c.cueElevationDegrees=elevation;
     c.experimental3D=elevation>35||kind==Jump;
-    c.squirtEnabled=true;c.squirtRampDegrees=BL_SQUIRT_RAMP_DEGREES;
+    c.squirtEnabled=true;   // 0.43: squirtRampDegrees stays the app's (15 = level cue straight, 0 = "Squirt thực tế")
     c.masseCoupledContact=BLMasseCoupledForShotKind(shotKind)>0;
     c.tipProfile=BLTipForShotKind(shotKind);
     return c;
@@ -124,14 +124,10 @@ inline Outcome play(const World& w,const Shot& s,double seconds=kJudgeSeconds){
     World t(strokeConfig(w.config,s.kind,s.elevation));t.reset(w.balls);
     return t.simulate(s.angle,s.speed,s.side,s.top,seconds);
 }
-/// Aim angle the app must be given so that its stroke line (TableScene.cuePose: the cue pivots at the bridge hand,
-/// 1.12 m behind the ball — 0.80 m for the short jump cue) equals `s.angle`.
-inline double aimAngle(const Shot& s,double radius){
-    const double limit=s.elevation>0?0.6:0.7;double x=s.side,y=s.top;const double size=std::hypot(x,y);
-    if(size>limit){x*=limit/size;y*=limit/size;}
-    const double radial=std::sqrt(std::max(0.0,1-x*x-y*y)),pivot=s.kind==Jump?0.80:1.12,el=s.elevation*kPi/180;
-    return s.angle-std::atan2(radius*x,(pivot-radius*radial)*std::cos(el)+radius*y*std::sin(el));
-}
+/// Aim angle the app must be given for a stroke along `s.angle`. 0.43: the cue strokes PARALLEL to the aim line (the
+/// old bridge-hand pivot of TableScene.cuePose turned side english into a 0.8–1.0° stroke-line error TOWARD the english
+/// side, the opposite of real squirt) — the aim is the stroke line; squirt comes only from the physics (TP A.31).
+inline double aimAngle(const Shot& s,double){return s.angle;}
 
 inline std::array<V2,6> pockets(const Config& c){
     const double x=c.width/2,y=c.length/2;   // same catch basins as World::pocket

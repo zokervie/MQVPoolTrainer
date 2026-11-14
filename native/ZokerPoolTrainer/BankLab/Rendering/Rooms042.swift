@@ -35,7 +35,14 @@ extension TableScene {
         _=box(width,h,0.035,SCNVector3(0,0,0),back,chamfer:0.012,parent:group)
         _=box(width+0.04,0.012,0.045,SCNVector3(0,Float(h/2),0.004),face,chamfer:0.003,parent:group)
         _=box(width+0.04,0.012,0.045,SCNVector3(0,Float(-h/2),0.004),face,chamfer:0.003,parent:group)
-        let logo=zLogo(height:h*0.72,material:face);logo.position=SCNVector3(Float(-width/2+h*0.55),0,0.02);group.addChildNode(logo)
+        // 0.43 (owner 0.40 #11 + logo 14/11): the official logo image (Z + 9 ball), not a re-modelled Z — exact identity.
+        if let image=UIImage(named:"ZokerLogo043") {
+            let plane=SCNPlane(width:h*0.86,height:h*0.86);let m=SCNMaterial();m.diffuse.contents=image;m.emission.contents=image
+            m.emission.intensity=0.35;m.lightingModel = .physicallyBased;m.roughness.contents=0.35;plane.materials=[m]
+            let logo=SCNNode(geometry:plane);logo.position=SCNVector3(Float(-width/2+h*0.55),0,0.02);group.addChildNode(logo)
+        } else {
+            let logo=zLogo(height:h*0.72,material:face);logo.position=SCNVector3(Float(-width/2+h*0.55),0,0.02);group.addChildNode(logo)
+        }
         let text=SCNText(string:"ZOKER POOL",extrusionDepth:0.25)
         text.font=UIFont(name:"AvenirNext-HeavyItalic",size:1) ?? UIFont.systemFont(ofSize:1,weight:.black)
         text.flatness=0.02;text.chamferRadius=0.035;text.materials=[face]

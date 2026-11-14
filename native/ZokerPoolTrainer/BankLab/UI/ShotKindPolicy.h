@@ -19,6 +19,13 @@ static inline int BLTipForShotKind(int shotKind) {
     return shotKind == 3 ? 1 : (shotKind == 1 || shotKind == 2) ? 2 : 0;
 }
 
+// 0.43 (anh chốt 14/11: không làm miscue): giới hạn điểm chạm (phần của R) — MỘT nguồn cho lõi (Config::tipMaxOffset),
+// bi effect, cơ 3D, hướng đánh, máy chơi và xem lại. ~0,5R là giới hạn miscue [TP B.17]; cơ nâng 0,50; tẩy mềm +0,05,
+// cứng −0,05 [thiết kế]. Trước 0.43 giao diện cho 0,70R trong khi lõi kẹp 0,55R.                  [Tests/CueTipTests.cpp]
+static inline double BLTipMaxOffset(int tipProfile, int elevated) {
+    return (elevated ? 0.50 : 0.55) + (tipProfile == 1 ? 0.05 : tipProfile == 2 ? -0.05 : 0.0);
+}
+
 // Gậy phá: hệ số lực người chơi tạo được [thiết kế]; mức 30 ≈ 11,9 m/s với đầu cứng.  [Tests/CueTipTests.cpp]
 #define BL_BREAK_SPEED_GAIN 1.4
 

@@ -64,9 +64,9 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         slider("Đàn hồi bi–bi","ballRestitution",0.80,1,0.94,real:(0.92,0.98))
         slider("Ma sát bi–bi khi trượt chậm μ₀ (giảm theo tốc độ, TP A.14)","ballFriction",0,0.12,0.118)
         slider("Truyền xoáy bi–bi (bánh răng) — ma sát khi trượt nhanh, 0.30: 0,05","ballFrictionMin",0,0.1,0.05)
-        slider("Giảm ép phê ngang (rad/s²) — 0.31: 15 (công bố 5–15)","spinDecay",1,40,15,real:(5,15))
+        slider("Giảm ép phê ngang (rad/s²) — 0.42: 11 (pooltool; Dr. Dave đo ~10)","spinDecay",1,40,11,real:(5,15))
         slider("Băng nảy ngược tiếp tuyến β (grip-slip) — 0.21: 0,30, fit clip zigzag","railTangentialRestitution",0,0.9,0.30)
-        slider("Squirt đủ ở độ nâng cơ (°) — 0: luôn có squirt","squirtRampDegrees",0,60,15)
+        toggle("Squirt thực tế — bi lệch khỏi đường ngắm khi đánh effect, cả khi cơ nằm ngang (TP A.31). Tắt: cơ ngang đi đúng đường ngắm","squirtRealistic043",false)
         slider("Gậy phá · hệ số lực","breakSpeedGain",1,1.8,1.4)
         slider("Massé · hệ số lực (0.30: 1,2 = +20%)","masseSpeedGain",1,1.6,1.2)
         slider("Massé · đàn hồi cơ–bi (thấp: dính lâu, xoáy nhiều)","masseCueRestitution",0.1,0.9,0.35)
@@ -114,7 +114,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             lines.append("| \(key) | \(originalValues[key]?.stringValue ?? "—") | \(values[key]?.stringValue ?? "—") |")
         }
         lines.append("| swipeSensitivity | \(originalSensitivity) | \(sensitivity) |")
-        lines += ["", "## Nguồn hệ số (0.30)", "", "- railTangentialRestitution 0,30: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút.", "- railFriction 0,20: Mathavan 2010 / pooltool (ma sát bi–băng công bố 0,14–0,2). 0,45 = cảm nhận bàn anh (tuỳ chọn).", "- Đầu cơ tối đa 0,55R: giới hạn trượt cơ ~0,5R điểm chạm (Alciatore).", "- ballFrictionMin 0,05: fit — effect ngược truyền xoáy ngược sang bi đích (bánh răng), R·ω/v ≈ 0,13 như clip.", "- spinDecay 15: đầu trên khoảng công bố 5–15 rad/s² (Alciatore, Physical properties).", "- railRestitution 0,82: giữ nguyên.", "- squirtRampDegrees 15, breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
+        lines += ["", "## Nguồn hệ số (0.30)", "", "- railTangentialRestitution 0,30: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút.", "- railFriction 0,20: Mathavan 2010 / pooltool (ma sát bi–băng công bố 0,14–0,2). 0,45 = cảm nhận bàn anh (tuỳ chọn).", "- Đầu cơ tối đa 0,55R (cơ nâng 0,50R): giới hạn trượt cơ ~0,5R (Alciatore); 0.43: bi effect, cơ 3D và lõi dùng chung một giới hạn.", "- ballFrictionMin 0,05: fit — effect ngược truyền xoáy ngược sang bi đích (bánh răng), R·ω/v ≈ 0,13 như clip.", "- spinDecay 11: pooltool 5μ_sp·g/(2R); Dr. Dave đo ~10 rad/s² (TP B.2).", "- railRestitution 0,82: giữ nguyên.", "- Squirt: mặc định cơ ngang đi đúng đường ngắm (anh chốt 03/11), bật \"Squirt thực tế\" để có squirt theo TP A.31. breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
         lines += ["", "## Ghi chú đo bàn thật", "", "- Loại bàn / nỉ / bi:", "- Cự ly và tốc độ đầu đo được:", "- Quãng đường dừng / góc bật đo được:", "- Sai lệch so với ứng dụng:", "", "Xuất file không tự áp dụng cấu hình; bấm Lưu để áp dụng."]
         let url=FileManager.default.temporaryDirectory.appendingPathComponent("ZTrainer-calibration-"+UUID().uuidString+".md")
         do{
@@ -275,6 +275,7 @@ final class CustomizeController:UIViewController {
         slider("Độ rõ của gậy khi mờ","tuneCueGhost040",0.2,0.8,fallback:0.42,format:{String(format:"%.0f%%",$0*100)})
         // 0.41 (owner): 7-colour power scale (tím = nhẹ … đỏ = mạnh), misty swipe trail, speed shown where the swipe ends.
         toggle("Thang lực 7 màu · vệt vuốt · số lực cuối cú","tunePowerFX041",true)
+        toggle("Intro thương hiệu khi mở app (lần đầu đủ 5,6 s, sau đó 1 s)","introEnabled043",true)
         header("Khoá hướng cơ")
         toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
         header("Luyện mắt")
