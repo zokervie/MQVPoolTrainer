@@ -27,19 +27,18 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
    - (a) ĐÃ CHỐT 13/11 07:56: bản sau dồn sức cho vật lý (P0).
    - (b) HOÃN (13/11 23:56): Apple Developer 99 USD/năm → chỉ mở khi bản chơi hoàn chỉnh; giờ ưu tiên sửa lỗi nhỏ. Không nhắc TestFlight/Game Center cho tới lúc đó.
    - (c) Skill `zoker-pool-dev`: đã lưu.
-3. Quay video 240 fps ở CLB theo `Docs/KE-HOACH-VAT-LY-0.42.md` §3 (5 loại cú A–E, khoảng 45 phút, cần chân máy có tay ngang cao 1,5 m).
+3. **(14/11) Gom việc 0.43 — `Docs/VIEC-CHO-0.43.md`.** Chờ anh: (a) bổ sung nhiệm vụ, (b) gửi 23 clip Dr. Dave + 2 PDF Mathavan (danh sách §C), (c) trả lời 3 câu §A (effect > 0,55R · squirt khi cơ ngang · effect mạnh nhất nhẹ hơn). KHÔNG code/build tới khi anh nói làm. Video CLB không dùng để hiệu chuẩn chuẩn (bàn chưa chắc chuẩn).
 4. Âm thanh: anh tự gửi gói mới khi có (không nhắc).
 5. Game Center: làm cùng TestFlight sau khi anh có tài khoản Developer. PR #4 đã đóng (0.41 chứa toàn bộ); gộp 0.41 vào `feature/zoker-native` khi anh xác nhận trên máy.
 6. Khi về gần máy Mac có Xcode: chuyển phần code sang Claude Code chạy trên Mac (biên dịch và chạy Simulator tại chỗ, không chờ CI 50 phút).
 
 ## 4. Việc kế tiếp — theo thứ tự, yêu cầu mới nhất của anh luôn đứng đầu
-1. Theo dõi CI `ci/native-0.41`: đỏ vì lỗi biên dịch Swift thì sửa và đẩy lại cùng nhánh; xanh thì gửi anh IPA.
-2. **0.42 = VẬT LÝ** (anh chốt 13/11). Thứ tự:
-   - P0: hiệu chỉnh vật lý theo video (`Docs/KE-HOACH-VAT-LY-0.42.md`). Làm ngay, không cần chờ video: test khớp hệ số trên dữ liệu tổng hợp + công cụ dò bi.
-   - P1: lên TestFlight.
-   - P2: Z-Assess (đánh giá trình độ), lộ trình tự sinh, "Vì sao trượt", báo cáo tuần.
-   - Sau đó: Bàn nhà tôi, Cú quyết định, intro, logo, hệ thiết kế giao diện, âm thanh giao diện tự tạo.
-3. **0.42**: widget / Live Activity (cần tài khoản Developer), âm thanh mẫu thật, chế độ HLV.
+1. **0.43 (anh dặn 14/11 15:33: lưu lại, chờ bổ sung rồi làm một thể)** — toàn bộ ở `Docs/VIEC-CHO-0.43.md`:
+   - A. Điểm chạm một nguồn (UI 0,70 ≠ lõi 0,55), hướng bi cơ ngang lệch sai phía, độ mượt live (chuyển trạng thái C++→Swift mỗi 1/240 s), rút test Opponent.
+   - B. Chuẩn hoá theo TP Dr. Dave: băng B.28, lỗ theo tốc độ 3.5–3.8, squirt B.26, throw B.3.
+   - C. Đo từ clip Dr. Dave anh gửi (băng, throw, jump/massé, lỗ).
+   - D. Công cụ luyện: đoán trước chỗ bi dừng, để thế cú sau, so sánh một yếu tố.
+2. Sau 0.43: P1 TestFlight (khi anh có Developer), Z-Assess, "Vì sao trượt", báo cáo tuần; widget/Live Activity, chế độ HLV.
 
 ## 5. Skill · rủi ro · công nghệ cho các việc tới
 | Việc | Skill dùng | Rủi ro chính | Công nghệ đề xuất |
