@@ -43,8 +43,19 @@ int main() {
         std::printf("REPORT: rack gap %.1f mm, 10 m/s centred break: order effect %.1f mm, mirror asymmetry %.1f mm, %.0f ms per 6 s break\n",
                     gap * 1000, order * 1000, mirror * 1000, ms);
         check(sunkOrder == 0, "listing order does not change which balls are pocketed");
-        check(order < (gap > 0 ? .002 : .05), "listing order moves no ball more than 2 mm (frozen rack: 5 cm)");
-        check(mirror < (gap > 0 ? .002 : .05), "centred break ends mirror-symmetric");
+        if (gap > 0) {
+            check(order < .002, "listing order moves no ball more than 2 mm");
+            check(mirror < .002, "centred break ends mirror-symmetric");
+        } else {
+            // 0.43: a FROZEN rack is chaotic — the solver's order difference is ~0.004 mm at 1 s, then one grazing contact
+            // decides a later branch (with TP A.14 ball friction the 6 s spread is ~6 cm; with the old .05 floor it was
+            // under 5 cm by chance). Check the solver where it acts (first second); report the 6 s spread.
+            const auto a1 = breakShot(gap, false, 1), b1 = breakShot(gap, true, 1); double o1 = 0;
+            for (int i = 1; i < 16; ++i) o1 = std::max(o1, std::hypot(a1[i].p.x - b1[i].p.x, a1[i].p.y - b1[i].p.y));
+            std::printf("REPORT: frozen rack, order effect after 1 s: %.4f mm\n", o1 * 1000);
+            check(o1 < .002, "frozen rack: listing order moves no ball more than 2 mm while the solver acts (1 s)");
+            check(order < .15 && mirror < .15, "frozen rack after 6 s: chaotic spread stays under 15 cm");
+        }
         check(ms < 1500, "a full break simulates fast enough for the device");
     }
     std::printf("%s\n", failures ? "BreakSymmetry: FAILED" : "BreakSymmetry: all checks passed");

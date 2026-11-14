@@ -27,7 +27,12 @@ struct Config {
     // μ(v) = a + b·e^(−c·v), a = 0,00995, b = 0,108, c = 1,088 s/m. `ballFriction` là μ khi v → 0 (= a + b).
     // Trước 0.14 dùng hằng số 0,035 → throw cú chậm chỉ ~2° thay vì 4–6° (Tests/LiteratureTests.cpp).
     double ballRestitution=.94,ballFriction=.118,ballFrictionMin=.00995,ballFrictionDecay=1.088;
-    double ballFrictionAt(double slip)const{double lo=std::min(ballFrictionMin,ballFriction);return lo+(ballFriction-lo)*std::exp(-ballFrictionDecay*slip);}
+    // 0.43 (owner 14/11): ball condition. TP A.17: the whole μ(v) curve scales with the balls' condition (µfactor);
+    // chalk/dirt ("cling") mostly keeps friction HIGH at fast slip. 0 clean/polished ×0.8 · 1 normal = TP A.14 (default)
+    // · 2 dirty/chalked: floor .05 at fast slip — the owner's reverse-zigzag clip [Tests/ReverseZigzagTests].
+    double ballFrictionFactor=1;
+    double ballFrictionAt(double slip)const{double lo=std::min(ballFrictionMin,ballFriction);return ballFrictionFactor*(lo+(ballFriction-lo)*std::exp(-ballFrictionDecay*slip));}
+    void setBallCondition(int level){ballFrictionFactor=level==0?.8:1.0;ballFrictionMin=level==2?.05:.00995;}
     // Va chạm cơ–bi (Alciatore TP A.30/A.31). `speed` truyền vào strike() là tốc độ bi khi đánh TÂM;
     // đánh lệch tâm d thì bi đi chậm hơn: v = speed·(1+m/M)/(1+m/M+2,5d²). Squirt theo khối lượng đầu cơ mₑ.
     // Khối lượng cơ theo cueType (0 thường 19 oz, 1 nhảy, 2 phá); mₑ là GIẢ ĐỊNH (ngọn chuẩn ~7 g), chưa đo.
@@ -95,6 +100,7 @@ struct Config {
     ///    0.91–0.94 at 0.6–1.5 m/s and 0.84 at 3 m/s on SNOOKER cushions; a pool DigiBall test (AZB 05/2026) implies
     ///    0.73–0.77; the owner's real-table zigzag clip fits .82 with rail friction .20. Kept: between the two pool-relevant
     ///    sources, within 9 % of Mathavan [Tests/PublishedBenchmarkTests B23–25]. Re-fit with the owner's table profile.
+    ///  - 0.43: ball condition Thường (TP A.14 curve) by default; the .05 floor below is now the "Bẩn/phấn" condition.
     ///  - ballFrictionMin .05 (high-slip floor of the ball-ball friction, literature .00995): FITTED so the
     ///    cue ball's side spin gears into the object ball (owner 04/11/2026: reverse english makes the object ball
     ///    spin the other way and jerk back off the rail). With the literature floor the object ball got
@@ -104,7 +110,7 @@ struct Config {
     ///    ballFrictionMin stays .05: FITTED to a real clip, which outranks the Marlow fit (literature throw at 3 m/s is
     ///    1.7 deg; ours 3.6 deg). Tests/Standard042Tests.cpp prints both.
     ///  - squirt only with a raised cue, break-cue gain 1.4, massé gain 1.2 [owner decisions], settle spin-in-place [0.29].
-    static Config app(){Config c;c.coupledCushions=true;c.railTangentialRestitution=.30;c.railFriction=.20;c.railGrip={{.20,.20,.20,.20}};c.spinDecay=11;c.ballFrictionMin=.05;
+    static Config app(){Config c;c.coupledCushions=true;c.railTangentialRestitution=.30;c.railFriction=.20;c.railGrip={{.20,.20,.20,.20}};c.spinDecay=11;c.setBallCondition(1);
         c.squirtRampDegrees=15;c.breakSpeedGain=1.4;c.masseSpeedGain=1.2;c.settleSpinInPlace=true;return c;}
 };
 struct Rotation {double x=0,y=0,z=0,w=1;};

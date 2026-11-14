@@ -25,6 +25,13 @@ nguồn đo khác tốt hơn. Mọi kiểm tra chạy trong CI: `Tests/Published
 | Squirt 0,55R, cơ ngang | 1,5–4,5° tuỳ ngọn [TP A.31] | 2,4° khi bật "Squirt thực tế" | Khớp |
 | Giới hạn điểm chạm | ~0,5R [TP B.17] | 0,55R (một nguồn cho mọi phần) | Khớp, đã hết lệch 0,70R ở giao diện |
 
+## 2b. Đã đổi: độ sạch bi (anh chấp thuận 14/11 17:19)
+Ma sát sàn 0,05 (fit clip reverse zigzag) làm cú NHANH truyền xoáy sang bi đích gấp 3–4 lần tài liệu (3 m/s, effect 45 %:
+11 % so với 2,5 %; TP A.27: tối đa 35,7 % và chỉ ở cú chậm–vừa). Clip của anh là thật nhưng nhiều khả năng là bi bẩn/dính
+phấn ("cling", TP A.17: ma sát tăng ≥ 2 lần). Nay: **Thường** = TP A.14 (mặc định), **Bẩn/dính phấn** = sàn 0,05 (vẫn tái
+hiện clip, test giữ cửa RailEnglish), **Sạch** = ×0,8. Mốc mới B27–B28 (TP A.27). Bi phá cụm khít (frozen rack) là hệ hỗn
+loạn: chênh do thứ tự trong lõi chỉ 0,005 mm ở giây đầu; test kiểm ở 1 s, 6 s chỉ báo cáo (≤ 15 cm).
+
 ## 3. Đã thử nhưng KHÔNG đổi (và vì sao)
 - **Độ nảy băng theo tốc độ (Mathavan: e 0,91 − 0,035·v)**: khớp tốc độ bật thẳng, nhưng làm góc bật xiên hẹp thêm ~2° (bài
   kiểm tra K1a ra ngoài khoảng); hạ ma sát băng để bù thì clip zigzag bàn thật của anh lệch quá 0,3 kim cương. Số Mathavan là băng snooker; số pool (DigiBall) lại thấp

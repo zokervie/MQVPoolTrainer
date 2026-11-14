@@ -86,8 +86,16 @@ int main() {
     bench(18, "max english R*w/v at limit", 2.5 * app.tipMaxOffset(false) * (1 + app.cueMass() / app.mass) / (1 + app.cueMass() / app.mass + 2.5 * std::pow(app.tipMaxOffset(false), 2)) , .6, 1.25, "[TP 4.2, A.30]");
     // B19 ball-ball friction at slow slip within 0.03-0.08 band at typical shot slip (1 m/s) [PP]
     bench(19, "ball-ball friction at 1 m/s slip", app.ballFrictionAt(1.0), .03, .08, "[PP]");
-    // B20 ball-ball friction at fast slip (4 m/s) within 0.03-0.08 [PP] (app floor .05 for gear effect)
-    bench(20, "ball-ball friction at 4 m/s slip", app.ballFrictionAt(4.0), .03, .08, "[PP]");
+    // B20 0.43: fast-slip friction follows the TP A.14 fit (Marlow data) for normal balls: mu(4 m/s) = 0.0114
+    bench(20, "ball-ball friction at 4 m/s slip (normal balls)", app.ballFrictionAt(4.0), .009, .014, "[TP A.14] 0.0114");
+    // B27 0.43: spin transfer, straight stop shot, slow, 20 % english: <= 35.7 % (5/14) [TP A.27]
+    {   Config c = open(app); World w(c); Ball cue = make(0, {0, 0}), ob = make(1, {0, 2 * R + 1e-5});
+        cue.v = {0, .5}; cue.spin = 2.5 * .5 * .2 / R; const double s0 = cue.spin; w.balls = {cue, ob}; run(w, .02);
+        bench(27, "spin transfer, slow straight, 20% english (fraction)", -w.balls[1].spin / s0, .25, .3571, "[TP A.27] max 5/14"); }
+    // B28 0.43: fast (3 m/s) shots with 45 % english transfer little (normal balls): < 6 % [TP A.27 with TP A.14 friction]
+    {   Config c = open(app); World w(c); Ball cue = make(0, {0, 0}), ob = make(1, {0, 2 * R + 1e-5});
+        cue.v = {0, 3}; cue.spin = 2.5 * 3 * .45 / R; const double s0 = cue.spin; w.balls = {cue, ob}; run(w, .02);
+        bench(28, "spin transfer, fast straight, 45% english (fraction)", -w.balls[1].spin / s0, 0, .06, "[TP A.27/A.14]"); }
     // ---- 0.43: Mathavan, Jackson & Parkin 2009 (Am. J. Phys. 77, 788) — high-speed overhead camera, 120-1000 fps,
     // snooker table [M09]. Snooker and pool cloth/cushions are close but not identical: ranges keep a margin.
     // B21 rolling deceleration 0.124-0.126 m/s^2 [M09] (pool cloth spread: 0.10-0.16)

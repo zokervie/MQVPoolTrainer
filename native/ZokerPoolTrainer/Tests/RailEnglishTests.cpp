@@ -59,15 +59,18 @@ int main() {
         check(ownerAngle > std::abs(maxR) + 8, "the owner option (.45) is clearly wider");
     }
     // Gear effect: reverse english flips the object ball's spin and grows with the tip offset.
+    // 0.43: the clip's strong gear (R*w/v ~0.13) is the "Bẩn/phấn" ball condition; normal balls follow TP A.14/A.27.
+    Config dirty = app; dirty.setBallCondition(2);
     for (double speed : {2.0, 3.5}) {
-        const Gear none = gear(app, 20, speed, 0), rev = gear(app, 20, speed, -.7), half = gear(app, 20, speed, -.35), run = gear(app, 20, speed, .7);
+        const Gear none = gear(dirty, 20, speed, 0), rev = gear(dirty, 20, speed, -.7), half = gear(dirty, 20, speed, -.35), run = gear(dirty, 20, speed, .7);
         std::printf("REPORT: cut 20 deg %.1f m/s object-ball spin: none %+.1f, reverse .35R %+.1f, reverse .7R %+.1f (R*w/v %.3f), running .7R %+.1f\n",
                     speed, none.spin, half.spin, rev.spin, rev.ratio, run.spin);
         check(rev.spin * none.spin < 0, "reverse english turns the object ball's spin the other way (gear)");
         check(run.spin * none.spin > 0, "running english keeps the cut-induced direction");
-        check(rev.ratio >= .08, "reverse english: object-ball R*w/v >= 0.08 (enough to jerk back at the rail, clip ~0.13)");
-        Config lit = app; lit.ballFrictionMin = .00995;
-        check(gear(lit, 20, speed, -.7).ratio < rev.ratio * .7, "literature high-slip friction transfers much less (why it changed)");
+        check(rev.ratio >= .08, "dirty/chalked balls: reverse english object-ball R*w/v >= 0.08 (clip ~0.13)");
+        Config lit = app; lit.setBallCondition(1);
+        check(gear(lit, 20, speed, -.7).ratio < rev.ratio * .7, "normal balls (TP A.14) transfer much less than dirty ones");
+        check(gear(lit, 20, speed, -.7).spin * none.spin < 0, "normal balls: reverse english still flips the object-ball spin (gear, weaker)");
     }
     std::printf("%s\n", failures ? "RailEnglish: FAILED" : "RailEnglish: all checks passed");
     return failures ? 1 : 0;

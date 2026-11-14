@@ -28,7 +28,8 @@ static double along(const Config& c, V2 p) { return (p.y + c.length / 2) / (c.le
 
 struct Rail { double x, t; };
 static std::vector<Rail> run(double beta, double decay) {
-    Config c = Config::app(); c.railTangentialRestitution = beta; c.spinDecay = decay; if (beta == 0) c.railFriction = .16;
+    Config c = Config::app(); c.setBallCondition(2); c.railTangentialRestitution = beta;   // 0.43: the clip = dirty/chalked balls
+    c.spinDecay = decay; if (beta == 0) c.railFriction = .16;
     World w(c); Ball b; b.id = 8; b.p = world(c, 4.36, 1.83);
     b.v = (world(c, 3.44, 3.91) - b.p).unit() * 6.5; b.spin = -30; w.balls = {b};
     std::vector<Rail> rails; size_t seen = 0;

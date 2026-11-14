@@ -63,9 +63,23 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         }
         slider("Đàn hồi bi–bi","ballRestitution",0.80,1,0.94,real:(0.92,0.98))
         slider("Ma sát bi–bi khi trượt chậm μ₀ (giảm theo tốc độ, TP A.14)","ballFriction",0,0.12,0.118)
-        slider("Truyền xoáy bi–bi (bánh răng) — ma sát khi trượt nhanh, 0.30: 0,05","ballFrictionMin",0,0.1,0.05)
+        slider("Truyền xoáy bi–bi (bánh răng) — ma sát khi trượt nhanh (Thường 0,00995; Bẩn 0,05)","ballFrictionMin",0,0.1,0.00995)
         slider("Giảm ép phê ngang (rad/s²) — 0.42: 11 (pooltool; Dr. Dave đo ~10)","spinDecay",1,40,11,real:(5,15))
         slider("Băng nảy ngược tiếp tuyến β (grip-slip) — 0.21: 0,30, fit clip zigzag","railTangentialRestitution",0,0.9,0.30)
+        // 0.43 (owner 14/11): ball condition — TP A.17 friction factor. Normal = TP A.14 (default); dirty/chalked = the
+        // high-slip floor .05 fitted to the owner's reverse-zigzag clip (strong gear / spin transfer).
+        let condTitle=UILabel();condTitle.text="Độ sạch bi (ma sát bi–bi, truyền xoáy)";condTitle.textColor = .white;condTitle.font = .systemFont(ofSize:15,weight:.semibold)
+        body.addArrangedSubview(condTitle)
+        let cond=UISegmentedControl(items:["Sạch, bóng","Thường","Bẩn / dính phấn"]);cond.accessibilityIdentifier="BallCondition"
+        let fMin=values["ballFrictionMin"]?.doubleValue ?? 0.00995,fFac=values["ballFrictionFactor"]?.doubleValue ?? 1
+        cond.selectedSegmentIndex=fMin>0.03 ? 2:(fFac<0.95 ? 0:1)
+        cond.addAction(UIAction{[weak self,weak cond]_ in guard let self=self,let cond=cond else{return}
+            let level=cond.selectedSegmentIndex
+            self.values["ballFrictionFactor"]=NSNumber(value:level==0 ? 0.8:1.0);self.values["ballFrictionMin"]=NSNumber(value:level==2 ? 0.05:0.00995)
+        },for:.valueChanged)
+        body.addArrangedSubview(cond)
+        let condNote=UILabel();condNote.numberOfLines=0;condNote.textColor=UIColor(white:0.7,alpha:1);condNote.font = .systemFont(ofSize:12)
+        condNote.text="Thường = số đo công bố (Dr. Dave TP A.14). Bẩn/dính phấn: bi đích ăn xoáy mạnh khi đánh nhanh — reverse zigzag như clip của anh.";body.addArrangedSubview(condNote)
         let squirtSwitch=UISwitch();squirtSwitch.isOn=UserDefaults.standard.bool(forKey:"squirtRealistic043");squirtSwitch.accessibilityIdentifier="squirtRealistic043"
         squirtSwitch.addAction(UIAction{[weak squirtSwitch]_ in UserDefaults.standard.set(squirtSwitch?.isOn ?? false,forKey:"squirtRealistic043")},for:.valueChanged)
         let squirtLabel=UILabel();squirtLabel.numberOfLines=0;squirtLabel.textColor = .white;squirtLabel.font = .systemFont(ofSize:13,weight:.medium)
@@ -118,7 +132,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             lines.append("| \(key) | \(originalValues[key]?.stringValue ?? "—") | \(values[key]?.stringValue ?? "—") |")
         }
         lines.append("| swipeSensitivity | \(originalSensitivity) | \(sensitivity) |")
-        lines += ["", "## Nguồn hệ số (0.30)", "", "- railTangentialRestitution 0,30: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút.", "- railFriction 0,20: Mathavan 2010 / pooltool (ma sát bi–băng công bố 0,14–0,2). 0,45 = cảm nhận bàn anh (tuỳ chọn).", "- Đầu cơ tối đa 0,55R (cơ nâng 0,50R): giới hạn trượt cơ ~0,5R (Alciatore); 0.43: bi effect, cơ 3D và lõi dùng chung một giới hạn.", "- ballFrictionMin 0,05: fit — effect ngược truyền xoáy ngược sang bi đích (bánh răng), R·ω/v ≈ 0,13 như clip.", "- spinDecay 11: pooltool 5μ_sp·g/(2R); Dr. Dave đo ~10 rad/s² (TP B.2).", "- railRestitution 0,82: giữ nguyên.", "- Squirt: mặc định cơ ngang đi đúng đường ngắm (anh chốt 03/11), bật \"Squirt thực tế\" để có squirt theo TP A.31. breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
+        lines += ["", "## Nguồn hệ số (0.30)", "", "- railTangentialRestitution 0,30: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút.", "- railFriction 0,20: Mathavan 2010 / pooltool (ma sát bi–băng công bố 0,14–0,2). 0,45 = cảm nhận bàn anh (tuỳ chọn).", "- Đầu cơ tối đa 0,55R (cơ nâng 0,50R): giới hạn trượt cơ ~0,5R (Alciatore); 0.43: bi effect, cơ 3D và lõi dùng chung một giới hạn.", "- Độ sạch bi (0.43): Thường = TP A.14 (μ sàn 0,00995); Bẩn/dính phấn = sàn 0,05 (fit clip reverse zigzag, R·ω/v ≈ 0,13); Sạch = ×0,8 (TP A.17).", "- spinDecay 11: pooltool 5μ_sp·g/(2R); Dr. Dave đo ~10 rad/s² (TP B.2).", "- railRestitution 0,82: giữ nguyên.", "- Squirt: mặc định cơ ngang đi đúng đường ngắm (anh chốt 03/11), bật \"Squirt thực tế\" để có squirt theo TP A.31. breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
         lines += ["", "## Ghi chú đo bàn thật", "", "- Loại bàn / nỉ / bi:", "- Cự ly và tốc độ đầu đo được:", "- Quãng đường dừng / góc bật đo được:", "- Sai lệch so với ứng dụng:", "", "Xuất file không tự áp dụng cấu hình; bấm Lưu để áp dụng."]
         let url=FileManager.default.temporaryDirectory.appendingPathComponent("ZTrainer-calibration-"+UUID().uuidString+".md")
         do{

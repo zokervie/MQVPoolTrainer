@@ -268,7 +268,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             // 0.43: xoáy ngang 11 rad/s² của 0.42 — 0.42 quên bỏ giá trị 15 đã lưu nên máy cũ vẫn chạy 15; squirt theo
             // tuỳ chọn mới. Bỏ giá trị đã lưu của các khóa này để dùng mặc định mới.
             if UserDefaults.standard.integer(forKey:"physicsModelVersion")<43 {
-                for key in ["spinDecay","squirtRampDegrees"]{config[key]=nil}
+                for key in ["spinDecay","squirtRampDegrees","ballFrictionMin","ballFrictionFactor"]{config[key]=nil}   // + độ sạch bi: về Thường
                 UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(43,forKey:"physicsModelVersion")
             }
             engine.settings=config

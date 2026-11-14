@@ -53,7 +53,8 @@ TXT intro "THE GOLDEN BREAK", `VIEC-CHO-0.43.md` (phản biện Shadow + dữ li
 | U4 | "Board" → "Bảng"; "Camera · toàn cảnh" → "Toàn cảnh" (không tràn 3 dòng) | Màn tập, cột phím phải |
 | U5 | Icon app + logo trên tường các phòng = logo Z + bi 9 mới (ảnh gốc, không vẽ lại) | Màn hình chính iPhone; Tuỳ chỉnh → Không gian |
 | I | Intro "The Golden Break" trong app: lần đầu 5,6 s, sau đó 1 s; chạm để bỏ qua; tắt trong Tuỳ chỉnh; im lặng khi tắt âm thanh app | Xoá app cài lại để xem bản đủ |
-| V | Hiệu chuẩn: `Docs/HIEU-CHUAN-VAT-LY-0.43.md` — 26/26 mốc công bố, 6 mốc mới từ đo Mathavan 2009 | — |
+| B | Độ sạch bi (anh chấp thuận 14/11 17:19): Tuỳ chỉnh → Vật lý → Sạch / **Thường** (mặc định, Dr. Dave TP A.14) / Bẩn‑dính phấn (= clip reverse zigzag). Thường: cú nhanh có effect truyền xoáy sang bi đích ít hơn (3 m/s, 45 %: 11 % → 2,6 %), throw cú nhanh nhỏ hơn | Cắt 20° đánh nhanh effect nghịch, so Thường và Bẩn |
+| V | Hiệu chuẩn: `Docs/HIEU-CHUAN-VAT-LY-0.43.md` — 28/28 mốc công bố (thêm 6 mốc đo Mathavan 2009, 2 mốc truyền xoáy TP A.27) | — |
 
 Không làm: A4 (rút test máy chơi 228 s) — rút bớt sẽ làm yếu kiểm tra thống kê của máy; lợi ích chỉ ~3 phút CI.
 Phần intro chưa đạt brief: âm là âm tổng hợp tạm; MP4 1920×1080/1080×1080 cần ghép từ bản quay Simulator (không có âm) + stem WAV.
