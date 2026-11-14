@@ -1,4 +1,4 @@
-# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 13/11/2026 08:20)
+# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 15/11/2026)
 
 Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất của anh. Cuối phiên cập nhật lại file này, và bản trong Project `claude/zoker-trang-thai.md`.
 
@@ -8,6 +8,7 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 | 0.40b | `ci/native-0.40b` @ 1626168 | CI 132 xanh (PASSED_SIMULATOR_UNSIGNED). IPA: artifact `zoker-ipa-candidate-132`. Anh đã nghiệm thu 12/11 23:36 |
 | 0.41 (gồm 0.40c) | `cho/native-0.40c` → build `ci/native-0.41` | Anh dặn gộp 0.40c + 10 mục ngày 13/11 vào MỘT lần build. CI 136 @452f1fe: 6/7 cổng PASS, chỉ test UI xem lại hỏng do test cũ chờ đồng hồ âm (xem lại giờ chỉ 1 s). IPA `zoker-ipa-candidate-136` đã gửi anh thử. Test đã sửa ở 0a41f44, đi cùng lần build sau. Cách thử: `Docs/NGHIEM-THU-0.41.md` + `Docs/CHO-0.40c-NGHIEM-THU-12-11.md` |
 | 0.42 | `cho/native-0.40c` → build `ci/native-0.42` | Nghiệm thu 0.41 của anh (12 mục + 5 lỗi chen) + vật lý + AI. **CI 140 xanh (04fc26e, 14/11)**, IPA `zoker-ipa-candidate-140` (run 43478261561). Đã gửi anh — chưa xác minh trên thiết bị. Cách thử: `Docs/NGHIEM-THU-0.42.md` |
+| 0.43 | `cho/native-0.40c` @ c472534 → build `ci/native-0.43` | Gom mọi yêu cầu (vật lý 0,55R, squirt thực tế, độ sạch bi, U1–U5, intro Golden Break, hiệu chuẩn 28 mốc). **CI 146 xanh 15/11**, IPA `zoker-ipa-candidate-146` (run 43618001054, artifact 14123266035). Đã gửi anh — chưa xác minh trên thiết bị. Cách thử: `Docs/NGHIEM-THU-0.43.md`; hiệu chuẩn: `Docs/HIEU-CHUAN-VAT-LY-0.43.md` |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
 Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
@@ -27,17 +28,13 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
    - (a) ĐÃ CHỐT 13/11 07:56: bản sau dồn sức cho vật lý (P0).
    - (b) HOÃN (13/11 23:56): Apple Developer 99 USD/năm → chỉ mở khi bản chơi hoàn chỉnh; giờ ưu tiên sửa lỗi nhỏ. Không nhắc TestFlight/Game Center cho tới lúc đó.
    - (c) Skill `zoker-pool-dev`: đã lưu.
-3. **(14/11) Gom việc 0.43 — `Docs/VIEC-CHO-0.43.md`.** Chờ anh: (a) bổ sung nhiệm vụ, (b) gửi 23 clip Dr. Dave + 2 PDF Mathavan (danh sách §C), (c) trả lời 3 câu §A (effect > 0,55R · squirt khi cơ ngang · effect mạnh nhất nhẹ hơn). KHÔNG code/build tới khi anh nói làm. Video CLB không dùng để hiệu chuẩn chuẩn (bàn chưa chắc chuẩn).
+3. **Thử 0.43 trên máy** (IPA 146, `Docs/NGHIEM-THU-0.43.md`). Quay video bàn POOL từ trên xuống (240 fps, 3 góc tới × 2 tốc độ, ~15 phút) để chốt mô hình góc bật băng (chênh lớn nhất còn lại: bi lăn 45° app ~39° vs mô hình ~47°).
 4. Âm thanh: anh tự gửi gói mới khi có (không nhắc).
 5. Game Center: làm cùng TestFlight sau khi anh có tài khoản Developer. PR #4 đã đóng (0.41 chứa toàn bộ); gộp 0.41 vào `feature/zoker-native` khi anh xác nhận trên máy.
 6. Khi về gần máy Mac có Xcode: chuyển phần code sang Claude Code chạy trên Mac (biên dịch và chạy Simulator tại chỗ, không chờ CI 50 phút).
 
 ## 4. Việc kế tiếp — theo thứ tự, yêu cầu mới nhất của anh luôn đứng đầu
-1. **0.43 (anh dặn 14/11 15:33: lưu lại, chờ bổ sung rồi làm một thể)** — toàn bộ ở `Docs/VIEC-CHO-0.43.md`:
-   - A. Điểm chạm một nguồn (UI 0,70 ≠ lõi 0,55), hướng bi cơ ngang lệch sai phía, độ mượt live (chuyển trạng thái C++→Swift mỗi 1/240 s), rút test Opponent.
-   - B. Chuẩn hoá theo TP Dr. Dave: băng B.28, lỗ theo tốc độ 3.5–3.8, squirt B.26, throw B.3.
-   - C. Đo từ clip Dr. Dave anh gửi (băng, throw, jump/massé, lỗ).
-   - D. Công cụ luyện: đoán trước chỗ bi dừng, để thế cú sau, so sánh một yếu tố.
+1. **0.43 — chờ anh nghiệm thu.** Còn mở: intro MP4 1920×1080/1080×1080 có âm (ghép bản quay CI + stem WAV); âm intro là tổng hợp tạm; lỗ theo tốc độ; đo jump clip B.14; mô hình góc băng khi có video. Công cụ luyện (đoán chỗ bi dừng, để thế, so một yếu tố) chưa làm.
 2. Sau 0.43: P1 TestFlight (khi anh có Developer), Z-Assess, "Vì sao trượt", báo cáo tuần; widget/Live Activity, chế độ HLV.
 
 ## 5. Skill · rủi ro · công nghệ cho các việc tới
