@@ -1,0 +1,14 @@
+{
+  "aspect" : 2.1727272727272728,
+  "cameraMode" : 0,
+  "expectedMode" : 0,
+  "eyeY" : 1.6682255268096924,
+  "highDetail" : false,
+  "lastStep" : 0,
+  "presentationDelta" : 0,
+  "probe" : "premium-overview",
+  "result" : "PASS",
+  "secondsAfterStart" : 3.0061060619998443,
+  "settled" : true,
+  "stableTicks" : 27
+}

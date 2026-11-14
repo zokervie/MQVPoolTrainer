@@ -1,0 +1,75 @@
+{
+  "source_sha": "d2466412dbd2682bcdd25c6e374b7c480a1f4413",
+  "created_utc": "20261114T115713Z",
+  "platform": "macOS-15.7.9-x86_64-i386-64bit",
+  "mode": "native",
+  "status": "FAILED",
+  "working_tree_modified": [
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ios-marketing-1024-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-20-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-20-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-29-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-29-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-40-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-40-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-76-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-76-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-83.5-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-20-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-20-3.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-29-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-29-3.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-40-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-40-3.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-60-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-60-3.png"
+  ],
+  "tracked_patch_sha256": "b8cfc2e2312e9d8a724b8108992777af2638c19b55cd7620963df72ad33ab0ac",
+  "physical_device": "NOT_RUN",
+  "signing": "UNSIGNED_ONLY",
+  "stages": [
+    {
+      "name": "assets",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261114T115713Z/assets.log"
+    },
+    {
+      "name": "portable-regressions",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261114T115713Z/portable-regressions.log"
+    },
+    {
+      "name": "replay-recording",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261114T115713Z/replay-recording.log"
+    },
+    {
+      "name": "lan-wire-protocol",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261114T115713Z/lan-wire-protocol.log"
+    },
+    {
+      "name": "simulator-build",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261114T115713Z/simulator-build.log"
+    },
+    {
+      "name": "screenshots-and-runtime-probes",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261114T115713Z/screenshots-and-runtime-probes.log"
+    },
+    {
+      "name": "ui-gesture-tests",
+      "exit_code": 65,
+      "status": "FAIL",
+      "log": "build/acceptance/20261114T115713Z/ui-gesture-tests.log"
+    }
+  ],
+  "artifacts": []
+}
