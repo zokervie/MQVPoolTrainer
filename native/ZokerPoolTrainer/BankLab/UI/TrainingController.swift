@@ -374,7 +374,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         // 0.39d: a startup gate can swallow chooseShotKind(1) — re-select before every attempt.
                         if args.contains("--ux018-jump-qa") && self.shotKind != 1 {self.locked=false;self.chooseShotKind(1)}
                         self.locked=true;self.shoot(args.contains("--ux018-jump-qa") ? 1:4.5)   // 0.44: long multi-rail run so the UI test meets the balls moving
-                        if self.shotActive {self.qaShots+=1}
+                        if self.shotActive {self.qaShots+=1;self.spin.collapse();self.setHold(false)}   // 0.44: exactly like a real stroke (stroke.shot) — the hold ends, gestures work during the run
                         if !self.shotActive && left>0 {fire(left-1)}
                     }
                 }
