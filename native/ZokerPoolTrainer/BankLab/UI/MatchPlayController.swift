@@ -38,7 +38,7 @@ final class MatchPlayState {
     var forfeitWinner: Int?
     var guestBalls: [BallState] = []
     /// 0.44 lockstep: the guest's own solver for the current shot (nil = present host snapshots as before).
-    var predictor: BLWorld?, predictorShot = -1, predictorEvents = 0, predictorDiverged = false
+    var predictor: BLWorld?, predictorShot = -1, predictorEvents = 0, predictorDiverged = false, predictorDelay = 0.0
     var predictorChecks: [(elapsed: Double, balls: [LANBall])] = [], predictorVerified = 0, lockstepShots = 0, lockstepFallbacks = 0
     var snapshots: [LANSnapshot] = []
     var guestClock = 0.0
@@ -300,6 +300,7 @@ extension TrainingController {
             matchPlay.raceTo = UserDefaults.standard.object(forKey: "raceTo029") as? Int ?? 5
         }
         matchPlay.frames = [0, 0]; matchPlay.rackNo = 1; matchPlay.breaker = 0; matchPlay.matchWinner = -1; matchPlay.rackCounted = false
+        resetHighlights()   // 0.44 #11
         let rack = matchPlay.rules?.rack(seed: UInt64.random(in: 1...UInt64.max)) ?? []
         engine.loadLayout(rack)
         initial = balls; before = initial
@@ -871,7 +872,11 @@ extension TrainingController {
         let result = rules.complete(before: before.map { $0.dictionary },
                                     after: engine.states, events: lastShotEvents,
                                     headCrossed: matchPlay.crossed.sorted().map { NSNumber(value: $0) })
-        if (result["accepted"] as? NSNumber)?.boolValue == true { applyMatchResult(result) }
+        let shooter = matchInt("currentPlayer"), wasBreak = matchBool("breakShot")
+        if (result["accepted"] as? NSNumber)?.boolValue == true {
+            applyMatchResult(result)
+            scoreHighlight(wonRack: matchInt("winner", fallback: -1) == shooter, shooter: shooter, isBreak: wasBreak)   // 0.44 #11
+        }
         else {
             // Never continue an unadjudicated match or silently label it legal.
             matchPlay.state["canShoot"] = false
@@ -931,7 +936,9 @@ extension TrainingController {
         if decided >= 0 {
             matchPlay.matchWinner = decided
             notifyStatus("\(matchPlay.names[decided]) thắng trận \(matchPlay.frames[decided])–\(matchPlay.frames[1 - decided])")
-            publishMatchSnapshot(force: true); showRackBroadcast(winner: decided, isFinal: true); return
+            publishMatchSnapshot(force: true); showRackBroadcast(winner: decided, isFinal: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.2) { [weak self] in self?.offerHighlights() }   // 0.44 #11
+            return
         }
         notifyStatus("\(matchPlay.names[winner]) thắng ván \(matchPlay.rackNo) · \(matchPlay.frames[0])–\(matchPlay.frames[1])")
         publishMatchSnapshot(force: true)
@@ -1102,7 +1109,7 @@ extension TrainingController {
                 snapshot.balls.first(where: { $0.id == 0 }).map { matchRenderBall($0) }
             liveCameraAngle = angle
             // 0.42 item 10: the host's stroke — close the back-swing onto the ball, then follow through.
-            if newShot, snapshot.isMoving, snapshot.currentPlayer != matchPlay.session.localPlayer, let shown = matchPlay.remoteShown ?? matchPlay.remoteAim, shown.visible,
+            if newShot, snapshot.isMoving, !lockstepOwnsShot(snapshot.shotID), snapshot.currentPlayer != matchPlay.session.localPlayer, let shown = matchPlay.remoteShown ?? matchPlay.remoteAim, shown.visible,
                let origin = matchPlay.guestBalls.first(where: { $0.id == 0 }) {
                 beginCueStrikeAnim(origin: origin, angle: shown.angle, side: shown.side, top: shown.top, elevation: shown.elevation,
                                    cueType: shown.cueType, fromPull: shown.pull, lead: 0.1)
@@ -1754,6 +1761,13 @@ extension TrainingController {
         matchPlay.predictor = world; matchPlay.predictorShot = start.shotID
         matchPlay.predictorEvents = 0; matchPlay.predictorDiverged = false
         matchPlay.predictorChecks = []; matchPlay.predictorVerified = 0; matchPlay.lockstepShots += 1
+        matchPlay.predictorDelay = 0
+        // The opponent's cue closes onto the ball first (same 0.1 s lead as the snapshot path), then the balls move.
+        if let shown = matchPlay.remoteShown ?? matchPlay.remoteAim, shown.visible, let origin = start.balls.first(where: { $0.id == 0 }) {
+            beginCueStrikeAnim(origin: matchRenderBall(origin), angle: shown.angle, side: shown.side, top: shown.top,
+                               elevation: shown.elevation, cueType: shown.cueType, fromPull: shown.pull, lead: 0.1)
+            matchPlay.predictorDelay = 0.1
+        }
         wakeRendering()
     }
     func lockstepOwnsShot(_ shotID: Int) -> Bool {
@@ -1770,6 +1784,9 @@ extension TrainingController {
         if let latest = matchPlay.snapshots.last, latest.shotID > matchPlay.predictorShot { matchPlay.predictor = nil; return false }
         if lockstepPaused() { table.update(world.presentationBallStates, dt: 0); return true }
         var remaining = min(max(0, dt), 0.1)
+        if matchPlay.predictorDelay > 0 {
+            let used = min(matchPlay.predictorDelay, remaining); matchPlay.predictorDelay -= used; remaining -= used
+        }
         while remaining > 1e-12 && world.moving {
             let h = min(1.0 / 960.0, remaining)
             world.advance(h); remaining -= h

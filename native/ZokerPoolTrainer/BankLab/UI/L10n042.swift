@@ -45,6 +45,7 @@ enum L10n {
         "Camera · ngắm": ["Camera · aim", "Camera · tutok", "Cámara · apuntar", "镜头 · 瞄准", "カメラ · 照準", "कैमरा · निशाना"],
         "Toàn cảnh": ["Overview", "Kabuuan", "General", "全景", "全体", "पूरा दृश्य"],
         "Bảng": ["Card", "Card", "Tarjeta", "卡片", "カード", "कार्ड"],
+        "Chấm cú": ["Shot grade", "Marka ng tira", "Nota del tiro", "击球评分", "ショット評価", "शॉट ग्रेड"],
         "Camera · toàn cảnh": ["Camera · overview", "Camera · kabuuan", "Cámara · general", "镜头 · 全景", "カメラ · 全体", "कैमरा · पूरा दृश्य"],
         "Hình ảnh": ["Graphics", "Graphics", "Gráficos", "画面", "グラフィック", "ग्राफ़िक्स"],
         "Ngắm": ["Aiming", "Pagtutok", "Apuntar", "瞄准", "照準", "निशाना"],

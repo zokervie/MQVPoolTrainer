@@ -548,11 +548,19 @@ final class TableScene {
         addMesh("deck",material:graphite)
         addMesh("trim",material:edge)
         // Split rails leave visible pocket apertures; apron is below the playing bed.
-        for side:Float in [-1,1]{
-            // Split cabinet panels around all six wells; continuous panels
-            // previously appeared as wooden bars inside the pocket apertures.
-            for z:Float in [-0.655,0.655]{_=box(0.10,0.21,1.01,SCNVector3(side*0.755,-0.16,z),graphite,chamfer:0.016)}
-            _=box(1.03,0.21,0.10,SCNVector3(0,-0.16,side*1.3645),graphite,chamfer:0.016)
+        // 0.44 (owner item 1 + reference photo: "bàn bị hở, các cục thanh ngang kết cấu vô lý — thiết kế lại chắc chắn").
+        // Before: apron panels split around the six pockets (gaps under the side pockets and at every corner, pocket cups
+        // visible from a low camera) plus a centre beam and cross bars. Now a CLOSED tournament cabinet: continuous outer
+        // skirt on all four sides (outer face 7 mm inside the rail edge, 0.27 m deep), a bottom panel, four heavy tapered
+        // corner legs flush with the skirt corners. The pocket cups sit inside the skirt and are no longer visible.
+        do {
+            for side:Float in [-1,1]{
+                _=box(0.05,0.27,2.86,SCNVector3(side*0.775,-0.19,0),graphite,chamfer:0.012)
+                _=box(1.60,0.27,0.05,SCNVector3(0,-0.19,side*1.415),graphite,chamfer:0.012)
+                _=box(0.012,0.014,2.84,SCNVector3(side*0.801,-0.318,0),edge,chamfer:0.004)    // lower shadow-line bead
+                _=box(1.58,0.014,0.012,SCNVector3(0,-0.318,side*1.441),edge,chamfer:0.004)
+            }
+            if look.base != 6 {_=box(1.50,0.02,2.78,SCNVector3(0,-0.315,0),graphite,chamfer:0.006)}   // bottom panel (bar-box: its body)
         }
         buildCushions(rails,material:cloth)
         for x:Float in [-0.67,0.67]{for z:Float in [-1.305,0,1.305]{
@@ -562,7 +570,7 @@ final class TableScene {
         if let asset=NSDataAsset(name:"PC_Diamonds"),let layout=try? JSONDecoder().decode(KitSights.self,from:asset.data){
             for site in layout.sites{diamond(SCNVector3(site.x_mm/1000,0.05615,site.z_mm/1000),shortRail:abs(site.z_mm)>1300)}
         }else{preconditionFailure("Missing Premium Classic diamond layout")}
-        brandPlate(SCNVector3(0,-0.15,1.421))
+        brandPlate(SCNVector3(0,-0.15,1.4415))   // 0.44: on the closed end skirt
         for side:Float in [-1,1]{apronLogo(side)}
         // 0.37: the 1.5 mm cabinet joint strips were sub-pixel (vertical flicker bands on the apron) — removed.
         buildBase(shell:graphite,trim:edge)
@@ -585,6 +593,25 @@ final class TableScene {
         tableRoot.enumerateHierarchy{node,_ in node.castsShadow=false}   // 0.37: only balls/cue cast (acne stripes)
     }
     func setClothColor(_ index:Int?){clothTintIndex=index.map{max(0,min(Self.clothColors.count-1,$0))};selectTable(look)}
+    /// 0.44: a frustum leg (rectangular, top wider than the foot) with flat-shaded faces, outward normals.
+    private func taperedLeg(top:SIMD2<Float>,bottom:SIMD2<Float>,height:Float,material:SCNMaterial)->SCNNode{
+        let h=height/2
+        let t=[SIMD3<Float>(-top.x/2,h,-top.y/2),SIMD3(top.x/2,h,-top.y/2),SIMD3(top.x/2,h,top.y/2),SIMD3(-top.x/2,h,top.y/2)]
+        let b=[SIMD3<Float>(-bottom.x/2,-h,-bottom.y/2),SIMD3(bottom.x/2,-h,-bottom.y/2),SIMD3(bottom.x/2,-h,bottom.y/2),SIMD3(-bottom.x/2,-h,bottom.y/2)]
+        var vertices:[SCNVector3]=[],normals:[SCNVector3]=[],indices:[Int32]=[]
+        // quad a→b→c→d; outward normal = (d−a)×(b−a); triangles a,d,c and a,c,b are counter-clockwise from outside.
+        func quad(_ a:SIMD3<Float>,_ b:SIMD3<Float>,_ c:SIMD3<Float>,_ d:SIMD3<Float>){
+            let n=simd_normalize(simd_cross(d-a,b-a));let base=Int32(vertices.count)
+            for v in [a,b,c,d]{vertices.append(SCNVector3(v.x,v.y,v.z));normals.append(SCNVector3(n.x,n.y,n.z))}
+            indices+=[base,base+3,base+2,base,base+2,base+1]
+        }
+        for i in 0..<4 {let j=(i+1)%4;quad(b[i],b[j],t[j],t[i])}
+        quad(t[0],t[1],t[2],t[3]);quad(b[3],b[2],b[1],b[0])
+        let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals)],
+                          elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
+        g.materials=[material]
+        return SCNNode(geometry:g)
+    }
     private func buildBase(shell:SCNMaterial,trim:SCNMaterial){
         let dark=mat(UIColor(white:0.07,alpha:1),roughness:0.75)
         func beam(_ a:SCNVector3,_ b:SCNVector3,_ width:CGFloat,_ depth:CGFloat,_ material:SCNMaterial){
@@ -601,46 +628,23 @@ final class TableScene {
             for side:Float in [-1,1]{_=box(0.006,0.012,2.6,SCNVector3(side*0.753,-0.30,0),trim,chamfer:0.002)}
             return
         }
-        if look.wood && [1,2,5].contains(look.base) { // Classic: skirt with a bead moulding and corner posts.
-            for side:Float in [-1,1]{
-                _=box(0.06,0.07,2.5,SCNVector3(side*0.79,-0.30,0),shell,chamfer:0.02)
-                _=box(0.012,0.012,2.5,SCNVector3(side*0.822,-0.268,0),trim,chamfer:0.004)
-                _=box(1.3,0.07,0.06,SCNVector3(0,-0.30,side*1.40),shell,chamfer:0.02)
-                _=box(1.3,0.012,0.012,SCNVector3(0,-0.268,side*1.432),trim,chamfer:0.004)
+        // 0.44: four corner legs, flush with the closed skirt (no pedestals, beams or cross bars). Leg family by look:
+        // square tapered (default), turned round (base 5), broad slab (bases 1, 3, 4).
+        let foot=mat(UIColor(white:0.05,alpha:1),roughness:0.6)
+        let slab=[1,3,4].contains(look.base),lx:Float=slab ? 0.65:0.69,lz:Float=slab ? 1.34:1.33
+        for x:Float in [-1,1]{for z:Float in [-1,1]{
+            let height:Float=0.455,top:Float=-0.325,centre=top-height/2
+            if look.base==5 {
+                let g=SCNCone(topRadius:0.105,bottomRadius:0.07,height:CGFloat(height));g.radialSegmentCount=48;g.materials=[shell]
+                let n=SCNNode(geometry:g);n.position=SCNVector3(x*lx,centre,z*lz);scene.rootNode.addChildNode(n)
+            } else {
+                let n=taperedLeg(top:slab ? SIMD2(0.30,0.20):SIMD2(0.22,0.22),bottom:slab ? SIMD2(0.22,0.15):SIMD2(0.15,0.15),height:height,material:shell)
+                n.position=SCNVector3(x*lx,centre,z*lz);scene.rootNode.addChildNode(n)
             }
-            for x:Float in [-0.80,0.80]{for z:Float in [-1.41,1.41]{_=box(0.13,0.30,0.13,SCNVector3(x,-0.21,z),shell,chamfer:0.03)}}
-        }
-        if look.base==1 { // Two broad pedestal columns.
-            for z:Float in [-0.87,0.87]{
-                _=box(0.72,0.45,0.25,SCNVector3(0,-0.47,z),shell,chamfer:0.065)
-                _=box(0.98,0.055,0.34,SCNVector3(0,-0.715,z),trim,chamfer:0.025)
-            }
-        }else if look.base==3 || look.base==4 { // Cross / V supports.
-            for z:Float in [-0.88,0.88]{
-                if look.base==3 {
-                    beam(SCNVector3(-0.5,-0.71,z),SCNVector3(0.4,-0.24,z),0.13,0.22,shell)
-                    beam(SCNVector3(0.5,-0.71,z),SCNVector3(-0.4,-0.24,z),0.13,0.22,shell)
-                }else{
-                    beam(SCNVector3(0,-0.69,z),SCNVector3(-0.48,-0.25,z),0.19,0.27,shell)
-                    beam(SCNVector3(0,-0.69,z),SCNVector3(0.48,-0.25,z),0.19,0.27,shell)
-                }
-                _=box(1.08,0.045,0.31,SCNVector3(0,-0.72,z),trim,chamfer:0.02)
-            }
-        }else{
-            for x:Float in [-0.56,0.56]{for z:Float in [-0.97,0.97]{
-                if look.base==5 {
-                    let g=SCNCone(topRadius:0.12,bottomRadius:0.07,height:0.43);g.radialSegmentCount=64;g.materials=[shell]
-                    let n=SCNNode(geometry:g);n.position=SCNVector3(x,-0.48,z);scene.rootNode.addChildNode(n)
-                }else{
-                    let n=box(look.base==2 ? 0.17:0.24,0.44,look.base==2 ? 0.17:0.28,SCNVector3(x,-0.48,z),shell,chamfer:0.035)
-                    n.eulerAngles.z=x>0 ? -0.07:0.07
-                    if look.base==0{_=box(0.13,0.34,0.009,SCNVector3(x,-0.48,z+(z>0 ? 0.145:-0.145)),trim,chamfer:0.008)}
-                }
-                let foot=SCNCylinder(radius:0.085,height:0.025);foot.radialSegmentCount=64;foot.materials=[dark]
-                let n=SCNNode(geometry:foot);n.position=SCNVector3(x,-0.736,z);scene.rootNode.addChildNode(n)
-            }}
-        }
-        _=box(0.12,0.10,2.04,SCNVector3(0,-0.35,0),shell,chamfer:0.018)
+            let plate=SCNCylinder(radius:0.07,height:0.02);plate.radialSegmentCount=40;plate.materials=[foot]
+            let f=SCNNode(geometry:plate);f.position=SCNVector3(x*lx,top-height-0.01,z*lz);scene.rootNode.addChildNode(f)
+        }}
+        _=dark
         if ["smart","proam","blackwolfpro","apex"].contains(look.id){
             _=box(0.48,0.10,0.018,SCNVector3(0,-0.15,1.42),dark,chamfer:0.022)
             _=box(0.50,0.008,0.025,SCNVector3(0,-0.20,1.425),trim,chamfer:0.003)
@@ -729,22 +733,46 @@ final class TableScene {
             }
             addQuad(corners,ns,coords)
         }}
-        // Closed cloth facings at the back of each pocket; no exposed hollow profile.
+        // 0.44 (owner item 4 + photo: "gốc bàn bị vuông, không giống được bọc nỉ — bọc lại, có nếp bọc đàng hoàng").
+        // Before: each cushion end at a pocket was a flat triangle fan — a square-cut block with the weave stretched over
+        // the cut. Now the cloth WRAPS the end: the profile continues 6 mm past the jaw on a quarter-round (it shrinks
+        // toward its centre as the normal turns from the side to the jaw), the weave keeps the same scale (UV continues
+        // along the rail), and the wrapped cloth carries six shallow pleats like a hand-tucked corner.
         let total=profile.reduce(SIMD2<Float>(0,0)){$0+$1}
         let centre=total/Float(profile.count)
+        let wrap:Float=0.006,rings=6
         for point in [0,points.count-1]{
             let tangent=point==0 ? simd_normalize(points[0]-points[1]):simd_normalize(points[point]-points[point-1])
-            for j in profile.indices{
-                let k=(j+1)%profile.count,base=Int32(vertices.count)
-                for v in [centre,profile[j],profile[k]]{
-                    let q=points[point]+miters[point]*v.x
-                    vertices.append(SCNVector3(q.x,v.y,q.y));normals.append(SCNVector3(tangent.x,0,tangent.y))
-                    uv.append(CGPoint(x:CGFloat(v.x),y:CGFloat(v.y)))
+            let side=simd_normalize(miters[point])
+            func ring(_ r:Int)->(pos:[SCNVector3],nor:[SCNVector3],uv:[CGPoint]){
+                let theta=Float(r)/Float(rings)*Float.pi/2,shrink=cos(theta),reach=sin(theta)*wrap
+                var pos:[SCNVector3]=[],nor:[SCNVector3]=[],tex:[CGPoint]=[]
+                for j in profile.indices{
+                    let v=centre+(profile[j]-centre)*shrink
+                    let q=points[point]+side*v.x+tangent*reach
+                    pos.append(SCNVector3(q.x,v.y,q.y))
+                    let n2=normals2[j]
+                    let sideNormal=SIMD3<Float>(side.x*n2.x,n2.y,side.y*n2.x)
+                    let along3=SIMD3<Float>(tangent.x,0,tangent.y)
+                    let pleat=0.22*sin(Float(j)*Float.pi*6/Float(profile.count))*sin(theta*2)   // tucked folds
+                    let binormal=simd_normalize(simd_cross(along3,sideNormal))
+                    let n=simd_normalize(sideNormal*cos(theta)+along3*sin(theta)+binormal*pleat)
+                    nor.append(SCNVector3(n.x,n.y,n.z))
+                    let u=along[point]+(point==0 ? -1:1)*reach
+                    tex.append(CGPoint(x:CGFloat(u),y:CGFloat(lengths[j]*shrink)))
                 }
-                let a=vertices[Int(base)],b=vertices[Int(base)+1],c=vertices[Int(base)+2]
-                let cross=simd_cross(SIMD3(b.x-a.x,b.y-a.y,b.z-a.z),SIMD3(c.x-a.x,c.y-a.y,c.z-a.z))
-                if simd_dot(cross,SIMD3(tangent.x,0,tangent.y))>0{indices += [base,base+1,base+2]}
-                else{indices += [base,base+2,base+1]}
+                return (pos,nor,tex)
+            }
+            var previous=ring(0)
+            for r in 1...rings {
+                let current=ring(r)
+                for j in profile.indices{
+                    let k=(j+1)%profile.count
+                    addQuad([previous.pos[j],previous.pos[k],current.pos[k],current.pos[j]],
+                            [previous.nor[j],previous.nor[k],current.nor[k],current.nor[j]],
+                            [previous.uv[j],previous.uv[k],current.uv[k],current.uv[j]])
+                }
+                previous=current
             }
         }
         let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
@@ -753,20 +781,24 @@ final class TableScene {
         g.materials=[m];scene.rootNode.addChildNode(SCNNode(geometry:g))
         addCushionShade(points,rail:rail)
     }
-    /// Shade levels for the cushion contact shadow: 1 on the long straights, rising towards the pocket jaws.
-    private static let shadeLevels:[Float]=[1.0,1.22,1.45,1.7,1.95]
-    private lazy var shadeMaterials:[SCNMaterial]=Self.shadeLevels.map{k in
+    /// 0.44 (owner item 5: "bóng băng chưa mềm, bóng khu vực lỗ bị chia nếp"). One material, a 2-D falloff texture:
+    /// v = across the shadow (under the nose → 3.8 cm onto the cloth, continuous at the nose line — the old texture
+    /// jumped from 0.58 to 0.42 there, a hard line), u = darkening toward a pocket (1.0 → 1.95), interpolated PER VERTEX
+    /// so the pocket darkening is a smooth ramp instead of five 3 cm steps ("nếp").
+    private lazy var shadeMaterial:SCNMaterial={
         let m=SCNMaterial();m.lightingModel = .constant;m.blendMode = .alpha;m.writesToDepthBuffer=false;m.isDoubleSided=true
-        // v: 0 under the cushion (occluded) · 0.35 nose line · 1 end of the soft falloff on the cloth.
-        m.diffuse.contents=texture(CGSize(width:4,height:128),opaque:false){c in
-            for y in 0..<128 {
-                let v=Double(y)/127
-                let a=v<0.35 ? 0.58:0.42*pow(1-(v-0.35)/0.65,2.0)
-                UIColor.black.withAlphaComponent(CGFloat(min(0.95,a*Double(k)))).setFill();c.fill(CGRect(x:0,y:y,width:4,height:1))
+        m.diffuse.contents=texture(CGSize(width:64,height:128),opaque:false){c in
+            for x in 0..<64 {
+                let k=1.0+0.95*Double(x)/63
+                for y in 0..<128 {
+                    let v=Double(y)/127
+                    let a=v<0.35 ? 0.52:0.52*pow(1-(v-0.35)/0.65,2.4)
+                    UIColor.black.withAlphaComponent(CGFloat(min(0.92,a*k))).setFill();c.fill(CGRect(x:x,y:y,width:1,height:1))
+                }
             }}
-        m.diffuse.wrapS = .clamp;m.diffuse.wrapT = .clamp;m.diffuse.minificationFilter = .linear;m.diffuse.mipFilter = .linear
+        m.diffuse.wrapS = .clamp;m.diffuse.wrapT = .clamp;m.diffuse.minificationFilter = .linear;m.diffuse.magnificationFilter = .linear;m.diffuse.mipFilter = .linear
         return m
-    }
+    }()
     /// 0.40c (owner: cushion shadow looked odd; wants it darker at the pockets so the opening reads on long shots).
     /// The contact shadow follows the real cushion line — straights AND jaw facings — from under the overhanging
     /// nose (fully occluded) to a soft 2.6 cm falloff on the cloth, and darkens towards each pocket mouth, framing the
@@ -788,27 +820,28 @@ final class TableScene {
             miters.append((prev+next)/max(0.5,1+simd_dot(prev,next)))
         }
         let pockets:[SIMD2<Float>]=[SIMD2(-0.67,-1.305),SIMD2(0.67,-1.305),SIMD2(-0.706,0),SIMD2(0.706,0),SIMD2(-0.67,1.305),SIMD2(0.67,1.305)]
-        let under:Float=0.014,band:Float=0.026,y:Float=0.0011
-        var buckets=[[SCNVector3]](repeating:[],count:Self.shadeLevels.count),coords=[[CGPoint]](repeating:[],count:Self.shadeLevels.count)
+        let under:Float=0.014,band:Float=0.038,y:Float=0.0011
+        func darkness(_ p:SIMD2<Float>)->CGFloat{
+            let d=pockets.map{simd_distance($0,p)}.min() ?? 1
+            let t=max(0,min(1,(0.24-d)/0.16)),smooth=t*t*(3-2*t)
+            return CGFloat((smooth*63+0.5)/64)
+        }
+        var vertices:[SCNVector3]=[],coords:[CGPoint]=[],indices:[Int32]=[]
         for i in 0..<(dense.count-1){
-            let mid=(dense[i]+dense[i+1])/2
-            let d=pockets.map{simd_distance($0,mid)}.min() ?? 1
-            let level=min(Self.shadeLevels.count-1,max(0,Int(((0.24-d)/0.16*Float(Self.shadeLevels.count-1)).rounded())))
+            let u0=darkness(dense[i]),u1=darkness(dense[i+1])
             for (a,b,va,vb) in [(under,Float(0),0.0,0.35),(Float(0),-band,0.35,1.0)]{
                 let p0=dense[i]+miters[i]*a,p1=dense[i+1]+miters[i+1]*a,p2=dense[i+1]+miters[i+1]*b,p3=dense[i]+miters[i]*b
-                buckets[level]+=[SCNVector3(p0.x,y,p0.y),SCNVector3(p1.x,y,p1.y),SCNVector3(p2.x,y,p2.y),SCNVector3(p3.x,y,p3.y)]
-                coords[level]+=[CGPoint(x:0,y:va),CGPoint(x:1,y:va),CGPoint(x:1,y:vb),CGPoint(x:0,y:vb)]
+                let base=Int32(vertices.count)
+                vertices+=[SCNVector3(p0.x,y,p0.y),SCNVector3(p1.x,y,p1.y),SCNVector3(p2.x,y,p2.y),SCNVector3(p3.x,y,p3.y)]
+                coords+=[CGPoint(x:u0,y:va),CGPoint(x:u1,y:va),CGPoint(x:u1,y:vb),CGPoint(x:u0,y:vb)]
+                indices+=[base,base+1,base+2,base,base+2,base+3]
             }
         }
-        for level in buckets.indices where !buckets[level].isEmpty{
-            var indices:[Int32]=[]
-            for q in 0..<(buckets[level].count/4){let b=Int32(q*4);indices+=[b,b+1,b+2,b,b+2,b+3]}
-            let g=SCNGeometry(sources:[SCNGeometrySource(vertices:buckets[level]),SCNGeometrySource(textureCoordinates:coords[level])],
-                              elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
-            g.materials=[shadeMaterials[level]]
-            let n=SCNNode(geometry:g);n.name="cushion-shade";n.castsShadow=false;n.renderingOrder=1
-            scene.rootNode.addChildNode(n)
-        }
+        let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(textureCoordinates:coords)],
+                          elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
+        g.materials=[shadeMaterial]
+        let n=SCNNode(geometry:g);n.name="cushion-shade";n.castsShadow=false;n.renderingOrder=1
+        scene.rootNode.addChildNode(n)
     }
     private func pocket(_ x:Float,_ z:Float){
         let segments=96
@@ -906,7 +939,10 @@ final class TableScene {
             if node.light != nil || node.geometry == nil || !node.childNodes.isEmpty {roomRoot.addChildNode(node)} else {node.removeFromParentNode();decor.addChildNode(node)}
         }
         let merged=decor.flattenedClone();merged.name="room-decor";merged.castsShadow=false;roomRoot.addChildNode(merged)
-        roomRoot.enumerateHierarchy{node,_ in node.categoryBitMask=Self.roomCategory}   // 0.44: never lit by the shadow light
+        // 0.44: never lit by the shadow light (bit 1 cleared); extra bits (picture lights) kept.
+        roomRoot.enumerateHierarchy{node,_ in
+            node.categoryBitMask = node.name=="wall-photo" ? TableScene.pictureLightCategory : (node.categoryBitMask & ~1)|Self.roomCategory
+        }
     }
     /// Rectangular lamp over the table (visual; the table light itself is in buildLights).
     func tableFixture(){
@@ -971,17 +1007,13 @@ final class TableScene {
             _=box(7.9,0.10,0.04,SCNVector3(0,-0.74,side*4.635),dark,chamfer:0.004)
             for z:Float in stride(from:-4.2,through:4.2,by:0.85){_=box(0.012,0.7,0.012,SCNVector3(side*3.925,-0.32,z),brass,chamfer:0.001)}   // panel mouldings
         }
-        // framed pool diagrams (procedural art) along both long walls
-        let art=mat(.white,roughness:0.6);art.diffuse.contents=diagramArt();art.emission.contents=diagramArt();art.emission.intensity=0.08
-        sideGallery([1,10,7],side:-1,y:1.05,size:0.9,from:-2.6,to:2.6)   // 0.42: owner's photos on the left wall
+        // 0.44 (owner item 8): the procedural "Z · TWO-RAIL KICK" diagrams are gone; only the owner's photos hang, each
+        // with its own picture light, no pose repeated in the room (families: portrait / handshake / selfie / hug /
+        // trophy / celebration / candid — see Rooms042.photoFamilies).
+        sideGallery([7,2,1],side:-1,y:1.05,size:0.9,from:-2.6,to:2.6)
+        sideGallery([3,10,18],side:1,y:1.05,size:0.9,from:-2.6,to:2.6)
         brandWall(SCNVector3(1.2,1.65,-4.6),yaw:0,width:2.4)
-        hangPhoto(4,SCNVector3(3.25,0.8,-4.6),yaw:0,size:0.7);hangPhoto(13,SCNVector3(-3.1,0.8,-4.6),yaw:0,size:0.7)
-        for side:Float in [1]{for z:Float in [-2.6,0,2.6]{
-            _=box(0.03,0.86,1.16,SCNVector3(side*3.935,1.05,z),walnut,chamfer:0.01)
-            let canvas=box(0.012,0.74,1.04,SCNVector3(side*3.915,1.05,z),art,chamfer:0);canvas.eulerAngles.y = side>0 ? Float.pi:0
-            let lampBar=box(0.06,0.025,0.5,SCNVector3(side*3.86,1.56,z),brass,chamfer:0.005);_=lampBar
-            _=box(0.02,0.012,0.44,SCNVector3(side*3.84,1.545,z),emissive(.rgb(0xFFE2B0),.rgb(0xFFD08A)),chamfer:0)
-        }}
+        hangPhoto(15,SCNVector3(3.25,0.8,-4.6),yaw:0,size:0.7)
         // wall cue rack (front wall, left) with eight cues + bead scoreboard above
         let rackX:Float = -1.6
         _=box(1.1,1.5,0.04,SCNVector3(rackX,0.55,-4.6),walnut,chamfer:0.01)
@@ -1044,23 +1076,6 @@ final class TableScene {
             for (x,y) in [(0,0),(128,0),(0,128),(128,128)]{UIColor(red:0.42,green:0.30,blue:0.16,alpha:0.12).setFill();ctx.cgContext.fillEllipse(in:CGRect(x:x-5,y:y-5,width:10,height:10))}
         }
     }
-    /// Framed art: a vintage pool diagram (table outline, diamonds, a two-rail kick path) in cream on deep green.
-    private lazy var diagramImage:UIImage={
-        let format=UIGraphicsImageRendererFormat();format.scale=1
-        return UIGraphicsImageRenderer(size:CGSize(width:512,height:368),format:format).image{ctx in
-            UIColor(red:0.07,green:0.17,blue:0.13,alpha:1).setFill();ctx.fill(CGRect(x:0,y:0,width:512,height:368))
-            let cream=UIColor(red:0.93,green:0.88,blue:0.76,alpha:1);cream.setStroke()
-            let table=UIBezierPath(rect:CGRect(x:56,y:64,width:400,height:200));table.lineWidth=3;table.stroke()
-            for k in 1..<8 {let x=56+CGFloat(k)*50;ctx.cgContext.fillEllipse(in:CGRect(x:x-2,y:56,width:4,height:4));ctx.cgContext.fillEllipse(in:CGRect(x:x-2,y:268,width:4,height:4))}
-            let path=UIBezierPath();path.move(to:CGPoint(x:120,y:220));path.addLine(to:CGPoint(x:300,y:64));path.addLine(to:CGPoint(x:456,y:190));path.addLine(to:CGPoint(x:380,y:264))
-            path.setLineDash([8,6],count:2,phase:0);path.lineWidth=2;path.stroke()
-            cream.setFill();ctx.cgContext.fillEllipse(in:CGRect(x:112,y:212,width:16,height:16))
-            UIColor(red:0.85,green:0.2,blue:0.2,alpha:1).setFill();ctx.cgContext.fillEllipse(in:CGRect(x:372,y:236,width:16,height:16))
-            let text="Z · TWO-RAIL KICK" as NSString
-            text.draw(at:CGPoint(x:56,y:300),withAttributes:[.font:UIFont.systemFont(ofSize:22,weight:.semibold),.foregroundColor:cream])
-        }
-    }()
-    func diagramArt()->UIImage{diagramImage}
     func neighbourTable(_ p:SCNVector3){
         let black=mat(UIColor(white:0.05,alpha:1),roughness:0.35),grey=mat(.rgb(0x6e767d),roughness:0.97),alu=mat(.rgb(0xc4c9cd),roughness:0.35,metal:0.8)
         _=box(1.55,0.18,2.85,SCNVector3(p.x,-0.10,p.z),black,chamfer:0.02)
@@ -1416,18 +1431,27 @@ final class TableScene {
         n.position.y += 0.0008
     }
     /// 0.34: brand wordmark on each long apron, toward the foot end, as on the owner's reference table.
+    /// 0.44 (owner item 1: "vị trí logo Zoker design riêng, to rõ cỡ chữ như hình 2"). The Zoker emblem (the owner's logo,
+    /// keyed out of its navy square — not redrawn) and a large ZOKER POOL wordmark on each long skirt, between the head
+    /// corner and the side pocket, like the maker's script on a tournament table. 0.70 × 0.20 m.
     private func apronLogo(_ side:Float){
-        let g=SCNPlane(width:0.34,height:0.11),m=SCNMaterial();m.lightingModel = .physicallyBased;m.roughness.contents=0.5
-        m.diffuse.contents=texture(CGSize(width:1024,height:330)){c in
-            UIColor.clear.setFill();c.fill(CGRect(x:0,y:0,width:1024,height:330))
-            let style=NSMutableParagraphStyle();style.alignment = .center
-            let base=UIFont.systemFont(ofSize:178,weight:.black);let font=base.fontDescriptor.withSymbolicTraits(.traitItalic).map{UIFont(descriptor:$0,size:178)} ?? base
-            (self.look.brand.uppercased() as NSString).draw(in:CGRect(x:0,y:0,width:1024,height:230),withAttributes:[.font:font,.foregroundColor:UIColor(white:0.96,alpha:1),.paragraphStyle:style,.kern:6])
-            ("B I L L I A R D S" as NSString).draw(in:CGRect(x:0,y:236,width:1024,height:80),withAttributes:[.font:UIFont.systemFont(ofSize:54,weight:.semibold),.foregroundColor:UIColor(white:0.9,alpha:1),.paragraphStyle:style])
+        let w:CGFloat=0.70,h:CGFloat=0.20
+        let g=SCNPlane(width:w,height:h),m=SCNMaterial();m.lightingModel = .physicallyBased;m.roughness.contents=0.35;m.metalness.contents=0.2
+        m.diffuse.contents=texture(CGSize(width:2048,height:585)){c in
+            UIColor.clear.setFill();c.fill(CGRect(x:0,y:0,width:2048,height:585))
+            if let emblem=UIImage(named:"ZokerEmblem044"){
+                let eh:CGFloat=560,ew=eh*emblem.size.width/max(1,emblem.size.height)
+                emblem.draw(in:CGRect(x:10,y:12,width:ew,height:eh))
+            }
+            let base=UIFont.systemFont(ofSize:300,weight:.black)
+            let italic=base.fontDescriptor.withSymbolicTraits(.traitItalic).map{UIFont(descriptor:$0,size:300)} ?? base
+            ("ZOKER" as NSString).draw(at:CGPoint(x:600,y:20),withAttributes:[.font:italic,.foregroundColor:UIColor(white:0.97,alpha:1),.kern:10])
+            ("P O O L" as NSString).draw(at:CGPoint(x:640,y:360),withAttributes:[.font:UIFont.systemFont(ofSize:150,weight:.heavy),
+                                                                                 .foregroundColor:UIColor(red:0.93,green:0.76,blue:0.36,alpha:1),.kern:28])
         }
         m.transparencyMode = .aOne;m.isDoubleSided=false
         g.materials=[m];let n=SCNNode(geometry:g);n.name="apron-logo";n.castsShadow=false
-        n.position=SCNVector3(side*0.8115,-0.165,0.62);n.eulerAngles.y = side>0 ? .pi/2 : -.pi/2;scene.rootNode.addChildNode(n)
+        n.position=SCNVector3(side*0.8015,-0.19,side*0.66);n.eulerAngles.y = side>0 ? .pi/2 : -.pi/2;scene.rootNode.addChildNode(n)
     }
     private func brandPlate(_ p:SCNVector3){
         let g=SCNPlane(width:0.22,height:0.038),m=SCNMaterial();m.lightingModel = .constant
@@ -1555,7 +1579,7 @@ final class TableScene {
         let c=points.reduce(SIMD2<Float>(0,0),+)/Float(points.count)
         let ys=points.map{$0.y},minY=ys.min()!,maxY=ys.max()!
         let lowCount=points.filter{abs($0.y-minY)<r*0.5}.count,highCount=points.filter{abs($0.y-maxY)<r*0.5}.count
-        let d=2*r+0.0002,s3:Float=3.0.squareRoot()
+        let d=2*r+0.0002,s3=Float(3).squareRoot()
         var vertices:[SIMD2<Float>]
         if points.count==9 && lowCount==1 && highCount==1 {
             // 9-ball diamond: 1-2-3-2-1 along the table, 60° tips front and back.
@@ -1861,7 +1885,16 @@ final class TableScene {
                 distance=max(distance,fitX)
                 distance=max(distance,fitY)
             }}}
-            let offset:SIMD3<Float> = backward*(distance*zoom)
+            var offset:SIMD3<Float> = backward*(distance*zoom)
+            // 0.44 (owner item 6: "camera đối thủ trên iPad lúc nào cũng vướng trần — chọn khoảng 2 m"). Fitting the whole
+            // table on a 4:3 iPad pushed the eye 4–5 m out and ~2.6 m up, behind the lamp fixture (2.45 m) and into the
+            // ceiling. Watching the opponent now stays ≤ 2.3 m from the table centre with the eye under 1.9 m.
+            if spectatorPivot {
+                let reach=min(distance*zoom,2.3)
+                var lift=elevation
+                if target.y+reach*sin(lift)>1.9 {lift=asin(max(0.2,min(1,(1.9-target.y)/reach)))}
+                offset=SIMD3<Float>(cos(yaw)*cos(lift),sin(lift),sin(yaw)*cos(lift))*reach
+            }
             target += right*0.15
             eye=target+offset
         }

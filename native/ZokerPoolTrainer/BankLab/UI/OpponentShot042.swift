@@ -14,16 +14,21 @@ extension TrainingController {
     /// the player's own controls — the effect ball already shows the contact (match strike selects it), the cue keys and
     /// elevation fan follow — plus a slim 7-colour power bar right under the effect ball with "m/s · cue · elevation".
     /// Display only, fades after 3.5 s. Switch: Tuỳ chỉnh (opponentShotCard042).
-    func showOpponentShot(speed: Double, side: Double, top: Double, elevation: Double, cueType: Int, who: String) {
+    func showOpponentShot(speed: Double, side: Double, top: Double, elevation: Double, cueType: Int, who: String,
+                          mirrorControls: Bool = true) {
         guard UserDefaults.standard.object(forKey: "opponentShotCard042") as? Bool ?? true else { return }
         Self.opponentCard?.removeFromSuperview()
-        spin.select(side: side, top: top); spin.alpha = 0.97
-        if elevation > 0 { elevationPad.degrees = elevation }
-        let anchor = spin.frame
-        let w = max(150, anchor.width * 2.4), h: CGFloat = 30
-        let strip = UIView(frame: CGRect(x: anchor.midX - w / 2, y: anchor.maxY + 6, width: w, height: h))
-        if strip.frame.maxY > view.bounds.height - 2 { strip.frame.origin.y = anchor.minY - h - 6 }
-        strip.frame.origin.x = max(8, min(view.bounds.width - w - 8, strip.frame.minX))
+        if mirrorControls {
+            spin.select(side: side, top: top); spin.alpha = 0.97
+            if elevation > 0 { elevationPad.degrees = elevation }
+        }
+        // 0.44 (owner item 15: the strip under the effect ball sat on the cue keys / B button). It now uses the SAME free
+        // slot as the player's own power meter — right of the top scoreboard, clear of every control and of the table.
+        let safe = view.safeAreaInsets, bounds = view.bounds
+        let boardHalf = min(bounds.width * 0.25, 200) + 14, left = bounds.midX + boardHalf, right = bounds.maxX - safe.right - 14
+        let w = max(120, min(right - left, 240)), h: CGFloat = 30
+        let topY = replayIndex != nil ? safe.top + 66 : safe.top + 20   // in replay: under the replay bar
+        let strip = UIView(frame: CGRect(x: right - w, y: topY, width: w, height: h))
         strip.isUserInteractionEnabled = false; strip.accessibilityIdentifier = "OpponentShotCard"
         view.addSubview(strip); Self.opponentCard = strip
         let t = max(0, min(1, speed / 8.0))

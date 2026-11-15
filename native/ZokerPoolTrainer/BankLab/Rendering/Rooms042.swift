@@ -58,25 +58,48 @@ extension TableScene {
 
     // MARK: photos
 
+    /// 0.44 (owner item 8 + zip of 26 photos): 24 unique photos (2 exact duplicates dropped), ZWall01…24. The 13 that
+    /// came with a frame printed in the picture were cropped to the photo (the app builds the real frame), so no double
+    /// frames. Pose families — a room never hangs two of the same family:
+    /// portrait 1 4 5 16 · handshake 2 11 17 23 24 · selfie 3 14 · hug 6 15 · trophy/medal 7 8 9 12 21 22 ·
+    /// celebration 10 13 · candid 18 19 20.
+    static let photoCount=24
     private static var photoCache:[Int:SCNMaterial]=[:]
+    /// Printed photo behind glass: matte (no specular hot spot from the room lights — the old 0.45 roughness + self-glow
+    /// read as glare, owner item 5), lit by its own picture light only.
     func photoMaterial(_ k:Int)->SCNMaterial {
         if let m=Self.photoCache[k]{return m}
         let m=SCNMaterial();m.lightingModel = .physicallyBased
-        let image=UIImage(named:String(format:"ZWall%02d",max(1,min(15,k))))
-        m.diffuse.contents=image ?? UIColor(white:0.3,alpha:1);m.emission.contents=image;m.emission.intensity=0.32
-        m.roughness.contents=0.45;m.metalness.contents=0.0;m.diffuse.mipFilter = .linear;m.diffuse.maxAnisotropy=4
+        let image=UIImage(named:String(format:"ZWall%02d",max(1,min(Self.photoCount,k))))
+        m.diffuse.contents=image ?? UIColor(white:0.3,alpha:1);m.emission.contents=image;m.emission.intensity=0.06
+        m.roughness.contents=0.92;m.metalness.contents=0.0;m.specular.contents=UIColor(white:0.04,alpha:1)
+        m.diffuse.mipFilter = .linear;m.diffuse.maxAnisotropy=4
         Self.photoCache[k]=m;return m
     }
-    /// One framed photo (the frame is part of the image) with a shadow board behind and a brass picture light above.
+    /// Category bit of the picture lights: they light the photos and nothing else (no extra cost on the table/balls).
+    static let pictureLightCategory=1<<4
+    /// 0.44: one framed photo — satin black moulding with a thin champagne lip and an ivory mat (the frame is built,
+    /// not printed), a brass picture light above it with its own warm 3000 K spot aimed at the picture.
     func hangPhoto(_ k:Int,_ p:SCNVector3,yaw:Float,size:CGFloat=0.95,lamp:SCNMaterial?=nil){
         let group=SCNNode();group.position=p;group.eulerAngles.y=yaw;scene.rootNode.addChildNode(group)
-        _=box(size+0.03,size+0.03,0.02,SCNVector3(0,-0.01,-0.012),mat(UIColor(white:0.02,alpha:1),roughness:0.9),chamfer:0.004,parent:group)
+        let moulding=mat(UIColor(white:0.035,alpha:1),roughness:0.55),lip=premiumMaterial("ChampagneGold"),matBoard=mat(.rgb(0xEFE8DA),roughness:0.95)
+        let border:CGFloat=0.055,matW:CGFloat=0.045,outer=size+2*(border+matW)
+        _=box(outer,outer,0.035,SCNVector3(0,0,-0.016),moulding,chamfer:0.008,parent:group)
+        _=box(size+2*matW+0.012,size+2*matW+0.012,0.006,SCNVector3(0,0,0.003),lip,chamfer:0.002,parent:group)
+        _=box(size+2*matW,size+2*matW,0.006,SCNVector3(0,0,0.005),matBoard,chamfer:0,parent:group)
         let plane=SCNPlane(width:size,height:size);plane.materials=[photoMaterial(k)]
-        let n=SCNNode(geometry:plane);n.position=SCNVector3(0,0,0.002);group.addChildNode(n)
+        let n=SCNNode(geometry:plane);n.position=SCNVector3(0,0,0.0085);n.name="wall-photo"
+        n.categoryBitMask=Self.pictureLightCategory;group.addChildNode(n)
         let brass=lamp ?? premiumMaterial("ChampagneGold")
-        _=box(0.03,0.03,0.12,SCNVector3(0,Float(size/2)+0.06,0.05),brass,chamfer:0.004,parent:group)
-        _=box(size*0.55,0.035,0.05,SCNVector3(0,Float(size/2)+0.08,0.11),brass,chamfer:0.008,parent:group)
-        _=box(size*0.5,0.008,0.02,SCNVector3(0,Float(size/2)+0.06,0.12),emissive(.rgb(0xFFEBC4),.rgb(0xFFD99A)),chamfer:0,parent:group)
+        let top=Float(outer/2)
+        _=box(0.03,0.03,0.12,SCNVector3(0,top+0.04,0.05),brass,chamfer:0.004,parent:group)
+        _=box(size*0.55,0.035,0.05,SCNVector3(0,top+0.06,0.11),brass,chamfer:0.008,parent:group)
+        _=box(size*0.5,0.008,0.02,SCNVector3(0,top+0.04,0.12),emissive(.rgb(0xFFEBC4),.rgb(0xFFD99A)),chamfer:0,parent:group)
+        let light=SCNLight();light.type = .spot;light.temperature=3000;light.intensity=260
+        light.spotInnerAngle=38;light.spotOuterAngle=72;light.attenuationStartDistance=0.3;light.attenuationEndDistance=2.2
+        light.castsShadow=false;light.categoryBitMask=Self.pictureLightCategory
+        let lamp=SCNNode();lamp.light=light;lamp.position=SCNVector3(0,top+0.05,0.16);group.addChildNode(lamp)
+        lamp.look(at:SCNVector3(0,-Float(size)*0.15,0),up:SCNVector3(0,1,0),localFront:SCNVector3(0,0,-1))
     }
     /// Photos along a side wall (x = side·3.9x), centred, facing into the room.
     func sideGallery(_ photos:[Int],side:Float,y:Float=0.95,size:CGFloat=0.95,from z0:Float = -3.0,to z1:Float=3.0,lamp:SCNMaterial?=nil){
@@ -178,7 +201,7 @@ extension TableScene {
         _=box(0.04,1.5,2.4,SCNVector3(3.95,0.75,-1.2),emissive(UIColor(red:0.75,green:0.85,blue:0.95,alpha:1),UIColor(red:0.6,green:0.7,blue:0.82,alpha:1)),chamfer:0)
         for z:Float in [-2.4,-1.2,0]{_=box(0.06,1.56,0.05,SCNVector3(3.92,0.75,z),mat(.white,roughness:0.4),chamfer:0.004)}
         plant(SCNVector3(3.4,0,-3.9));plant(SCNVector3(-3.4,0,3.9),scale:0.8)
-        sideGallery([6,11,3,12],side:-1,y:1.25,size:0.8,from:-3.3,to:0.9)
+        sideGallery([6,18,14,5],side:-1,y:1.25,size:0.8,from:-3.3,to:0.9)
         brandWall(SCNVector3(1.3,1.35,-4.62),yaw:0,width:2.2,plate:mat(.rgb(0x2B2420),roughness:0.4))
         roomLamp(SCNVector3(3.4,1.2,-1.2),45,6500,end:5);roomLamp(SCNVector3(-2.5,1.8,2.5),20,3000,end:4)
     }
@@ -201,7 +224,7 @@ extension TableScene {
         let bulb=emissive(.rgb(0xFFF0C8),.rgb(0xFFD27A))
         for k in 0..<22 {let x = -3.5+Float(k)*0.333;let sag=0.12*sin(Float(k%11)/10*Float.pi)
             let n=SCNNode(geometry:SCNSphere(radius:0.025));n.geometry?.materials=[bulb];n.position=SCNVector3(x,2.1-sag,-3.55);scene.rootNode.addChildNode(n)}
-        endGallery([2,9,15,5],side:-1,y:0.55,size:0.85,from:-3.0,to:3.0)
+        endGallery([15,20,13,11],side:-1,y:0.55,size:0.85,from:-3.0,to:3.0)
         brandWall(SCNVector3(0,1.55,-4.6),yaw:0,width:2.6)
         for x:Float in [-3.8,3.8]{plant(SCNVector3(x,0,3.8),scale:1.3);plant(SCNVector3(x,0,-2.8),scale:1.1)}
         tableFixture()
@@ -224,8 +247,8 @@ extension TableScene {
                 _=box(0.5,0.14,0.5,SCNVector3(side*3.6,3.55,z),gold,chamfer:0.02);_=box(0.5,0.14,0.5,SCNVector3(side*3.6,-0.7,z),gold,chamfer:0.02)}
             _=box(8,0.1,0.08,SCNVector3(0,3.2,side*4.62),gold,chamfer:0.01);_=box(0.08,0.1,9.3,SCNVector3(side*3.94,3.2,0),gold,chamfer:0.01)
         }
-        sideGallery([3,12,14],side:-1,y:1.3,size:1.0,from:-2.6,to:2.6,lamp:gold)
-        sideGallery([13,2,6],side:1,y:1.3,size:1.0,from:-2.6,to:2.6,lamp:gold)
+        sideGallery([22,4,24],side:-1,y:1.3,size:1.0,from:-2.6,to:2.6,lamp:gold)
+        sideGallery([14,13,15],side:1,y:1.3,size:1.0,from:-2.6,to:2.6,lamp:gold)
         brandWall(SCNVector3(0,2.2,-4.6),yaw:0,width:3.0,plate:mat(.rgb(0x1A1410),roughness:0.3,metal:0.2))
         for z:Float in [-2.2,2.2]{
             let crystal=emissive(UIColor(white:1,alpha:1),.rgb(0xFFF2D0))
@@ -246,8 +269,8 @@ extension TableScene {
             for z:Float in [-3.6,0,3.6]{_=box(0.04,0.4,0.2,SCNVector3(side*3.93,1.75,z),gold,chamfer:0.01);roomLamp(SCNVector3(side*3.7,1.8,z),12,2600,end:3)}
             _=box(0.06,0.06,9.3,SCNVector3(side*3.92,2.9,0),gold,chamfer:0.01)
         }
-        sideGallery([12,3,13],side:-1,y:1.0,size:0.95,from:-2.4,to:2.4,lamp:gold)
-        sideGallery([1,7],side:1,y:1.0,size:0.95,from:-1.6,to:1.6,lamp:gold)
+        sideGallery([12,16,17],side:-1,y:1.0,size:0.95,from:-2.4,to:2.4,lamp:gold)
+        sideGallery([19,6],side:1,y:1.0,size:0.95,from:-1.6,to:1.6,lamp:gold)
         let crest=SCNNode(geometry:SCNCylinder(radius:0.45,height:0.03));crest.geometry?.materials=[gold];crest.eulerAngles.x = .pi/2;crest.position=SCNVector3(0,2.4,4.6);scene.rootNode.addChildNode(crest)
         let z=zLogo(height:0.5,material:mat(.rgb(0x5A0F14),roughness:0.4));z.position=SCNVector3(0,2.4,4.55);z.eulerAngles.y = .pi;scene.rootNode.addChildNode(z)
         brandWall(SCNVector3(0,1.3,-4.6),yaw:0,width:2.8)
@@ -289,8 +312,8 @@ extension TableScene {
     /// Classic club (old room 6), now with gallery, cue rack and the brand.
     func buildClassic042(){
         buildRoomBase()
-        sideGallery([1,4,8],side:-1,y:1.15,size:0.85,from:-2.6,to:2.6)
-        sideGallery([10,7],side:1,y:1.15,size:0.85,from:-1.6,to:1.6)
+        sideGallery([8,23,18],side:-1,y:1.15,size:0.85,from:-2.6,to:2.6)
+        sideGallery([1,10],side:1,y:1.15,size:0.85,from:-1.6,to:1.6)
         cueRack(SCNVector3(2.4,0,-4.55),yaw:0)
         brandWall(SCNVector3(-0.6,1.5,-4.55),yaw:0,width:2.4)
         downlights([-2.8,2.8],[-3.2,0,3.2],y:2.6)
@@ -313,8 +336,8 @@ extension TableScene {
         }
         trophyCabinet(SCNVector3(-2.6,0,-4.35),yaw:0);trophyCabinet(SCNVector3(2.6,0,-4.35),yaw:0)
         brandWall(SCNVector3(0,1.55,-4.6),yaw:0,width:2.6)
-        sideGallery([12,13,14],side:-1,y:1.2,size:0.95,from:-2.8,to:2.2,lamp:gold)
-        sideGallery([3,7,10],side:1,y:1.2,size:0.95,from:-2.8,to:2.2,lamp:gold)
+        sideGallery([9,2,5],side:-1,y:1.2,size:0.95,from:-2.8,to:2.2,lamp:gold)
+        sideGallery([3,15,20],side:1,y:1.2,size:0.95,from:-2.8,to:2.2,lamp:gold)
         let cream=mat(.rgb(0xE9DFCB),roughness:0.6)
         sofa(SCNVector3(-1.2,0,3.9),yaw:Float.pi,width:2.0,material:cream);sofa(SCNVector3(1.2,0,3.9),yaw:Float.pi,width:2.0,material:cream)
         _=box(1.2,0.36,0.6,SCNVector3(0,-0.61,3.0),mat(UIColor(white:0.05,alpha:1),roughness:0.15),chamfer:0.02)
@@ -344,7 +367,7 @@ extension TableScene {
         // feature wall with brand and photos at the far end
         let wall=mat(.rgb(0x1B1F28),roughness:0.6)
         _=box(7.6,3.0,0.25,SCNVector3(0,0.7,-4.75),wall,chamfer:0.02)
-        endGallery([2,15,9,5],side:-1,y:0.45,size:0.8,from:-2.9,to:2.9)
+        endGallery([21,11,14,13],side:-1,y:0.45,size:0.8,from:-2.9,to:2.9)
         brandWall(SCNVector3(0,1.6,-4.6),yaw:0,width:2.8)
         let bulb=emissive(.rgb(0xFFF0C8),.rgb(0xFFC66A))
         for line in 0..<3 {let z = -3+Float(line)*3
@@ -374,8 +397,8 @@ extension TableScene {
             barrel.position=SCNVector3(side*3.45,-0.45,side*(z+2.6));scene.rootNode.addChildNode(barrel)
             for dx:Float in [-0.3,0.3]{let hoop=SCNNode(geometry:SCNTorus(ringRadius:0.325,pipeRadius:0.012));hoop.geometry?.materials=[iron];hoop.eulerAngles.z = .pi/2
                 hoop.position=SCNVector3(side*3.45+dx,-0.45,side*(z+2.6));scene.rootNode.addChildNode(hoop)}}}
-        sideGallery([1,8],side:-1,y:1.1,size:0.85,from:-3.2,to:-0.8,lamp:iron)
-        sideGallery([10,11],side:1,y:1.1,size:0.85,from:0.8,to:3.2,lamp:iron)
+        sideGallery([16,24],side:-1,y:1.1,size:0.85,from:-3.2,to:-0.8,lamp:iron)
+        sideGallery([7,19],side:1,y:1.1,size:0.85,from:0.8,to:3.2,lamp:iron)
         brandWall(SCNVector3(0,1.4,-4.6),yaw:0,width:2.6,plate:oak,letters:premiumMaterial("ChampagneGold"))
         let flame=emissive(.rgb(0xFFB04A),.rgb(0xFF9A2A))
         for side:Float in [-1,1]{for z:Float in [-3.2,0,3.2]{

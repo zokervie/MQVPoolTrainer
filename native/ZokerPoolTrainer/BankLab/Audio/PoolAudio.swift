@@ -232,6 +232,53 @@ final class PoolAudio {
         }
     }
 
+    /// 0.44 (#17 video export): the same recordings, chosen by the same pack/tier rule and gain as `play`, mixed offline
+    /// into one stereo 48 kHz float buffer at the given times (seconds of video). Equal-power pan; the sum is limited to
+    /// −1 dBFS peak (no clipping, no pumping). Mono-safe: both channels carry the same sources.
+    func offlineMix(_ events: [(time: Double, kind: Int, impact: Double, pan: Double)], duration: Double) -> AVAudioPCMBuffer? {
+        read { () -> AVAudioPCMBuffer? in
+            let rate = 48_000.0
+            let frames = Int(max(0.1, min(120, duration)) * rate)
+            guard let stereo = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2),
+                  let out = AVAudioPCMBuffer(pcmFormat: stereo, frameCapacity: AVAudioFrameCount(frames)),
+                  let left = out.floatChannelData?[0], let right = out.floatChannelData?[1] else { return nil }
+            out.frameLength = AVAudioFrameCount(frames)
+            for i in 0..<frames { left[i] = 0; right[i] = 0 }
+            let master = UserDefaults.standard.object(forKey: "tuneVolume037") as? Double ?? 1
+            let wantPack = UserDefaults.standard.object(forKey: Self.packKey) as? Int ?? 0
+            var variation = 0
+            for event in events where (0...3).contains(event.kind) && event.impact > 0 && event.time >= 0 && groups.indices.contains(event.kind) {
+                var samples = groups[event.kind].filter { $0.pack == wantPack }
+                if samples.isEmpty { samples = groups[event.kind] }
+                guard !samples.isEmpty else { continue }
+                let type = event.kind, impact = event.impact
+                let wantTier: Int = type == 3 ? (impact < 1.6 ? 0 : (impact < 3.6 ? 1 : (impact < 5.8 ? 2 : 3)))
+                    : (type == 1 ? (impact < 0.8 ? 0 : (impact < 2.2 ? 1 : 2)) : (impact < 0.9 ? 0 : 1))
+                if let nearest = samples.map({ abs($0.tier - wantTier) }).min() { samples = samples.filter { abs($0.tier - wantTier) == nearest } }
+                let sample = samples[variation % samples.count]; variation += 1
+                let kindGain = type == 0 ? 0.82 : (type == 2 ? 0.78 : (type == 3 ? 0.86 : 1.0))
+                let level = Float(min(0.88, pow(max(0.005, min(1, impact / 3.2)), 0.65) * kindGain * master))
+                let angle = Float((max(-1, min(1, event.pan)) + 1) * Double.pi / 4)
+                let gl = level * cos(angle), gr = level * sin(angle)
+                guard let source = sample.buffer.floatChannelData?[0] else { continue }
+                let count = Int(sample.buffer.frameLength), step = sample.buffer.format.sampleRate / rate
+                let start = Int(event.time * rate)
+                var k = 0
+                while true {
+                    let position = Double(k) * step, index = Int(position)
+                    guard index + 1 < count, start + k < frames else { break }
+                    let frac = Float(position - Double(index))
+                    let value = source[index] + (source[index + 1] - source[index]) * frac
+                    left[start + k] += value * gl; right[start + k] += value * gr; k += 1
+                }
+            }
+            var peak: Float = 0
+            for i in 0..<frames { peak = max(peak, abs(left[i]), abs(right[i])) }
+            if peak > 0.89 { let g = 0.89 / peak; for i in 0..<frames { left[i] *= g; right[i] *= g } }
+            return out
+        }
+    }
+
     private func read<T>(_ work: () -> T) -> T {
         if DispatchQueue.getSpecific(key: queueKey) == 1 { return work() }
         return audioQueue.sync(execute: work)

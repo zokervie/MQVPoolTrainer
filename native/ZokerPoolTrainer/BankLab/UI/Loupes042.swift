@@ -1,8 +1,9 @@
 import UIKit
 
-/// 0.42 (owner 13/11 18:12): while choosing the tip contact or the cue elevation, a large copy is shown away from the
-/// finger — the effect ball in the middle of the LEFT half, the elevation fan in the middle of the RIGHT half.
-/// Display only (no touches); it mirrors the real control.
+/// 0.42: while choosing the tip contact or the cue elevation, a large copy is shown away from the finger.
+/// 0.44 (owner item 16: "chỉ hiện MỘT hình nhô lên khỏi vùng ngón tay, không cần double"): the copy now pops up straight
+/// ABOVE the control the finger is on (clamped inside the safe area) and the control itself fades to near-invisible
+/// while it is up — one image, never two. Display only (no touches); the real control keeps receiving the drag.
 extension TrainingController {
     private static var loupes: (spin: SpinPad, elevation: ElevationPad)?
     private static var elevationHide: DispatchWorkItem?
@@ -16,13 +17,16 @@ extension TrainingController {
         }
         s.accessibilityIdentifier = "SpinLoupe"; e.accessibilityIdentifier = "ElevationLoupe"
         let side: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 240 : 170
-        NSLayoutConstraint.activate([
-            s.widthAnchor.constraint(equalToConstant: side), s.heightAnchor.constraint(equalToConstant: side),
-            NSLayoutConstraint(item: s, attribute: .centerX, relatedBy: .equal, toItem: view, attribute: .centerX, multiplier: 0.55, constant: 0),
-            s.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -10),
-            e.widthAnchor.constraint(equalToConstant: side), e.heightAnchor.constraint(equalToConstant: side),
-            NSLayoutConstraint(item: e, attribute: .centerX, relatedBy: .equal, toItem: view, attribute: .centerX, multiplier: 1.45, constant: 0),
-            e.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -10)])
+        let safe = view.safeAreaLayoutGuide
+        func above(_ v: UIView, _ control: UIView) -> [NSLayoutConstraint] {
+            let cx = v.centerXAnchor.constraint(equalTo: control.centerXAnchor); cx.priority = .defaultHigh
+            let bottom = v.bottomAnchor.constraint(equalTo: control.topAnchor, constant: -12); bottom.priority = .defaultHigh
+            return [v.widthAnchor.constraint(equalToConstant: side), v.heightAnchor.constraint(equalToConstant: side), cx, bottom,
+                    v.leadingAnchor.constraint(greaterThanOrEqualTo: safe.leadingAnchor, constant: 6),
+                    v.trailingAnchor.constraint(lessThanOrEqualTo: safe.trailingAnchor, constant: -6),
+                    v.topAnchor.constraint(greaterThanOrEqualTo: safe.topAnchor, constant: 6)]
+        }
+        NSLayoutConstraint.activate(above(s, spin) + above(e, elevationPad))
         Self.loupes = (s, e); return (s, e)
     }
     private func fade(_ v: UIView, _ on: Bool) {
@@ -37,14 +41,21 @@ extension TrainingController {
         loupe.select(side: spin.side, top: spin.top)
         if let expanded = expanded { fade(loupe, expanded) }
     }
+    /// 0.44: the real control under the finger while its lifted copy is up (alpha 0.02 still receives touches).
+    var loupesActive: Bool {
+        (UserDefaults.standard.object(forKey: "loupes042") as? Bool ?? true) && !ProcessInfo.processInfo.arguments.contains("--spin-detail")
+    }
     /// Called from the elevation pad's `changed`: shown while it moves, hidden 0.8 s after the last change.
     func updateElevationLoupe() {
         guard UserDefaults.standard.object(forKey: "loupes042") as? Bool ?? true else { return }
         let loupe = loupeViews.elevation
         loupe.leftHanded = elevationPad.leftHanded; loupe.minimum = elevationPad.minimum; loupe.degrees = elevationPad.degrees
-        fade(loupe, true)
+        fade(loupe, true); elevationPad.alpha = 0.02
         Self.elevationHide?.cancel()
-        let work = DispatchWorkItem { [weak self] in guard let self = self else { return }; self.fade(self.loupeViews.elevation, false) }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }; self.fade(self.loupeViews.elevation, false)
+            UIView.animate(withDuration: 0.18) { self.elevationPad.alpha = 1 }
+        }
         Self.elevationHide = work; DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
     }
 }
