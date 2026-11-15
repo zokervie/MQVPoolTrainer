@@ -81,7 +81,8 @@ jobs:
           set -euo pipefail
           export BUILD_NUMBER=$((24 + BUILD_NUMBER))
           python3 Tools/prepare_ci_assets.py
-          bash Build-Unsigned-IPA.command 2>&1 | tail -30
+          bash Build-Unsigned-IPA.command > "$RUNNER_TEMP/ipa-build.log" 2>&1 || { grep -E "error:" "$RUNNER_TEMP/ipa-build.log" | sort -u | head -80; tail -30 "$RUNNER_TEMP/ipa-build.log"; exit 1; }   # 0.44: show every compile error
+          tail -30 "$RUNNER_TEMP/ipa-build.log"
           python3 - <<'PY'
           import hashlib, json, pathlib, plistlib, subprocess, zipfile
           root=pathlib.Path('dist')
