@@ -84,6 +84,17 @@ static inline double BLCueMinimumElevation(double x, double y, double angle,
     return hi * 180 / M_PI;
 }
 
+// 0.44 (owner item 14: "ở ngoài anh vẫn có góc song song với bàn"). A cue is a straight line, so with the cue ball 30–60 cm
+// from a rail a mathematically level cue would still have to pass over the rail behind (≈ 3–7°). A player does exactly
+// that with the normal stance — rear hand a little higher than the bridge — and calls it "level"; published squirt /
+// swerve figures are measured in that stance. So up to BL_CUE_STANCE_DEG of rail clearance is the stance itself: it is
+// DRAWN (the cue never passes through the rail) but the stroke stays a level stroke. Above it the stroke really is
+// elevated (bridge on the rail, ball near the cushion, low tip) and the fan/solver use the full angle.  [giả định: 6°]
+#define BL_CUE_STANCE_DEG 6.0
+static inline double BLCueStrokeElevation(double clearanceDeg) {
+    return (isfinite(clearanceDeg) && clearanceDeg > BL_CUE_STANCE_DEG) ? clearanceDeg : 0.0;
+}
+
 static inline bool BLCueReachable(double x, double y, double angle, double side, double top,
                                   double width, double length, double radius, double noseRatio,
                                   double maxElevationDeg) {

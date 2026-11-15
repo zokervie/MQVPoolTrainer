@@ -168,7 +168,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var placementGrab=SIMD2<Double>(0,0),placementPose:CameraPose?   // 0.42 ball in hand
     // 0.25: practice history (step back / forward per shot or whole session) and session highlights.
     /// 0.30: each step keeps the layout AND the setup used for the shot taken from it (gậy, độ dốc, effect, hướng).
-    struct ShotSetup{var angle:Double,side:Double,top:Double,kind:Int,elevation:Double}
+    /// 0.44 (owner item 7: "lùi cú phải trở lại góc nhắm lúc ra cơ… hiện bị chuyển sang góc khác phải canh lại"): the
+    /// setup now carries the aim camera as it was at the stroke (pose + yaw offset from the aim line) and the cue type.
+    struct ShotSetup{var angle:Double,side:Double,top:Double,kind:Int,elevation:Double;var aimYaw:Double=0;var camera:CameraPose?=nil;var cueType:Int?=nil}
     struct ShotStep{var balls:[BallState];var setup:ShotSetup?}
     var shotBack:[ShotStep]=[],shotForward:[ShotStep]=[]
     /// 0.30: Đánh / Jump / Massé / Break above the effect ball (BLHUDCueIcon, BLCueIconKind).
@@ -182,7 +184,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var replayCamera=UserDefaults.standard.integer(forKey:"replayCamera041")
     /// 0.41 Action camera state: current cut, smoothed travel directions, crane yaw.
     var actionShot = -1,actionDirections:[Int:SIMD2<Float>]=[:],actionCraneYaw:Float=0
-    func currentSetup()->ShotSetup{ShotSetup(angle:angle,side:side,top:top,kind:shotKind,elevation:table.cueElevation)}
+    func currentSetup()->ShotSetup{
+        ShotSetup(angle:angle,side:side,top:top,kind:shotKind,elevation:table.cueElevation,aimYaw:aimCameraYaw,
+                  camera:table.cameraMode==2 && replayIndex==nil ? captureCamera():savedAimCamera,cueType:engine.settings["cueType"]?.intValue)
+    }
+    var lastShotSetup:ShotSetup?
     var sessionShots:[(shot:SavedShot,score:Int,label:String)]=[]
     var autoSaveEveryShot:Bool{UserDefaults.standard.bool(forKey:"autoSaveEveryShot025")}
     let quickCall=UIButton(type:.system)
@@ -1220,6 +1226,37 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var strokeAllowed:Bool{
         BLStrokeAllowed(localTurn && matchCanStroke,presentationBusy,menuOpen,spinExpanded,isPlacingBalls,cue?.sunk==false)
     }
+    // ---- 0.44 (owner item 2: "đã hiển thị mức lực mà không ra cơ", Wi‑Fi / cùng máy) ----------------------------------
+    // ROOT CAUSE: permission was re-evaluated on every control sync (a network snapshot, the 0.5 s turn check, the camera
+    // finishing its return) and `stroke.isEnabled = locked && strokeAllowed` CANCELLED a stroke already in progress, and the
+    // release re-checked it again and dropped the shot silently. Now permission is granted once, when the effect ball is
+    // held (setHold); from then on only a HARD block (turn really lost, match over, menu, ball in hand, cue ball gone, a shot
+    // already running) cancels. A release that meets a transient block (pending packet, camera settling) is queued ≤ 1.2 s.
+    var strokeHardBlocked:Bool{
+        if shotActive || replayIndex != nil || menuOpen || isPlacingBalls || cue?.sunk != false || !localTurn {return true}
+        guard matchPlay.active else{return false}
+        if matchInt("winner",fallback:-1)>=0 || matchPlay.placementDraft != nil {return true}
+        if matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 {return true}
+        if matchPlay.session.role != .none && matchInt("currentPlayer") != matchPlay.session.localPlayer {return true}
+        return false
+    }
+    var strokeStaysArmed:Bool{locked && !strokeHardBlocked}
+    var deferredStroke:(speed:Double,until:Double)?
+    func deferStroke(_ speed:Double){
+        guard !strokeHardBlocked || (matchPlay.active && matchPlay.session.isApplyingCommand) else{notifyStatus("Hết lượt / đang có cú khác — cú vừa rồi không được đánh");return}
+        deferredStroke=(speed,ProcessInfo.processInfo.systemUptime+1.2);wakeRendering()
+    }
+    func serviceDeferredStroke(){
+        guard let pending=deferredStroke else{return}
+        if strokeHardBlocked && !shotActive {deferredStroke=nil;notifyStatus("Hết lượt — cú vừa rồi không được đánh");return}
+        if shotActive {deferredStroke=nil;return}
+        if strokeAllowed {
+            deferredStroke=nil;locked=true;shoot(pending.speed);if locked{setHold(false)}
+            return
+        }
+        if ProcessInfo.processInfo.systemUptime>pending.until {deferredStroke=nil;notifyStatus("Chưa đồng bộ kịp với máy bạn — anh đánh lại cú này")}
+        else{wakeRendering()}
+    }
     var balls:[BallState]{matchDisplayedBalls ?? frameStateCache ?? engine.ballStates}
     var cue:BallState?{balls.first{$0.id==0}}
     func loadDrill(_ index:Int){
@@ -1246,6 +1283,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     // MARK: Cơ tránh băng (BankLab/UI/CueClearance.h, Tests/CueClearanceTests.cpp)
     struct TableGeometry {var width=1.27,length=2.54,radius=0.028575,nose=0.27}
     var geometry=TableGeometry()
+    /// 0.44: rail clearance that is a real elevated stroke (above the normal 6° stance) — see BLCueStrokeElevation.
+    var strokeClearance:Double{BLCueStrokeElevation(table.clearanceElevation)}
     /// Góc nghiêng tối đa cho cú thường (không bật cơ nâng 3D): 35° — giả định, cần đối chiếu trên bàn thật.
     var maxStrokeElevation:Double{(engine.settings["experimental3D"]?.boolValue ?? false) ? 80:45}   // 0.37: 45° — frozen-to-rail top shots need ~38° over the rendered rail
     func cueClearance(side s:Double,top t:Double)->Double{
@@ -1260,6 +1299,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let g=engine.settings
         geometry=TableGeometry(width:g["tableWidth"]?.doubleValue ?? 1.27,length:g["tableLength"]?.doubleValue ?? 2.54,
                                radius:g["ballRadius"]?.doubleValue ?? 0.028575,nose:g["railHeight"]?.doubleValue ?? 0.27)
+        table.tableSize=SIMD2(geometry.width,geometry.length);table.railNose=geometry.nose
         let limit=maxStrokeElevation
         let others=balls.filter{$0.id != 0 && !$0.sunk};obstacleXs=others.map{$0.x};obstacleYs=others.map{$0.y}
         if spin.reachable==nil {
@@ -1271,8 +1311,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
         }
         if cueClearance(side:side,top:top)>limit {spin.select(side:side,top:top)} // select() kẹp lên vùng với tới
-        table.clearanceElevation=cueClearance(side:side,top:top)
-        elevationPad.minimum=min(table.clearanceElevation,85)   // 0.37: the fan follows the real (auto-raised) cue live
+        table.clearanceElevation=cueClearance(side:side,top:top)   // drawn: the cue never passes through the rail
+        elevationPad.minimum=min(strokeClearance,85)   // 0.44: the fan shows a real elevated stroke only (stance ≤ 6° = level)
         spin.setNeedsDisplay()
     }
     func refresh(){wakeRendering();updateCueClearance();table.update(balls,dt:0);guideDirty=true;scoreLabel.text="\(successes) / \(attempts) đạt · góc \(String(format:"%.1f",angle*180/Double.pi))°"}
@@ -1281,7 +1321,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         syncCueIcons()
         fineWheel.isEnabled = !busy && localTurn && !isPlacingBalls
         lockButton.isEnabled = strokeAllowed
-        stroke.isEnabled=locked && strokeAllowed
+        stroke.isEnabled=strokeStaysArmed
         stroke.isUserInteractionEnabled=stroke.isEnabled
         testShotButton.isEnabled = !busy && localTurn && !isPlacingBalls && cue?.sunk == false
         elevationPad.isEnabled = !busy && localTurn && !isPlacingBalls && !spinExpanded
@@ -1423,7 +1463,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // was thrown away. The intro is presentation only (the solver already holds the rack): end it and play the shot.
         if table.rackIntroPlaying{table.skipRackIntro()}
         if routeMatchShot(speed){return}
-        guard locked,strokeAllowed,speed.isFinite,speed>0 else{return}
+        guard locked,speed.isFinite,speed>0 else{return}
+        guard strokeAllowed else{deferStroke(speed);return}   // 0.44: never drop a stroke the power bar already showed
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
         let origin=aimBuffer.first?.time ?? 0
         lastPreparation=aimBuffer.map{var sample=$0;sample.time-=origin;return sample}
@@ -1446,13 +1487,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if table.cameraMode==2 {savedAimCamera=captureCamera()}
         BLShotCameraStart(&shotCameraState)
         cameraManual=false;lastDirectorTime = -10;peekPose=nil;lastShotEvents=[]
-        if !matchIsCompetitive{shotBack.append(ShotStep(balls:balls,setup:currentSetup()));shotForward.removeAll()}
+        lastShotSetup=currentSetup()
+        if !matchIsCompetitive{shotBack.append(ShotStep(balls:balls,setup:lastShotSetup));shotForward.removeAll()}
         before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0
         // 0.37 (owner): a cue raised over the rail / a ball behind is a REAL elevated stroke — squirt fades in with the
         // elevation (squirtRampDegrees) and the 3D strike adds swerve/hop by speed. Restored when the shot ends.
         applySquirtPolicy()   // 0.43: picks up "Squirt thực tế" changed in Tuỳ chỉnh before this stroke
         var strikeElevation=table.cueElevation
-        let forced=min(table.clearanceElevation,85)
+        let forced=min(strokeClearance,85)
         if forced>table.cueElevation+0.25 {
             forcedElevationRestore=engine.settings
             var values=engine.settings;values["cueElevationDegrees"]=NSNumber(value:forced);values["experimental3D"]=true
@@ -1462,6 +1504,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         lastShot=SavedShot(name:"",date:Date(),balls:balls,aimAngle:angle,speed:speed,side:side,top:top,
                            elevation:strikeElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle,shotKind:shotKind,physicsSettings:engine.settings.mapValues{$0.doubleValue})
         hideCoach()
+        publishShotStart(strikeAngle:strikeAngle,speed:speed)   // 0.44 lockstep: the guest runs the same solver
         engine.strike(angle:strikeAngle,speed:speed,side:side,top:top)
         if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
         shotActive=true;didStartMatchShot();attempts+=1;statusLabel.text=String(format:"Đang chạy · tốc độ đầu %.2f m/s",speed)
@@ -1486,6 +1529,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             matchNetworkWatch()   // 0.41: opponent away · turn timeout · forfeit
         }
         capturePreparation(time:ProcessInfo.processInfo.systemUptime)
+        serviceDeferredStroke()   // 0.44
         let guestTick=matchGuestTick(dt)
         driveComputerTurn()   // 0.40 Đấu với máy (no-op unless it is the computer's turn at rest)
         tickShotClock(dt)     // 0.40b đồng hồ cú + gia hạn (no-op when off)
@@ -1731,7 +1775,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             predictionPending=true;predictionGeneration+=1;let generation=predictionGeneration
             var settings=engine.settings
             // 0.38: the predicted path uses the elevation the cue really has (auto-raised over a rail / ball).
-            let forced=min(table.clearanceElevation,85)
+            let forced=min(strokeClearance,85)
             if forced>table.cueElevation+0.25 {settings["cueElevationDegrees"]=NSNumber(value:forced);settings["experimental3D"]=true}
             let layout=engine.states,a=table.shotAngle(cue,angle:angle,side:side,top:top),v=referenceSpeed,x=side,y=top,aim=angle
             lastPredictionTime=link.timestamp;guideDirty=false;lastGuideAngle=aim
@@ -1862,11 +1906,21 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func applySetup(_ setup:ShotSetup?){
         guard let setup=setup else{spin.reset();side=0;top=0;return}
         if setup.kind != shotKind {chooseShotKind(setup.kind)}
+        if let type=setup.cueType,type != engine.settings["cueType"]?.intValue {
+            var values=engine.settings;values["cueType"]=NSNumber(value:type);engine.settings=values;table.selectCue(type);syncCueIcons()
+        }
         setElevation(setup.elevation);spin.select(side:setup.side,top:setup.top);side=setup.side;top=setup.top
-        let old=angle;angle=setup.angle;aimCameraYaw+=old-angle
+        angle=setup.angle
+        // 0.44: back to the exact aim view of that stroke (before: the yaw was "compensated" by the angle change, which
+        // swung the camera off the aim line after every undo).
+        aimCameraYaw=setup.aimYaw
+        if let pose=setup.camera,localTurn,replayIndex==nil {
+            applyCamera(pose);table.cameraMode=2;observationCamera=false;table.focusBounds=nil;cameraButton.configuration?.title="Ngắm cơ";syncQuickRail()
+        }
     }
     func undo(){guard matchAllowsEditing,localTurn,!before.isEmpty,!isPlacingBalls else{return};lockButton.releaseHold();setHold(false);engine.loadLayout(before.map{$0.dictionary});clearShot();restoreAimCamera();locked=false
-        if !matchIsCompetitive,let shot=lastShot{applySetup(ShotSetup(angle:shot.aimAngle,side:shot.side,top:shot.top,kind:shot.shotKind ?? 0,elevation:shot.elevation))}
+        if !matchIsCompetitive,let setup=lastShotSetup{applySetup(setup)}
+        else if !matchIsCompetitive,let shot=lastShot{applySetup(ShotSetup(angle:shot.aimAngle,side:shot.side,top:shot.top,kind:shot.shotKind ?? 0,elevation:shot.elevation))}
         statusLabel.text="Đã trở về trước cú đánh";refresh();updateControls()}
     func reset(){
         guard matchAllowsEditing else{return}
@@ -2102,8 +2156,20 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if handleMatchMoveBall(id,to:p){return}
         guard localTurn,!presentationBusy,isPlacingBalls else{return}
         var state=balls;guard let i=state.firstIndex(where:{$0.id==id}) else{return}
-        let x=max(-0.590,min(0.590,p.x)),y=max(-1.225,min(1.225,p.y))
-        guard !state.contains(where:{$0.id != id && !$0.sunk && hypot($0.x-x,$0.y-y)<0.0573}) else{return}
+        // 0.44 (owner item 10: "chưa đặt bi chạm sát băng được"): the clamp stopped 16 mm short of the cushion (±0.590)
+        // and a drag into another ball was refused 1 mm early, so a ball could never be frozen to a rail or a ball. Now the
+        // limit is the cushion nose (half width − R) and a drag into a ball slides the ball to touching distance.
+        let R=geometry.radius,touch=2*R+0.0001
+        let hx=geometry.width/2-R-0.0001,hy=geometry.length/2-R-0.0001
+        var x=max(-hx,min(hx,p.x)),y=max(-hy,min(hy,p.y))
+        for other in state where other.id != id && !other.sunk {
+            let dx=x-other.x,dy=y-other.y,dist=hypot(dx,dy)
+            if dist<touch {
+                let ux=dist>1e-9 ? dx/dist:1,uy=dist>1e-9 ? dy/dist:0
+                x=max(-hx,min(hx,other.x+ux*touch));y=max(-hy,min(hy,other.y+uy*touch))
+            }
+        }
+        guard !state.contains(where:{$0.id != id && !$0.sunk && hypot($0.x-x,$0.y-y)<2*R}) else{return}
         state[i].x=x;state[i].y=y;state[i].sunk=false;engine.loadLayout(state.map{$0.dictionary});table.placementBlocked = isPlacingBalls && !placementValid();refresh()
     }
     func presentSheet(_ sheet:UIAlertController,source:UIView?=nil){

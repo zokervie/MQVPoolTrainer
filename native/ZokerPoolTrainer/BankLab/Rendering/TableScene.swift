@@ -95,6 +95,13 @@ final class TableScene {
     private var lastPlanar:[Int:SIMD2<Float>]=[:],planarVelocity:[Int:SIMD2<Float>]=[:]
     static let pocketFallDuration=0.90
     private var light:SCNLight!
+    /// 0.44 (owner item 13: "bóng bi vẫn in trên sàn — sửa triệt để"). ROOT CAUSE: the only shadow-casting light also lit
+    /// the floor, so any ball the invisible slate occluder did not cover (balls parked in the pocket trays under the rail,
+    /// a jumped ball near a corner, the occluder's depth-only material in the shadow pass) printed on the floor. Now the
+    /// shadow light lights ONLY the table/balls/cue (category 1); the room (category 2) gets an identical spot that never
+    /// casts. A ball shadow on the floor is impossible by construction, whatever the occluder does.
+    private var roomKey:SCNLight!
+    static let roomCategory=2
     private var highDetail=false
     var usesHighDetail:Bool{highDetail}
     private var thermalState=ProcessInfo.ThermalState.nominal
@@ -269,7 +276,7 @@ final class TableScene {
     var guideOpacity:CGFloat=1{didSet{guideRoot.opacity=guideOpacity;for n in aimGuideNodes{n.opacity=guideOpacity}}}
     static func tune(_ key:String)->CGFloat{CGFloat(UserDefaults.standard.object(forKey:key) as? Double ?? 1)}
     func applyTuning(){
-        light.intensity=52*Self.tune(Self.tuneLight)
+        light.intensity=52*Self.tune(Self.tuneLight);roomKey?.intensity=light.intensity
         light.shadowColor=UIColor(white:0,alpha:min(0.9,0.50*Self.tune(Self.tuneShadow)))
         contactShadows.values.forEach{$0.opacity=min(1,Self.tune(Self.tuneShadow))*(Self.realShadows ? 0.75:1)}
         applyQuality()   // 0.39: "Bóng bi thật" switch takes effect at once (quality key includes it)
@@ -406,6 +413,7 @@ final class TableScene {
         // table never cast, so no acne stripes), 2048 map, radius 4, 8 taps on capable devices. Tuỳ chỉnh → Hình ảnh →
         // "Bóng bi thật" turns it off on weak/hot phones (the round contact shadow under each ball stays either way).
         let real=Self.realShadows && !constrained
+        qualityCasts=real
         for node in nodes.values{node.castsShadow=real}
         scene.rootNode.enumerateHierarchy{node,_ in if node.parent !== ballRoot && node !== ballRoot {node.castsShadow=false}}
         tableRoot.enumerateHierarchy{node,_ in node.castsShadow=false}   // 0.37: table self-shadow = acne stripes on rail/apron + GPU cost
@@ -434,6 +442,7 @@ final class TableScene {
         m.lightingModel = .constant;g.materials=[m]
         let n=SCNNode(geometry:g);n.name="shadow-occluder";n.position=SCNVector3(0,-0.035,0);return n
     }()
+    private var qualityCasts=true
     static var realShadows:Bool{UserDefaults.standard.object(forKey:"tuneRealShadow039") as? Bool ?? true}
     func mat(_ color:UIColor,roughness:CGFloat=0.6,metal:CGFloat=0)->SCNMaterial {
         let m=SCNMaterial();m.lightingModel = .physicallyBased;m.diffuse.contents=color
@@ -456,6 +465,11 @@ final class TableScene {
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.0   // 0.39: 0.19-style soft round penumbra; 0.40b: 4 → 3 (owner: "mềm nhưng rõ, không lem")
         light.shadowColor=UIColor(white:0,alpha:min(0.9,0.50*Self.tune(Self.tuneShadow)));light.shadowBias=0.002
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
+        light.categoryBitMask=1
+        let room=SCNNode();room.position=key.position;roomKey=SCNLight();roomKey.type = .spot
+        roomKey.intensity=light.intensity;roomKey.temperature=light.temperature;roomKey.spotInnerAngle=light.spotInnerAngle;roomKey.spotOuterAngle=light.spotOuterAngle
+        roomKey.castsShadow=false;roomKey.categoryBitMask=Self.roomCategory
+        room.name="premium-club-key-room";room.light=roomKey;room.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(room)
         for x:Float in [-2.2,2.2]{
             let fill=SCNNode();fill.position=SCNVector3(x,1.7,0.8);fill.light=SCNLight();fill.light?.type = .omni
             fill.light?.intensity=24;fill.light?.temperature=4500
@@ -892,6 +906,7 @@ final class TableScene {
             if node.light != nil || node.geometry == nil || !node.childNodes.isEmpty {roomRoot.addChildNode(node)} else {node.removeFromParentNode();decor.addChildNode(node)}
         }
         let merged=decor.flattenedClone();merged.name="room-decor";merged.castsShadow=false;roomRoot.addChildNode(merged)
+        roomRoot.enumerateHierarchy{node,_ in node.categoryBitMask=Self.roomCategory}   // 0.44: never lit by the shadow light
     }
     /// Rectangular lamp over the table (visual; the table light itself is in buildLights).
     func tableFixture(){
@@ -1506,24 +1521,27 @@ final class TableScene {
             let tighten=SCNAction.move(to:target,duration:0.9);tighten.timingMode = .easeInEaseOut
             node.runAction(.sequence([.wait(duration:0.9),tighten]))
         }
-        // triangle: three wooden bars around the rack, built from the actual rack extent
-        let xs=objects.map{Float($0.x)},ys=objects.map{Float($0.y)}
-        let minX=xs.min()!-r-0.006,maxX=xs.max()!+r+0.006,minY=ys.min()!-r-0.006,maxY=ys.max()!+r+0.006
-        let apexAtLow=abs(ys.min()!-cy)>abs(ys.max()!-cy)   // apex = the single-ball row
-        let apexRowY:Float=apexAtLow ? ys.min()!:ys.max()!
-        var apexX:Float=cx
-        for b in objects where abs(Float(b.y)-apexRowY)<0.01 {apexX=Float(b.x)}
-        let apex=SIMD2<Float>(apexX,apexAtLow ? minY-r*0.8:maxY+r*0.8)
-        let baseY=apexAtLow ? maxY:minY
-        let corners=[apex,SIMD2<Float>(minX-r*0.5,baseY),SIMD2<Float>(maxX+r*0.5,baseY)]
+        let ys=objects.map{Float($0.y)}
+        // 0.44 (owner item 3: "khuông xếp bi vô lý — thể loại nào phải dùng khuông loại đó"). Before: one triangle sized
+        // from the loose extent of whatever balls were there. Now the regulation frame of the game: 15 balls → 8-ball
+        // triangle (5 rows), 10 → 10-ball triangle (4 rows), 9 → 9-ball diamond. The inner edge is the frozen-ball outline
+        // offset by one radius (equilateral: side = (n−1)·2R + 2√3·R; 60°/120° rhombus: side = 2·2R + (√3 + 1/√3)·R),
+        // centred on the rack's centroid (for full triangular racks the ball mean IS the triangle centroid).
         let wood=premiumMaterial("WalnutDark")
-        let triangle=SCNNode()
-        for i in 0..<3 {
-            let a=corners[i],b=corners[(i+1)%3],mid=(a+b)/2,d=b-a,length=simd_length(d)
-            let bar=SCNNode(geometry:SCNBox(width:CGFloat(length)+0.02,height:0.026,length:0.016,chamferRadius:0.004))
-            bar.geometry?.materials=[wood];bar.position=SCNVector3(mid.x,0.013,mid.y);bar.eulerAngles.y = -atan2(d.y,d.x)
+        let triangle=SCNNode();triangle.name="rack-frame"
+        for (a,b) in Self.rackFrameEdges(objects.map{SIMD2<Float>(Float($0.x),Float($0.y))},radius:r) {
+            let d=b-a,length=simd_length(d),mid=(a+b)/2
+            let normal=simd_normalize(SIMD2<Float>(d.y,-d.x))
+            let centroid=objects.map{SIMD2<Float>(Float($0.x),Float($0.y))}.reduce(SIMD2<Float>(0,0),+)/Float(objects.count)
+            let outward=simd_dot(normal,mid-centroid)>0 ? normal:-normal
+            let thick:Float=0.018
+            let bar=SCNNode(geometry:SCNBox(width:CGFloat(length+thick*1.2),height:0.024,length:CGFloat(thick),chamferRadius:0.004))
+            bar.geometry?.materials=[wood]
+            let centre=mid+outward*(thick/2)
+            bar.position=SCNVector3(centre.x,0.012,centre.y);bar.eulerAngles.y = -atan2(d.y,d.x)
             triangle.addChildNode(bar)
         }
+        let apexAtLow=abs(ys.min()!-cy)>abs(ys.max()!-cy)
         triangle.position=SCNVector3(0,0.30,0);triangle.opacity=0;introRoot.addChildNode(triangle)
         let drop=SCNAction.group([.move(to:SCNVector3(0,0,0),duration:0.7),.fadeIn(duration:0.4)]);drop.timingMode = .easeOut
         let push=SCNAction.sequence([.moveBy(x:0,y:0,z:CGFloat(apexAtLow ? 0.008:-0.008),duration:0.45),.moveBy(x:0,y:0,z:CGFloat(apexAtLow ? -0.008:0.008),duration:0.45)])
@@ -1531,6 +1549,26 @@ final class TableScene {
         triangle.runAction(.sequence([drop,.wait(duration:0.2),push,.wait(duration:0.35),lift])){[weak self] in DispatchQueue.main.async{self?.finishRackIntro()}}
     }
     func skipRackIntro(){if introDone != nil{finishRackIntro()}}
+    /// Inner edges (centre-of-table plane, x/z) of the regulation rack frame for these rack positions.
+    static func rackFrameEdges(_ points:[SIMD2<Float>],radius r:Float)->[(SIMD2<Float>,SIMD2<Float>)] {
+        guard points.count>=3 else{return []}
+        let c=points.reduce(SIMD2<Float>(0,0),+)/Float(points.count)
+        let ys=points.map{$0.y},minY=ys.min()!,maxY=ys.max()!
+        let lowCount=points.filter{abs($0.y-minY)<r*0.5}.count,highCount=points.filter{abs($0.y-maxY)<r*0.5}.count
+        let d=2*r+0.0002,s3:Float=3.0.squareRoot()
+        var vertices:[SIMD2<Float>]
+        if points.count==9 && lowCount==1 && highCount==1 {
+            // 9-ball diamond: 1-2-3-2-1 along the table, 60° tips front and back.
+            let side=2*d+(s3+1/s3)*r
+            vertices=[c+SIMD2<Float>(0,-side*s3/2),c+SIMD2<Float>(side/2,0),c+SIMD2<Float>(0,side*s3/2),c+SIMD2<Float>(-side/2,0)]
+        } else {
+            let rows:Float=points.count<=10 ? 4:5
+            let side=(rows-1)*d+2*s3*r,circum=side/s3
+            let u:Float=lowCount==1 && highCount != 1 ? 1:-1      // +1: apex at low y, base toward high y
+            vertices=[c+SIMD2<Float>(0,-u*circum),c+SIMD2<Float>(side/2,u*circum/2),c+SIMD2<Float>(-side/2,u*circum/2)]
+        }
+        return vertices.indices.map{(vertices[$0],vertices[($0+1)%vertices.count])}
+    }
     private func finishRackIntro(){
         introRoot.childNodes.forEach{$0.removeAllActions();$0.removeFromParentNode()}
         ballRoot.isHidden=false
@@ -1570,6 +1608,9 @@ final class TableScene {
                 shadow.eulerAngles.x = -.pi/2;shadow.castsShadow=false;shadow.renderingOrder=2
                 scene.rootNode.addChildNode(shadow);contactShadows[b.id]=shadow
             }
+            // 0.44: a pocketed ball (tray under the rail) never casts — nothing below the cloth may receive a ball shadow.
+            let casts=Self.realShadows && thermalState != .serious && thermalState != .critical && !b.sunk && qualityCasts
+            if node.castsShadow != casts{node.castsShadow=casts}
             let opacity:CGFloat=(b.id==0 && placementBlocked) ? 0.45:1
             if node.opacity != opacity{node.opacity=opacity}
             let planar=SIMD2<Float>(Float(b.x),Float(b.y))
@@ -1838,9 +1879,27 @@ final class TableScene {
     }
     /// 0.43: effect limit (fraction of R) shared with the core — set by TrainingController.tipLimit.
     var tipLimit:Double=0.55
+    /// 0.44 (owner item 14: "đôi khi vẫn thấy cơ xuyên băng"). The controller's clearance is refreshed on aim/refresh only;
+    /// paths that move the cue without it (opponent aim mirror, replay, coach auto-aim) drew a stale angle. The renderer now
+    /// also checks the pose it is about to draw against the balls it is drawing (cached; same model BLCueMinimumElevationBalls).
+    var tableSize=SIMD2<Double>(1.27,2.54),railNose=0.27
+    private var clearanceKey:[Double]=[],clearanceValue:Double=0
+    private func drawnClearance(_ c:BallState,angle:Double,side:Double,top:Double)->Double{
+        guard c.height ?? 0 < 0.002 else{return 0}
+        var xs:[Double]=[],ys:[Double]=[]
+        for (id,node) in nodes where id != 0 && !node.isHidden && node.opacity>0.01 && node.presentation.position.y>0 {
+            xs.append(Double(node.presentation.position.x));ys.append(Double(node.presentation.position.z))
+        }
+        var key=[c.x,c.y,angle,side,top,tableSize.x];key.append(contentsOf:xs);key.append(contentsOf:ys)
+        if key==clearanceKey{return clearanceValue}
+        clearanceKey=key
+        clearanceValue=BLCueMinimumElevationBalls(c.x,c.y,angle,side,top,tableSize.x,tableSize.y,Double(radius),railNose,&xs,&ys,Int32(xs.count))
+        if !clearanceValue.isFinite || clearanceValue>=89 {clearanceValue=0}   // unreachable: the controller already clamps the tip
+        return clearanceValue
+    }
     private func cuePose(_ c:BallState,angle:Double,side:Double,top:Double)->(contact:SIMD3<Float>,axis:SIMD3<Float>,tipBack:Float){
         let d=SIMD3<Float>(Float(cos(angle)),0,Float(sin(angle)))
-        let elevation=Float(max(cueElevation,min(clearanceElevation,85))*Double.pi/180)
+        let elevation=Float(max(cueElevation,min(max(clearanceElevation,drawnClearance(c,angle:angle,side:side,top:top)),85))*Double.pi/180)
         let axis=d*cos(elevation)-SIMD3<Float>(0,1,0)*sin(elevation)
         let right=SIMD3<Float>(-d.z,0,d.x)
         let up=d*sin(elevation)+SIMD3<Float>(0,1,0)*cos(elevation)

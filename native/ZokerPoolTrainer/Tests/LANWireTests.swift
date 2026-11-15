@@ -80,6 +80,16 @@ import Foundation
                                           alreadyProcessed: Set([command.id])), "duplicate command UUID must be rejected")
         try check(!LANAuthorityGate.allows(command, snapshot: state, matchID: match, expectedPlayer: 1,
                                           consumedRevision: 7), "two distinct commands cannot consume the same host revision")
+        // 0.44: a cosmetic re-publish (aim angle, pause flag) inside the same game-state epoch must not swallow a stroke.
+        var older = command; older.expectedRevision = 6
+        try check(LANAuthorityGate.allows(older, snapshot: state, matchID: match, expectedPlayer: 1, epochRevision: 5),
+                  "a stroke aimed at an earlier revision of the same epoch must be accepted")
+        older.expectedRevision = 4
+        try check(!LANAuthorityGate.allows(older, snapshot: state, matchID: match, expectedPlayer: 1, epochRevision: 5),
+                  "a stroke from before the current table state must be rejected")
+        older.expectedRevision = 6
+        try check(!LANAuthorityGate.allows(older, snapshot: state, matchID: match, expectedPlayer: 1, consumedRevision: 6, epochRevision: 5),
+                  "a consumed revision cannot be replayed")
         state.currentPlayer = 0
         try check(!LANAuthorityGate.allows(command, snapshot: state, matchID: match, expectedPlayer: 1), "wrong-turn shots must be rejected")
         state.currentPlayer = 1; state.isMoving = true

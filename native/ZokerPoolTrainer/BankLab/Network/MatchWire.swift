@@ -1,6 +1,7 @@
 import Foundation
 
-/// Bounded wire data. The guest presents host snapshots; it never advances a second solver.
+/// Bounded wire data. 0.44: the guest runs the SAME deterministic solver from `LANShotStart` (lockstep) and the host's
+/// snapshots verify it; if they ever disagree the guest falls back to presenting the host snapshots.
 struct LANBall: Codable, Equatable {
     var id: Int
     var x: Double
@@ -156,10 +157,29 @@ struct LANSnapshot: Codable, Equatable {
     }
 }
 
+/// 0.44 lockstep (owner item 2: Wi‑Fi play "không mượt như lúc tập"): everything the guest needs to run the same
+/// fixed-step solver for one shot — the normalised pre-strike balls, the exact strike the host's world received (angle
+/// after squirt) and every physics setting. Both devices then simulate at 960 Hz locally; the host stays authoritative.
+struct LANShotStart: Codable, Equatable {
+    var shotID: Int
+    var balls: [LANBall]
+    var angle: Double
+    var speed: Double
+    var side: Double
+    var top: Double
+    var settings: [String: Double]
+    var isValid: Bool {
+        (0...1_000_000_000).contains(shotID) && !balls.isEmpty && balls.count <= 16 && balls.allSatisfy({ $0.isValid }) &&
+            Set(balls.map { $0.id }).count == balls.count && [angle, speed, side, top].allSatisfy({ $0.isFinite }) &&
+            abs(angle) <= 1_000_000 && speed > 0 && speed <= 8 && hypot(side, top) <= 0.711 &&
+            settings.count <= 128 && settings.values.allSatisfy({ $0.isFinite }) && settings.keys.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 64 })
+    }
+}
+
 /// One protocol version for rules/physics compatibility. A mismatched client is refused.
 struct LANEnvelope: Codable {
-    enum Kind: String, Codable { case hello, snapshot, command, accepted, rejected, events, ping, pong, leave, aim }
-    static let protocolVersion = 1
+    enum Kind: String, Codable { case hello, snapshot, command, accepted, rejected, events, ping, pong, leave, aim, shotStart }
+    static let protocolVersion = 2   // 0.44: shotStart (lockstep)
     static let maximumBytes = 131_072
     var version: Int = LANEnvelope.protocolVersion
     var roomCode: String
@@ -174,18 +194,29 @@ struct LANEnvelope: Codable {
     var shotID: Int? = nil
     var message: String? = nil
     var aim: LANAim? = nil
+    var shotStart: LANShotStart? = nil
 }
 
 /// The same gate used by the live host and protocol regression harness.
 enum LANAuthorityGate {
     static func allows(_ command: LANCommand, snapshot: LANSnapshot, matchID: String,
                        expectedPlayer: Int, alreadyProcessed: Set<String> = [],
-                       consumedRevision: UInt64? = nil) -> Bool {
+                       consumedRevision: UInt64? = nil, epochRevision: UInt64? = nil) -> Bool {
+        // 0.44 (owner: "đã hiện lực mà không ra cơ" in Wi‑Fi play). Exact revision equality rejected a stroke whenever the
+        // host re-published something cosmetic (aim angle, pause flag, audio events) between the guest's last snapshot
+        // and the command. The host now passes the revision at which the current game state (balls, turn, rules, motion)
+        // began: any revision inside that epoch describes the same table, so the command is still valid.
+        let revisionOK: Bool
+        if let epoch = epochRevision, epoch <= snapshot.revision {
+            revisionOK = command.expectedRevision >= epoch && command.expectedRevision <= snapshot.revision
+        } else {
+            revisionOK = command.expectedRevision == snapshot.revision
+        }
         guard command.isValid, snapshot.isValid, (0...1).contains(expectedPlayer),
               UUID(uuidString: matchID) != nil, snapshot.matchID == matchID,
               command.matchID == matchID, command.player == expectedPlayer,
-              command.expectedRevision == snapshot.revision, !snapshot.isPaused,
-              command.expectedRevision != consumedRevision,
+              revisionOK, !snapshot.isPaused,
+              consumedRevision.map({ command.expectedRevision > $0 }) ?? true,
               !alreadyProcessed.contains(command.id) else { return false }
         return command.action == .concede || (!snapshot.isMoving && snapshot.currentPlayer == expectedPlayer)
     }

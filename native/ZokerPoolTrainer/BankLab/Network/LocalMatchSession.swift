@@ -23,6 +23,8 @@ final class LocalMatchSession: NSObject {
     var onError: ((String) -> Void)?
     /// 0.41: the remote shooter's live cue pose (display only).
     var onAim: ((LANAim) -> Void)?
+    /// 0.44 lockstep: the host's exact strike, so the guest can run the same solver.
+    var onShotStart: ((LANShotStart) -> Void)?
     /// 0.42: shared music chunks (same Wi-Fi only, MusicPlayer042 format).
     var onMusic: ((Data) -> Void)?
 
@@ -78,6 +80,8 @@ final class LocalMatchSession: NSObject {
     private var processedCommands: [String] = []
     private var acceptedByGuest: [String] = []
     private var consumedRevision: UInt64?
+    /// 0.44: revision at which the current game state (balls, turn, rules, motion) was first published.
+    private var epochRevision: UInt64 = 0
     private var awaitingCommandID: String?
     private var awaitingRevision: UInt64?
     private var deliveredEventShot = -1
@@ -198,7 +202,7 @@ final class LocalMatchSession: NSObject {
         reservedPeer = nil; pendingPeer = nil
         latestSnapshot = nil; revision = 0; sendSequence = 0; receivedSequence = 0
         processedCommands.removeAll(); acceptedByGuest.removeAll()
-        consumedRevision = nil; awaitingCommandID = nil; awaitingRevision = nil
+        consumedRevision = nil; awaitingCommandID = nil; awaitingRevision = nil; epochRevision = 0
         deliveredEventShot = -1; deliveredEventIndex = -1; isApplyingCommand = false
         backgrounded = false; protocolBlocked = false
         lastPublished = -Double.infinity
@@ -229,13 +233,23 @@ final class LocalMatchSession: NSObject {
            previous.angle == value.angle, previous.rulesJSON == value.rulesJSON,
            previous.events == value.events { return false }
         lastPublished = now
+        let sameState = latestSnapshot.map { $0.shotID == value.shotID && $0.balls == value.balls &&
+            $0.currentPlayer == value.currentPlayer && $0.rulesJSON == value.rulesJSON && $0.isMoving == value.isMoving } ?? false
         revision += 1
+        if !sameState { epochRevision = revision }
         var authoritative = value
         authoritative.matchID = matchID
         authoritative.revision = revision
         latestSnapshot = authoritative
         if isConnected { send(kind: .snapshot, snapshot: authoritative) }
         return true
+    }
+
+    /// 0.44 lockstep: sent just before the host's world strikes, ahead of the first moving snapshot.
+    func publishShotStart(_ value: LANShotStart) {
+        requireMain()
+        guard role == .host, isConnected, value.isValid else { return }
+        send(kind: .shotStart, shotStart: value)
     }
 
     /// Send audio impacts immediately rather than waiting for the next 10 Hz visual frame.
@@ -431,12 +445,13 @@ final class LocalMatchSession: NSObject {
 
     @discardableResult private func send(kind: LANEnvelope.Kind, snapshot: LANSnapshot? = nil,
                                          command: LANCommand? = nil, message: String? = nil,
-                                         events: [LANEvent]? = nil, shotID: Int? = nil, aim: LANAim? = nil) -> Bool {
+                                         events: [LANEvent]? = nil, shotID: Int? = nil, aim: LANAim? = nil,
+                                         shotStart: LANShotStart? = nil) -> Bool {
         guard linkUp else { return false }
         sendSequence += 1
         var packet = LANEnvelope(roomCode: roomCode, matchID: matchID, sequence: sendSequence, kind: kind)
         packet.snapshot = snapshot; packet.command = command; packet.message = message
-        packet.events = events; packet.shotID = shotID; packet.aim = aim
+        packet.events = events; packet.shotID = shotID; packet.aim = aim; packet.shotStart = shotStart
         if kind == .hello { packet.role = role == .host ? "host" : "guest"; packet.game = game }
         do {
             let data = try LANWireCodec.encode(packet)
@@ -537,6 +552,9 @@ final class LocalMatchSession: NSObject {
         case .aim:
             guard remoteReady, let aim = packet.aim, aim.isValid else { return }
             onAim?(aim)
+        case .shotStart:
+            guard role == .guest, remoteReady, let start = packet.shotStart, start.isValid else { return }
+            onShotStart?(start)
         case .ping: send(kind: .pong)
         case .pong: break
         case .leave:
@@ -550,7 +568,7 @@ final class LocalMatchSession: NSObject {
         guard role == .host, isConnected, !isApplyingCommand, let snapshot = latestSnapshot,
               LANAuthorityGate.allows(command, snapshot: snapshot, matchID: matchID,
                                      expectedPlayer: player, alreadyProcessed: Set(processedCommands),
-                                     consumedRevision: consumedRevision) else {
+                                     consumedRevision: consumedRevision, epochRevision: epochRevision) else {
             if player == 1 { send(kind: .rejected, message: "Lượt hoặc trạng thái đã đổi. Hãy chờ đồng bộ.") }
             return false
         }

@@ -37,6 +37,9 @@ final class MatchPlayState {
     var warningAcknowledged: String?
     var forfeitWinner: Int?
     var guestBalls: [BallState] = []
+    /// 0.44 lockstep: the guest's own solver for the current shot (nil = present host snapshots as before).
+    var predictor: BLWorld?, predictorShot = -1, predictorEvents = 0, predictorDiverged = false
+    var predictorChecks: [(elapsed: Double, balls: [LANBall])] = [], predictorVerified = 0, lockstepShots = 0, lockstepFallbacks = 0
     var snapshots: [LANSnapshot] = []
     var guestClock = 0.0
     var playout = PlayoutClock()
@@ -168,6 +171,7 @@ extension TrainingController {
         session.onSnapshot = { [weak self] snapshot in self?.receiveMatchSnapshot(snapshot) }
         session.onMusic = { data in MusicPlayer042.shared.receiveShared(data) }
         MusicPlayer042.shared.setSharing({ [weak session] data in session?.sendMusic(data) })
+        session.onShotStart = { [weak self] start in self?.beginLockstep(start) }
         session.onAim = { [weak self] aim in
             guard let self = self else { return }
             self.matchPlay.remoteAim = aim; self.matchPlay.remoteAimAt = ProcessInfo.processInfo.systemUptime
@@ -180,7 +184,7 @@ extension TrainingController {
                 self.matchPlay.playedEvents.removeAll()
                 self.matchPlay.audioEvents.removeAll()
             }
-            guard shotID == self.matchPlay.audioShotID else { return }
+            guard shotID == self.matchPlay.audioShotID, !self.lockstepOwnsShot(shotID) else { return }
             self.queueMatchAudio(events)
         }
     }
@@ -559,7 +563,7 @@ extension TrainingController {
         }
         quickPlace?.isEnabled = matchAllowsInput && !shotActive && matchBool("ballInHand") && (matchPlay.state["pendingChoice"] as? String ?? "").isEmpty
         lockButton.isEnabled = strokeAllowed
-        stroke.isEnabled = locked && strokeAllowed
+        stroke.isEnabled = strokeStaysArmed   // 0.44: a sync never cancels a stroke in progress
         stroke.isUserInteractionEnabled = stroke.isEnabled
         testShotButton.isEnabled = matchCanStroke && !presentationBusy && !isPlacingBalls
         guideOn = false
@@ -716,14 +720,14 @@ extension TrainingController {
     func routeMatchShot(_ speed: Double) -> Bool {
         guard matchPlay.active else { return false }
         if matchPlay.session.isApplyingCommand || matchPlay.applyingOfflineCommand { return false }
-        guard locked, speed.isFinite, speed > 0, speed <= 8,
-              matchCanStroke, !presentationBusy else { return true }
+        guard locked, speed.isFinite, speed > 0, speed <= 8 else { return true }
+        guard matchCanStroke, !presentationBusy else { deferStroke(speed); return true }   // 0.44: queue, never drop
         // 0.42 (owner 13/11 18:19: the two-foul warning popped up while stroking and swallowed the stroke). The warning
         // is now shown once when the turn starts (presentPendingChoiceIfNeeded) and never blocks or cancels a stroke.
         // 0.26: no forced call. Uncalled shots are adjudicated by the straight-in rule (MatchRules::autoCall).
         if matchPlay.session.role == .none { return false }
         let shot = LANShot(angle: angle, speed: speed, side: side, top: top,
-                           elevation: max(table.cueElevation, table.clearanceElevation),
+                           elevation: max(table.cueElevation, strokeClearance),
                            cueType: engine.settings["cueType"]?.intValue ?? 0)
         submitMatchAction(.strike, shot: shot)
         return true
@@ -757,6 +761,10 @@ extension TrainingController {
             BLShotCameraReset(&shotCameraState)
             updateMatchState()
             return true
+        }
+        // 0.44: the host's camera finishing its 0.3 s return must not reject the other player's stroke.
+        if command.action == .strike, !shotActive, !shotCameraState.pending, BLShotCameraBusy(shotCameraState) {
+            BLShotCameraReset(&shotCameraState)
         }
         guard command.player == matchInt("currentPlayer"), !shotActive,
               !BLShotCameraBusy(shotCameraState) else { return false }
@@ -805,7 +813,7 @@ extension TrainingController {
             engine.settings = config
             table.selectCue(shot.cueType); table.cueElevation = shot.elevation
             spin.select(side: shot.side, top: shot.top)
-            guard cueClearance(side: shot.side, top: shot.top) <= shot.elevation + 0.01 else { return false }
+            guard BLCueStrokeElevation(cueClearance(side: shot.side, top: shot.top)) <= shot.elevation + 0.01 else { return false }
             localTurn = true; locked = true; menuOpen = false
             isPlacingBalls = false; matchPlay.placementDraft = nil
             recordStrikeInfo(shot, player: command.player)
@@ -1106,6 +1114,10 @@ extension TrainingController {
                                  who: matchPlay.names[min(1, max(0, snapshot.currentPlayer))])
             }
         }
+        if matchPlay.predictor != nil, snapshot.shotID == matchPlay.predictorShot, snapshot.isMoving {
+            matchPlay.predictorChecks.append((snapshot.elapsed, snapshot.balls))
+            if matchPlay.predictorChecks.count > 64 { matchPlay.predictorChecks.removeFirst(matchPlay.predictorChecks.count - 64) }
+        }
         let gap = snapshot.elapsed - (matchPlay.snapshots.last?.elapsed ?? snapshot.elapsed)
         let resync = isFirst || matchPlay.needsFullSync || (!newShot && gap > 0.5)
         matchPlay.needsFullSync = false
@@ -1144,7 +1156,7 @@ extension TrainingController {
             matchPlay.playedEvents.formUnion(snapshot.events.map { $0.index })
             matchPlay.audioEvents.removeAll()
             matchPlay.pendingAimSync = true
-        } else { queueMatchAudio(snapshot.events) }
+        } else if !lockstepOwnsShot(snapshot.shotID) { queueMatchAudio(snapshot.events) }
         if let previous = matchPlay.snapshots.last,
            snapshot.elapsed < previous.elapsed || (!snapshot.isMoving && !previous.isMoving) {
             matchPlay.snapshots.removeAll()
@@ -1183,6 +1195,7 @@ extension TrainingController {
         guard matchPlay.active else { return false }
         matchPlay.banner.isHidden = locked || menuOpen
         if matchPlay.session.role != .guest { return false }
+        if lockstepTick(dt) { return true }
         guard let latest = matchPlay.snapshots.last else { return true }
         if !latest.isPaused && matchPlay.session.isConnected {
             matchPlay.guestClock = matchPlay.playout.advance(clock: matchPlay.guestClock, dt: dt,
@@ -1424,7 +1437,8 @@ extension TrainingController {
         // The planner measured the lift on its line; re-check with the app's own clearance (stale obstacle lists,
         // aim vs stroke line) so the strike guard never rejects it (0.40b: rejected strokes looped = "máy chờ").
         updateCueClearance()
-        let lift = min(85, max(number("elevation"), cueClearance(side: number("side"), top: number("top")) > 0.01 ? cueClearance(side: number("side"), top: number("top")) + 0.5 : 0))
+        let need = BLCueStrokeElevation(cueClearance(side: number("side"), top: number("top")))   // 0.44: stance ≤ 6° is level
+        let lift = min(85, max(number("elevation"), need > 0.01 ? need + 0.5 : 0))
         let shot = LANShot(angle: angle, speed: number("speed"), side: number("side"), top: number("top"), elevation: lift, cueType: cueType)
         if applyComputer(.strike, shot: shot) {
             matchPlay.computerFailures = 0; matchPlay.computerShots += 1
@@ -1440,7 +1454,7 @@ extension TrainingController {
         for step in 0..<72 {
             let a = start + Double(step % 2 == 0 ? 1 : -1) * Double((step + 1) / 2) * 5 * Double.pi / 180
             angle = a
-            let need = cueClearance(side: 0, top: 0)
+            let need = BLCueStrokeElevation(cueClearance(side: 0, top: 0))
             guard need <= 30 else { continue }
             let lift = need > 0.01 ? need + 0.5 : 0
             if applyComputer(.strike, shot: LANShot(angle: a, speed: 2, side: 0, top: 0, elevation: lift, cueType: 0)) {
@@ -1588,7 +1602,7 @@ extension TrainingController {
     func matchPublishAim() {
         guard matchPlay.active, matchPlay.session.role != .none, localTurn, !shotActive, !presentationBusy else { return }
         var aim = LANAim(angle: angle, side: side, top: top,
-                         elevation: min(90, max(0, max(table.cueElevation, table.clearanceElevation))),
+                         elevation: min(90, max(0, max(table.cueElevation, strokeClearance))),
                          pull: max(0, min(1, pull)), cueType: max(0, min(2, engine.settings["cueType"]?.intValue ?? 0)),
                          visible: !isPlacingBalls)
         let tip = hypot(aim.side, aim.top)
@@ -1708,6 +1722,102 @@ extension TrainingController {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.presentedViewController == nil else { self?.matchPlay.pendingChoiceKey = ""; return }
             self.present(alert, animated: true)
+        }
+    }
+}
+
+// MARK: - 0.44 lockstep (owner item 2: "chơi Wi‑Fi chưa mượt như lúc tập")
+// Before: the guest drew the host's 10–20 Hz snapshots with interpolation and an adaptive 0.12–0.45 s playout delay —
+// smooth at best, never as smooth as practice. Now the host sends the exact strike once (LANShotStart) and the guest runs
+// the SAME fixed-step (960 Hz) solver itself, so it renders at the display rate exactly like practice. The host stays the
+// referee: every moving snapshot is checked against the guest's own state at the identical solver time; one mismatch over
+// 1 mm (different OS maths library, a lost packet) and the guest falls back to presenting snapshots for the rest of the
+// shot. The final rest snapshot is authoritative either way.
+extension TrainingController {
+    func publishShotStart(strikeAngle: Double, speed: Double) {
+        guard matchPlay.active, matchPlay.session.role == .host, matchPlay.session.isConnected else { return }
+        // Normalise hidden solver state on the host too, so both worlds start from bit-identical balls.
+        engine.loadLayout(engine.ballStates.map { $0.dictionary })
+        let settings = engine.settings.mapValues { $0.doubleValue }
+        let start = LANShotStart(shotID: matchPlay.shotID + 1, balls: engine.ballStates.map { matchWireBall($0) },
+                                 angle: strikeAngle, speed: speed, side: side, top: top, settings: settings)
+        matchPlay.session.publishShotStart(start)
+    }
+    func beginLockstep(_ start: LANShotStart) {
+        guard matchPlay.active, matchPlay.session.role == .guest, start.shotID > matchPlay.lastGuestShot,
+              UserDefaults.standard.object(forKey: "lockstep044") as? Bool ?? true else { return }
+        let world = BLWorld()
+        world.settings = start.settings.mapValues { NSNumber(value: $0) }
+        world.loadLayout(start.balls.map { matchRenderBall($0).dictionary })
+        world.strike(angle: start.angle, speed: start.speed, side: start.side, top: start.top)
+        guard world.moving else { return }
+        matchPlay.predictor = world; matchPlay.predictorShot = start.shotID
+        matchPlay.predictorEvents = 0; matchPlay.predictorDiverged = false
+        matchPlay.predictorChecks = []; matchPlay.predictorVerified = 0; matchPlay.lockstepShots += 1
+        wakeRendering()
+    }
+    func lockstepOwnsShot(_ shotID: Int) -> Bool {
+        matchPlay.predictor != nil && !matchPlay.predictorDiverged && shotID == matchPlay.predictorShot
+    }
+    /// true = this frame was drawn from the guest's own solver.
+    func lockstepTick(_ dt: Double) -> Bool {
+        guard let world = matchPlay.predictor else { return false }
+        if matchPlay.predictorDiverged { matchPlay.predictor = nil; return false }
+        // The host confirmed the end of this shot: hand the (identical) rest state back to the snapshot path.
+        if let latest = matchPlay.snapshots.last, latest.shotID == matchPlay.predictorShot, !latest.isMoving, !world.moving {
+            matchPlay.predictor = nil; return false
+        }
+        if let latest = matchPlay.snapshots.last, latest.shotID > matchPlay.predictorShot { matchPlay.predictor = nil; return false }
+        if lockstepPaused() { table.update(world.presentationBallStates, dt: 0); return true }
+        var remaining = min(max(0, dt), 0.1)
+        while remaining > 1e-12 && world.moving {
+            let h = min(1.0 / 960.0, remaining)
+            world.advance(h); remaining -= h
+            verifyLockstep(world)
+            if matchPlay.predictorDiverged { break }
+        }
+        if matchPlay.predictorDiverged {
+            // Fall back mid-shot without replaying sounds that were already heard.
+            let now = world.elapsed
+            matchPlay.guestClock = now
+            for snapshot in matchPlay.snapshots { for event in snapshot.events where event.time <= now { matchPlay.playedEvents.insert(event.index) } }
+            matchPlay.audioShotID = matchPlay.predictorShot
+            matchPlay.lockstepFallbacks += 1
+            matchPlay.predictor = nil
+            return false
+        }
+        let fresh = world.events(since: UInt(matchPlay.predictorEvents))
+        if !fresh.isEmpty {
+            if UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true {
+                for event in fresh {
+                    poolAudio.play(kind: event["kind"]?.intValue ?? 1, impact: event["impact"]?.doubleValue ?? 0.3,
+                                   pan: audioPan(event["x"]?.doubleValue ?? 0, event["y"]?.doubleValue ?? 0),
+                                   eventAge: max(0, world.elapsed - (event["time"]?.doubleValue ?? world.elapsed)))
+                }
+            }
+            matchPlay.predictorEvents += fresh.count
+        }
+        table.update(world.presentationBallStates, dt: dt)
+        matchPlay.guestBalls = world.ballStates
+        wakeRendering()
+        return true
+    }
+    private func lockstepPaused() -> Bool {
+        (matchPlay.snapshots.last?.isPaused ?? false) || !matchPlay.session.isConnected
+    }
+    private func verifyLockstep(_ world: BLWorld) {
+        let now = world.elapsed
+        while let check = matchPlay.predictorChecks.first, check.elapsed <= now + 1e-9 {
+            matchPlay.predictorChecks.removeFirst()
+            guard abs(check.elapsed - now) < 1e-9 else { continue }   // a different solver step: nothing to compare
+            let mine = Dictionary(uniqueKeysWithValues: world.ballStates.map { ($0.id, $0) })
+            for ball in check.balls {
+                guard let local = mine[ball.id] else { matchPlay.predictorDiverged = true; return }
+                if local.sunk != ball.sunk || (!ball.sunk && hypot(local.x - ball.x, local.y - ball.y) > 0.001) {
+                    matchPlay.predictorDiverged = true; return
+                }
+            }
+            matchPlay.predictorVerified += 1
         }
     }
 }

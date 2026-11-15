@@ -1,3 +1,4 @@
+#include <cstdio>
 // Cơ tránh băng: góc nghiêng tối thiểu và vùng effect khả thi khi bi cái gần/sát băng.
 #include "../BankLab/UI/CueClearance.h"
 #include <cassert>
@@ -32,6 +33,16 @@ int main() {
     // Đánh ra xa băng theo đường chéo: khoảng cách tới băng tính theo phương ngược hướng đánh.
     assert(std::abs(BLCueRailDistance(0, 0, M_PI, W, L) - W / 2) < 1e-12);
     assert(std::abs(BLCueRailDistance(0, 0, -M_PI / 2, W, L) - L / 2) < 1e-12);
+    // ---- 0.44: normal stance (owner item 14) ----
+    // Ball 40 cm off the rail, centre hit: the straight cue clears the rail with a few degrees (drawn), stroke stays level.
+    assert(minE(frozen - 0.4, 0, a, 0, 0) > 0 && BLCueStrokeElevation(minE(frozen - 0.4, 0, a, 0, 0)) == 0);
+    // 10 cm off the rail: low hit needs far more than a high hit, and both are real elevated strokes.
+    assert(BLCueStrokeElevation(minE(frozen - 0.1, 0, a, 0, -0.4)) > BLCueStrokeElevation(minE(frozen - 0.1, 0, a, 0, 0.45)));
+    assert(BLCueStrokeElevation(minE(frozen - 0.1, 0, a, 0, -0.4)) > BL_CUE_STANCE_DEG);
+    // The stroke angle never drops while the drawn clearance grows past the stance.
+    assert(BLCueStrokeElevation(BL_CUE_STANCE_DEG + 0.01) > BL_CUE_STANCE_DEG && BLCueStrokeElevation(NAN) == 0);
+    std::printf("REPORT stance: 40 cm centre %.1f° drawn / 0° stroke; 10 cm off rail high %.1f°, low %.1f°\n",
+                minE(frozen - 0.4, 0, a, 0, 0), minE(frozen - 0.1, 0, a, 0, 0.45), minE(frozen - 0.1, 0, a, 0, -0.4));
     // ---- 0.30: balls behind the cue ball ----
     {   auto withBall = [&](double bx, double by, double s, double t) { const double xs[1] = {bx}, ys[1] = {by};
             return BLCueMinimumElevationBalls(0, 0, 0, s, t, W, L, R, nose, xs, ys, 1); };   // shooting +x, cue lies towards -x
