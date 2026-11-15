@@ -633,7 +633,9 @@ final class TableScene {
         let foot=mat(UIColor(white:0.05,alpha:1),roughness:0.6)
         let slab=[1,3,4].contains(look.base),lx:Float=slab ? 0.65:0.69,lz:Float=slab ? 1.34:1.33
         for x:Float in [-1,1]{for z:Float in [-1,1]{
-            let height:Float=0.455,top:Float=-0.325,centre=top-height/2
+            let height:Float=0.455
+            let top:Float = -0.325
+            let centre:Float=top-height/2
             if look.base==5 {
                 let g=SCNCone(topRadius:0.105,bottomRadius:0.07,height:CGFloat(height));g.radialSegmentCount=48;g.materials=[shell]
                 let n=SCNNode(geometry:g);n.position=SCNVector3(x*lx,centre,z*lz);scene.rootNode.addChildNode(n)
