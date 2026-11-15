@@ -1,4 +1,4 @@
-# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 15/11/2026)
+# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 16/11/2026)
 
 Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất của anh. Cuối phiên cập nhật lại file này, và bản trong Project `claude/zoker-trang-thai.md`.
 
@@ -9,6 +9,7 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 | 0.41 (gồm 0.40c) | `cho/native-0.40c` → build `ci/native-0.41` | Anh dặn gộp 0.40c + 10 mục ngày 13/11 vào MỘT lần build. CI 136 @452f1fe: 6/7 cổng PASS, chỉ test UI xem lại hỏng do test cũ chờ đồng hồ âm (xem lại giờ chỉ 1 s). IPA `zoker-ipa-candidate-136` đã gửi anh thử. Test đã sửa ở 0a41f44, đi cùng lần build sau. Cách thử: `Docs/NGHIEM-THU-0.41.md` + `Docs/CHO-0.40c-NGHIEM-THU-12-11.md` |
 | 0.42 | `cho/native-0.40c` → build `ci/native-0.42` | Nghiệm thu 0.41 của anh (12 mục + 5 lỗi chen) + vật lý + AI. **CI 140 xanh (04fc26e, 14/11)**, IPA `zoker-ipa-candidate-140` (run 43478261561). Đã gửi anh — chưa xác minh trên thiết bị. Cách thử: `Docs/NGHIEM-THU-0.42.md` |
 | 0.43 | `cho/native-0.40c` @ c472534 → build `ci/native-0.43` | Gom mọi yêu cầu (vật lý 0,55R, squirt thực tế, độ sạch bi, U1–U5, intro Golden Break, hiệu chuẩn 28 mốc). **CI 146 xanh 15/11**, IPA `zoker-ipa-candidate-146` (run 43618001054, artifact 14123266035). Đã gửi anh — chưa xác minh trên thiết bị. Cách thử: `Docs/NGHIEM-THU-0.43.md`; hiệu chuẩn: `Docs/HIEU-CHUAN-VAT-LY-0.43.md` |
+| 0.44 | `cho/native-0.40c` → build `ci/native-0.44` | 19 mục sau nghiệm thu 0.43 (thân bàn kín + logo, không bỏ cú + lockstep Wi‑Fi, khuôn đúng luật, bọc nỉ góc, bóng băng, camera đối thủ 2 m + 5 góc action, lùi cú giữ góc, 24 ảnh + đèn tranh, Coach, đặt bi sát băng, highlight, intro VFX, bóng sàn, độ dốc theo tư thế, thanh lực, kính phóng 1 hình, xuất video MP4, bao cơ + 10 mẫu, hướng dẫn dắt tay). Cách thử: `Docs/NGHIEM-THU-0.44.md`. Đang chạy CI |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
 Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
@@ -28,14 +29,15 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
    - (a) ĐÃ CHỐT 13/11 07:56: bản sau dồn sức cho vật lý (P0).
    - (b) HOÃN (13/11 23:56): Apple Developer 99 USD/năm → chỉ mở khi bản chơi hoàn chỉnh; giờ ưu tiên sửa lỗi nhỏ. Không nhắc TestFlight/Game Center cho tới lúc đó.
    - (c) Skill `zoker-pool-dev`: đã lưu.
-3. **Thử 0.43 trên máy** (IPA 146, `Docs/NGHIEM-THU-0.43.md`). Quay video bàn POOL từ trên xuống (240 fps, 3 góc tới × 2 tốc độ, ~15 phút) để chốt mô hình góc bật băng (chênh lớn nhất còn lại: bi lăn 45° app ~39° vs mô hình ~47°).
+3. **Thử 0.44 trên máy khi CI xanh** (`Docs/NGHIEM-THU-0.44.md`; 0.43 = IPA 146). Quay video bàn POOL từ trên xuống (240 fps, 3 góc tới × 2 tốc độ, ~15 phút) để chốt mô hình góc bật băng (chênh lớn nhất còn lại: bi lăn 45° app ~39° vs mô hình ~47°).
 4. Âm thanh: anh tự gửi gói mới khi có (không nhắc).
 5. Game Center: làm cùng TestFlight sau khi anh có tài khoản Developer. PR #4 đã đóng (0.41 chứa toàn bộ); gộp 0.41 vào `feature/zoker-native` khi anh xác nhận trên máy.
 6. Khi về gần máy Mac có Xcode: chuyển phần code sang Claude Code chạy trên Mac (biên dịch và chạy Simulator tại chỗ, không chờ CI 50 phút).
 
 ## 4. Việc kế tiếp — theo thứ tự, yêu cầu mới nhất của anh luôn đứng đầu
-1. **0.43 — chờ anh nghiệm thu.** Còn mở: intro MP4 1920×1080/1080×1080 có âm (ghép bản quay CI + stem WAV); âm intro là tổng hợp tạm; lỗ theo tốc độ; đo jump clip B.14; mô hình góc băng khi có video. Công cụ luyện (đoán chỗ bi dừng, để thế, so một yếu tố) chưa làm.
-2. Sau 0.43: P1 TestFlight (khi anh có Developer), Z-Assess, "Vì sao trượt", báo cáo tuần; widget/Live Activity, chế độ HLV.
+1. **0.44 — đang build (19 mục, gồm cả 0.43 chưa thử).** Sau đó chờ anh nghiệm thu.
+2. Từ 0.43 còn mở: intro MP4 1920×1080/1080×1080 có âm (ghép bản quay CI + stem WAV); âm intro là tổng hợp tạm; lỗ theo tốc độ; đo jump clip B.14; mô hình góc băng khi có video. Công cụ luyện (đoán chỗ bi dừng, để thế, so một yếu tố) chưa làm.
+3. Sau 0.44: P1 TestFlight (khi anh có Developer), Z-Assess, "Vì sao trượt", báo cáo tuần; widget/Live Activity, chế độ HLV.
 
 ## 5. Skill · rủi ro · công nghệ cho các việc tới
 | Việc | Skill dùng | Rủi ro chính | Công nghệ đề xuất |
@@ -58,6 +60,7 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
 - Gói bán: Z-Lab, Z-Drill, Z-Style (bảng điểm, màu nỉ), Z-Coach (HLV). Đối thủ bán khoảng $80–90/năm.
 
 ## 7. Bài học — không lặp lại
+- (0.44) Không kiểm lại quyền ở mỗi lần đồng bộ rồi huỷ thao tác người chơi ĐANG làm: cấp quyền một lần lúc bắt đầu, chỉ huỷ khi mất lượt thật; vướng tạm thì xếp hàng, không bỏ im lặng. Không so số phiên bản tuyệt đối cho lệnh người chơi (dùng kỷ nguyên trạng thái).
 - Không đổi bố cục giao diện khi bi đang chạy; bộ đồng bộ khung giữ quyền vị trí bi.
 - Mọi tìm kiếm của máy phải kiểm tra hạn giờ giữa từng lần mô phỏng; runner Mac chậm hơn Linux khoảng 1,5 lần.
 - Cú máy đánh phải qua đúng kiểm tra của app (độ nâng cơ, `LANShot.isValid`), nếu không sẽ lặp vô hạn (lỗi "máy chờ" ở 0.40b).
