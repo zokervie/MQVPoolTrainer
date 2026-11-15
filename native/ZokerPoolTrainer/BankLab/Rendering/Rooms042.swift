@@ -98,8 +98,8 @@ extension TableScene {
         let light=SCNLight();light.type = .spot;light.temperature=3000;light.intensity=260
         light.spotInnerAngle=38;light.spotOuterAngle=72;light.attenuationStartDistance=0.3;light.attenuationEndDistance=2.2
         light.castsShadow=false;light.categoryBitMask=Self.pictureLightCategory
-        let lamp=SCNNode();lamp.light=light;lamp.position=SCNVector3(0,top+0.05,0.16);group.addChildNode(lamp)
-        lamp.look(at:SCNVector3(0,-Float(size)*0.15,0),up:SCNVector3(0,1,0),localFront:SCNVector3(0,0,-1))
+        let lampNode=SCNNode();lampNode.light=light;lampNode.position=SCNVector3(0,top+0.05,0.16);group.addChildNode(lampNode)
+        lampNode.look(at:group.convertPosition(SCNVector3(0,-Float(size)*0.15,0),to:nil),up:SCNVector3(0,1,0),localFront:SCNVector3(0,0,-1))   // world target
     }
     /// Photos along a side wall (x = side·3.9x), centred, facing into the room.
     func sideGallery(_ photos:[Int],side:Float,y:Float=0.95,size:CGFloat=0.95,from z0:Float = -3.0,to z1:Float=3.0,lamp:SCNMaterial?=nil){

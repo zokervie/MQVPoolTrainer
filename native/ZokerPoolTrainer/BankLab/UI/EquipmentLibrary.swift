@@ -46,9 +46,27 @@ struct CueLook {
     let id:String,brand:String,name:String,role:Int
     let color:UInt32,accent:UInt32
     let carbon:Bool
+    /// 0.44 (owner item 18): the 10 "Zoker-" designs — butt inlay (0 none · 1 points · 2 stone ovals · 3 diamonds ·
+    /// 4 waves · 5 scales), inlay and stone colours, tip and ferrule colours, and the print code ("Zoker-MZ01").
+    var inlay=0,inlayColor:UInt32=0xEDE6D2,stone:UInt32=0x2FA59A,tip:UInt32=0x1E4F6E,ferrule:UInt32=0xEDE8CF,code=""
     var title:String {brand+" · "+name}
+    var printed:String {code.isEmpty ? "Zoker":"Zoker-"+code}
     static let roles=["Đánh","Jump","Phá"]
-    static let all:[CueLook] = [
+    /// Styled after famous makers' signature looks (points, stone inlays, pearl windows…) — names and marks are Zoker's own.
+    static let designs044:[CueLook] = [
+        .init(id:"zmz01",brand:"Z-Mz",name:"Ignite Maple",role:0,color:0x17120f,accent:0xd9c79a,carbon:false,inlay:1,inlayColor:0xE8D6A8,stone:0xE8D6A8,tip:0x5A3A22,ferrule:0xF1ECDD,code:"MZ01"),
+        .init(id:"zmc02",brand:"Z-Mc",name:"Star Burl",role:0,color:0x6B4A2E,accent:0xC9A55A,carbon:false,inlay:2,inlayColor:0x101010,stone:0x22B5A8,tip:0x1E4F6E,ferrule:0xF4F0E4,code:"MC02"),
+        .init(id:"zjb03",brand:"Z-Jb",name:"Blackwood Points",role:0,color:0x6E3B22,accent:0xC0C4C8,carbon:false,inlay:1,inlayColor:0x0B0B0B,stone:0xC0C4C8,tip:0x24201C,ferrule:0xEDE6D2,code:"JB03"),
+        .init(id:"zlu04",brand:"Z-Lu",name:"Royal Malachite",role:0,color:0x0E0F10,accent:0xC8A04A,carbon:false,inlay:3,inlayColor:0xC8A04A,stone:0x1F8A55,tip:0x7A1E1E,ferrule:0xF2EEE2,code:"LU04"),
+        .init(id:"zvk05",brand:"Z-Vk",name:"Nordic Ice",role:2,color:0xE9EDF0,accent:0x2D6FD6,carbon:false,inlay:3,inlayColor:0x2D6FD6,stone:0x5FA8FF,tip:0xF2F2F0,ferrule:0x1A1C20,code:"VK05"),
+        .init(id:"zsc06",brand:"Z-Sc",name:"Classic Rosewood",role:0,color:0x5A1F14,accent:0xEDE3C8,carbon:false,inlay:1,inlayColor:0xF0E7CF,stone:0x0E0E0E,tip:0x3A2A1C,ferrule:0xF4F0E6,code:"SC06"),
+        .init(id:"zmu07",brand:"Z-Mu",name:"Crimson Wave",role:0,color:0x8A1622,accent:0xD9B24C,carbon:false,inlay:4,inlayColor:0xD9B24C,stone:0xF2E6C4,tip:0x1E4F6E,ferrule:0xF3EFE3,code:"MU07"),
+        .init(id:"zps08",brand:"Z-Ps",name:"Onyx Pearl",role:0,color:0x0A0A0B,accent:0xBFC6CC,carbon:true,inlay:2,inlayColor:0xBFC6CC,stone:0x9FD6D2,tip:0x1C2A3A,ferrule:0x0F0F10,code:"PS08"),
+        .init(id:"zpe09",brand:"Z-Pe",name:"Tigerwood Pro",role:2,color:0x9A5A22,accent:0x111111,carbon:false,inlay:1,inlayColor:0x151210,stone:0xF0A33A,tip:0xF2F2EE,ferrule:0x161616,code:"PE09"),
+        .init(id:"zld10",brand:"Z-Ld",name:"Carbon Dragon",role:1,color:0x0C0C0E,accent:0xC2272D,carbon:true,inlay:5,inlayColor:0xC2272D,stone:0xF26A3A,tip:0x101010,ferrule:0x1A1A1A,code:"LD10"),
+    ]
+    static let all:[CueLook] = base044+designs044
+    private static let base044:[CueLook] = [
         .init(id:"p3",brand:"Z-Pr",name:"P3 Black",role:0,color:0x25272b,accent:0xc6bca0,carbon:true),
         .init(id:"air",brand:"Z-Pr",name:"Air Rush",role:1,color:0x155c65,accent:0xc5c8c9,carbon:true),
         .init(id:"bk",brand:"Z-Pr",name:"BK Rush",role:2,color:0x23262a,accent:0xc7ad43,carbon:true),
@@ -62,6 +80,26 @@ struct CueLook {
         .init(id:"zjump",brand:"Zoker",name:"Jump",role:1,color:0x18515a,accent:0xb5b9bc,carbon:false),
         .init(id:"zbreak",brand:"Zoker",name:"Break",role:2,color:0x322b26,accent:0xb29b70,carbon:false)
     ]
+    /// 0.44: small horizontal picture of THIS cue (butt colour + inlay, wrap, shaft, ferrule, tip) for the cue keys.
+    func iconImage(size:CGSize=CGSize(width:44,height:12))->UIImage {
+        UIGraphicsImageRenderer(size:size).image{c in
+            let w=size.width,h=size.height,mid=h/2
+            func seg(_ x0:CGFloat,_ x1:CGFloat,_ r0:CGFloat,_ r1:CGFloat,_ colour:UIColor){
+                let p=UIBezierPath();p.move(to:CGPoint(x:x0,y:mid-r0));p.addLine(to:CGPoint(x:x1,y:mid-r1));p.addLine(to:CGPoint(x:x1,y:mid+r1));p.addLine(to:CGPoint(x:x0,y:mid+r0));p.close()
+                colour.setFill();p.fill()
+            }
+            let butt=UIColor.rgb(color)
+            seg(0,w*0.10,h*0.40,h*0.39,butt)
+            seg(w*0.10,w*0.28,h*0.39,h*0.37,UIColor(white:0.08,alpha:1))          // wrap
+            seg(w*0.28,w*0.48,h*0.37,h*0.31,butt)                                  // forearm
+            if inlay>0 {UIColor.rgb(inlay==2 || inlay==3 ? stone:inlayColor).setFill()
+                for k in 0..<3 {let x=w*(0.31+0.05*CGFloat(k));c.cgContext.fillEllipse(in:CGRect(x:x,y:mid-h*0.12,width:w*0.03,height:h*0.24))}}
+            seg(w*0.48,w*0.50,h*0.31,h*0.31,UIColor.rgb(accent))                   // joint ring
+            seg(w*0.50,w*0.93,h*0.27,h*0.17,carbon ? UIColor(white:0.15,alpha:1):UIColor.rgb(0xE6CFA0))   // shaft
+            seg(w*0.93,w*0.97,h*0.17,h*0.17,UIColor.rgb(ferrule))
+            seg(w*0.97,w,h*0.17,h*0.16,UIColor.rgb(tip))
+        }.withRenderingMode(.alwaysOriginal)
+    }
 }
 enum CueBag {
     static let names=["Thi đấu","Luyện tập","Dự phòng"]
@@ -84,7 +122,7 @@ final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UI
     var initialTab=0
     private let table:TableScene
     private let list=UITableView(frame:.zero,style:.insetGrouped),preview=SCNView(),note=UILabel()
-    private let tabs=UISegmentedControl(items:["\(TableLook.all.count) bàn","12 cơ","3 bao cơ"])
+    private let tabs=UISegmentedControl(items:["\(TableLook.all.count) bàn","\(CueLook.all.count) cơ","3 bao cơ"])
     private var chosenCue=CueBag.cue(0)
     init(table:TableScene){self.table=table;super.init(nibName:nil,bundle:nil)}
     required init?(coder:NSCoder){fatalError()}
@@ -131,9 +169,10 @@ final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UI
             cell.detailTextLabel?.text="Bản dựng tham khảo · xem 3D";cell.imageView?.image=tableIcon(item)
             cell.accessoryType=item.id==TableLook.selected.id ? .checkmark:.none
         }else if tabs.selectedSegmentIndex==1 {
-            let item=CueLook.all[i];cell.textLabel?.text=item.title;cell.detailTextLabel?.text=CueLook.roles[item.role]+" · thêm vào bao "+CueBag.names[CueBag.active]
+            let item=CueLook.all[i];cell.textLabel?.text=item.title+(item.code.isEmpty ? "":" · in "+item.printed)
+            cell.detailTextLabel?.text=CueLook.roles[item.role]+" · chạm để mang vào bao "+CueBag.names[CueBag.active]+" (ngăn "+CueLook.roles[item.role]+")"
             cell.accessoryType=CueBag.cue(item.role).id==item.id ? .checkmark:.none
-            cell.imageView?.image=UIImage(systemName:item.role==1 ? "arrow.up.right":"line.diagonal");cell.imageView?.tintColor = .rgb(item.accent)
+            cell.imageView?.image=item.iconImage(size:CGSize(width:64,height:14))   // 0.44: the cue itself, not a symbol
         }else{
             cell.textLabel?.text=CueBag.names[i];cell.detailTextLabel?.text="Ba ngăn: Đánh · Jump · Phá"
             cell.imageView?.image=UIImage(systemName:"bag");cell.imageView?.tintColor = .mint;cell.accessoryType=i==CueBag.active ? .checkmark:.none

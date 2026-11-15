@@ -294,6 +294,7 @@ final class CustomizeController:UIViewController {
         // 0.41 (owner): 7-colour power scale (tím = nhẹ … đỏ = mạnh), misty swipe trail, speed shown where the swipe ends.
         toggle("Thang lực 7 màu · vệt vuốt · số lực cuối cú","tunePowerFX041",true)
         toggle("Intro thương hiệu khi mở app (lần đầu đủ 5,6 s, sau đó 1 s)","introEnabled043",true)
+        toggle("Hướng dẫn dắt tay khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)","tutorialEnabled044",true)
         header("Khoá hướng cơ")
         toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
         header("Luyện mắt")

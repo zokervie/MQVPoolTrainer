@@ -1258,14 +1258,18 @@ final class TableScene {
         if !appearance.carbon {maple.diffuse.contents=woodTexture(light:true)}
         let ebony=mat(.rgb(masseLook && cueType==0 ? 0x6a1820:appearance.color),roughness:0.30)
         let ring=mat(.rgb(appearance.accent),roughness:0.3,metal:0.5)
-        cueRoot.addChildNode(domeTip(scale:1,kind:cueType))
-        section(0.0045,0.0165,0.0059,0.0060,mat(UIColor(red:0.93,green:0.91,blue:0.81,alpha:1),roughness:0.23))
+        // 0.44 (owner item 18): designed cues — inlaid forearm (points / stone ovals / diamonds / waves / scales), the
+        // "Zoker-CODE" print on the butt sleeve, own tip and ferrule colours, glossy lacquer.
+        let forearm=appearance.inlay>0 ? cueSleeveMaterial(appearance,forearm:true):ebony
+        let sleeve=appearance.inlay>0 ? cueSleeveMaterial(appearance,forearm:false):ebony
+        cueRoot.addChildNode(domeTip(scale:1,kind:cueType,leather:appearance.inlay>0 ? .rgb(appearance.tip):nil))
+        section(0.0045,0.0165,0.0059,0.0060,mat(appearance.inlay>0 ? .rgb(appearance.ferrule):UIColor(red:0.93,green:0.91,blue:0.81,alpha:1),roughness:0.23))
         section(0.021,0.704,0.006,0.0105,maple)
         section(0.725,0.025,0.0105,0.0107,ring)
-        section(0.75,0.23,0.0107,0.013,ebony)
+        section(0.75,0.23,0.0107,0.013,forearm)
         let wrap=mat(UIColor(white:0.07,alpha:1),roughness:0.88);wrap.normal.contents=normalImage;wrap.normal.intensity=0.08
         section(0.98,0.30,0.013,0.0142,wrap)
-        section(1.28,0.155,0.0142,0.0147,ebony)
+        section(1.28,0.155,0.0142,0.0147,sleeve)
         section(1.435,0.005,0.0147,0.0147,ring)
         section(1.44,0.010,0.0147,0.0147,mat(.black))
     }
@@ -1274,7 +1278,60 @@ final class TableScene {
     static let tipDomeRadius:Float=0.0095,tipRadius:Float=0.0061
     /// 0.41 (owner): jump and break cues have HARD phenolic tips — milky white (break) or solid black (jump), glossy,
     /// never chalk-blue leather; their dome is flatter (harder tips are shaped to a larger radius).
-    private func domeTip(scale:Float,kind:Int=0)->SCNNode{
+    /// 0.44: lacquered butt texture (u = around the cue, v = along it; v 0 = the joint end).
+    private func cueSleeveMaterial(_ look:CueLook,forearm:Bool)->SCNMaterial{
+        let m=mat(.white,roughness:0.22);m.clearCoat.contents=0.7;m.clearCoatRoughness.contents=0.08
+        m.diffuse.contents=texture(CGSize(width:256,height:1024)){c in
+            let g=c.cgContext;UIColor.rgb(look.color).setFill();g.fill(CGRect(x:0,y:0,width:256,height:1024))
+            if !look.carbon {   // fine grain
+                for k in 0..<90 {let y=CGFloat((k*113)%1024);UIColor(white:k%2==0 ? 1:0,alpha:0.035).setFill();g.fill(CGRect(x:0,y:y,width:256,height:CGFloat(2+k%5)))}
+            }
+            let inlay=UIColor.rgb(look.inlayColor),stone=UIColor.rgb(look.stone),accent=UIColor.rgb(look.accent)
+            if forearm {
+                switch look.inlay {
+                case 1:   // classic points from the wrap end toward the joint, with veneers
+                    for k in 0..<4 {let x=CGFloat(k)*64+32
+                        for (w,colour) in [(CGFloat(26),accent),(CGFloat(20),inlay)] {
+                            let p=UIBezierPath();p.move(to:CGPoint(x:x-w,y:1024));p.addLine(to:CGPoint(x:x,y:180));p.addLine(to:CGPoint(x:x+w,y:1024));p.close();colour.setFill();p.fill()
+                        }
+                        stone.setFill();g.fillEllipse(in:CGRect(x:x-7,y:560,width:14,height:40))
+                    }
+                case 2:   // stone ovals in a ring + windows
+                    for row in 0..<3 {for k in 0..<4 {let x=CGFloat(k)*64+32+(row%2==0 ? 0:32),y=CGFloat(250+row*200)
+                        inlay.setFill();g.fillEllipse(in:CGRect(x:x-17,y:y-44,width:34,height:88))
+                        stone.setFill();g.fillEllipse(in:CGRect(x:x-12,y:y-38,width:24,height:76))}}
+                case 3:   // diamonds with stone centres
+                    for row in 0..<4 {for k in 0..<4 {let x=CGFloat(k)*64+32,y=CGFloat(180+row*210)
+                        let p=UIBezierPath();p.move(to:CGPoint(x:x,y:y-60));p.addLine(to:CGPoint(x:x+22,y:y));p.addLine(to:CGPoint(x:x,y:y+60));p.addLine(to:CGPoint(x:x-22,y:y));p.close()
+                        inlay.setFill();p.fill();stone.setFill();g.fillEllipse(in:CGRect(x:x-8,y:y-16,width:16,height:32))}}
+                case 4:   // gold waves
+                    for row in 0..<6 {let p=UIBezierPath();let y0=CGFloat(140+row*150)
+                        p.move(to:CGPoint(x:0,y:y0));for x in stride(from:0,through:256,by:8){p.addLine(to:CGPoint(x:CGFloat(x),y:y0+18*sin(CGFloat(x)/256*2*CGFloat.pi*2)))}
+                        p.lineWidth=7;inlay.setStroke();p.stroke()}
+                case 5:   // dragon scales
+                    for row in 0..<16 {for k in 0..<9 {let x=CGFloat(k)*32+(row%2==0 ? 0:16),y=CGFloat(80+row*58)
+                        let p=UIBezierPath(arcCenter:CGPoint(x:x,y:y),radius:16,startAngle:0,endAngle:.pi,clockwise:true);p.lineWidth=3
+                        (row%3==0 ? stone:inlay).setStroke();p.stroke()}}
+                default:break
+                }
+                accent.setFill();g.fill(CGRect(x:0,y:0,width:256,height:10));g.fill(CGRect(x:0,y:1014,width:256,height:10))
+            } else {
+                accent.setFill();for y in [CGFloat(40),980]{g.fill(CGRect(x:0,y:y,width:256,height:8))}
+                if look.inlay==2 || look.inlay==3 {for k in 0..<4 {stone.setFill();g.fillEllipse(in:CGRect(x:CGFloat(k)*64+22,y:90,width:20,height:20))}}
+                // the print, running along the cue on two opposite faces
+                for u in [CGFloat(64),192] {
+                    g.saveGState();g.translateBy(x:u,y:520);g.rotate(by:-.pi/2)
+                    let text=look.printed as NSString
+                    let attributes:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:54,weight:.heavy),.foregroundColor:accent,.kern:3]
+                    let size=text.size(withAttributes:attributes);text.draw(at:CGPoint(x:-size.width/2,y:-size.height/2),withAttributes:attributes)
+                    g.restoreGState()
+                }
+            }
+        }
+        m.diffuse.wrapS = .repeat;m.diffuse.mipFilter = .linear
+        return m
+    }
+    private func domeTip(scale:Float,kind:Int=0,leather tint:UIColor?=nil)->SCNNode{
         let rd=kind==0 ? Self.tipDomeRadius:0.0125,rt=Self.tipRadius,sag=rd-(rd*rd-rt*rt).squareRoot(),bottom:Float = -0.0045
         var profile:[(r:Float,y:Float,nr:Float,ny:Float)]=[(0,0,0,1)]
         for k in 1...10 {let r=rt*Float(k)/10,y = -(rd-(rd*rd-r*r).squareRoot());profile.append((r,y,r/rd,(rd+y)/rd))}
@@ -1292,7 +1349,7 @@ final class TableScene {
             leather.transparency=0.9;leather.transparencyMode = .dualLayer
         }else if kind==1 {
             leather=mat(UIColor(white:0.06,alpha:1),roughness:0.2);leather.clearCoat.contents=0.8;leather.clearCoatRoughness.contents=0.06
-        }else{leather=mat(.rgb(0x1E4F6E),roughness:0.92)}
+        }else{leather=mat(tint ?? .rgb(0x1E4F6E),roughness:0.92)}
         leather.isDoubleSided=true;g.materials=[leather]
         let node=SCNNode(geometry:g);node.name="cue-tip";node.castsShadow=false;node.scale=SCNVector3(1,scale,1);return node
     }

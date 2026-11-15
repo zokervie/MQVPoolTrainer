@@ -587,7 +587,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var lobbyShown=false
     override func viewDidAppear(_ animated:Bool){
         super.viewDidAppear(animated)
-        if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders()}
+        if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders();maybeStartTutorial()}   // 0.44 #19: first launch
         table.pacingOwner={[weak self] in
             guard let self=self else{return false}
             return self.shotActive || self.replayIndex != nil || (self.matchPlay.session.latestSnapshot?.isMoving==true && self.matchPlay.session.role == .guest)
@@ -832,10 +832,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             ("Nỉ: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setClothWear(old:!self.table.oldCloth);self.wakeRendering();self.notifyStatus(self.table.oldCloth ? "Nỉ cũ: vệt lăn, vết chấm, bụi phấn":"Nỉ mới")}),
             ("Bi: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setBallWear(old:!self.table.oldBalls);self.wakeRendering();self.notifyStatus(self.table.oldBalls ? "Bi cũ: mờ bóng":"Bi mới: bóng gương")}),
             ("Màu nỉ",{[weak self] in self?.chooseClothColor()}),
-            ("Thư viện 24 bàn · 12 cơ",{[weak self] in self?.openLibrary()}),
-            ("Không gian bàn (7 cảnh)",{[weak self] in self?.chooseSpace()}),
+            ("Hướng dẫn chơi (dắt tay từng bước)",{[weak self] in self?.setMenu(false);DispatchQueue.main.asyncAfter(deadline:.now()+0.3){self?.startTutorial()}}),
+            ("Thư viện \(TableLook.all.count) bàn · \(CueLook.all.count) cơ",{[weak self] in self?.openLibrary()}),
+            ("Không gian bàn (\(TableScene.spaces.count) cảnh)",{[weak self] in self?.chooseSpace()}),
             ("Tay trái / tay phải (đổi bên phím)",{[weak self] in guard let self=self else{return};self.setLeftHanded(!self.leftHanded)}),
-            ("Bao cơ / Gậy",{[weak self] in self?.equipment()}),
+            ("Bao cơ / Gậy",{[weak self] in self?.setMenu(false);self?.showCueBag()}),
             ("Bàn & không gian · hình ảnh",{[weak self] in self?.graphics()}),
             ("Âm thanh: bật / tắt",{[weak self] in
                 let enabled = !(UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true)
@@ -924,7 +925,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         retryButton.configuration=button("arrow.uturn.backward","Lùi cú","unused").configuration
         retryButton.accessibilityIdentifier="QuickRetry"
         quickRole=button("bag","Bao cơ","QuickCue")   // 0.30b: Bao cơ = thư viện gậy (links the looks to the cue icons)
-        quickRole.addAction(UIAction{[weak self]_ in self?.equipment()},for:.touchUpInside)
+        quickRole.addAction(UIAction{[weak self]_ in self?.showCueBag()},for:.touchUpInside)   // 0.44 #18: bag sheet with "Thêm cơ vào bao" 
         quickPlace=button("hand.draw","Đặt bi","QuickPlace")
         quickPlace.addAction(UIAction{[weak self]_ in self?.toggleEdit()},for:.touchUpInside)
         quickAdd=button("plus.circle","Thêm bi","QuickAdd")
@@ -1039,6 +1040,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             icon.accessibilityValue=on ? "Đang chọn":""
             let role=Int(BLCueIconKind(Int32(k)))==2 ? 2:(Int(BLCueIconKind(Int32(k)))==1 ? 1:0)
             icon.configuration?.subtitle=CueBag.cue(role).title.components(separatedBy:" · ").first
+            // 0.44 (#18): the key shows the cue that is in the bag — colour, inlay, shaft, ferrule and tip.
+            let look=CueBag.cue(role)
+            if icon.accessibilityHint != look.id {icon.accessibilityHint=look.id;icon.configuration?.image=look.iconImage()}
         }
     }
     func syncQuickRail(){
@@ -1185,6 +1189,23 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func chooseRole(_ role:Int){chooseShotKind(max(0,min(2,role)))}
 
+    /// 0.44 (owner item 18): "Bao cơ" on the quick rail — the three slots of the active bag (tap = choose that slot's cue),
+    /// "Thêm cơ vào bao…" (all cues, tap one = it goes into its slot), change bag, and the physics settings.
+    func showCueBag(){
+        guard matchAllowsEditing || !matchIsCompetitive else{return}
+        let sheet=UIAlertController(title:"Bao "+CueBag.names[CueBag.active],message:"Cơ trong bao gắn với các phím Đánh · Jump · Massé · Break bên trái.",preferredStyle:.actionSheet)
+        for role in 0...2 {
+            let cue=CueBag.cue(role)
+            let action=UIAlertAction(title:CueLook.roles[role]+": "+cue.title,style:.default){[weak self]_ in self?.openLibrary(initialTab:1)}
+            action.setValue(cue.iconImage(size:CGSize(width:56,height:14)),forKey:"image")
+            sheet.addAction(action)
+        }
+        sheet.addAction(UIAlertAction(title:"＋ Thêm cơ vào bao…",style:.default){[weak self]_ in self?.openLibrary(initialTab:1)})
+        sheet.addAction(UIAlertAction(title:"Đổi bao (Thi đấu / Luyện tập / Dự phòng)…",style:.default){[weak self]_ in self?.openLibrary(initialTab:2)})
+        sheet.addAction(UIAlertAction(title:"Thông số gậy (vật lý)…",style:.default){[weak self]_ in self?.equipment()})
+        sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel))
+        presentSheet(sheet,source:quickRole)
+    }
     func openLibrary(initialTab:Int=0){
         guard localTurn,!presentationBusy else{return};setMenu(false)
         let controller=EquipmentLibraryController(table:table);controller.initialTab=initialTab

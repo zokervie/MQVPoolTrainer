@@ -211,10 +211,13 @@ final class InteractionTests: XCTestCase {
 
     }
 
-    /// 0.30b: Bao cơ opens the cue library directly (looks are linked to the cue icons).
+    /// 0.44 (#18): Bao cơ shows the bag (3 slots) with "Thêm cơ vào bao…", which opens the cue library.
     func testCueBagOpensCueLibrary() {
         let (app,_)=launch(["--ux017-qa"])
         quick(app,"QuickCue").tap()
+        let add=app.buttons["＋ Thêm cơ vào bao…"]
+        XCTAssertTrue(add.waitForExistence(timeout:5 * slow),"bag sheet offers adding a cue")
+        add.tap()
         XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout:5 * slow),"cue library opens")
     }
 

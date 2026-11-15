@@ -180,4 +180,9 @@ i=0; for t in 1.2 0.8 1.6 1.4; do sleep "$t"; i=$((i+1)); xcrun simctl io "$devi
 sleep 3
 kill -INT "$rec_pid" 2>/dev/null; wait "$rec_pid" 2>/dev/null
 ls -la build/screenshots/intro* 2>/dev/null
+# 0.44: first-launch guided tutorial (#19) — two stills of the coach marks, for review only.
+xcrun simctl terminate "$device_id" com.maiquocviet.BankLabS 2>/dev/null
+xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --tutorial-qa
+sleep 6; xcrun simctl io "$device_id" screenshot build/screenshots/tutorial-1.png 2>/dev/null
+ls -la build/screenshots/tutorial* 2>/dev/null
 set -e

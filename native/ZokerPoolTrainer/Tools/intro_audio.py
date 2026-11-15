@@ -8,9 +8,9 @@ import numpy as np
 
 SR = 48000
 def events(full):
-    return ([(0, 0), (1, .55), (2, 1.5), (3, 1.94), (4, 2.0), (5, 4.6), (6, 4.72)] if full
+    return ([(0, 0), (1, .55), (2, 1.5), (3, 1.94), (4, 2.0), (7, 3.05), (8, 4.5), (5, 4.6), (6, 4.72)] if full
             else [(3, .04), (5, .10), (6, .20)])
-GROUP = {0: 'ambience', 1: 'foley', 2: 'foley', 3: 'foley', 4: 'foley', 5: 'foley', 6: 'cinematic'}
+GROUP = {0: 'ambience', 1: 'foley', 2: 'foley', 3: 'foley', 4: 'foley', 5: 'foley', 6: 'cinematic', 7: 'cinematic', 8: 'cinematic'}
 
 def render(full):
     n = int(SR * (5.9 if full else 1.0)); t = np.arange(n) / SR
@@ -39,6 +39,14 @@ def render(full):
         if kind == 6:
             env = np.minimum(1, uu / .006) * np.exp(-uu * 3.4)
             cine = np.where(uu < 1.2, env * (np.sin(2*np.pi*1568*uu) * .30 + np.sin(2*np.pi*2352*uu) * .12 + np.sin(2*np.pi*4330*uu) * .05), 0)
+        if kind == 7:   # 0.44 airy swell travelling left → right with the gold motes
+            env = np.where(uu < 1.4, np.sin(np.minimum(1, uu / 1.4) * np.pi) * .16, 0); pan = np.clip(uu / 1.4, 0, 1)
+            l += mid * env * (1 - pan * .7); r += mid * env * (.3 + pan * .7)
+        if kind == 8:   # 0.44 six chimes on the Z, alternating sides
+            for k, f in enumerate([2637.0, 3136.0, 3520.0, 3951.1, 4186.0, 4698.6]):
+                v = uu - k * .065; tone = np.where((v > 0) & (uu < 1.0), np.sin(2*np.pi*f*v) * .045 * np.exp(-np.maximum(v, 0) * 7) * np.minimum(1, np.maximum(v, 0) / .003), 0)
+                if k % 2 == 0: l += tone; r += tone * .45
+                else: r += tone; l += tone * .45
         m, l, r, cine = (x * on for x in (m, l, r, cine))
         stems[GROUP[kind]] += np.stack([m, m], 1)
         stems['cinematic'] += np.stack([l + cine, r + cine], 1)
