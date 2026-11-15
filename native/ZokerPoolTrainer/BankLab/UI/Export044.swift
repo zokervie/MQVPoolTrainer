@@ -129,8 +129,8 @@ final class ReplayVideoExport {
                     haveAudio = (try? file.write(from: mix)) != nil
                 }
                 guard haveAudio else { DispatchQueue.main.async { done(videoURL) }; return }
-                let final = videoURL.deletingLastPathComponent().appendingPathComponent(videoURL.lastPathComponent.replacingOccurrences(of: "-video", with: ""))
-                try? FileManager.default.removeItem(at: final)
+                let output = videoURL.deletingLastPathComponent().appendingPathComponent(videoURL.lastPathComponent.replacingOccurrences(of: "-video", with: ""))
+                try? FileManager.default.removeItem(at: output)
                 let composition = AVMutableComposition()
                 let video = AVURLAsset(url: videoURL), sound = AVURLAsset(url: audioURL)
                 let range = CMTimeRange(start: .zero, duration: video.duration)
@@ -145,12 +145,12 @@ final class ReplayVideoExport {
                 guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetPassthrough) else {
                     DispatchQueue.main.async { done(videoURL) }; return
                 }
-                session.outputURL = final; session.outputFileType = .mp4; session.shouldOptimizeForNetworkUse = true
+                session.outputURL = output; session.outputFileType = .mp4; session.shouldOptimizeForNetworkUse = true
                 session.exportAsynchronously {
                     let ok = session.status == .completed
                     if ok { try? FileManager.default.removeItem(at: videoURL) }
                     try? FileManager.default.removeItem(at: audioURL)
-                    DispatchQueue.main.async { done(ok ? final : videoURL) }
+                    DispatchQueue.main.async { done(ok ? output : videoURL) }
                 }
             }
         }

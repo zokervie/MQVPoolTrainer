@@ -20,7 +20,7 @@ final class TutorialOverlay: UIView {
     private var index = 0
     private let dim = CAShapeLayer(), ring = CAShapeLayer()
     private let bubble = UIView(), titleLabel = UILabel(), textLabel = UILabel(), counter = UILabel()
-    private let next = UIButton(type: .system), skip = UIButton(type: .system)
+    private let nextButton = UIButton(type: .system), skip = UIButton(type: .system)
     private var timer: Timer?
     private var hole: CGRect = .null
     var finished: (() -> Void)?
@@ -40,13 +40,13 @@ final class TutorialOverlay: UIView {
         titleLabel.font = .systemFont(ofSize: 16, weight: .heavy); titleLabel.textColor = .rgb(0xEAC583); titleLabel.numberOfLines = 0
         textLabel.font = .systemFont(ofSize: 14, weight: .medium); textLabel.textColor = .white; textLabel.numberOfLines = 0
         counter.font = .monospacedDigitSystemFont(ofSize: 11, weight: .semibold); counter.textColor = UIColor(white: 1, alpha: 0.55)
-        next.setTitle("Tiếp ›", for: .normal); next.tintColor = .rgb(0xEAC583); next.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
-        next.accessibilityIdentifier = "TutorialNext"
+        nextButton.setTitle("Tiếp ›", for: .normal); nextButton.tintColor = .rgb(0xEAC583); nextButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
+        nextButton.accessibilityIdentifier = "TutorialNext"
         skip.setTitle("Bỏ qua", for: .normal); skip.tintColor = UIColor(white: 1, alpha: 0.7); skip.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
         skip.accessibilityIdentifier = "TutorialSkip"
-        next.addAction(UIAction { [weak self] _ in self?.advance() }, for: .touchUpInside)
+        nextButton.addAction(UIAction { [weak self] _ in self?.advance() }, for: .touchUpInside)
         skip.addAction(UIAction { [weak self] _ in self?.close() }, for: .touchUpInside)
-        for v in [titleLabel, textLabel, counter, next, skip] as [UIView] { bubble.addSubview(v) }
+        for v in [titleLabel, textLabel, counter, nextButton, skip] as [UIView] { bubble.addSubview(v) }
         addSubview(bubble)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -70,9 +70,9 @@ final class TutorialOverlay: UIView {
         let step = steps[i]
         titleLabel.text = step.title; textLabel.text = step.text
         counter.text = "\(i + 1)/\(steps.count)"
-        next.setTitle(step.done == nil ? (i + 1 == steps.count ? "Xong ✓" : "Tiếp ›") : "Làm thử ↑", for: .normal)
-        next.isEnabled = step.done == nil
-        next.alpha = step.done == nil ? 1 : 0.55
+        nextButton.setTitle(step.done == nil ? (i + 1 == steps.count ? "Xong ✓" : "Tiếp ›") : "Làm thử ↑", for: .normal)
+        nextButton.isEnabled = step.done == nil
+        nextButton.alpha = step.done == nil ? 1 : 0.55
         layoutStep(animated: true)
         UIAccessibility.post(notification: .announcement, argument: step.title + ". " + step.text)
     }
@@ -94,7 +94,7 @@ final class TutorialOverlay: UIView {
         let rowY = textLabel.frame.maxY + 10
         counter.frame = CGRect(x: 16, y: rowY + 8, width: 60, height: 20)
         skip.frame = CGRect(x: width - 196, y: rowY, width: 80, height: 36)
-        next.frame = CGRect(x: width - 112, y: rowY, width: 100, height: 36)
+        nextButton.frame = CGRect(x: width - 112, y: rowY, width: 100, height: 36)
         let height = rowY + 46
         var origin: CGPoint
         if lit.isNull { origin = CGPoint(x: bounds.midX - width / 2, y: bounds.midY - height / 2) }
