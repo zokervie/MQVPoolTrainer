@@ -9,7 +9,7 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 | 0.41 (gồm 0.40c) | `cho/native-0.40c` → build `ci/native-0.41` | Anh dặn gộp 0.40c + 10 mục ngày 13/11 vào MỘT lần build. CI 136 @452f1fe: 6/7 cổng PASS, chỉ test UI xem lại hỏng do test cũ chờ đồng hồ âm (xem lại giờ chỉ 1 s). IPA `zoker-ipa-candidate-136` đã gửi anh thử. Test đã sửa ở 0a41f44, đi cùng lần build sau. Cách thử: `Docs/NGHIEM-THU-0.41.md` + `Docs/CHO-0.40c-NGHIEM-THU-12-11.md` |
 | 0.42 | `cho/native-0.40c` → build `ci/native-0.42` | Nghiệm thu 0.41 của anh (12 mục + 5 lỗi chen) + vật lý + AI. **CI 140 xanh (04fc26e, 14/11)**, IPA `zoker-ipa-candidate-140` (run 43478261561). Đã gửi anh — chưa xác minh trên thiết bị. Cách thử: `Docs/NGHIEM-THU-0.42.md` |
 | 0.43 | `cho/native-0.40c` @ c472534 → build `ci/native-0.43` | Gom mọi yêu cầu (vật lý 0,55R, squirt thực tế, độ sạch bi, U1–U5, intro Golden Break, hiệu chuẩn 28 mốc). **CI 146 xanh 15/11**, IPA `zoker-ipa-candidate-146` (run 43618001054, artifact 14123266035). Đã gửi anh — chưa xác minh trên thiết bị. Cách thử: `Docs/NGHIEM-THU-0.43.md`; hiệu chuẩn: `Docs/HIEU-CHUAN-VAT-LY-0.43.md` |
-| 0.44 | `cho/native-0.40c` → build `ci/native-0.44` | 19 mục sau nghiệm thu 0.43 (thân bàn kín + logo, không bỏ cú + lockstep Wi‑Fi, khuôn đúng luật, bọc nỉ góc, bóng băng, camera đối thủ 2 m + 5 góc action, lùi cú giữ góc, 24 ảnh + đèn tranh, Coach, đặt bi sát băng, highlight, intro VFX, bóng sàn, độ dốc theo tư thế, thanh lực, kính phóng 1 hình, xuất video MP4, bao cơ + 10 mẫu, hướng dẫn dắt tay). Cách thử: `Docs/NGHIEM-THU-0.44.md`. Đang chạy CI |
+| 0.44 | `cho/native-0.40c` → build `ci/native-0.44` | 19 mục sau nghiệm thu 0.43 (thân bàn kín + logo, không bỏ cú + lockstep Wi‑Fi, khuôn đúng luật, bọc nỉ góc, bóng băng, camera đối thủ 2 m + 5 góc action, lùi cú giữ góc, 24 ảnh + đèn tranh, Coach, đặt bi sát băng, highlight, intro VFX, bóng sàn, độ dốc theo tư thế, thanh lực, kính phóng 1 hình, xuất video MP4, bao cơ + 10 mẫu, hướng dẫn dắt tay). Cách thử: `Docs/NGHIEM-THU-0.44.md`. **CI 155 xanh 16/11**, IPA `zoker-ipa-candidate-155` (run 43778517723, artifact 14187895713). Đã gửi anh — chưa xác minh trên thiết bị |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
 Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
@@ -35,7 +35,7 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
 6. Khi về gần máy Mac có Xcode: chuyển phần code sang Claude Code chạy trên Mac (biên dịch và chạy Simulator tại chỗ, không chờ CI 50 phút).
 
 ## 4. Việc kế tiếp — theo thứ tự, yêu cầu mới nhất của anh luôn đứng đầu
-1. **0.44 — đang build (19 mục, gồm cả 0.43 chưa thử).** Sau đó chờ anh nghiệm thu.
+1. **0.44 — CI 155 xanh, chờ anh nghiệm thu (19 mục).** Ảnh chụp CI chưa xem được (tải artifact bị chặn).
 2. Từ 0.43 còn mở: intro MP4 1920×1080/1080×1080 có âm (ghép bản quay CI + stem WAV); âm intro là tổng hợp tạm; lỗ theo tốc độ; đo jump clip B.14; mô hình góc băng khi có video. Công cụ luyện (đoán chỗ bi dừng, để thế, so một yếu tố) chưa làm.
 3. Sau 0.44: P1 TestFlight (khi anh có Developer), Z-Assess, "Vì sao trượt", báo cáo tuần; widget/Live Activity, chế độ HLV.
 
@@ -66,6 +66,7 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
 - Cú máy đánh phải qua đúng kiểm tra của app (độ nâng cơ, `LANShot.isValid`), nếu không sẽ lặp vô hạn (lỗi "máy chờ" ở 0.40b).
 - Test UI chờ trạng thái ổn định rồi mới đọc; thao tác kéo có thử lại.
 - Swift: ép kiểu rõ (`CGFloat(x)`). Đẩy lên cùng nhánh `ci/` là huỷ run đang chạy, nên tài liệu chỉ đẩy lên nhánh làm việc.
+- (0.44) Swift: `x:Float=-0.3` bị đọc thành toán tử `=-` → luôn viết `= -0.3`; không đặt tên thuộc tính `next` trong lớp UIView/UIResponder. Bước IPA giờ in mọi dòng `error:`.
 - `gh pr view` bị chặn (dùng `gh api`); tải artifact bị chặn (đọc log job).
 
 ## 8. Đề xuất công nghệ / quy trình — chờ anh duyệt
