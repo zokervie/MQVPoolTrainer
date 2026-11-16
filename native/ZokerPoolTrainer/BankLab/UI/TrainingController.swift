@@ -66,6 +66,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         var layoutPasses=0,hudRelayouts=0,recordedSamples=0
     }
     var shotProfile=ShotProfile()
+    /// 0.44-mm: the first live tick after a strike advances at most one refresh, whatever the strike's own main-thread
+    /// cost was (UIKit commit, haptics, audio start). Before, that stall went straight into the solver: the cue ball
+    /// jumped up to 0.1 s (70 cm at 7 m/s) on the very first frame. Replay never had it — its lead-in absorbs the stall.
+    var liveStartPending=false
     var hudLayoutKey="",hudLayoutDeferred=false
     var appliedClothTint = -2
     var qaShots=0,qaJumpSeen=false   // UI-test latches: polling every 0.5 s can miss a short shot
@@ -350,6 +354,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 table.setClothColor(nil);table.selectTable(TableLook.all.first{$0.id=="allenton"}!);table.camera.camera?.exposureOffset = -0.8
                 if args.contains("--premium-high"){table.quality(true);scn.antialiasingMode = .multisampling4X}
             }
+            if args.contains("--perf-qa"){startPerfQA()}   // 0.44-mm
+            startLANQA()   // 0.44-mm: no-op without --lan-host-qa / --lan-join-qa
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}
             if args.contains("--ux018-match-rotation-qa"){startMatch(rule:"rotation15",network:false)}
             // 0.40b: the computer breaks a 9-ball rack by itself (owner: "đến lượt máy cứ chờ"); CI waits for cpuShots ≥ 2.
@@ -497,8 +503,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// re-read saved offsets, restart a fade animation and re-arm the display link. Now the HUD is laid out only when
     /// its inputs changed (size, safe area, hand, expanded ball, key count, scale); everything else is a no-op.
     override func viewDidLayoutSubviews(){
+        let layoutStart=CACurrentMediaTime();defer{if let perf=Self.perfSegment {perf.layoutTime+=CACurrentMediaTime()-layoutStart}}
         super.viewDidLayoutSubviews()
         if shotActive {shotProfile.layoutPasses+=1}
+        Self.perfSegment?.layoutPasses+=1
         let safe=hudSafeFrame
         let key="\(view.bounds.size)|\(safe)|\(leftHanded)|\(spinExpanded)|\(UserDefaults.standard.object(forKey:"loupes042") as? Bool ?? true)|\(menuOpen)|\(matchIsCompetitive)|\(matchIsCompetitive && matchBool("requiresCall"))|\(Tuning.hudScale)|\(replayIndex != nil)"
         // 0.39d (CI 125): skip ONLY while balls are moving (live shot / replay) and nothing that places keys changed.
@@ -509,6 +517,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if moving && key==hudLayoutKey && !Self.legacyStatusAB {hudLayoutDeferred=true;return}
         hudLayoutKey=key;hudLayoutDeferred=false
         if shotActive {shotProfile.hudRelayouts+=1}
+        Self.perfSegment?.hudRelayouts+=1
         layoutRightHUD();wakeRendering()
     }
     /// 0.22: HUD controls are placed by the portable policy BLHUDLayout (PresentationPolicy.h, C++-tested):
@@ -1335,6 +1344,17 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let others=balls.filter{$0.id != 0 && !$0.sunk};obstacleXs=others.map{$0.x};obstacleYs=others.map{$0.y}
         if spin.reachable==nil {
             spin.reachable={[weak self] x,y in guard let self=self else{return true};return self.cueClearance(side:x,top:y)<=self.maxStrokeElevation}
+            spin.reachableSnapshot={[weak self] in
+                guard let self=self else{return {_,_ in true}}
+                // Identical to cueClearance(side:top:) <= maxStrokeElevation, with the solver read once per draw.
+                let limit=self.maxStrokeElevation
+                guard let c=self.cue,!c.sunk else{return {_,_ in 0<=limit}}
+                let angle=self.angle,g=self.geometry,obstacleXs=self.obstacleXs,obstacleYs=self.obstacleYs
+                return {s,t in
+                    var xs=obstacleXs,ys=obstacleYs
+                    return BLCueMinimumElevationBalls(c.x,c.y,angle,s,t,g.width,g.length,g.radius,g.nose,&xs,&ys,Int32(xs.count))<=limit
+                }
+            }
             spin.clampTop={[weak self] x,y in
                 guard let self=self,let c=self.cue else{return y}
                 var xs=self.obstacleXs,ys=self.obstacleYs
@@ -1496,7 +1516,12 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if routeMatchShot(speed){return}
         guard locked,speed.isFinite,speed>0 else{return}
         guard strokeAllowed else{deferStroke(speed);return}   // 0.44: never drop a stroke the power bar already showed
-        capturePreparation(time:ProcessInfo.processInfo.systemUptime)
+        // 0.44-mm --perf-qa: main-thread cost of the strike itself, by stage (the next tick's dt includes all of it).
+        var strikeMark=CACurrentMediaTime();var strikeStages:[String:Double]=[:]
+        func mark(_ name:String){let now=CACurrentMediaTime();strikeStages[name]=now-strikeMark;strikeMark=now}
+        let strikeAge=lastTime>0 ? strikeMark-lastTime:-1   // how old the previous tick's target was at the strike
+        defer{strikeStages["previousTickAge"]=strikeAge;Self.perfSegment?.strike=strikeStages;Self.perfSegment?.strikeEnd=CACurrentMediaTime()}
+        capturePreparation(time:ProcessInfo.processInfo.systemUptime);mark("preparation")
         let origin=aimBuffer.first?.time ?? 0
         lastPreparation=aimBuffer.map{var sample=$0;sample.time-=origin;return sample}
         aimBuffer.removeAll()
@@ -1506,11 +1531,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         table.pacer.clear()
         table.pacer.interval=1.5/Double(Tuning.frameRate)   // 0.39d: half a frame of slack for main-thread jitter
         table.pacer.resetDiagnostics();shotProfile=ShotProfile()
+        perfBegin("live")   // 0.44-mm: no-op unless --perf-qa
+        liveStartPending=true
         // Seed the pre-strike pose, so the first interpolated frame includes
         // the start of the stroke rather than jumping to the first sample.
         let previousPresentAt=table.presentAt
         table.presentAt=lastTime>0 ? lastTime:CACurrentMediaTime()
-        table.update(balls,dt:0)
+        table.update(balls,dt:0);mark("seedPose")
         table.presentAt=previousPresentAt
         testSpeed=speed
         hintLabel.text=String(format:"Cú vuốt vừa rồi · %.2f m/s · %@",speed,CueLook.roles[engine.settings["cueType"]?.intValue ?? 0])
@@ -1520,7 +1547,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         cameraManual=false;lastDirectorTime = -10;peekPose=nil;lastShotEvents=[]
         lastShotSetup=currentSetup()
         if !matchIsCompetitive{shotBack.append(ShotStep(balls:balls,setup:lastShotSetup));shotForward.removeAll()}
-        before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0
+        before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0;mark("camera+history")
         // 0.37 (owner): a cue raised over the rail / a ball behind is a REAL elevated stroke — squirt fades in with the
         // elevation (squirtRampDegrees) and the 3D strike adds swerve/hop by speed. Restored when the shot ends.
         applySquirtPolicy()   // 0.43: picks up "Squirt thực tế" changed in Tuỳ chỉnh before this stroke
@@ -1534,12 +1561,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let strikeAngle=table.shotAngle(cue,angle:angle,side:side,top:top)
         lastShot=SavedShot(name:"",date:Date(),balls:balls,aimAngle:angle,speed:speed,side:side,top:top,
                            elevation:strikeElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle,shotKind:shotKind,physicsSettings:engine.settings.mapValues{$0.doubleValue})
-        hideCoach()
+        mark("squirt+record");hideCoach();mark("hideCoach")
         publishShotStart(strikeAngle:strikeAngle,speed:speed)   // 0.44 lockstep: the guest runs the same solver
-        engine.strike(angle:strikeAngle,speed:speed,side:side,top:top)
+        engine.strike(angle:strikeAngle,speed:speed,side:side,top:top);mark("strike")
         if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
-        shotActive=true;didStartMatchShot();attempts+=1;statusLabel.text=String(format:"Đang chạy · tốc độ đầu %.2f m/s",speed)
-        feedback.impactOccurred();guideDirty=true;table.trails([:]);setMenu(false);updateControls()
+        mark("cueSound")
+        shotActive=true;didStartMatchShot();mark("matchStart");attempts+=1;statusLabel.text=String(format:"Đang chạy · tốc độ đầu %.2f m/s",speed)
+        feedback.impactOccurred();mark("haptic");guideDirty=true;table.trails([:]);mark("trails");setMenu(false);mark("menu");updateControls();mark("controls")
     }
     @objc func tick(_ link:CADisplayLink){
         frameStep(targetTimestamp:link.targetTimestamp,linkStamp:link.timestamp)
@@ -1553,6 +1581,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // judder of variable callback latency; on ProMotion the shot runs at up to 120 Hz.
         let shownAt=targetTimestamp
         let dt=lastTime==0 ? 0:min(0.1,max(0,shownAt-lastTime));lastTime=shownAt
+        // 0.44-mm --perf-qa: main-thread CPU of this tick, split by stage (nil segment = no cost).
+        let perf=Self.perfSegment,perfT0=CACurrentMediaTime();var perfT1=perfT0,perfT2=perfT0
+        if let perf=perf,perf.tick.isEmpty,perf.strikeEnd>0 {perf.strike["strikeToFirstTick"]=perfT0-perf.strikeEnd;perf.strike["firstTargetMinusNow"]=targetTimestamp-perfT0}
+        defer{if let perf=perf {let end=CACurrentMediaTime();perf.tick.append(end-perfT0);perf.dt.append(dt);perf.match.append(perfT1-perfT0);perf.motion.append(perfT2-perfT1);perf.camera.append(end-perfT2)}}
         frameStateCache=nil;defer{frameStateCache=nil}
         // 0.39 (owner: Wi-Fi/online break impossible, all keys grey on both phones). Belt and braces: a network state
         // change that arrives without a callback (link up, relay peer, snapshot) can no longer leave the turn stale —
@@ -1568,6 +1600,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let guestTick=matchGuestTick(dt)
         driveComputerTurn()   // 0.40 Đấu với máy (no-op unless it is the computer's turn at rest)
         tickShotClock(dt)     // 0.40b đồng hồ cú + gia hạn (no-op when off)
+        perfT1=CACurrentMediaTime()
         // Keep rendering until a Premium QA probe has recorded its result; slow
         // Simulator GPUs can need longer than the startup window.
         let premiumPending = !premiumProbeWritten && ProcessInfo.processInfo.arguments.contains("--premium-qa")
@@ -1657,14 +1690,16 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 }
                 replaySlider.value=Float(replayClock)
                 if let recorder=highlightRecorder{recorder.capture(scn.snapshot(),now:ProcessInfo.processInfo.systemUptime)}
-                if !replayPaused {playReplayAudio()}
+                if !replayPaused {let a0=CACurrentMediaTime(),n=replayAudioIndex;playReplayAudio();if let perf=perf,replayAudioIndex>n {perf.audio.append(CACurrentMediaTime()-a0);perf.audioCalls+=replayAudioIndex-n}}
             }
         }else if shotActive && !guestTick && !matchSimulationPaused {
             if dt>0 {displayDurations.append(dt);if displayDurations.count>3600{displayDurations.removeFirst(displayDurations.count-3600)}}
             // 0.37 (owner replay: object ball moving before the cue ball arrives): frames were sampled at 30 Hz, so a
             // 6 m/s jump shot moved 20 cm between samples and slow-motion interpolation started the object ball early.
             // Advance in 1/240 s chunks and sample by speed: 240 Hz while anything is fast, 60 Hz medium, 30 Hz slow.
-            var remaining=dt
+            var remaining=liveStartPending ? min(dt,1.0/Double(Tuning.frameRate)):dt
+            liveStartPending=false
+            perf?.physicsDt.append(remaining)
             let tickStart=CACurrentMediaTime();var physicsTime=0.0,recordTime=0.0
             while remaining>1e-9 {
                 let p0=CACurrentMediaTime()
@@ -1685,6 +1720,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             let e0=CACurrentMediaTime()
             let fresh=engine.events(since:UInt(lastEventCount))
             if !fresh.isEmpty {
+                defer{if let perf=perf {perf.audio.append(CACurrentMediaTime()-e0);perf.audioCalls+=fresh.count}}
                 if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {
                     for event in fresh {poolAudio.play(kind:event["kind"]?.intValue ?? 1,impact:event["impact"]?.doubleValue ?? 0.3,pan:audioPan(event["x"]?.doubleValue ?? 0,event["y"]?.doubleValue ?? 0),eventAge:max(0,engine.elapsed-(event["time"]?.doubleValue ?? engine.elapsed)))}
                 }
@@ -1710,6 +1746,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
             if !engine.moving || engine.elapsed>60 {finishShot(timedOut:engine.moving);frameStateCache=nil}
         }
+        perfT2=CACurrentMediaTime()
         table.animatePockets(dt)
         let wasBusy=BLShotCameraBusy(shotCameraState)
         let cameraGestureActive=peekPose != nil || aimRecognizers.contains{recognizer in
@@ -1844,6 +1881,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func finishShot(timedOut:Bool){
         table.pacer.endDiagnostics()
+        perfEnd();perfAfterShot()   // 0.44-mm: no-op unless --perf-qa
         if let restore=forcedElevationRestore{engine.settings=restore;forcedElevationRestore=nil}
         let d=Drill.all[drillIndex],events=engine.events
         lastShotEvents=events
@@ -1994,6 +2032,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         notifyStatus("Đang quay video highlight…")
     }
     func stopReplay(){
+        perfEnd();perfAfterReplay()   // 0.44-mm
         table.actionCamera=nil;actionShot = -1
         if let recorder=highlightRecorder{
             highlightRecorder=nil

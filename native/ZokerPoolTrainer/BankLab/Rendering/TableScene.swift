@@ -72,6 +72,8 @@ final class TableScene {
     private(set) var space=UserDefaults.standard.object(forKey:"tableSpace034") as? Int ?? 0
     private let ballRoot=SCNNode(),guideRoot=SCNNode(),trailRoot=SCNNode(),cueRoot=SCNNode(),numberRoot=SCNNode()
     private var nodes:[Int:SCNNode]=[:],contactShadows:[Int:SCNNode]=[:]
+    /// 0.44-mm: read-only view of the ball nodes for the --perf-qa render probe.
+    var probeBallNodes:[Int:SCNNode]{nodes}
     /// 0.39: render-clock interpolation of moving balls (see FramePacer). Set `presentAt` (CADisplayLink.targetTimestamp)
     /// before update/replay from the frame tick; nil = place nodes directly (editing, placement, idle).
     let pacer=FramePacer()

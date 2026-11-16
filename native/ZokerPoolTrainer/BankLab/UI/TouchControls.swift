@@ -68,6 +68,11 @@ final class SpinPad:UIControl {
     var changed:((Double,Double)->Void)?
     /// Điểm chạm có với tới được không (cơ phải qua được băng khi bi cái gần băng). nil = mọi điểm.
     var reachable:((Double,Double)->Bool)? {didSet{setNeedsDisplay()}}
+    /// 0.44-mm ROOT CAUSE of the hitch at every stroke (owner: "giật khi chơi, replay mượt"): draw() asks 22×22 = 484
+    /// cells, and each `reachable` call re-read the whole solver (16 balls) and its settings — 70–100 ms on the main
+    /// thread in the commit right after the strike, so the first live frame advanced 0.1 s at once. The owner supplies a
+    /// tester built ONCE per draw from a snapshot of the same inputs (same geometry call, same answer).
+    var reachableSnapshot:(()->((Double,Double)->Bool))?
     /// Đưa điểm không với tới về điểm gần nhất phía trên (giữ ngang), như ngoài đời chỉ đánh được phần trên bi.
     var clampTop:((Double,Double)->Double)?
     var expandedChanged:((Bool)->Void)?
@@ -89,7 +94,7 @@ final class SpinPad:UIControl {
         if let gradient=CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:[UIColor.white.cgColor,UIColor(white:0.89,alpha:1).cgColor,UIColor(white:0.46,alpha:1).cgColor] as CFArray,locations:[0,0.55,1]){
             ctx.drawRadialGradient(gradient,startCenter:CGPoint(x:c.x-r*0.32,y:c.y-r*0.36),startRadius:0,endCenter:c,endRadius:r*1.15,options:[])
         }
-        if let reachable=reachable {
+        if let reachable=reachableSnapshot?() ?? reachable {
             // Vùng bị băng che: tô xám sọc để thấy ngay phần bi không đánh tới được.
             ctx.saveGState();ctx.addEllipse(in:circle);ctx.clip()
             UIColor(white:0.18,alpha:0.62).setFill()

@@ -37,7 +37,7 @@ extension TrainingController {
     func updateSpinLoupe(expanded: Bool? = nil) {
         guard UserDefaults.standard.object(forKey: "loupes042") as? Bool ?? true else { return }
         let loupe = loupeViews.spin
-        loupe.maximumOffset = spin.maximumOffset; loupe.maxTop = spin.maxTop; loupe.reachable = spin.reachable
+        loupe.maximumOffset = spin.maximumOffset; loupe.maxTop = spin.maxTop; loupe.reachable = spin.reachable; loupe.reachableSnapshot = spin.reachableSnapshot   // 0.44-mm: same per-draw snapshot as the effect ball
         loupe.select(side: spin.side, top: spin.top)
         if let expanded = expanded { fade(loupe, expanded) }
     }

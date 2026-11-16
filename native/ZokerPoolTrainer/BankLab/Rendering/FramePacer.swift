@@ -96,13 +96,36 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
     func endDiagnostics() { lock.lock(); measuring = false; lock.unlock() }
     var diagnostics: Diagnostics { lock.lock(); defer { lock.unlock() }; return measured }
 
+    // 0.44-mm (anh: "giật khi chơi nhưng replay mượt"): what the renderer actually draws, frame by frame, in BOTH
+    // live play and replay — every ball's position and the camera, read on the render thread after the pacer wrote.
+    // Off unless a --perf-qa run (or the diagnostics menu) starts it; costs nothing otherwise.
+    struct ProbeFrame { var time: Double; var host: Double; var balls: [Int: SIMD3<Float>]; var camera: SIMD3<Float> }
+    private var probeNodes: [Int: SCNNode] = [:]
+    private var probeCamera: SCNNode?
+    private var probeFrames: [ProbeFrame] = []
+    private var probing = false
+    func startProbe(nodes: [Int: SCNNode], camera: SCNNode?) {
+        lock.lock(); probeNodes = nodes; probeCamera = camera; probeFrames = []; probing = true; lock.unlock()
+    }
+    func stopProbe() -> [ProbeFrame] {
+        lock.lock(); defer { lock.unlock() }
+        probing = false; let frames = probeFrames; probeFrames = []; probeNodes = [:]; probeCamera = nil; return frames
+    }
+    /// Lock held by the caller.
+    private func recordProbe(_ time: Double) {
+        guard probing, probeFrames.count < 7200 else { return }
+        var balls: [Int: SIMD3<Float>] = [:]
+        for (id, node) in probeNodes where !node.isHidden { balls[id] = node.simdPosition }
+        probeFrames.append(ProbeFrame(time: time, host: CACurrentMediaTime(), balls: balls, camera: probeCamera?.simdWorldPosition ?? .zero))
+    }
+
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) { render(at: time) }
 
     /// Shared with native tests using real SCNNodes (no mock interpolation).
     func render(at time: Double) {
         guard time.isFinite else { return }
         lock.lock()
-        guard !tracks.isEmpty else { lock.unlock(); return }
+        guard !tracks.isEmpty else { recordProbe(time); lock.unlock(); return }
         let target = time - intervalValue
         var draw: [DrawPose] = []
         var starved = false
@@ -140,6 +163,7 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
             pose.node.simdOrientation = pose.orientation
             pose.shadow?.simdPosition = pose.shadowAt
         }
+        recordProbe(time)
         lock.unlock()
     }
 }

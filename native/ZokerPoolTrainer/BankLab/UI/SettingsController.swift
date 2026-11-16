@@ -197,7 +197,7 @@ enum Tuning {
     /// Active render cadence. 120 needs ProMotion (CADisableMinimumFrameDurationOnPhone is set); more heat.
     static var frameRate:Int{
         #if targetEnvironment(simulator)
-        return 30   // CI Simulator: keep the runner responsive
+        return UserDefaults.standard.integer(forKey:"qaSimFPS")==60 ? 60:30   // CI Simulator: keep the runner responsive; 0.44-mm perf QA measures at the device rate (-qaSimFPS 60)
         #else
         return UserDefaults.standard.integer(forKey:"tuneFPS036")==120 ? 120:60
         #endif
