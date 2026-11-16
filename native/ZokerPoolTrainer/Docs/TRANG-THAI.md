@@ -37,7 +37,8 @@ Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ 
 ## 4. Việc kế tiếp — theo thứ tự, yêu cầu mới nhất của anh luôn đứng đầu
 1. **0.44 — CI 155 xanh, chờ anh nghiệm thu (19 mục).** Ảnh chụp CI chưa xem được (tải artifact bị chặn).
 2. Từ 0.43 còn mở: intro MP4 1920×1080/1080×1080 có âm (ghép bản quay CI + stem WAV); âm intro là tổng hợp tạm; lỗ theo tốc độ; đo jump clip B.14; mô hình góc băng khi có video. Công cụ luyện (đoán chỗ bi dừng, để thế, so một yếu tố) chưa làm.
-3. Sau 0.44: P1 TestFlight (khi anh có Developer), Z-Assess, "Vì sao trượt", báo cáo tuần; widget/Live Activity, chế độ HLV.
+3. **0.45 — CHỜ ANH QUYẾT sau nghiệm thu 0.44**: gộp hết 15 đề xuất 12–16/11 (anh dặn 16/11: làm kỹ, tiết kiệm token). Danh sách + thứ tự: `docs/de-xuat/NHIEM-VU-0.45.md` (nhánh `plan/de-xuat-zoker`). Chưa viết mã.
+4. Sau 0.44: P1 TestFlight (khi anh có Developer), Z-Assess, "Vì sao trượt", báo cáo tuần; widget/Live Activity, chế độ HLV.
 
 ## 5. Skill · rủi ro · công nghệ cho các việc tới
 | Việc | Skill dùng | Rủi ro chính | Công nghệ đề xuất |
