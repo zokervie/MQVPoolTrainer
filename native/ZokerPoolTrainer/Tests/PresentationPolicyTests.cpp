@@ -200,5 +200,31 @@ int main() {
     assert(std::abs(value-0.5)<1e-10);
     assert(BLCameraTweenBlend(0.45,0,0.45)==0 && BLCameraTweenBlend(0,0.1,0.45)==1);
     passed("camera easing is smoothstep with a stable midpoint and explicit endpoints");
+    // 0.44-mm pocket sound by entry speed (owner: "tiếng bi lọt lỗ theo tốc độ").
+    {
+        double lastGain = 0, lastJaw = 0;
+        for (double v = 0.05; v <= 8.0; v += 0.05) {
+            BLPocketSound p = BLPocketSoundForSpeed(v);
+            assert(p.gain > 0 && p.gain <= 1 && p.jawGain >= 0 && p.jawGain <= BL_POCKET_JAW_MAX_GAIN);
+            assert(p.gain >= lastGain && p.jawGain >= lastJaw);   // faster never sounds softer
+            lastGain = p.gain; lastJaw = p.jawGain;
+        }
+        passed("pocket drop gain and jaw clack never decrease with entry speed and stay bounded");
+        assert(BLPocketSoundForSpeed(0.3).jawGain == 0 && BLPocketSoundForSpeed(BL_POCKET_JAW_SPEED).jawGain == 0);
+        assert(BLPocketSoundForSpeed(4.0).jawGain > 0.5);
+        passed("a ball rolling in drops silently into the pocket; a slammed ball adds the jaw clack");
+        assert(BLPocketSoundForSpeed(0.3).gain < 0.5 * BLPocketSoundForSpeed(4.0).gain);
+        assert(BLPocketSoundForSpeed(6.0).gain == BLPocketSoundForSpeed(9.0).gain);
+        passed("slow pots are clearly quieter than slammed ones; level saturates above 6 m/s");
+        BLPocketSound bad = BLPocketSoundForSpeed(NAN), zero = BLPocketSoundForSpeed(0), neg = BLPocketSoundForSpeed(-2);
+        assert(bad.gain == 0 && bad.jawGain == 0 && zero.gain == 0 && neg.gain == 0 && neg.jawGain == 0);
+        passed("non-finite or non-positive speeds make no pocket sound");
+        assert(BLPocketJawImpact(0) == 0 && std::abs(BLPocketJawImpact(1) - 3.2) < 1e-12);
+        for (double g = 0.05; g <= 1.0; g += 0.05) {
+            double level = std::pow(std::min(1.0, BLPocketJawImpact(g) / 3.2), 0.65);
+            assert(std::abs(level - g) < 1e-9);
+        }
+        passed("jaw impact maps back to exactly the requested level through the rail-voice gain curve");
+    }
     std::cout << "PASS: " << scenarios << " G1 policy scenarios (portable production C policy; UIKit integration still requires Xcode)\n";
 }

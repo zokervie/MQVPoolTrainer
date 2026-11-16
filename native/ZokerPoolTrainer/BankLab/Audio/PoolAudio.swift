@@ -163,6 +163,8 @@ final class PoolAudio {
     /// catch-up burst is dropped rather than producing impacts long after contact.
     func play(kind: Int, impact: Double, pan: Double, eventAge: Double = 0) {
         guard (0...3).contains(kind), impact.isFinite, pan.isFinite, eventAge.isFinite, impact > 0 else { return }
+        // 0.44-mm: a slammed pot also strikes the pocket jaw (rail clip, same voice pool) — BLPocketSoundForSpeed.
+        if kind == 2 { let jaw = BLPocketSoundForSpeed(impact).jawGain; if jaw > 0 { play(kind: 0, impact: BLPocketJawImpact(jaw), pan: pan, eventAge: eventAge) } }
         if eventAge < 0.35 { DispatchQueue.main.async { MusicPlayer042.shared.duck(kind: kind, impact: impact) } }   // 0.42 spectral duck
         audioQueue.async { [weak self] in
             guard let self = self else { return }
@@ -189,7 +191,7 @@ final class PoolAudio {
             // 0.37 Tuỳ chỉnh · Âm thanh: master volume (0 = mute)
             let master = UserDefaults.standard.object(forKey: "tuneVolume037") as? Double ?? 1
             guard master > 0.001 else { return }
-            let level = Float(min(0.88, pow(max(0.005, min(1, impact / 3.2)), 0.65) * kindGain * master))
+            let level = Float(min(0.88, Self.shape(kind: type, impact: impact) * kindGain * master))
             let index: Int
             if let free = self.voices.firstIndex(where: { !$0.busy }) {
                 index = free
@@ -235,8 +237,18 @@ final class PoolAudio {
     /// 0.44 (#17 video export): the same recordings, chosen by the same pack/tier rule and gain as `play`, mixed offline
     /// into one stereo 48 kHz float buffer at the given times (seconds of video). Equal-power pan; the sum is limited to
     /// −1 dBFS peak (no clipping, no pumping). Mono-safe: both channels carry the same sources.
-    func offlineMix(_ events: [(time: Double, kind: Int, impact: Double, pan: Double)], duration: Double) -> AVAudioPCMBuffer? {
-        read { () -> AVAudioPCMBuffer? in
+    /// Level before kind gain and master: pockets follow the entry-speed policy (0.44-mm), the rest the 0.17 curve.
+    static func shape(kind: Int, impact: Double) -> Double {
+        kind == 2 ? BLPocketSoundForSpeed(impact).gain : pow(max(0.005, min(1, impact / 3.2)), 0.65)
+    }
+    func offlineMix(_ input: [(time: Double, kind: Int, impact: Double, pan: Double)], duration: Double) -> AVAudioPCMBuffer? {
+        // 0.44-mm: the exported video hears the same jaw clack as live play.
+        var events = input
+        for e in input where e.kind == 2 {
+            let jaw = BLPocketSoundForSpeed(e.impact).jawGain
+            if jaw > 0 { events.append((time: e.time, kind: 0, impact: BLPocketJawImpact(jaw), pan: e.pan)) }
+        }
+        return read { () -> AVAudioPCMBuffer? in
             let rate = 48_000.0
             let frames = Int(max(0.1, min(120, duration)) * rate)
             guard let stereo = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2),
@@ -257,7 +269,7 @@ final class PoolAudio {
                 if let nearest = samples.map({ abs($0.tier - wantTier) }).min() { samples = samples.filter { abs($0.tier - wantTier) == nearest } }
                 let sample = samples[variation % samples.count]; variation += 1
                 let kindGain = type == 0 ? 0.82 : (type == 2 ? 0.78 : (type == 3 ? 0.86 : 1.0))
-                let level = Float(min(0.88, pow(max(0.005, min(1, impact / 3.2)), 0.65) * kindGain * master))
+                let level = Float(min(0.88, Self.shape(kind: type, impact: impact) * kindGain * master))
                 let angle = Float((max(-1, min(1, event.pan)) + 1) * Double.pi / 4)
                 let gl = level * cos(angle), gr = level * sin(angle)
                 guard let source = sample.buffer.floatChannelData?[0] else { continue }

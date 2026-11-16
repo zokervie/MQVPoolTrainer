@@ -221,4 +221,31 @@ static inline int BLRaceRecordRack(int *frames0, int *frames1, int raceTo, int r
 static inline int BLRaceNextBreaker(int lastBreaker) { return lastBreaker == 0 ? 1 : 0; }
 static inline int BLRaceClamp(int raceTo) { return raceTo < 1 ? 1 : (raceTo > 25 ? 25 : raceTo); }
 
+// 0.44-mm pocket sound by entry speed (owner: "tiếng bi lọt lỗ theo tốc độ"). Uses only the licensed clips already in
+// the bundle: PoolPocket0 (CC BY 3.0, the drop) and PoolRail0 (CC0, reused as the hard hit on the pocket jaw/facing).
+// Hệ số: GIẢ ĐỊNH (chưa đo) — a ball that rolls over the lip only drops (quiet); a slammed ball also strikes the
+// jaw/back of the pocket first (sharp clack), from ~1.2 m/s, growing to full at ~4.5 m/s; drop level saturates at
+// 6 m/s (a hard break). To be tuned by ear / owner recordings.
+#define BL_POCKET_JAW_SPEED 1.2
+#define BL_POCKET_JAW_FULL_SPEED 4.5
+#define BL_POCKET_JAW_MAX_GAIN 0.85
+typedef struct { double gain; double jawGain; } BLPocketSound;
+static inline BLPocketSound BLPocketSoundForSpeed(double speed) {
+    BLPocketSound s; s.gain = 0; s.jawGain = 0;
+    if (!(speed > 0) || !isfinite(speed)) return s;
+    double v = speed > 6.0 ? 6.0 : speed;
+    s.gain = 0.12 + 0.88 * pow(v / 6.0, 0.6);
+    if (s.gain > 1) s.gain = 1;
+    if (v > BL_POCKET_JAW_SPEED) {
+        double f = (v - BL_POCKET_JAW_SPEED) / (BL_POCKET_JAW_FULL_SPEED - BL_POCKET_JAW_SPEED);
+        s.jawGain = BL_POCKET_JAW_MAX_GAIN * (f > 1 ? 1 : f);
+    }
+    return s;
+}
+/// The rail voice turns impact into level as pow(min(1, impact / 3.2), 0.65): this is the impact that sounds `gain`.
+static inline double BLPocketJawImpact(double gain) {
+    if (!(gain > 0)) return 0;
+    return 3.2 * pow(gain > 1 ? 1 : gain, 1.0 / 0.65);
+}
+
 #endif
