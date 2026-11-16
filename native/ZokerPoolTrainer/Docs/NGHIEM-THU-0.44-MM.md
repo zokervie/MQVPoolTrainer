@@ -2,7 +2,7 @@
 
 ## Nhánh và SHA
 - Nhánh: `cho/native-0.44-mm` (đã push, không push `ci/*`, không merge). Gốc: `cho/native-0.40c` @ `9eb77f0`.
-- Commit: `7c68e7d` việc 1 · `4103d47` việc 4 · `ffd449d` việc 3 · `103ec3d` sửa chuỗi QA · (commit tài liệu này).
+- Commit: `7c68e7d` việc 1 · `4103d47` việc 4 · `ffd449d` việc 3 · `103ec3d` sửa chuỗi QA · `8b37ab3` Nearby Play · tài liệu.
 - Máy: MacBook, Xcode 26.3 (17C529), Simulator iPhone 17 Pro Max iOS 26.3. CI dùng Xcode 16.4 — kết quả local chưa thay được CI.
 - 18 file AppIcon do bước `assets` sinh ra: KHÔNG commit.
 
@@ -47,7 +47,16 @@ va thành lỗ (mẫu PoolRail0 CC0 có sẵn), đầy ở 4,5 m/s; áp cho cả
 ### Thêm
 - Lỗi chuỗi định dạng QA (`%d` với Swift Int) ghi lỗi ở MỖI khung trên iOS 26 khi `--visual-qa` → đổi `%lld`.
 
-## 5. accept_local.sh bản đầy đủ (@103ec3d)
+## 5. accept_local.sh bản đầy đủ — lần cuối @66be507 (gồm Nearby Play), 1.720 s
+Kết quả giống hệt lần @103ec3d: assets · portable · replay · LAN (gồm 51 kiểm tra Nearby) · simulator-build · screenshots (44 ảnh)
+đều PASS; ui-gesture-tests FAIL đúng 1 test có từ trước; IPA NOT RUN trong script. Lần @8b37ab3 FAIL ở screenshots là do chạy lại
+cùng thư mục (cổng chấm cả ảnh intro/tutorial của lần trước) — đã sửa `Tools/ci_screenshots.sh` (@66be507), không phải lỗi app.
+Ảnh: `native/ZokerPoolTrainer/build/screenshots` (worktree `MQV-044mm`). Báo cáo: `dist/ACCEPTANCE-66be507dcb26-20261116T173516Z.json`.
+
+Chú ý: ảnh intro "Golden Break" và tutorial chụp trên Simulator iOS 26.3 đều ĐEN hoàn toàn (cả @103ec3d) — ảnh chỉ để xem, không
+phải cổng; cần anh xem trên máy hoặc `build/screenshots/intro.mp4`.
+
+### Lần @103ec3d (trước Nearby Play)
 | Bước | Kết quả |
 |---|---|
 | assets | PASS |
@@ -70,8 +79,20 @@ chỉ do thời gian; đã hoàn lại thay đổi, không sửa test khi chưa 
 - Khung đầu vẫn dài ~60–70 ms thời gian thực (vật lý chỉ tiến 16,7 ms nên bi không nhảy; có thể thấy bi "khựng" rất ngắn lúc đánh).
 - Hệ số tiếng lọt lỗ là giả định. Highlight máy khách chưa chạy thật.
 
+## Nearby Play (bổ sung của anh, làm sau việc 1–5) — commit `8b37ab3`
+Phạm vi đúng lời anh: GIỮ MultipeerConnectivity, LANShotStart/lockstep, giao thức v2; chỉ thêm luồng giao diện và nối lại.
+- Menu → Chơi theo luật → Wi‑Fi gần nhau → **"Chơi gần · tạo / tìm phòng (Nearby)"**: Tạo phòng (chọn luật) · Tìm phòng (danh sách
+  máy gần, không cần gõ mã; vẫn có "Nhập mã 6 số") · hộp hỏi chủ phòng Nhận/Từ chối · Sẵn sàng · chỉ báo chất lượng (●●● + ms ± jitter)
+  · Nối lại · Rời phòng. Online giữ menu riêng.
+- Logic phòng `NearbyLobby` (Foundation): `Tests/NearbyLobbyTests.swift` **51 kiểm tra PASS** trong `Tools/run_lan_checks.sh`
+  (dò phòng, phòng khác phiên bản bị ẩn và đếm, mời trùng, người đã bị từ chối không hỏi lại, đủ người từ chối, nối lại 1/2/4/8 s
+  rồi 8 s, bỏ cuộc sau 45 s nhưng GIỮ trận, Nối lại tay, chất lượng từ RTT, thông báo lỗi Việt + Anh).
+- 2 Simulator: **dò phòng PASS** (máy khách thấy "Z‑Trainer 0E4B · 9 Ball · phòng 482913"), **hộp hỏi Nhận/Từ chối PASS** trên
+  máy chủ; nối phiên MC giữa 2 Simulator không lập được (giới hạn đã biết) → vào trận / nối lại / chất lượng thật: CHƯA XÁC MINH.
+- Giới hạn: "Sẵn sàng" chỉ cục bộ (không đổi giao thức nên máy kia không thấy). Không có số đo RTT/jitter/thời gian dò/nối thật —
+  cần 2 máy. Bluetooth/Wi‑Fi trực tiếp do Apple tự chọn trong MultipeerConnectivity, app không ép được.
+
 ## Việc chưa làm
-- Nearby Play (bổ sung của anh) — làm sau mục này, phạm vi: giao diện phòng + nối lại trên MultipeerConnectivity/LANShotStart hiện có.
 - Giảm tiếp 30 ms commit còn lại sau cú đánh (cần profile trên máy thật).
 
 ## Việc cần anh
