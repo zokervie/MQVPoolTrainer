@@ -57,7 +57,7 @@ va thành lỗ (mẫu PoolRail0 CC0 có sẵn), đầy ở 4,5 m/s; áp cho cả
 | simulator-build | PASS |
 | screenshots-and-runtime-probes | PASS (47 ảnh: `native/ZokerPoolTrainer/build/screenshots`) |
 | ui-gesture-tests | FAIL — 18/19 PASS; `testLiveShotKeepsAimViewAndManualZoomAfterBallsStop` |
-| unsigned-iphone-build | NOT RUN trong script (dừng ở bước trước); chạy riêng: xem dưới |
+| unsigned-iphone-build | NOT RUN trong script (dừng ở bước trước). Chạy riêng `Build-Unsigned-IPA.command` @103ec3d: BUILD SUCCEEDED, `dist/ZokerPoolTrainer-0.39-Build24.ipa` 82,7 MB, SHA-256 `0a9f78d8ccfb167d…`, CHƯA KÝ (không cài thẳng được) |
 
 Phân loại FAIL: **có từ trước, không do 0.44-MM** — cùng test, cùng giá trị (-1,83597 vs 1,887333) trên `9eb77f0` (trước mọi sửa
 đổi); CI 155 (Xcode 16.4) xanh. Cơ chế đã thấy: trên máy này cú QA 3 m/s dừng TRƯỚC khi XCUITest kịp chụm + kéo, nên cú kéo là kéo
