@@ -113,3 +113,18 @@ Tình hình: nhánh `ci/native-0.43` — CI mới nhất (14/11, commit `c472534
    - Công sức: nhỏ (tham số camera + màn thử; ảnh chuẩn G1 giữ ở giá trị mặc định 0 để CI không đổi). Bản: 0.41 (gói cùng tối ưu giao diện). Gói: miễn phí (cảm giác cốt lõi), có thể lưu nhiều "hồ sơ tư thế" trong Z-Pro.
 
 Còn chờ anh: quay 5 cú 240 fps ở CLB · thu âm theo kịch bản 15 phút.
+
+### Đề xuất ngày 16/11/2026
+Tình hình: nhánh `ci/native-0.44` — CI 151–154 đỏ (lỗi biên dịch đã sửa ở `ba96dc3`/`f366666`, sau đó test UI camera khi bi chạy); CI 155 (commit `5150dea`: ảnh chụp 55 phút, cú QA 3 m/s) đang chạy lúc viết. 0.44 gồm 19 mục (bao cơ + 10 mẫu cơ, camera action, xuất MP4, highlight trận…), chưa nghiệm thu. Chủ đề tìm hiểu: ba app bida mới ra giữa 2026 — "Pool PerformStars" (quay video bàn thật, tự nhận cú vào/trượt có thể sửa nhãn, mỗi cú có tốc độ, khoảng cách, góc cắt, **độ khó**; xuất bảng cú XLS; HLV từ xa) ([mwm.ai](https://mwm.ai/apps/pool-performstars/6769428954)), "Dr. Dave Billiards" (thư viện video bài giảng có chương, **đánh dấu mốc thời gian kèm ghi chú**, bán lẻ từng tập hoặc thuê bao) ([mwm.ai](https://mwm.ai/apps/dr-dave-billiards/6758872346)), "Pool Drill Tracker" (12 bài trên bàn thật, bấm Vào/Trượt, chuỗi ngày, dữ liệu chỉ trên máy, miễn phí) ([mwm.ai](https://mwm.ai/apps/pool-drill-tracker/6772395519)).
+
+1. 🟡 **"Chỉ số độ khó cú" (Z-Difficulty) — chấm tỉ lệ vào theo độ khó**
+   - Vì sao: "vào 70 %" vô nghĩa nếu toàn cú thẳng gần lỗ; PerformStars đã gắn độ khó cho từng cú. Mình tính được chính xác hơn vì có lõi vật lý: độ khó = hàm của góc cắt, khoảng cách bi chủ→bi mục tiêu, bi mục tiêu→lỗ, độ rộng hiệu dụng của lỗ theo góc vào và tốc độ (biên sai số góc cho phép, đơn vị độ). Dùng để: điểm bài có trọng số, chọn cú cho máy đối thủ, lên/xuống cấp giáo án công bằng, và thẻ "cú khó nhất tuần".
+   - Công sức: vừa (hàm biên sai số góc trong C++ + test so với mô phỏng quét góc; hiển thị 1–5 sao trên thẻ cú). Bản: sau 0.44 (0.45, trước "Giáo án 4 tuần" vì giáo án dùng lại). Gói: hiển thị sao miễn phí; biểu đồ tỉ lệ vào theo độ khó trong Z-Stats & Exam.
+2. 🟡 **"Mốc + ghi chú trên replay/highlight"**
+   - Vì sao: 0.44 đã có replay, highlight trận và xuất MP4 nhưng người chơi chưa "ghi bài" được. Dr. Dave cho thấy đánh dấu mốc kèm ghi chú là cách học lại hiệu quả. Chạm giữ trên thanh thời gian replay → mốc + ghi chú ngắn ("đánh dày, thiếu xoáy dưới"), tự gắn thông số cú (lực, điểm chạm, độ khó). Màn "Sổ cú" lọc theo ghi chú; HLV ("Lớp của tôi") sau này đọc được. Có thể in mốc + chữ lên MP4 khi xuất.
+   - Công sức: nhỏ (lưu cục bộ JSON theo ID cú; UI thanh thời gian; XCTest lưu/đọc). Bản: 0.45. Gói: ghi chú miễn phí; in ghi chú lên MP4 + đồng bộ iCloud trong Z-Pro.
+3. 🟡 **"Bài song sinh" — cùng một bài trên app và trên bàn thật, đo độ chuyển giao**
+   - Vì sao: câu hỏi lớn nhất của người mua app luyện là "tập trong app có lên tay ngoài bàn không"; Pool Drill Tracker chỉ đếm tay trên bàn thật, các app mô phỏng chỉ đo trong app — chưa ai nối hai bên. Mỗi bài trong app có bản "bàn thật" (sơ đồ đặt bi theo kim cương, in/xem trên điện thoại), người chơi bấm Vào/Trượt nhanh (≤ 1 chạm/cú); app vẽ hai đường tỉ lệ vào cạnh nhau và "khoảng cách chuyển giao". Dữ liệu chỉ trên máy. Là bằng chứng bán hàng tốt nhất cho Zoker.
+   - Công sức: nhỏ–vừa (dữ liệu bài có trường `banThat`, màn đếm 1 chạm, biểu đồ Swift Charts; dùng lại "Sổ trận thật"). Bản: 0.45. Gói: 3 bài song sinh miễn phí; trọn bộ trong Z-Drill, biểu đồ dài hạn trong Z-Stats & Exam.
+
+Còn chờ anh: quay 5 cú 240 fps ở CLB · thu âm theo kịch bản 15 phút.
