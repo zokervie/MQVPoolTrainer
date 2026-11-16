@@ -24,8 +24,16 @@ extension TrainingController {
 
     /// Called by finishMatchShot (host / same device / vs computer) before the referee result is applied.
     func scoreHighlight(wonRack: Bool, shooter: Int, isBreak: Bool) {
-        guard !frames.isEmpty, let shot = lastShot else { return }
-        let events = lastShotEvents
+        guard !frames.isEmpty, lastShot != nil else { return }
+        scoreHighlight(ReplayReturnState(frames: frames, times: frameTimes, events: lastShotEvents, shot: lastShot, paths: paths,
+                                         coach: false, preparation: lastPreparation),
+                       wonRack: wonRack, shooter: shooter, isBreak: isBreak)
+    }
+    /// 0.44-mm: same scoring for a recording that is not the live replay buffer (the Wi‑Fi guest's lockstep run).
+    func scoreHighlight(_ state: ReplayReturnState, wonRack: Bool, shooter: Int, isBreak: Bool) {
+        let frames = state.frames
+        guard !frames.isEmpty, let shot = state.shot else { return }
+        let events = state.events
         let pots = events.filter { ($0["kind"]?.intValue ?? -1) == 2 }
         if pots.contains(where: { ($0["a"]?.intValue ?? -1) == 0 }) { return }   // scratch
         let potted = pots.compactMap { $0["a"]?.intValue }.filter { $0 > 0 }
@@ -51,8 +59,6 @@ extension TrainingController {
         guard score >= 3 else { return }
         let who = matchPlay.names[min(1, max(0, shooter))]
         let label = "\(who) · " + (tags.isEmpty ? "vào \(potted.count) bi" : Array(Set(tags)).sorted().joined(separator: ", "))
-        let state = ReplayReturnState(frames: frames, times: frameTimes, events: lastShotEvents, shot: lastShot, paths: paths,
-                                      coach: false, preparation: lastPreparation)
         Self.highlights.append(MatchHighlight(score: score, label: label, state: state))
         Self.highlights.sort { $0.score > $1.score }
         if Self.highlights.count > 5 { Self.highlights.removeLast(Self.highlights.count - 5) }
@@ -114,5 +120,43 @@ extension TrainingController {
             export.info = (shot.speed, shot.side, shot.top, shot.elevation, cue)
         }
         return true
+    }
+}
+
+/// 0.44-mm (owner: "máy khách Wi‑Fi không lưu khung hình"): the guest already runs the host's exact strike on its own
+/// fixed-step solver (lockstep). Sample that run with the host's rule (240 Hz fast · 60 Hz medium · 30 Hz slow) so the
+/// guest gets the same replay frames — no extra network traffic. Discarded if the solver diverged from the host.
+struct GuestShotRecord {
+    let start: LANShotStart
+    let shooter: Int, isBreak: Bool
+    var frames: [[BallState]], times: [Double]
+    var clock = 0.0
+    init(start: LANShotStart, shooter: Int, isBreak: Bool, first: [BallState]) {
+        self.start = start; self.shooter = shooter; self.isBreak = isBreak
+        frames = [first]; times = [0]
+    }
+    mutating func sample(_ world: BLWorld, step: Double) {
+        clock += step
+        let fastest = world.maximumSpeed
+        let interval = fastest > 0.8 ? 1.0 / 240.0 : (fastest > 0.25 ? 1.0 / 60.0 : 1.0 / 30.0)
+        guard clock >= interval - 1e-9, frames.count < 40_000 else { return }
+        clock = 0
+        frames.append(world.ballStates); times.append(world.elapsed)
+    }
+}
+
+extension TrainingController {
+    func finishGuestRecord(_ world: BLWorld) {
+        guard var record = matchPlay.guestRecord, record.start.shotID == matchPlay.predictorShot else { return }
+        matchPlay.guestRecord = nil
+        if record.times.last != world.elapsed { record.frames.append(world.ballStates); record.times.append(world.elapsed) }
+        Self.qaGuestRecordFrames = record.frames.count; Self.qaGuestRecordsFinished += 1   // 0.44-mm QA evidence
+        let s = record.start
+        let shot = SavedShot(name: "", date: Date(), balls: record.frames[0], aimAngle: s.angle, speed: s.speed, side: s.side, top: s.top,
+                             elevation: s.settings["cueElevationDegrees"] ?? 0, cueType: Int(s.settings["cueType"] ?? 0),
+                             strikeAngle: s.angle, shotKind: nil, physicsSettings: s.settings)
+        let state = ReplayReturnState(frames: record.frames, times: record.times, events: world.events, shot: shot, paths: [:],
+                                      coach: false, preparation: [])
+        scoreHighlight(state, wonRack: matchInt("winner", fallback: -1) == record.shooter, shooter: record.shooter, isBreak: record.isBreak)
     }
 }

@@ -40,6 +40,8 @@ final class MatchPlayState {
     /// 0.44 lockstep: the guest's own solver for the current shot (nil = present host snapshots as before).
     var predictor: BLWorld?, predictorShot = -1, predictorEvents = 0, predictorDiverged = false, predictorDelay = 0.0
     var predictorChecks: [(elapsed: Double, balls: [LANBall])] = [], predictorVerified = 0, lockstepShots = 0, lockstepFallbacks = 0
+    /// 0.44-mm (highlight on the Wi‑Fi guest): the guest's own lockstep run, sampled exactly like the host's live shot.
+    var guestRecord: GuestShotRecord?
     var snapshots: [LANSnapshot] = []
     var guestClock = 0.0
     var playout = PlayoutClock()
@@ -1100,6 +1102,7 @@ extension TrainingController {
         guard matchPlay.active, matchPlay.session.role == .guest,
               snapshot.isValid, let state = snapshot.rulesDictionary else { return }
         let isFirst = matchPlay.snapshots.isEmpty
+        if matchPlay.lastGuestShot < 0 { resetHighlights() }   // 0.44-mm: a fresh join starts an empty reel
         let newShot = snapshot.shotID != matchPlay.lastGuestShot
         let newTurn = snapshot.currentPlayer != matchPlay.lastGuestTurn
         if newShot || (resyncCameraNeeded(snapshot) && shotCameraAnchor == nil) {
@@ -1145,7 +1148,9 @@ extension TrainingController {
         // 0.42 item 3: the guest shows the same broadcast card when the host counts a rack.
         if !isFirst, matchPlay.frames != framesBefore, matchPlay.frames.reduce(0, +) > framesBefore.reduce(0, +) {
             let won = matchPlay.frames[0] > framesBefore[0] ? 0 : 1
-            showRackBroadcast(winner: matchPlay.matchWinner >= 0 ? matchPlay.matchWinner : won, isFinal: matchPlay.matchWinner >= 0 && winnerBefore < 0)
+            let isFinal = matchPlay.matchWinner >= 0 && winnerBefore < 0
+            showRackBroadcast(winner: matchPlay.matchWinner >= 0 ? matchPlay.matchWinner : won, isFinal: isFinal)
+            if isFinal { DispatchQueue.main.asyncAfter(deadline: .now() + 4.2) { [weak self] in self?.offerHighlights() } }   // 0.44-mm: guest too
         }
         if newShot {
             matchPlay.snapshots = []
@@ -1762,6 +1767,8 @@ extension TrainingController {
         matchPlay.predictorEvents = 0; matchPlay.predictorDiverged = false
         matchPlay.predictorChecks = []; matchPlay.predictorVerified = 0; matchPlay.lockstepShots += 1
         matchPlay.predictorDelay = 0
+        matchPlay.guestRecord = GuestShotRecord(start: start, shooter: matchInt("currentPlayer"), isBreak: matchBool("breakShot"),
+                                                first: world.ballStates)
         // The opponent's cue closes onto the ball first (same 0.1 s lead as the snapshot path), then the balls move.
         if let shown = matchPlay.remoteShown ?? matchPlay.remoteAim, shown.visible, let origin = start.balls.first(where: { $0.id == 0 }) {
             beginCueStrikeAnim(origin: matchRenderBall(origin), angle: shown.angle, side: shown.side, top: shown.top,
@@ -1779,6 +1786,7 @@ extension TrainingController {
         if matchPlay.predictorDiverged { matchPlay.predictor = nil; return false }
         // The host confirmed the end of this shot: hand the (identical) rest state back to the snapshot path.
         if let latest = matchPlay.snapshots.last, latest.shotID == matchPlay.predictorShot, !latest.isMoving, !world.moving {
+            finishGuestRecord(world)   // 0.44-mm: verified end of shot → score it for the guest's highlight reel
             matchPlay.predictor = nil; return false
         }
         if let latest = matchPlay.snapshots.last, latest.shotID > matchPlay.predictorShot { matchPlay.predictor = nil; return false }
@@ -1790,6 +1798,7 @@ extension TrainingController {
         while remaining > 1e-12 && world.moving {
             let h = min(1.0 / 960.0, remaining)
             world.advance(h); remaining -= h
+            matchPlay.guestRecord?.sample(world, step: h)
             verifyLockstep(world)
             if matchPlay.predictorDiverged { break }
         }
@@ -1800,6 +1809,7 @@ extension TrainingController {
             for snapshot in matchPlay.snapshots { for event in snapshot.events where event.time <= now { matchPlay.playedEvents.insert(event.index) } }
             matchPlay.audioShotID = matchPlay.predictorShot
             matchPlay.lockstepFallbacks += 1
+            matchPlay.guestRecord = nil   // incomplete recording: never offer a highlight drawn from a diverged solver
             matchPlay.predictor = nil
             return false
         }
