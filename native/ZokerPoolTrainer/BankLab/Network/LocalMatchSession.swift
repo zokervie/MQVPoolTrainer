@@ -29,6 +29,12 @@ final class LocalMatchSession: NSObject {
     var onMusic: ((Data) -> Void)?
 
     private(set) var role: Role = .none
+    /// 0.44-mm Nearby Play: room/reconnect/quality state for the lobby screen (no bytes, no match state; see NearbyLobby).
+    private(set) var lobby = NearbyLobby(protocolVersion: LANEnvelope.protocolVersion)
+    var onLobbyChanged: (() -> Void)?
+    /// Host: ask the player before a nearby guest takes the seat (nil = accept a matching invitation as before).
+    var askInvitation: ((String, @escaping (Bool) -> Void) -> Void)?
+    var localName: String { peerID.displayName }
     private(set) var transport: Transport = .nearby
     private(set) var roomCode = ""
     private(set) var game = ""
@@ -91,6 +97,9 @@ final class LocalMatchSession: NSObject {
     private var lastPublished = -Double.infinity
     private var retryAt = 0.0
     private var inviteStarted = 0.0
+    /// 0.44-mm: room scan while not in a room (separate browser; joining still uses the existing code path).
+    private var scanner: MCNearbyServiceBrowser?
+    private var scannedCodes: [MCPeerID: String] = [:]
     private var lastError = ""
     private var lastErrorAt = -Double.infinity
 
@@ -141,6 +150,7 @@ final class LocalMatchSession: NSObject {
            qa.utf8.count == 6, qa.utf8.allSatisfy({ (48...57).contains($0) }) { roomCode = qa }
         relayToken = internet ? OnlineRelayConfig.token(for: roomCode, role: "host") : ""
         matchID = UUID().uuidString
+        if !internet { lobby.host(mode: game); onLobbyChanged?() }
         restartSession()
         startHeartbeat()
         describe(internet ? "Mã phòng online \(roomCode) · đang chờ bạn" : "Mã phòng \(roomCode) · đang chờ bạn")
@@ -165,6 +175,7 @@ final class LocalMatchSession: NSObject {
         transport = internet ? .internet : .nearby
         roomCode = trimmed
         relayToken = internet ? OnlineRelayConfig.token(for: roomCode, role: "guest") : ""
+        if !internet { lobby.joinDirect(code: trimmed); onLobbyChanged?() }
         restartSession()
         startHeartbeat()
         describe(internet ? "Đang vào phòng online \(roomCode)" : "Đang tìm phòng \(roomCode) trên mạng gần đây")
@@ -210,13 +221,27 @@ final class LocalMatchSession: NSObject {
         backgrounded = false; protocolBlocked = false
         lastPublished = -Double.infinity
         endBackgroundGrace()
+        stopScan(); lobby.leave(); onLobbyChanged?()
         describe("Chưa vào phòng")
+    }
+
+    /// 0.44-mm: list nearby rooms (code, host, game, version) without typing a code. Only while not in a room.
+    func startScan() {
+        requireMain()
+        guard role == .none else { return }
+        stopScan(); lobby.browse(); onLobbyChanged?()
+        let value = MCNearbyServiceBrowser(peer: peerID, serviceType: Self.serviceType)
+        value.delegate = self; scanner = value; value.startBrowsingForPeers()
+    }
+    func stopScan() {
+        scanner?.delegate = nil; scanner?.stopBrowsingForPeers(); scanner = nil; scannedCodes.removeAll()
     }
 
     /// Explicit retry after local-network permission/settings change. Same host match is retained.
     func reconnect() {
         requireMain()
         guard role != .none else { return }
+        lobby.manualReconnect(now: ProcessInfo.processInfo.systemUptime); onLobbyChanged?()
         protocolBlocked = false
         backgrounded = false
         restartSession()
@@ -394,6 +419,11 @@ final class LocalMatchSession: NSObject {
             }
             return
         }
+        switch lobby.tick(now: now) {
+        case .retry: startDiscovery(); onLobbyChanged?()
+        case .giveUp: describe(NearbyFailure.reconnectTimedOut.vietnamese); onLobbyChanged?()
+        case .none: break
+        }
         if session?.connectedPeers.count == 1 {
             if now - lastReceived > 10 {
                 describe("Mất tín hiệu · trận tạm dừng, đang nối lại")
@@ -506,6 +536,7 @@ final class LocalMatchSession: NSObject {
             }
             let wasReady = remoteReady
             remoteReady = true
+            if !wasReady && transport == .nearby { lobby.linkUp(now: ProcessInfo.processInfo.systemUptime); onLobbyChanged?() }
             if role == .host {
                 describe("Đã nối \(peer?.displayName ?? peerName) · Chủ phòng")
                 if let snapshot = latestSnapshot { send(kind: .snapshot, snapshot: snapshot) }
@@ -559,7 +590,8 @@ final class LocalMatchSession: NSObject {
             guard role == .guest, remoteReady, let start = packet.shotStart, start.isValid else { return }
             onShotStart?(start)
         case .ping: send(kind: .pong)
-        case .pong: break
+        case .pong:
+            lobby.roundTrip(ProcessInfo.processInfo.systemUptime - lastPing); onLobbyChanged?()   // 0.44-mm quality
         case .leave:
             remoteReady = false
             describe("Bạn đã rời phòng · trận tạm dừng")
@@ -796,6 +828,7 @@ extension LocalMatchSession: MCSessionDelegate {
             case .connecting:
                 self.describe("Đang nối \(peerID.displayName)")
             case .notConnected:
+                self.lobby.linkDown(now: ProcessInfo.processInfo.systemUptime); self.onLobbyChanged?()   // 0.44-mm
                 self.pendingPeer = nil; self.remoteReady = false; self.snapshotReady = false
                 self.awaitingCommandID = nil; self.awaitingRevision = nil
                 if !self.backgrounded && !self.protocolBlocked {
@@ -845,7 +878,26 @@ extension LocalMatchSession: MCNearbyServiceAdvertiserDelegate {
             }
             self.pendingPeer = peerID
             self.inviteStarted = ProcessInfo.processInfo.systemUptime
-            invitationHandler(true, session)
+            // 0.44-mm: Nearby Play asks the host first (duplicates / declined peers never re-ask).
+            guard let ask = self.askInvitation else { invitationHandler(true, session); return }
+            switch self.lobby.invitation(from: peerID.displayName) {
+            case .ask:
+                let token = self.generation
+                self.onLobbyChanged?()
+                ask(peerID.displayName) { [weak self] accept in
+                    guard let self = self else { invitationHandler(false, nil); return }
+                    self.lobby.decide(accept: accept); self.onLobbyChanged?()
+                    guard accept, self.generation == token, self.session === session, self.pendingPeer == peerID else {
+                        if self.pendingPeer == peerID { self.pendingPeer = nil }
+                        invitationHandler(false, nil); return
+                    }
+                    self.inviteStarted = ProcessInfo.processInfo.systemUptime
+                    invitationHandler(true, session)
+                }
+            case .ignoreDuplicate, .rejectBusy:
+                if self.pendingPeer == peerID && self.lobby.pendingInvitation != peerID.displayName { self.pendingPeer = nil }
+                invitationHandler(false, nil)
+            }
         }
     }
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
@@ -860,6 +912,15 @@ extension LocalMatchSession: MCNearbyServiceAdvertiserDelegate {
 extension LocalMatchSession: MCNearbyServiceBrowserDelegate {
     func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
         DispatchQueue.main.async { [weak self] in
+            // 0.44-mm room scan: list only; joining goes through joinRoom(code:) exactly as a typed code.
+            if let self = self, browser === self.scanner, self.role == .none {
+                guard let info = info, let code = info["code"], code.utf8.count == 6, code.utf8.allSatisfy({ (48...57).contains($0) }),
+                      let match = info["match"], UUID(uuidString: match) != nil else { return }
+                self.scannedCodes[peerID] = code
+                self.lobby.roomFound(NearbyRoomAd(code: code, host: String(peerID.displayName.prefix(32)), game: info["game"] ?? "",
+                                                  version: Int(info["version"] ?? "") ?? 0, matchID: match))
+                self.onLobbyChanged?(); return
+            }
             guard let self = self, browser === self.browser, self.role == .guest,
                   !self.backgrounded, !self.protocolBlocked, !self.isConnected, self.pendingPeer == nil,
                   let session = self.session, let info = info, info["code"] == self.roomCode,
@@ -880,12 +941,16 @@ extension LocalMatchSession: MCNearbyServiceBrowserDelegate {
     }
     func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
         DispatchQueue.main.async { [weak self] in
+            if let self = self, browser === self.scanner, let code = self.scannedCodes.removeValue(forKey: peerID) {
+                self.lobby.roomLost(code: code); self.onLobbyChanged?(); return
+            }
             guard let self = self, browser === self.browser, self.pendingPeer == peerID, !self.isConnected else { return }
             self.pendingPeer = nil
         }
     }
     func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {
         DispatchQueue.main.async { [weak self] in
+            if let self = self, browser === self.scanner { self.lobby.fail(.permissionDenied); self.onLobbyChanged?(); return }
             guard let self = self, browser === self.browser else { return }
             self.describe("Chưa tìm được phòng trên mạng cục bộ")
             self.report("Kiểm tra quyền Mạng cục bộ và Wi-Fi, rồi chọn Nối lại.")

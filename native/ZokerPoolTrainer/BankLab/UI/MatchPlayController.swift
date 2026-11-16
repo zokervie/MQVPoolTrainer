@@ -42,6 +42,8 @@ final class MatchPlayState {
     var predictorChecks: [(elapsed: Double, balls: [LANBall])] = [], predictorVerified = 0, lockstepShots = 0, lockstepFallbacks = 0
     /// 0.44-mm (highlight on the Wi‑Fi guest): the guest's own lockstep run, sampled exactly like the host's live shot.
     var guestRecord: GuestShotRecord?
+    /// 0.44-mm Nearby Play: this player's "Sẵn sàng" in the lobby (local only; the protocol is unchanged).
+    var nearbyReady = false
     var snapshots: [LANSnapshot] = []
     var guestClock = 0.0
     var playout = PlayoutClock()
@@ -210,6 +212,7 @@ extension TrainingController {
         }
         // 0.27: Game Center — friends, invitations, auto-match; no room code, no own server.
         if all || scope == 2 { sheet.addAction(UIAlertAction(title: "Online · Game Center (bạn bè / ghép trận)", style: .default) { [weak self] _ in self?.chooseGameCenterMatch() }) }
+        if all || scope == 1 { sheet.addAction(UIAlertAction(title: "Chơi gần · tạo / tìm phòng (Nearby)", style: .default) { [weak self] _ in self?.openNearbyLobby() }) }   // 0.44-mm
         if all || scope == 1 { sheet.addAction(UIAlertAction(title: "Vào phòng Wi-Fi bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom() }) }
         if all || scope == 2 { sheet.addAction(UIAlertAction(title: "Vào phòng Online bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom(online: true) })
             sheet.addAction(UIAlertAction(title: "Máy chủ online…", style: .default) { [weak self] _ in self?.configureOnlineRelay() }) }
