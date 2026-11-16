@@ -2,6 +2,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/screenshots
+# 0.44-mm: start from an empty folder like a CI runner — the visual gate globs every PNG, and a local re-run otherwise
+# re-judges the previous run's review-only intro/tutorial stills (taken AFTER the gate).
+rm -f build/screenshots/*.png
 xcrun simctl list devices available -j > build/screenshots/devices.json
 device_id=$(python3 - <<'PY'
 import json
