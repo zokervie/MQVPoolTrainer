@@ -26,6 +26,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// 0.44.1 M4: the new tutorial (Tutorial044.swift).
     var firstShotCoach:FirstShotCoach?
     var tutorialShots=0,freshTutorialDone=false,qaTutorialStrokeFired=false
+    var toastObservers:[NSKeyValueObservation]=[]   // 0.45 M3: ZToast pill follows the status label
     /// 0.44.1 M5: the intro films on the play table — while it runs, the play loop leaves the balls and camera alone.
     var introRunning=false,introFinishCount=0,introStarted=false
     var intro:IntroDirector0441?

@@ -404,6 +404,19 @@ final class InteractionTests: XCTestCase {
         let scene = app.otherElements["PoolScene"]
         if scene.exists { XCTAssertTrue((scene.value as? String ?? "").contains(";introDone=1;"), "finish ran exactly once") }
     }
+    /// 0.45 M3: Lobby language follows the device on a fresh install — Vietnamese device: Vietnamese Lobby, English
+    /// device: English Lobby (no source-language leftovers on the main card).
+    func testLobbyLanguageFollowsDevice() {
+        for (lang, locale, free) in [("(vi)", "vi_VN", "Tập tự do"), ("(en)", "en_US", "Free practice")] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--keep-lobby-qa", "--l10n-real", "--fresh-language", "-AppleLanguages", lang, "-AppleLocale", locale]
+            app.launch()
+            let button = app.buttons["LobbyFree"]
+            XCTAssertTrue(button.waitForExistence(timeout: 60))
+            XCTAssertTrue(button.label.contains(free), "Lobby in \(lang): \(button.label)")
+            app.terminate()
+        }
+    }
     func testComputerOpponentTakesItsTurns() {
         let (_,scene)=launch(["--computer-qa"])
         wait(scene,timeout:40 * slow){self.field(scene,"cpuShots")>=1}

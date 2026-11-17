@@ -524,9 +524,18 @@ extension TrainingController {
     }
     func buildStatusToast(){
         statusToast.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(statusToast)
-        statusToast.textColor = .white;statusToast.backgroundColor=UIColor(white:0.035,alpha:0.9)
-        statusToast.font = .systemFont(ofSize:13,weight:.medium);statusToast.textAlignment = .center;statusToast.numberOfLines=2
-        statusToast.layer.cornerRadius=10;statusToast.clipsToBounds=true;statusToast.isHidden=true
+        // 0.45 M3 (ZDesign): the black toast becomes a ZPill behind the label (a sibling — a subview would cover the
+        // text), following the label's frame, visibility and fade.
+        statusToast.textColor = ZDesign.Color.textPrimary;statusToast.backgroundColor = .clear
+        statusToast.font = ZDesign.font(.footnote,weight:.semibold);statusToast.textAlignment = .center;statusToast.numberOfLines=2
+        statusToast.isHidden=true
+        let pill=UIView();pill.isUserInteractionEnabled=false;pill.translatesAutoresizingMaskIntoConstraints=false;pill.isHidden=true
+        pill.accessibilityIdentifier="ZToastPill";ZPill.apply(to:pill,cornerRadius:ZDesign.Radius.card)
+        view.insertSubview(pill,belowSubview:statusToast)
+        NSLayoutConstraint.activate([pill.leadingAnchor.constraint(equalTo:statusToast.leadingAnchor,constant:-12),pill.trailingAnchor.constraint(equalTo:statusToast.trailingAnchor,constant:12),
+                                     pill.topAnchor.constraint(equalTo:statusToast.topAnchor),pill.bottomAnchor.constraint(equalTo:statusToast.bottomAnchor)])
+        toastObservers=[statusToast.observe(\.isHidden,options:[.new]){[weak pill] l,_ in pill?.isHidden=l.isHidden;if let p=pill,let s=p.superview{s.insertSubview(p,belowSubview:l)}},
+                        statusToast.observe(\.alpha,options:[.new]){[weak pill] l,_ in pill?.alpha=l.alpha}]
         NSLayoutConstraint.activate([statusToast.centerXAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerXAnchor),statusToast.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:56),statusToast.widthAnchor.constraint(lessThanOrEqualToConstant:390),statusToast.widthAnchor.constraint(lessThanOrEqualTo:view.safeAreaLayoutGuide.widthAnchor,multiplier:0.7),statusToast.heightAnchor.constraint(greaterThanOrEqualToConstant:44)])
     }
     /// 0.37 "Dự đoán trước": after the shot, draw the line the first object ball needed (contact → pocket centre it
