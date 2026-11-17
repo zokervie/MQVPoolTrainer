@@ -319,7 +319,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         GameCenterHub.shared.presenter=self
         GameCenterHub.shared.onStatus={[weak self] text in self?.notifyStatus(text)}
         GameCenterHub.shared.onMatch={[weak self] match,rule in self?.startGameCenterMatch(match,rule:rule)}
-        if !ProcessInfo.processInfo.arguments.contains(where:{$0.hasPrefix("--")}){GameCenterHub.shared.authenticate()}
+        // 0.44.1 review (high): Game Center's sign-in sheet used to pop up during the intro, then openLobby() bailed out
+        // on presentedViewController and the first launch had neither Lobby nor tutorial. It now waits for the table.
         let aimZoom=UserDefaults.standard.double(forKey:"aimCameraZoom013")
         table.zoom=Float(aimZoom>=0.45 && aimZoom<=2.6 ? aimZoom:1)
         let savedPitch=Float(UserDefaults.standard.double(forKey:"aimCameraPitch014"))
@@ -580,8 +581,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     /// 0.27 account management: Game Center profile, friends, sign-in. No password is stored by the app.
     /// 0.37 Sảnh chính: Luyện tập (green) · Thi đấu (orange) · Hồ sơ (blue). Shown at launch and from Menu → Về sảnh.
-    func openLobby(){
-        guard presentedViewController==nil else{return}
+    @discardableResult func openLobby()->Bool{
+        guard presentedViewController==nil else{return false}
         let lobby=LobbyController()
         typealias A=LobbyController.Action
         lobby.cards=[
@@ -606,9 +607,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                       A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()}),
                       A(title:"Phòng thử vật lý (nâng cao)",icon:"flask",id:"LobbyLab",run:{[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})]
         lobby.modalPresentationStyle = .fullScreen;lobby.modalTransitionStyle = .crossDissolve
-        present(lobby,animated:true)
+        present(lobby,animated:true);return true
     }
-    var lobbyShown=false
+    var lobbyShown=false,gameCenterAsked=false
     override func viewDidAppear(_ animated:Bool){
         super.viewDidAppear(animated)
         if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders()}
@@ -626,7 +627,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // QA/CI launches go straight to the table so probes and gestures are unchanged.
         // 0.44.1: --keep-lobby-qa runs the real first-launch path (Lobby → Tập tự do → tutorial) under QA.
         let qa=(ProcessInfo.processInfo.arguments.contains{$0.hasPrefix("--") && $0.hasSuffix("qa")} || ProcessInfo.processInfo.arguments.contains("--visual-qa")) && !ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") && !ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa")
-        if !lobbyShown && !qa {lobbyShown=true;openLobby()}
+        if !lobbyShown && !qa {lobbyShown=openLobby()}   // only "shown" if it really was presented
+        // Game Center sign-in only once the player is at the table (after intro and Lobby).
+        if lobbyShown && presentedViewController==nil && !gameCenterAsked && !ProcessInfo.processInfo.arguments.contains(where:{$0.hasPrefix("--")}) {
+            gameCenterAsked=true;DispatchQueue.main.asyncAfter(deadline:.now()+2.5){GameCenterHub.shared.authenticate()}
+        }
         // 0.44.1 M4: the tutorial starts when the player first reaches the table AFTER the Lobby has closed (this
         // runs again when the full-screen Lobby is dismissed). 0.44 started it from a timer while the Lobby covered
         // the table, so startTutorial() bailed out on view.window and the first launch never saw it.

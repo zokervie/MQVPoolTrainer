@@ -98,7 +98,7 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
     private func join(_ code: String) {
         guard let owner = owner, session?.role == LocalMatchSession.Role.none else { return }
         owner.prepareGuestMatch()
-        _ = session?.joinRoom(code: code)
+        _ = session?.joinRoom(code: code, fromScan: true)
         owner.syncMatchControls(); owner.updateControls()
         render()
     }
@@ -194,5 +194,11 @@ extension TrainingController {
         alert.addAction(UIAlertAction(title: "Nhận · Accept", style: .default) { _ in reply(true, true) })
         alert.view.accessibilityIdentifier = "NearbyInvitation"
         top.present(alert, animated: true)
+        // 0.44.1 review: the session gives up after 15 s; never leave a dead question on screen (it would also make
+        // the next guest's question impossible to show).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 14) { [weak alert] in
+            guard let alert = alert, alert.presentingViewController != nil else { return }
+            alert.dismiss(animated: true) { reply(false, false) }
+        }
     }
 }

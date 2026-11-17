@@ -17,10 +17,11 @@ enum L10n {
     static let qa = ProcessInfo.processInfo.arguments.contains("--visual-qa") && !ProcessInfo.processInfo.arguments.contains("--l10n-real")
     /// 0.44.1 (owner): no saved choice → the device language if supported, else Vietnamese (was: English).
     static var code: String {
-        qa ? "vi" : (UserDefaults.standard.string(forKey: key)
-            ?? L10nDefault.code(preferred: Locale.preferredLanguages, supported: languages.map { $0.code }))
+        qa ? "vi" : (UserDefaults.standard.string(forKey: key) ?? deviceDefault)
     }
     private static var cache: [String: String] = [:]
+    /// Computed once per launch (review: it ran on every translated string). A language change restarts the app anyway.
+    static let deviceDefault = L10nDefault.code(preferred: Locale.preferredLanguages, supported: languages.map { $0.code })
     private static var loaded: [String: [String: String]] = [:]
     /// Order of each row: en, fil, es, zh, ja, hi.
     static let table: [String: [String]] = [

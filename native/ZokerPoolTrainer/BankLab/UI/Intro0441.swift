@@ -204,6 +204,7 @@ final class IntroDirector0441 {
         camera.camera?.wantsDepthOfField = false; camera.camera?.motionBlurIntensity = 0; camera.camera?.bloomIntensity = 0
         tc.table.scene.rootNode.addChildNode(camera); tc.scn.pointOfView = camera
         tc.scn.rendersContinuously = true
+        tc.scn.isUserInteractionEnabled = false   // touches during the fade never reach aim/camera gestures
         fx = ShotFX(scene: tc.table.scene, hostView: overlay)
         // The 3D must show a frame within 0.5 s, otherwise the 2D logo plays alone (never a black screen).
         let frames0 = tc.table.pacer.renderedFrames
@@ -347,7 +348,7 @@ final class IntroDirector0441 {
     private func teardown3D() {
         guard let tc = tc else { return }
         fx?.removeAll(); camera.removeFromParentNode()
-        tc.scn.pointOfView = tc.table.camera; tc.scn.rendersContinuously = false
+        tc.scn.pointOfView = tc.table.camera; tc.scn.rendersContinuously = false; tc.scn.isUserInteractionEnabled = true
         tc.table.showCue(nil, angle: 0, visible: false, pull: 0)
         world = nil; tc.introRunning = false
     }

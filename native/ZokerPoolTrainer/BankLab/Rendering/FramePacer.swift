@@ -123,11 +123,12 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
 
     /// Shared with native tests using real SCNNodes (no mock interpolation).
     /// 0.44.1 M5: frames the SceneKit renderer actually asked for (the intro falls back to its 2D logo if none in 0.5 s).
-    private(set) var renderedFrames = 0
+    private var renderedCount = 0
+    var renderedFrames: Int { lock.lock(); defer { lock.unlock() }; return renderedCount }
     func render(at time: Double) {
         guard time.isFinite else { return }
-        renderedFrames &+= 1
         lock.lock()
+        renderedCount &+= 1   // under the lock: read on the main thread by the intro
         guard !tracks.isEmpty else { recordProbe(time); lock.unlock(); return }
         let target = time - intervalValue
         var draw: [DrawPose] = []

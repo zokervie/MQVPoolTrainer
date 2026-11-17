@@ -160,7 +160,10 @@ final class LocalMatchSession: NSObject {
         return roomCode
     }
 
-    @discardableResult func joinRoom(code: String, internet: Bool = false) -> Bool {
+    /// 0.44.1 review: only a room picked from the Nearby list (whose host answers Accept/Decline) can count refusals;
+    /// a typed-code room never asks, so a failed invitation there is not "the host declined".
+    private(set) var joinedFromScan = false
+    @discardableResult func joinRoom(code: String, internet: Bool = false, fromScan: Bool = false) -> Bool {
         requireMain()
         let trimmed = internet ? OnlineRoomCode.normalized(code) : code.trimmingCharacters(in: .whitespacesAndNewlines)
         if internet {
@@ -174,7 +177,7 @@ final class LocalMatchSession: NSObject {
             }
         }
         leave()
-        role = .guest
+        role = .guest; joinedFromScan = fromScan && !internet
         transport = internet ? .internet : .nearby
         roomCode = trimmed
         relayToken = internet ? OnlineRelayConfig.token(for: roomCode, role: "guest") : ""
@@ -840,7 +843,7 @@ extension LocalMatchSession: MCSessionDelegate {
                 var wasLinked = false
                 switch self.lobby.phase { case .connected, .reconnecting: wasLinked = true; default: break }
                 // 0.44.1: a guest whose invitation ends quickly without ever connecting was refused by the host.
-                let refused = self.role == .guest && self.transport == .nearby && !wasLinked
+                let refused = self.role == .guest && self.transport == .nearby && self.joinedFromScan && !wasLinked
                     && self.pendingPeer == peerID && now - self.inviteStarted < 11
                 self.lobby.linkDown(now: now); self.onLobbyChanged?()   // 0.44-mm
                 self.pendingPeer = nil; self.remoteReady = false; self.snapshotReady = false

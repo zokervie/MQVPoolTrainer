@@ -130,6 +130,8 @@ final class FirstShotCoach {
            !tc.qaTutorialStrokeFired, Date().timeIntervalSince(beatShownAt) > 1.5, !tc.shotActive, !tc.presentationBusy {
             tc.qaTutorialStrokeFired = true; tc.locked = true; tc.shoot(2.0)
         }
+        // 0.44.1 review: a stroke during ANY beat (players often shoot before aiming) ends the beats like beat 2 does.
+        if firstShotRunning, tc.shotActive { state = "shot"; index = beats.count; hideAll(keepCaption: false); return }
         if firstShotRunning, beats[index].done(tc) {
             if beats[index].id == "stroke" { state = "shot"; index = beats.count; hideAll(keepCaption: false); return }
             show(beat: index + 1)
@@ -158,7 +160,7 @@ final class FirstShotCoach {
                 state = "retry"; say("Thử lại nhé"); UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self, weak tc] in
                     guard let self = self, let tc = tc else { return }
-                    self.restoreFirstShot(tc, attempts: 8)
+                    self.restoreFirstShot(tc, attempts: 60)
                 }
             }
             return
@@ -169,7 +171,8 @@ final class FirstShotCoach {
     private func restoreFirstShot(_ tc: TrainingController, attempts: Int) {
         guard tc.drillIndex == Drill.startup, !tc.matchPlay.active else { hideAll(keepCaption: false); return }
         if tc.shotActive || tc.presentationBusy || !tc.localTurn {
-            guard attempts > 0 else { return }
+            // Wait for the replay/shot camera however long it takes; give up cleanly after ~30 s.
+            guard attempts > 0 else { hideAll(keepCaption: false); index = beats.count; state = "none"; return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.restoreFirstShot(tc, attempts: attempts - 1) }; return
         }
         let aim = tc.angle
