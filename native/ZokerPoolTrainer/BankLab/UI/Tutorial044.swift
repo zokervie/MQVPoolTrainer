@@ -63,7 +63,11 @@ final class FirstShotCoach {
     private weak var tc: TrainingController?
     private var beats: [TutorialBeat] = []
     private var index = -1
-    private(set) var state = "none"
+    private(set) var state = "none" {
+        didSet { if state != oldValue { log.append(state); if log.count > 24 { log.removeFirst(log.count - 24) } } }
+    }
+    /// Every state the coach went through, in order (QA + review CI 158: a fast CI could pass beat 2 between two polls).
+    private(set) var log: [String] = []
     private let caption = UIView(), captionLabel = UILabel()
     private let hand = UIImageView(), bHand = UIImageView(), aimDot = UIView(), ring = UIView()
     private var timer: Timer?
@@ -186,6 +190,8 @@ final class FirstShotCoach {
 
     // MARK: contextual hints
     private func hint(missed: Bool, shots: Int) {
+        // Review CI 158: no contextual hint may appear before the two-beat first shot is finished.
+        guard !firstShotRunning, UserDefaults.standard.bool(forKey: TutorialScript.seenKey) || state == "potted" || state == "none" else { return }
         guard let tc = tc, UserDefaults.standard.object(forKey: TutorialScript.hintsKey) as? Bool ?? true else { hideAll(keepCaption: false); return }
         func unseen(_ id: String) -> Bool { !UserDefaults.standard.bool(forKey: TutorialScript.hintSeenKey(id)) }
         let c = tc.cue
