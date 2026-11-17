@@ -119,6 +119,24 @@ Dùng `ZDesign` của 0.45. Không đổi vật lý (trừ kích thước bàn �
 
 Logic thuần (chọn bài, tính chuỗi, sao, kỷ lục) viết C++ + test; Swift chỉ vẽ. Lưu cục bộ (UserDefaults/JSON trong Application Support), không mạng.
 
+### M0 — Kho bài theo chương: dễ → khó, mỗi chương một mẹo dễ nhớ (thêm 17/11 22:40, chủ dự án yêu cầu)
+Mục tiêu: người chơi luôn biết "mình đang học gì, mẹo là gì, còn bao xa". Mỗi chương = **1 mẹo** của chuyên gia (câu ngắn dễ thuộc) + **thang 3 bài** dễ → khó + **thi chương**. Bài hiện có (30) được xếp vào chương; thêm bài mới ở chương 3–4.
+
+| Chương | Mẹo (câu nhớ) | Nguồn mẹo | Thang bài (dễ → khó) | Thước đo (chỉ ở màn "Học" và khi xem lại, không hiện khi đánh) |
+|---|---|---|---|---|
+| 1 Cú thẳng | "Thẳng – dừng – theo – lùi" | Bài stop/theo/lùi của Kinister và Dr. Dave | Cú đầu tiên → Stop · Giữ bi cái → Cu-lê → Trô | Vòng đích bi cái (bán kính 1 bi) |
+| 2 Lực | "Lực là quãng lăn" | Thang Lực 1–30 của app | Lực 1/3 → 2/3 → 3/3 (đã có) | Thước quãng lăn, vạch dừng |
+| 3 Ngắm cắt | "Nửa bi = 30°" (đầy 0° · ¾ ≈ 14,5° · ½ = 30° · ¼ ≈ 48,6°) | Ngắm theo phần bi (hình học, sin góc = 1 − phần chồng) | **Mới:** cắt ¾ → ½ → ¼, rồi cắt 30°/45° vào lỗ góc (đã có) | Thước góc cắt; hình bi ma ở lần xem lại |
+| 4 Đường bi cái | "Bi đứng đi vuông 90° · bi lăn lệch 30° · trô gấp 3 lần góc" | Quy tắc 90° và 30° (Dr. Dave, "cử chỉ chữ V"); hệ trisect cho trô | **Mới:** 90° né bi cản → 30° tránh lỗ → trô chéo | Đường tiếp tuyến; chữ V 30°; tia trô ×3 |
+| 5 Băng | "Gương và số nút" | Gương 1 băng; Corner-5 (đã có) | Kick 1 băng → 2 băng → 3 băng; Bank 1→3 | Số nút trên băng (đã có, bật Coach) |
+| 6 Kỹ thuật đặc biệt | "Cơ dựng – bi bay/cong" | Đã có trong app | Combo → Jump → Massé → Zigzag | — |
+
+Luật lên bậc (theo cách Billiard University): mỗi bài 5 lượt, **đạt ≥ 3/5 thì mở bài kế**; thi chương = 10 cú không trợ giúp, đạt ≥ 7/10 thì mở chương sau và được 1 món đồ (cơ/bàn/phòng). Người chơi cũ có sao sẵn được mở tương ứng (không bắt học lại).
+- Thẻ mẹo: lần đầu vào chương hiện **một** thẻ mẹo (hình động 3–5 s trên bàn thật + câu nhớ ≤ 8 từ); sau đó thẻ nằm trong "Sổ mẹo" để xem lại. Không chữ dài.
+- Dữ liệu: mỗi bài có `id` ổn định, `chapter`, `rung` (1–3), `category` (dùng cho `BLDailyPickMixed`), `stars`. Bài hôm nay chỉ chọn trong các chương đã mở.
+- Bài mới chương 3–4: **phiên đám mây viết thế bi + test C++ quét (như `FirstShotTests`) trên `cho/native-0.47-core`** để chắc mỗi bài làm được bằng đúng mẹo của chương; phiên Mac chỉ nối dữ liệu và màn hình.
+- Kiểm: XCTest đi hết chương 1 bằng cú bắn QA; test C++ mọi bài mới; ảnh thẻ mẹo và màn chương.
+
 ### M1 — Thanh lực cho người mới (cờ `powerBar`, mặc định bật cho người mới)
 - Thanh dọc bên phải: kéo xuống để nạp lực, thả để đánh; ánh xạ lực qua `PowerScale.h` hiện có (giữ trần lực của Tuỳ chỉnh). Vuốt cơ (B) vẫn dùng được; Tuỳ chỉnh có công tắc chọn kiểu.
 - Hướng dẫn 0.44.1: nhịp 2 đổi sang thanh lực khi cờ bật (dữ liệu nhịp, không viết lại).
