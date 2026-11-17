@@ -7,7 +7,9 @@ enum L10nDefault {
     static func code(preferred: [String], supported: [String]) -> String {
         for tag in preferred {
             let lower = tag.lowercased()
+            if supported.contains(lower) { return lower }   // full tag first (review 0.45)
             let base = lower.split(whereSeparator: { $0 == "-" || $0 == "_" }).first.map(String.init) ?? lower
+            if base == "zh", lower.contains("hant") { continue }   // the app has Simplified only; Traditional → next / vi
             if supported.contains(base) { return base }
             if base == "tl", supported.contains("fil") { return "fil" }   // Tagalog devices → Filipino
         }

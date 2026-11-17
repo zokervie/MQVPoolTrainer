@@ -54,6 +54,7 @@ enum L10n {
         // 0.44.1 M4 tutorial and M1 additions (fil/es/zh/ja/hi: machine-quality drafts, review before release)
         "Kéo để ngắm vào chấm vàng": ["Drag to aim at the gold dot", "I-drag para tumutok sa gintong tuldok", "Arrastra para apuntar al punto dorado", "拖动瞄准金色圆点", "ドラッグして金の点を狙う", "सुनहरे बिंदु पर निशाना लगाने के लिए खींचें"],
         "Giữ B, vuốt lùi rồi đẩy tới": ["Hold B, pull back, push through", "Hawakan ang B, hilahin, itulak", "Mantén B, tira atrás y empuja", "按住 B，后拉再推出", "Bを押したまま引いて突く", "B दबाएँ, पीछे खींचें, आगे धकेलें"],
+        "Đã chuyển 60 Hz cho mượt": ["Switched to 60 Hz for smoothness", "Lumipat sa 60 Hz para sa kinis", "Cambiado a 60 Hz para más fluidez", "已切换到 60 Hz 以更流畅", "なめらかさのため60 Hzに切り替えました", "स्मूदनेस के लिए 60 Hz पर बदला"],
         "Vào rồi!": ["Potted!", "Pasok!", "¡Dentro!", "进了！", "入った！", "गया!"],
         "Thử lại nhé": ["Try again", "Subukan ulit", "Inténtalo de nuevo", "再试一次", "もう一度", "फिर कोशिश करें"],
         "Xem lại cú này": ["Watch this shot again", "Panoorin muli ang tira", "Mira el tiro otra vez", "回看这一杆", "このショットを見返す", "यह शॉट फिर देखें"],

@@ -19,6 +19,9 @@ import Foundation
         try check(code(["fil-PH"]) == "fil" && code(["tl-PH"]) == "fil", "Filipino / Tagalog → fil")
         try check(code(["de_DE", "vi_VN"]) == "vi", "underscore tags")
         try check(code(["en-VN", "vi-VN"]) == "en", "order of the device list is respected")
+        try check(code(["zh-Hans-CN"]) == "zh", "Simplified Chinese → zh (the app's Simplified catalog)")
+        try check(code(["zh-Hant-TW"]) == "vi" && code(["zh-Hant-TW", "en-US"]) == "en", "Traditional Chinese is not Simplified: next preference, else vi")
+        try check(code(["ja-JP"]) == "ja" && code(["vi-VN"]) == "vi", "ja-JP → ja, vi-VN → vi")
         print("PASS L10n default: \(checks) first-launch language checks (device-first, Vietnamese fallback)")
     }
 }

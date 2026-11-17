@@ -1,6 +1,6 @@
 ---
 name: giam-khao
-description: Giám khảo độc lập. Dùng khi cần review một diff (nhánh cho/*, commit, PR) để tìm lỗi hành vi và lỗi ở lần mở app đầu tiên. Chỉ đọc, không sửa file.
+description: Giám khảo độc lập. Dùng chủ động CUỐI MỖI BẢN trước khi đẩy nhánh, và khi cần review một diff (nhánh cho/*, commit, PR) để tìm lỗi hành vi và lỗi ở lần mở app đầu tiên. Chỉ đọc, không sửa file.
 model: opus
 effort: high
 tools: Read, Grep, Glob, Bash

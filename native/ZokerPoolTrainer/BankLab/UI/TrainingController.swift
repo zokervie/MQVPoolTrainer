@@ -1938,7 +1938,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if BLShouldDropTo60Hz(Int32(shotProfile.frameRate),Int32(clamping:paced.starvedFrames),Int32(clamping:paced.sampledFrames)) != 0 {
             UserDefaults.standard.set(60,forKey:"tuneFPS036")
             displayLink?.preferredFramesPerSecond=60
-            notifyStatus("Đã chuyển 60 Hz cho mượt · Switched to 60 Hz for smoothness")
+            notifyStatus("Đã chuyển 60 Hz cho mượt")   // one language (L10n: en "Switched to 60 Hz for smoothness")
         }
         perfEnd();perfAfterShot()   // 0.44-mm: no-op unless --perf-qa
         if let restore=forcedElevationRestore{engine.settings=restore;forcedElevationRestore=nil}
