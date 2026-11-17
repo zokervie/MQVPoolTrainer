@@ -1,5 +1,7 @@
 # Nhiệm vụ bản 0.45 — Zoker Pool Trainer
 
+> **ĐÃ THAY** bằng `NHIEM-VU-0.45-0.47.md` (chủ dự án duyệt thứ tự mới 17/11 20:03).
+
 Trạng thái: **CHỜ ANH QUYẾT sau khi nghiệm thu 0.44** (anh dặn 16/11/2026: gộp hết 15 đề xuất 12–16/11 vào một bản, làm kỹ, tiết kiệm token). Chưa viết mã, chưa build.
 Chi tiết từng đề xuất: `DE-XUAT.md` (mục "Đề xuất ngày …"). Bảng quyết định: tài liệu "Tổng hợp đề xuất để giao việc & nghiệm thu một lần".
 
