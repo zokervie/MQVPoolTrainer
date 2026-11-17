@@ -24,7 +24,7 @@ extension TrainingController {
         let safe=hudSafeFrame,pad=UIDevice.current.userInterfaceIdiom == .pad
         // 6 shortcuts in practice (Lùi cú) and in called-shot matches (Call); 5 otherwise.
         let sixItems = !matchIsCompetitive || matchBool("requiresCall")
-        let loupeOn=(UserDefaults.standard.object(forKey:"loupes042") as? Bool ?? true) && !ProcessInfo.processInfo.arguments.contains("--spin-detail")   // 0.43: loupe only, no in-place zoom (QA --spin-detail keeps the big pad)
+        let loupeOn=(UserDefaults.standard.object(forKey:Prefs.loupes) as? Bool ?? true) && !ProcessInfo.processInfo.arguments.contains("--spin-detail")   // 0.43: loupe only, no in-place zoom (QA --spin-detail keeps the big pad)
         spin.dragRadius=loupeOn ? Double(pad ? 240:170)*0.43:nil
         let f=BLHUDLayout(Double(safe.minX),Double(safe.minY),Double(safe.width),Double(safe.height),pad ? 1:0,leftHanded ? 1:0,sixItems ? 1:0,spinExpanded && !loupeOn ? 1:0)
         // bounds + center (not frame): elevation/wheel may carry a zoom transform while touched.
@@ -225,8 +225,8 @@ extension TrainingController {
         }
         let felt=UIButton.lab("Màu nỉ bàn"){[weak self]in self?.chooseClothColor()}
         let sound=UIButton.lab("Âm thanh: bật / tắt"){[weak self]in
-            let enabled = !(UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true)
-            UserDefaults.standard.set(enabled,forKey:"poolAudioEnabled")
+            let enabled = !(UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true)
+            UserDefaults.standard.set(enabled,forKey:Prefs.audioEnabled)
             self?.statusLabel.text=enabled ? "Âm thanh bi: bật":"Âm thanh bi: tắt"
         }
         let kick=UIButton.lab("Tìm góc kick · 1–3 băng"){[weak self]in self?.chooseKick()}
@@ -289,8 +289,8 @@ extension TrainingController {
             ("Bao cơ / Gậy",{[weak self] in self?.setMenu(false);self?.showCueBag()}),
             ("Bàn & không gian · hình ảnh",{[weak self] in self?.graphics()}),
             ("Âm thanh: bật / tắt",{[weak self] in
-                let enabled = !(UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true)
-                UserDefaults.standard.set(enabled,forKey:"poolAudioEnabled");self?.statusLabel.text=enabled ? "Âm thanh bi: bật":"Âm thanh bi: tắt"})])
+                let enabled = !(UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true)
+                UserDefaults.standard.set(enabled,forKey:Prefs.audioEnabled);self?.statusLabel.text=enabled ? "Âm thanh bi: bật":"Âm thanh bi: tắt"})])
         // 0.46 M2: menu trong trận = Tiếp tục · Đổi bàn‑bi‑gậy · Tuỳ chỉnh · Về sảnh (+ "Thêm…" giữ các mục còn lại, không xoá chức năng).
         let library=UIButton.lab("Đổi bàn · bi · gậy"){[weak self]in self?.openLibrary()}
         library.accessibilityIdentifier="MenuLibrary";more.accessibilityIdentifier="MenuMore"
@@ -444,13 +444,13 @@ extension TrainingController {
             }
         }
         numbersButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.numbersOn.toggle()
-            UserDefaults.standard.set(self.numbersOn,forKey:"numbersOn033");self.applyCoachVisibility();self.syncOverlayButtons()},for:.touchUpInside)
+            UserDefaults.standard.set(self.numbersOn,forKey:Prefs.numbersOn);self.applyCoachVisibility();self.syncOverlayButtons()},for:.touchUpInside)
         cardToggle.addAction(UIAction{[weak self]_ in guard let self=self,self.coachOn else{return}
-            self.cardOn.toggle();UserDefaults.standard.set(self.cardOn,forKey:"coachCard044");self.coachCard.isHidden = !self.cardOn || self.locked || self.coachCard.alpha==0;self.syncOverlayButtons()},for:.touchUpInside)
+            self.cardOn.toggle();UserDefaults.standard.set(self.cardOn,forKey:Prefs.coachCard);self.coachCard.isHidden = !self.cardOn || self.locked || self.coachCard.alpha==0;self.syncOverlayButtons()},for:.touchUpInside)
         guideToggle.addAction(UIAction{[weak self]_ in guard let self=self,self.coachOn else{return}
             // tắt → điểm ngắm → cả đường → tắt
             if !self.guideOn {self.guideOn=true;self.guideMode=1} else if self.guideMode==1 {self.guideMode=2} else {self.guideOn=false}
-            UserDefaults.standard.set(self.guideMode,forKey:"guideMode035");self.guideDirty=true;self.guideButton?.configuration?.title=self.guideOn ? "Dự báo: bật":"Dự báo: tắt"
+            UserDefaults.standard.set(self.guideMode,forKey:Prefs.guideMode);self.guideDirty=true;self.guideButton?.configuration?.title=self.guideOn ? "Dự báo: bật":"Dự báo: tắt"
             self.wakeRendering();self.syncOverlayButtons()},for:.touchUpInside)
         buildReplayBar();syncQuickRail();applyCoachVisibility()
     }
@@ -654,9 +654,9 @@ extension TrainingController {
     }
     func applyTuning(){
         table.applyTuning();layoutRightHUD()
-        let tint=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int ?? -1
+        let tint=UserDefaults.standard.object(forKey:Prefs.clothTintIndex) as? Int ?? -1
         if tint != appliedClothTint {appliedClothTint=tint;table.setClothColor(tint<0 ? nil:tint)}   // only rebuild on change
-        let worn=UserDefaults.standard.bool(forKey:"clothWear021");if worn != table.oldCloth {table.setClothWear(old:worn)}
+        let worn=UserDefaults.standard.bool(forKey:Prefs.clothWear);if worn != table.oldCloth {table.setClothWear(old:worn)}
         if matchPlay.active {updateScoreboard()}
         if table.cameraMode==2 && !shotActive && replayIndex==nil {restoreAimCamera(transition:0.3)}   // preview the default aim view
         scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
@@ -670,6 +670,8 @@ extension TrainingController {
         vc.openPhysics={[weak self] in self?.settings()}
         vc.openDiagnostics={[weak self] in self?.showSmoothnessDiagnostics()}
         vc.copyReport={[weak self] in self?.copySmoothnessReport()}
+        vc.copyUsage={[weak self] in self?.copyUsageReport()}
+        vc.openZupeLab={[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)}
         vc.arrangeHUD={[weak self] in self?.beginHUDArrange()}
         vc.saveLayout={[weak self] n in self?.saveHUDLayout(n)}
         vc.loadLayout={[weak self] n in self?.loadHUDLayout(n)}
@@ -677,6 +679,13 @@ extension TrainingController {
             for (name,_) in self.hudItems{UserDefaults.standard.removeObject(forKey:self.hudOffsetKey(name))}
             self.hudLayoutKey="";self.view.setNeedsLayout();self.layoutRightHUD()}
         let nav=UINavigationController(rootViewController:vc);nav.modalPresentationStyle = .formSheet;present(nav,animated:true)
+    }
+    /// 0.45 M5.5: local usage numbers (PlayerStore) to the clipboard — testers paste them to the owner (D1/D7).
+    func copyUsageReport(){
+        let info=Bundle.main.infoDictionary
+        let version=(info?["CFBundleShortVersionString"] as? String ?? "?")+" ("+(info?["CFBundleVersion"] as? String ?? "?")+")"
+        UIPasteboard.general.string=PlayerStore.shared.usageReport(extra:["app: "+version,"device: "+UIDevice.current.model+" iOS "+UIDevice.current.systemVersion,"language: "+L10n.code])
+        notifyStatus("Đã sao chép số liệu sử dụng")
     }
     func beginHUDArrange(){
         let overlay=UIView(frame:view.bounds);overlay.autoresizingMask=[.flexibleWidth,.flexibleHeight]

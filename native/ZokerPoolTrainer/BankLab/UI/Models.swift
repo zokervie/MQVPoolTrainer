@@ -64,7 +64,7 @@ struct SavedShot: Codable {
     var recordingID: String? = nil
     var coachVisible: Bool? = nil
     var physicsSettings: [String:Double]? = nil
-    static let key="savedShots015"
+    static let key=Prefs.savedShots
     static func all()->[SavedShot]{
         guard let data=UserDefaults.standard.data(forKey:key) else{return []}
         return (try? JSONDecoder().decode([SavedShot].self,from:data)) ?? []
@@ -81,7 +81,7 @@ final class DrillsController:UITableViewController {
     private lazy var groups:[[Int]]={(1...5).map{l in Drill.all.indices.filter{Drill.all[$0].level==l}}}()
     override func viewDidLoad(){
         super.viewDidLoad()
-        let stars=Drill.bestStars(),cleared=Drill.all.filter{$0.level>0 && (stars[$0.title] ?? 0)>=3}.count
+        let stars=Drill.bestStars(),cleared=Drill.all.filter{$0.level>0 && (stars[$0.id] ?? 0)>=3}.count
         title="Bài tập · \(cleared)/\(Drill.lessonCount) bài đã qua"
         tableView.backgroundColor=UIColor(red:0.07,green:0.07,blue:0.08,alpha:1)
         navigationController?.navigationBar.barStyle = .black
@@ -95,7 +95,7 @@ final class DrillsController:UITableViewController {
     override func tableView(_ tableView:UITableView,titleForHeaderInSection section:Int)->String?{Drill.levelNames[section+1].uppercased()}
     override func tableView(_ tableView:UITableView,cellForRowAt indexPath:IndexPath)->UITableViewCell{
         let drill=Drill.all[groups[indexPath.section][indexPath.row]]
-        let best=Drill.bestStars()[drill.title] ?? 0
+        let best=Drill.bestStars()[drill.id] ?? 0
         let cell=UITableViewCell(style:.subtitle,reuseIdentifier:nil)
         cell.backgroundColor=UIColor(white:0.14,alpha:1)
         cell.textLabel?.textColor = .white;cell.detailTextLabel?.textColor=UIColor(white:0.78,alpha:1)
@@ -130,6 +130,8 @@ struct PracticeRecord:Codable {
 }
 struct Drill {
     let title:String
+    /// 0.45 M5.2: stable id (DrillIDs047.swift) — progress is keyed by it, never by the (translatable) title.
+    var id:String = ""
     let note:String
     let rails:Int
     let kick:Bool
@@ -166,9 +168,12 @@ struct Drill {
     static let startup:Int = all.firstIndex{$0.title==firstShotTitle} ?? 3
     static let firstShotTitle="Cú đầu tiên"
     static var lessonCount:Int { all.filter{$0.level>0}.count }
-    static func bestStars()->[String:Int]{UserDefaults.standard.dictionary(forKey:"lessonStars035") as? [String:Int] ?? [:]}
-    static func recordStars(_ stars:Int,for title:String){
-        var all=bestStars();if stars>(all[title] ?? 0){all[title]=stars;UserDefaults.standard.set(all,forKey:"lessonStars035")}
+    /// Best stars by drill id (PlayerStore, player.json). Read-only here: rounds are written by PlayerStore.recordRound.
+    static func bestStars()->[String:Int]{PlayerStore.shared.data.stars}
+    /// 0.45 M5.2: once per install, the ≤ 0.46 stars saved by title move to the stable ids (UserDefaults left as is).
+    static func migrateLegacyStars(){
+        guard !PlayerStore.shared.data.legacyStarsMigrated else{return}
+        PlayerStore.shared.migrateLegacyStars(UserDefaults.standard.dictionary(forKey:Prefs.legacyLessonStars) as? [String:Int] ?? [:])
     }
     static func starText(_ n:Int)->String{String(repeating:"★",count:max(0,min(5,n)))+String(repeating:"☆",count:5-max(0,min(5,n)))}
 
@@ -287,7 +292,7 @@ struct Drill {
             angle:BLFirstShotAngle(),goal:PracticeGoal(x:0,y:0,radius:0,potRequired:true,potOnly:true),level:0,
             system:"Bi cái, bi 1 và lỗ góc thẳng hàng: ngắm thẳng vào tâm bi 1. Điểm chạm hơi dưới tâm để bi cái dừng lại, không lăn theo vào lỗ.",
             tipTop:BLFirstShotTop()))
-        return r.map{var d=$0;d.video=videos[d.title];return d}
+        return r.map{var d=$0;d.video=videos[d.title];d.id=DrillIDs.id(forTitle:d.title);return d}
     }()
 }
 

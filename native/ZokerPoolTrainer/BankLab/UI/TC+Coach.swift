@@ -11,8 +11,8 @@ extension TrainingController {
         let now=ProcessInfo.processInfo.systemUptime;guard now-lastCoachToggle>0.35 else{return};lastCoachToggle=now
         guard !locked,!spinExpanded else{return};if matchIsCompetitive{matchToggleNumbers();return};coaching.toggle();persistArchiveCoach()
         if coaching {   // 0.44: default Coach view = diamond numbers + aim point
-            numbersOn=true;UserDefaults.standard.set(true,forKey:"numbersOn033")
-            guideOn=true;guideMode=1;UserDefaults.standard.set(1,forKey:"guideMode035");guideDirty=true
+            numbersOn=true;UserDefaults.standard.set(true,forKey:Prefs.numbersOn)
+            guideOn=true;guideMode=1;UserDefaults.standard.set(1,forKey:Prefs.guideMode);guideDirty=true
         }
         applyCoachVisibility()
         if coaching && replayIndex==nil {if lastShot != nil,!shotActive{requestCoachReport(drill:Drill.all[drillIndex],events:lastShotEvents,passed:lastPassed,scratch:lastScratch)}else{showCoach(drillBrief(Drill.all[drillIndex]))}}
@@ -307,7 +307,7 @@ extension TrainingController {
         let average=lessonScores.reduce(0,+)/max(1,n)
         let stars=lessonPasses>=5 && average>=85 ? 5:min(4,lessonPasses)
         let cleared=lessonPasses>=3
-        Drill.recordStars(stars,for:d.title)
+        PlayerStore.shared.recordRound(drill:d.id,stars:stars,average:Double(average))   // 0.45 M5: the only writer of progress
         lessonScores=[];lessonPasses=0
         let next=Drill.all.indices.first{$0>index && Drill.all[$0].level>0}
         let alert=UIAlertController(title:(cleared ? "Qua bài · ":"Chưa qua · ")+Drill.starText(stars),

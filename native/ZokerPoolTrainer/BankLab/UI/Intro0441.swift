@@ -370,19 +370,19 @@ final class IntroDirector0441 {
 }
 
 extension TrainingController {
-    static let introSeenKey = "intro043Seen"     // kept from 0.43 so a player who saw it does not see the long one again
+    static let introSeenKey = Prefs.introSeen     // kept from 0.43 so a player who saw it does not see the long one again
     /// nil = no intro on this launch. First launch: the 6 s film; later: the ≤ 1.2 s logo. Setting `introEnabled043`
     /// (Tuỳ chỉnh) is respected. QA launches skip it except --intro-qa (probe) and --intro-lobby-qa (UI test).
     func makeIntro() -> IntroDirector0441? {
-        let args = ProcessInfo.processInfo.arguments
-        let forced = args.contains("--intro-qa") || args.contains("--intro-lobby-qa")
-        if !forced && args.contains(where: { $0.hasPrefix("--") && $0.hasSuffix("qa") }) { return nil }
-        if args.contains("--fresh-intro") { UserDefaults.standard.removeObject(forKey: Self.introSeenKey) }
-        guard forced || (UserDefaults.standard.object(forKey: "introEnabled043") as? Bool ?? true) else { return nil }
-        let full = !args.contains("--intro-sting") && (args.contains("--intro-qa") || !UserDefaults.standard.bool(forKey: Self.introSeenKey))
-        UserDefaults.standard.set(true, forKey: Self.introSeenKey)
+        // 0.45 M5.6: QA arguments via `QA` (compiled out of Release builds).
+        let forced = QA.has("--intro-qa") || QA.has("--intro-lobby-qa")
+        if !forced && QA.anyQA { return nil }
+        if QA.has("--fresh-intro") { UserDefaults.standard.removeObject(forKey: Prefs.introSeen) }
+        guard forced || Prefs.flag(Prefs.introEnabled, true) else { return nil }
+        let full = !QA.has("--intro-sting") && (QA.has("--intro-qa") || !UserDefaults.standard.bool(forKey: Prefs.introSeen))
+        UserDefaults.standard.set(true, forKey: Prefs.introSeen)
         let director = IntroDirector0441(owner: self, full: full)
-        if args.contains("--intro-qa") { director.startProbe() }
+        if QA.has("--intro-qa") { director.startProbe() }
         return director
     }
 }

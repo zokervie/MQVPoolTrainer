@@ -80,8 +80,8 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         body.addArrangedSubview(cond)
         let condNote=UILabel();condNote.numberOfLines=0;condNote.textColor=UIColor(white:0.7,alpha:1);condNote.font = .systemFont(ofSize:12)
         condNote.text="Thường = số đo công bố (Dr. Dave TP A.14). Bẩn/dính phấn: bi đích ăn xoáy mạnh khi đánh nhanh — reverse zigzag như clip của anh.";body.addArrangedSubview(condNote)
-        let squirtSwitch=UISwitch();squirtSwitch.isOn=UserDefaults.standard.bool(forKey:"squirtRealistic043");squirtSwitch.accessibilityIdentifier="squirtRealistic043"
-        squirtSwitch.addAction(UIAction{[weak squirtSwitch]_ in UserDefaults.standard.set(squirtSwitch?.isOn ?? false,forKey:"squirtRealistic043")},for:.valueChanged)
+        let squirtSwitch=UISwitch();squirtSwitch.isOn=UserDefaults.standard.bool(forKey:Prefs.squirtRealistic);squirtSwitch.accessibilityIdentifier=Prefs.squirtRealistic
+        squirtSwitch.addAction(UIAction{[weak squirtSwitch]_ in UserDefaults.standard.set(squirtSwitch?.isOn ?? false,forKey:Prefs.squirtRealistic)},for:.valueChanged)
         let squirtLabel=UILabel();squirtLabel.numberOfLines=0;squirtLabel.textColor = .white;squirtLabel.font = .systemFont(ofSize:13,weight:.medium)
         squirtLabel.text="Squirt thực tế — bi lệch khỏi đường ngắm khi đánh effect, cả khi cơ nằm ngang (TP A.31). Tắt: cơ ngang đi đúng đường ngắm"
         let squirtRow=UIStackView(arrangedSubviews:[squirtLabel,squirtSwitch]);squirtRow.spacing=12;squirtRow.alignment = .center;body.addArrangedSubview(squirtRow)
@@ -197,28 +197,28 @@ enum Tuning {
     /// Active render cadence. 120 needs ProMotion (CADisableMinimumFrameDurationOnPhone is set); more heat.
     static var frameRate:Int{
         #if targetEnvironment(simulator)
-        return UserDefaults.standard.integer(forKey:"qaSimFPS")==60 ? 60:30   // CI Simulator: keep the runner responsive; 0.44-mm perf QA measures at the device rate (-qaSimFPS 60)
+        return UserDefaults.standard.integer(forKey:Prefs.qaSimFPS)==60 ? 60:30   // CI Simulator: keep the runner responsive; 0.44-mm perf QA measures at the device rate (-qaSimFPS 60)
         #else
         // 0.44.1: default 60 Hz (owner device: 120 Hz dropped 202/557 frames); a saved 120 is kept until a shot
         // with > 10 % late frames switches it back (TrainingController.finishShot, BLShouldDropTo60Hz).
-        return UserDefaults.standard.integer(forKey:"tuneFPS036")==120 ? 120:60
+        return UserDefaults.standard.integer(forKey:Prefs.tuneFPS)==120 ? 120:60
         #endif
     }
     /// Fraction of the native pixel scale the 3D view renders at (1, 0.85, 0.7).
-    static var renderScale:Double{value("tuneScale036",1)}
+    static var renderScale:Double{value(Prefs.tuneScale,1)}
     /// Multiplier on the stroke speed (BLStrokeSpeed tops out at 8 m/s): 0.6 → 4.8 m/s, 1.3 → 10.4 m/s.
-    static var maxPower:Double{value("tuneMaxPower036",1)}
+    static var maxPower:Double{value(Prefs.tuneMaxPower,1)}
     /// 0.37: HUD fades while the player aims; effect ball lock (off = only B locks); predict-first eye training.
-    static var hudFade:Bool{flag("tuneHUDFade037",true)}
-    static var effectLock:Bool{flag("tuneEffectLock037",false)}
-    static var predictFirst:Bool{flag("tunePredictFirst037",false)}
+    static var hudFade:Bool{flag(Prefs.tuneHUDFade,true)}
+    static var effectLock:Bool{flag(Prefs.tuneEffectLock,false)}
+    static var predictFirst:Bool{flag(Prefs.tunePredictFirst,false)}
     // 0.38 (owner approved all proposals)
-    static var hudScale:Double{value("tuneHUDScale038",1)}
-    static var hudAlpha:Double{value("tuneHUDAlpha038",1)}
-    static var autoNumbers:Bool{flag("tuneAutoNumbers038",true)}
-    static var guideBySkill:Bool{flag("tuneGuideSkill038",true)}
-    static var aimPitch:Double{value("tuneAimPitch038",0.57)}
-    static var aimZoom:Double{value("tuneAimZoom038",1)}
+    static var hudScale:Double{value(Prefs.tuneHUDScale,1)}
+    static var hudAlpha:Double{value(Prefs.tuneHUDAlpha,1)}
+    static var autoNumbers:Bool{flag(Prefs.tuneAutoNumbers,true)}
+    static var guideBySkill:Bool{flag(Prefs.tuneGuideSkill,true)}
+    static var aimPitch:Double{value(Prefs.tuneAimPitch,0.57)}
+    static var aimZoom:Double{value(Prefs.tuneAimZoom,1)}
 }
 
 final class CustomizeController:UIViewController {
@@ -226,6 +226,11 @@ final class CustomizeController:UIViewController {
     var openPhysics:(()->Void)?
     var openDiagnostics:(()->Void)?
     var copyReport:(()->Void)?   // 0.46 M2: "Sao chép số đo cú vừa đánh" (was in the in-game menu)
+    var copyUsage:(()->Void)?    // 0.45 M5: "Sao chép số liệu sử dụng" (local numbers, the tester pastes them)
+    var openZupeLab:(()->Void)?  // 0.46 M2: Phòng thí nghiệm
+    /// 0.46 M2: engineer tools, shown only while Phòng thí nghiệm is on (Prefs.labEnabled, default off).
+    private var labOnly:[UIView]=[]
+    private let languageHolder=UIStackView()
     var arrangeHUD:(()->Void)?
     var resetHUD:(()->Void)?
     var saveLayout:((Int)->Void)?
@@ -266,12 +271,12 @@ final class CustomizeController:UIViewController {
         header("Bi")
         slider("Độ chói bi",TableScene.tuneBall,0.6,1.3)
         slider("Độ đậm bóng bi",TableScene.tuneShadow,0.4,1.3)
-        toggle("Bóng bi thật, tròn mềm (tắt nếu máy nóng/yếu)","tuneRealShadow039",true)
+        toggle("Bóng bi thật, tròn mềm (tắt nếu máy nóng/yếu)",Prefs.tuneRealShadow,true)
         header("Bàn")
         // 0.40b (owner: cloth colours as icons like the sample card, inside Tuỳ chỉnh).
         swatches("Màu nỉ · Z-Weave 300 (60% len · 40% nylon)",TableScene.clothColors.map{name,color in (name,Self.clothSwatch(color))},
-                 UserDefaults.standard.object(forKey:"clothTintIndex") as? Int ?? -1){UserDefaults.standard.set($0,forKey:"clothTintIndex")}
-        segmented("Tình trạng nỉ",["Mới · rõ sợi","Cũ · xơ"],UserDefaults.standard.bool(forKey:"clothWear021") ? 1:0){UserDefaults.standard.set($0==1,forKey:"clothWear021")}
+                 UserDefaults.standard.object(forKey:Prefs.clothTintIndex) as? Int ?? -1){UserDefaults.standard.set($0,forKey:Prefs.clothTintIndex)}
+        segmented("Tình trạng nỉ",["Mới · rõ sợi","Cũ · xơ"],UserDefaults.standard.bool(forKey:Prefs.clothWear) ? 1:0){UserDefaults.standard.set($0==1,forKey:Prefs.clothWear)}
         slider("Độ sáng mặt bàn (nỉ)",TableScene.tuneCloth,0.6,1.4)
         slider("Độ rõ vân nỉ",TableScene.tuneWeave,0,1.5)
         // 0.40c (owner, 3rd round on the weave): thread size seen when zooming close — 0.6 mm is real cloth, larger reads clearer.
@@ -281,30 +286,30 @@ final class CustomizeController:UIViewController {
         slider("Đèn bàn",TableScene.tuneLight,0.5,1.6)
         header("Bảng điểm (trận đấu)")
         swatches("Kiểu bảng tên · 10 mẫu",TrainingController.scoreboardStyles.map{($0.name,Self.scoreboardSwatch($0))},
-                 TrainingController.scoreboardStyleIndex){UserDefaults.standard.set($0,forKey:"scoreboardStyle040")}
+                 TrainingController.scoreboardStyleIndex){UserDefaults.standard.set($0,forKey:Prefs.scoreboardStyle)}
         // 2 · Ngắm
         target=pages[1]
         header("Góc ngắm mặc định (camera quay về sau mỗi cú)")
-        slider("Độ cao camera",  "tuneAimPitch038",0.35,0.95,fallback:0.57,format:{String(format:"%.0f°",$0*57.3)})
-        slider("Độ gần (zoom)","tuneAimZoom038",0.8,1.4)
-        slider("Góc nhìn (FOV)","tuneAimFOV038",30,52,fallback:38,format:{String(format:"%.0f°",$0)})
+        slider("Độ cao camera",  Prefs.tuneAimPitch,0.35,0.95,fallback:0.57,format:{String(format:"%.0f°",$0*57.3)})
+        slider("Độ gần (zoom)",Prefs.tuneAimZoom,0.8,1.4)
+        slider("Góc nhìn (FOV)",Prefs.tuneAimFOV,30,52,fallback:38,format:{String(format:"%.0f°",$0)})
         header("Đường ngắm")
         let colours=TableScene.guideColors.map{$0.0}
         segmented("Màu đường ngắm",colours,UserDefaults.standard.integer(forKey:TableScene.tuneGuideColor)){UserDefaults.standard.set($0,forKey:TableScene.tuneGuideColor)}
         slider("Độ dày đường ngắm",TableScene.tuneGuideWidth,0.6,2.2)
-        toggle("Gậy mờ đi khi che hướng ngắm / bi mục tiêu","tuneCueFade039",true)
-        slider("Độ rõ của gậy khi mờ","tuneCueGhost040",0.2,0.8,fallback:0.42,format:{String(format:"%.0f%%",$0*100)})
+        toggle("Gậy mờ đi khi che hướng ngắm / bi mục tiêu",Prefs.tuneCueFade,true)
+        slider("Độ rõ của gậy khi mờ",Prefs.tuneCueGhost,0.2,0.8,fallback:0.42,format:{String(format:"%.0f%%",$0*100)})
         // 0.41 (owner): 7-colour power scale (tím = nhẹ … đỏ = mạnh), misty swipe trail, speed shown where the swipe ends.
-        toggle("Thang lực 7 màu · vệt vuốt · số lực cuối cú","tunePowerFX041",true)
-        toggle("Intro thương hiệu khi mở app (lần đầu đủ 5,6 s, sau đó 1 s)","introEnabled043",true)
-        toggle("Hướng dẫn cú đầu tiên khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)","tutorialEnabled044",true)
-        toggle("Gợi ý theo ngữ cảnh (mỗi gợi ý một lần, tự tắt sau 6 giây)","tutorialHints0441",true)   // 0.44.1 M4
+        toggle("Thang lực 7 màu · vệt vuốt · số lực cuối cú",Prefs.tunePowerFX,true)
+        toggle("Intro thương hiệu khi mở app (lần đầu đủ 5,6 s, sau đó 1 s)",Prefs.introEnabled,true)
+        toggle("Hướng dẫn cú đầu tiên khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)",Prefs.tutorialEnabled,true)
+        toggle("Gợi ý theo ngữ cảnh (mỗi gợi ý một lần, tự tắt sau 6 giây)",Prefs.tutorialHints,true)   // 0.44.1 M4
         header("Khoá hướng cơ")
-        toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)","tuneEffectLock037",false)
+        toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)",Prefs.tuneEffectLock,false)
         header("Luyện mắt")
-        toggle("Dự đoán trước: đánh xong mới hiện đường đúng và báo lệch bao nhiêu độ","tunePredictFirst037",false)
-        toggle("Nút số tự hiện khi đường ngắm chạm băng","tuneAutoNumbers038",true)
-        toggle("Đường chỉ dẫn mờ dần khi anh đánh đúng nhiều","tuneGuideSkill038",true)
+        toggle("Dự đoán trước: đánh xong mới hiện đường đúng và báo lệch bao nhiêu độ",Prefs.tunePredictFirst,false)
+        toggle("Nút số tự hiện khi đường ngắm chạm băng",Prefs.tuneAutoNumbers,true)
+        toggle("Đường chỉ dẫn mờ dần khi anh đánh đúng nhiều",Prefs.tuneGuideSkill,true)
         // 3 · Phím
         target=pages[2]
         header("Sắp xếp")
@@ -319,57 +324,93 @@ final class CustomizeController:UIViewController {
         }
         target.addArrangedSubview(slots)
         header("Hiển thị")
-        slider("Kích thước phím","tuneHUDScale038",0.8,1.3)
-        slider("Độ đậm của phím (thấp = trong hơn)","tuneHUDAlpha038",0.4,1)
-        toggle("Phím tự mờ khi đang ngắm","tuneHUDFade037",true)
+        slider("Kích thước phím",Prefs.tuneHUDScale,0.8,1.3)
+        slider("Độ đậm của phím (thấp = trong hơn)",Prefs.tuneHUDAlpha,0.4,1)
+        toggle("Phím tự mờ khi đang ngắm",Prefs.tuneHUDFade,true)
         // 4 · Vật lý
         target=pages[3]
         header("Thi đấu · đồng hồ cú")
         segmented("Đồng hồ cú (áp dụng ván kế tiếp)",TrainingController.shotClockPresets.map{$0.name.components(separatedBy:" · ").first ?? $0.name},
-                  UserDefaults.standard.integer(forKey:"shotClock040")){UserDefaults.standard.set($0,forKey:"shotClock040")}
+                  UserDefaults.standard.integer(forKey:Prefs.shotClock)){UserDefaults.standard.set($0,forKey:Prefs.shotClock)}
         let clockNote=UILabel();clockNote.numberOfLines=0;clockNote.font = .systemFont(ofSize:11);clockNote.textColor=UIColor(white:1,alpha:0.7)
         clockNote.text="Quốc tế: 30 s mỗi cú, mỗi người 1 lần GIA HẠN +30 s mỗi ván. Luyện thi đấu: 45 s, 2 lần. Nhanh: 20 s, 1 lần +15 s. Hết giờ = phạm lỗi, đối thủ có bi trong tay. Cú phá không tính giờ; đồng hồ dừng khi bi đang chạy."
         target.addArrangedSubview(clockNote)
         header("Lực đánh")
-        slider("Lực đánh tối đa",  "tuneMaxPower036",0.6,1.3,format:{String(format:"%.1f m/s",8*$0)})
+        slider("Lực đánh tối đa",  Prefs.tuneMaxPower,0.6,1.3,format:{String(format:"%.1f m/s",8*$0)})
+        let physicsStart=target.arrangedSubviews.count
         header("Bàn và vật lý")
         target.addArrangedSubview(UIButton.lab("Mẫu loại bàn (nhanh / chuẩn / chậm) và thông số chi tiết"){[weak self] in
             guard let self=self else{return};self.dismiss(animated:true){self.openPhysics?()}})
+        labOnly+=target.arrangedSubviews[physicsStart...]   // 0.46 M2: physics panel = Phòng thí nghiệm
         // 5 · Máy · Âm thanh
         target=pages[4]
         header("Độ mượt")
         segmented("Tần số khung hình khi bi chạy",["60 Hz","120 Hz (ProMotion, nóng hơn)"],Tuning.frameRate==120 ? 1:0){
-            UserDefaults.standard.set($0==1 ? 120:60,forKey:"tuneFPS036")}
+            UserDefaults.standard.set($0==1 ? 120:60,forKey:Prefs.tuneFPS)}
         let scales=[1.0,0.85,0.7]
         segmented("Độ phân giải 3D",["100 %","85 %","70 % (mát máy)"],scales.firstIndex{abs($0-Tuning.renderScale)<0.01} ?? 0){
-            UserDefaults.standard.set(scales[$0],forKey:"tuneScale036")}
-        toggle("Đồng bộ khung hình (bi trôi mượt, không giật)","tuneFramePacing039",true)
-        target.addArrangedSubview(UIButton.lab("Chẩn đoán độ mượt · số đo cú vừa đánh"){[weak self] in
-            guard let self=self else{return};self.dismiss(animated:true){self.openDiagnostics?()}})
+            UserDefaults.standard.set(scales[$0],forKey:Prefs.tuneScale)}
+        toggle("Đồng bộ khung hình (bi trôi mượt, không giật)",Prefs.tuneFramePacing,true)
         target.addArrangedSubview(UIButton.lab("Sao chép số đo cú vừa đánh"){[weak self] in self?.copyReport?()})
+        let usage=UIButton.lab("Sao chép số liệu sử dụng"){[weak self] in self?.copyUsage?()}
+        usage.accessibilityIdentifier="CopyUsage";target.addArrangedSubview(usage)
         header("Âm thanh")
-        slider("Âm lượng tiếng bi","tuneVolume037",0,1)
-        // 0.41: owner's pack (sliced, 3 lực × biến thể + phá bi) vs the 0.17 set — A/B on the device.
-        segmented("Ngôn ngữ · Language",L10n.languages.map{$0.code.uppercased()},max(0,L10n.languages.firstIndex{$0.code==L10n.code} ?? 0)){[weak self] i in
-            L10n.set(L10n.languages[i].code)
-            let a=UIAlertController(title:L10n.languages[i].name,message:"Mở lại màn hình để áp dụng toàn bộ.",preferredStyle:.alert)
-            a.addAction(UIAlertAction(title:"OK",style:.default));self?.present(a,animated:true)}
+        slider("Âm lượng tiếng bi",Prefs.tuneVolume,0,1)
+        // 0.46 M2: Tiếng Việt + English; the five machine-translated drafts only with Phòng thí nghiệm on.
+        languageHolder.axis = .vertical;languageHolder.spacing=4;target.addArrangedSubview(languageHolder)
+        buildLanguagePicker()
         let musicButton=UIButton(type:.system);musicButton.setTitle("♫ Nhạc của tôi · thêm bài từ app Tệp",for:.normal)
         musicButton.titleLabel?.font = .systemFont(ofSize:14,weight:.semibold);musicButton.contentHorizontalAlignment = .left
         musicButton.addAction(UIAction{[weak self]_ in let nav=UINavigationController(rootViewController:MusicController(style:.insetGrouped));self?.present(nav,animated:true)},for:.touchUpInside)
         target.addArrangedSubview(musicButton)
-        segmented("Camera lượt đối thủ",["Truyền hình","Trên cao","Theo cơ"],UserDefaults.standard.object(forKey:"spectatorCam042") as? Int ?? 0){UserDefaults.standard.set($0,forKey:"spectatorCam042")}
-        segmented("Thẻ cú đánh của đối thủ",["Hiện","Ẩn"],(UserDefaults.standard.object(forKey:"opponentShotCard042") as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:"opponentShotCard042")}
-        segmented("Phóng to bi effect / độ dốc",["Bật","Tắt"],(UserDefaults.standard.object(forKey:"loupes042") as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:"loupes042")}
-        segmented("Âm hiệu ứng tỉ số",["Bật","Tắt"],(UserDefaults.standard.object(forKey:"broadcastSound042") as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:"broadcastSound042")}
+        segmented("Camera lượt đối thủ",["Truyền hình","Trên cao","Theo cơ"],UserDefaults.standard.object(forKey:Prefs.spectatorCam) as? Int ?? 0){UserDefaults.standard.set($0,forKey:Prefs.spectatorCam)}
+        segmented("Thẻ cú đánh của đối thủ",["Hiện","Ẩn"],(UserDefaults.standard.object(forKey:Prefs.opponentShotCard) as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:Prefs.opponentShotCard)}
+        segmented("Phóng to bi effect / độ dốc",["Bật","Tắt"],(UserDefaults.standard.object(forKey:Prefs.loupes) as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:Prefs.loupes)}
+        segmented("Âm hiệu ứng tỉ số",["Bật","Tắt"],(UserDefaults.standard.object(forKey:Prefs.broadcastSound) as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:Prefs.broadcastSound)}
+        // 0.46 M2 — Phòng thí nghiệm: one switch (default off) shows the engineer tools; off = hidden from every menu.
+        header("Phòng thí nghiệm")
+        let labSwitch=UISwitch();labSwitch.isOn=Prefs.lab;labSwitch.onTintColor = .mint;labSwitch.accessibilityIdentifier=Prefs.labEnabled
+        let labLabel=UILabel();labLabel.text="Phòng thí nghiệm · công cụ kỹ sư (thông số vật lý, ZUPE Lab, A/B, chẩn đoán độ mượt, bộ âm thanh, ngôn ngữ dịch máy)"
+        labLabel.textColor = .white;labLabel.font = .systemFont(ofSize:13,weight:.medium);labLabel.numberOfLines=0
+        let labRow=UIStackView(arrangedSubviews:[labLabel,labSwitch]);labRow.spacing=12;labRow.alignment = .center;target.addArrangedSubview(labRow)
+        let labStart=target.arrangedSubviews.count
+        target.addArrangedSubview(UIButton.lab("Chẩn đoán độ mượt · số đo cú vừa đánh · A/B"){[weak self] in
+            guard let self=self else{return};self.dismiss(animated:true){self.openDiagnostics?()}})
+        let zupe=UIButton.lab("ZUPE Lab · nghiên cứu"){[weak self] in guard let self=self else{return};self.dismiss(animated:true){self.openZupeLab?()}}
+        zupe.accessibilityIdentifier="LabZupe";target.addArrangedSubview(zupe)
+        target.addArrangedSubview(UIButton.lab("Thông số vật lý chi tiết · xuất Markdown"){[weak self] in
+            guard let self=self else{return};self.dismiss(animated:true){self.openPhysics?()}})
+        // 0.41: owner's pack (sliced, 3 lực × biến thể + phá bi) vs the 0.17 set — A/B on the device.
         if PoolAudio.hasPack041 { segmented("Bộ âm thanh",["Bộ mới","Cũ 0.17"],(UserDefaults.standard.object(forKey:PoolAudio.packKey) as? Int ?? 0)==1 ? 0:1){UserDefaults.standard.set($0==0 ? 1:0,forKey:PoolAudio.packKey)} }
+        labOnly+=target.arrangedSubviews[labStart...]
+        labSwitch.addAction(UIAction{[weak self,weak labSwitch]_ in
+            UserDefaults.standard.set(labSwitch?.isOn ?? false,forKey:Prefs.labEnabled);self?.applyLab();self?.changed?()},for:.valueChanged)
+        applyLab()
         target=body
         body.addArrangedSubview(UIButton.lab("Khôi phục mặc định tất cả tuỳ chỉnh"){[weak self] in
-            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,"tuneMaxPower036","tuneFPS036","tuneScale036","tuneHUDFade037","tuneEffectLock037","tunePredictFirst037","tuneVolume037",TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,"tuneHUDScale038","tuneHUDAlpha038","tuneAutoNumbers038","tuneGuideSkill038","tuneAimPitch038","tuneAimZoom038","tuneAimFOV038","tuneRealShadow039","tuneCueFade039","tuneFramePacing039",TableScene.tuneWeavePitch,"tuneCueGhost040"]{UserDefaults.standard.removeObject(forKey:k)}
+            for k in [TableScene.tuneBall,TableScene.tuneCloth,TableScene.tuneLight,TableScene.tuneDiamond,TableScene.tuneShadow,Prefs.tuneMaxPower,Prefs.tuneFPS,Prefs.tuneScale,Prefs.tuneHUDFade,Prefs.tuneEffectLock,Prefs.tunePredictFirst,Prefs.tuneVolume,TableScene.tuneWeave,TableScene.tuneGuideColor,TableScene.tuneGuideWidth,Prefs.tuneHUDScale,Prefs.tuneHUDAlpha,Prefs.tuneAutoNumbers,Prefs.tuneGuideSkill,Prefs.tuneAimPitch,Prefs.tuneAimZoom,Prefs.tuneAimFOV,Prefs.tuneRealShadow,Prefs.tuneCueFade,Prefs.tuneFramePacing,TableScene.tuneWeavePitch,Prefs.tuneCueGhost]{UserDefaults.standard.removeObject(forKey:k)}
             self?.resetHUD?();self?.changed?();self?.dismiss(animated:true)})
         show(0)
     }
     private lazy var target:UIStackView=body
+    private func applyLab(){
+        let on=Prefs.lab
+        for v in labOnly {v.isHidden = !on}
+        buildLanguagePicker()
+    }
+    private func buildLanguagePicker(){
+        languageHolder.arrangedSubviews.forEach{$0.removeFromSuperview()}
+        let codes=LanguagePicker.codes(all:L10n.languages.map{$0.code},lab:Prefs.lab)
+        let names=codes.map{c in Prefs.lab ? c.uppercased():(L10n.languages.first{$0.code==c}?.name ?? c)}
+        let saved=target;target=languageHolder
+        segmented("Ngôn ngữ · Language",names,codes.firstIndex(of:L10n.code) ?? UISegmentedControl.noSegment){[weak self] i in
+            guard codes.indices.contains(i) else{return}
+            L10n.set(codes[i])
+            let a=UIAlertController(title:L10n.languages.first{$0.code==codes[i]}?.name ?? codes[i],message:"Mở lại màn hình để áp dụng toàn bộ.",preferredStyle:.alert)
+            a.addAction(UIAlertAction(title:"OK",style:.default));self?.present(a,animated:true)}
+        target=saved
+        languageHolder.arrangedSubviews.last?.accessibilityIdentifier="LanguagePicker"
+    }
     private func toggle(_ title:String,_ key:String,_ fallback:Bool){
         let l=UILabel();l.text=title;l.textColor = .white;l.font = .systemFont(ofSize:13,weight:.medium);l.numberOfLines=0
         let sw=UISwitch();sw.isOn=UserDefaults.standard.object(forKey:key) as? Bool ?? fallback;sw.onTintColor = .mint;sw.accessibilityIdentifier=key

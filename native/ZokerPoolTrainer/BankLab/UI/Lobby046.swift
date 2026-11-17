@@ -8,7 +8,7 @@ import UIKit
 
 /// Bài gần nhất, lưu khi chơi để "Tiếp tục" mở đúng (UserDefaults, cục bộ).
 enum RecentPlay {
-    static let key = "recentPlay046"
+    static let key = Prefs.recentPlay
     enum Kind { case free, drill(Int), computer(level: Int, rule: String, race: Int) }
     static func saveFree() { UserDefaults.standard.set(["kind": "free"], forKey: key) }
     static func saveDrill(_ index: Int) { UserDefaults.standard.set(["kind": "drill", "drill": index], forKey: key) }
@@ -47,13 +47,12 @@ extension TrainingController {
                          run: { [weak self] in guard let self = self, !self.shotActive, self.replayIndex == nil, self.localTurn else { return }; self.setMenu(false); self.startComputerMatch(level: level, rule: rule, race: race) })
         }
     }
-    /// Phần việc sau khi Sảnh đóng (viewDidAppear không chạy lại với `.overFullScreen`): Game Center + hướng dẫn cú đầu.
+    /// Phần việc sau khi Sảnh đóng và hành động đã chọn đã chạy (viewDidAppear không chạy lại với `.overFullScreen`).
+    /// 0.45 M5.3: lần mở app → AppFlow bước tiếp (hướng dẫn → bàn); Sảnh mở lại sau đó → kiểm tra hướng dẫn ngay, không hẹn giờ.
     func afterLobbyClosed() {
-        let args = ProcessInfo.processInfo.arguments
-        if presentedViewController == nil && !gameCenterAsked && !args.contains(where: { $0.hasPrefix("--") }) {
-            gameCenterAsked = true; DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { GameCenterHub.shared.authenticate() }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.maybeStartTutorial() }
+        if appFlow.step == .lobby { appFlow.done(.lobby); return }
+        if presentedViewController == nil && !gameCenterAsked && !QA.anyFlag { gameCenterAsked = true; GameCenterHub.shared.authenticate() }
+        maybeStartTutorial()
     }
 }
 
@@ -112,9 +111,11 @@ final class LobbyController: UIViewController {
             main.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40)])
     }
 
-    /// Đóng Sảnh rồi: `onClosed` (hướng dẫn / Game Center), sau đó hành động đã chọn.
+    /// Đóng Sảnh rồi: hành động đã chọn, sau đó `onClosed` (bước tiếp của AppFlow: hướng dẫn chỉ khi hành động không
+    /// mở màn khác — trước 0.45 việc này dựa vào hẹn giờ 0,4 s).
     private func choose(_ run: @escaping () -> Void) {
-        dismiss(animated: true) { [weak self] in self?.onClosed?(); run() }
+        let closed = onClosed
+        dismiss(animated: true) { run(); closed?() }
     }
     private func makeContinue(_ r: Resume) -> UIButton {
         var cfg = UIButton.Configuration.filled()

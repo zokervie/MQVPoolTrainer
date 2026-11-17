@@ -31,7 +31,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// (ProMotion may hold 60 instead of dropping single 120 Hz frames) stays behind `tuneFrameRange045` (off) until
     /// measured on the owner's device: SCNView still renders at a fixed rate, and a link/view mismatch is the 0.39 judder.
     func setLinkRate(_ rate:Int){
-        let range=rate>60 && Tuning.flag("tuneFrameRange045",false) ? CAFrameRateRange(minimum:60,maximum:120,preferred:120)
+        let range=rate>60 && Tuning.flag(Prefs.tuneFrameRange,false) ? CAFrameRateRange(minimum:60,maximum:120,preferred:120)
             :CAFrameRateRange(minimum:Float(rate),maximum:Float(rate),preferred:Float(rate))
         if displayLink?.preferredFrameRateRange != range {displayLink?.preferredFrameRateRange=range}
     }   // 0.45 M3: ZToast pill follows the status label
@@ -93,8 +93,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var qaShots=0,qaJumpSeen=false   // UI-test latches: polling every 0.5 s can miss a short shot
     var shotTickStart:Double?
     /// A/B switches for the same build (Chẩn đoán độ mượt): bring back the 0.39 behaviours to prove or refute a cause.
-    static var legacyStatusAB:Bool{UserDefaults.standard.bool(forKey:"diagLegacyStatus039")}
-    static var replayNoSlowAB:Bool{UserDefaults.standard.bool(forKey:"diagReplayNoSlow039")}
+    static var legacyStatusAB:Bool{UserDefaults.standard.bool(forKey:Prefs.diagLegacyStatus)}
+    static var replayNoSlowAB:Bool{UserDefaults.standard.bool(forKey:Prefs.diagReplayNoSlow)}
     var lastEventCount=0
     let titleLabel=UILabel(),statusLabel=UILabel(),scoreLabel=UILabel(),hintLabel=UILabel()
     let spinCenter=UIButton(type:.system)
@@ -205,9 +205,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// 0.35: Chỉ dẫn has two modes — 1 to the aim point (cue path to first contact), 2 the whole run. Bảng shows/hides the coach card.
     // 0.44 (owner item 9): Coach opens with Nút số + điểm ngắm only; the shot-grading card ("Chấm cú", was "Bảng" —
     // nobody knew what it was) is off until the player turns it on, and stays as chosen.
-    var guideMode=UserDefaults.standard.integer(forKey:"guideMode035")==1 ? 1:2,cardOn=UserDefaults.standard.bool(forKey:"coachCard044")
-    var numbersOn=UserDefaults.standard.object(forKey:"numbersOn033") as? Bool ?? true
-    var replayCamera=UserDefaults.standard.integer(forKey:"replayCamera041")
+    var guideMode=UserDefaults.standard.integer(forKey:Prefs.guideMode)==1 ? 1:2,cardOn=UserDefaults.standard.bool(forKey:Prefs.coachCard)
+    var numbersOn=UserDefaults.standard.object(forKey:Prefs.numbersOn) as? Bool ?? true
+    var replayCamera=UserDefaults.standard.integer(forKey:Prefs.replayCamera)
     /// 0.41 Action camera state: current cut, smoothed travel directions, crane yaw.
     var actionShot = -1,actionDirections:[Int:SIMD2<Float>]=[:],actionCraneYaw:Float=0
     var actionSmooth:(eye:SIMD3<Float>,target:SIMD3<Float>)?
@@ -217,9 +217,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     var lastShotSetup:ShotSetup?
     var sessionShots:[(shot:SavedShot,score:Int,label:String)]=[]
-    var autoSaveEveryShot:Bool{UserDefaults.standard.bool(forKey:"autoSaveEveryShot025")}
+    var autoSaveEveryShot:Bool{UserDefaults.standard.bool(forKey:Prefs.autoSaveEveryShot)}
     let quickCall=UIButton(type:.system)
-    var leftHanded:Bool{UserDefaults.standard.bool(forKey:"leftHanded022")}
+    var leftHanded:Bool{UserDefaults.standard.bool(forKey:Prefs.leftHanded)}
     var lastObservedMode=0
     var referenceSpeed:Double{lastShotSpeed>0 ? lastShotSpeed:testSpeed}
     var cameraButton:UIButton!,guideButton:UIButton!,editButton:UIButton!
@@ -277,41 +277,41 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         }
         super.viewDidLoad();view.backgroundColor = UIColor(red:0.025,green:0.033,blue:0.044,alpha:1)
         // Visual probes must not inherit Jump/elevation from a previous scene.
-        if !ProcessInfo.processInfo.arguments.contains("--visual-qa"),var config=UserDefaults.standard.dictionary(forKey:"physics") as? [String:NSNumber]{
+        if !ProcessInfo.processInfo.arguments.contains("--visual-qa"),var config=UserDefaults.standard.dictionary(forKey:Prefs.physics) as? [String:NSNumber]{
             // 0.14: ma sát bi–bi đổi nghĩa (μ₀ của mô hình theo tốc độ). Bỏ giá trị cũ 0,035 đã lưu để dùng mặc định mới.
-            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<14 {
-                config["ballFriction"]=nil;UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(14,forKey:"physicsModelVersion")
+            if UserDefaults.standard.integer(forKey:Prefs.physicsModelVersion)<14 {
+                config["ballFriction"]=nil;UserDefaults.standard.set(config,forKey:Prefs.physics);UserDefaults.standard.set(14,forKey:Prefs.physicsModelVersion)
             }
             // 0.21: hồ sơ vật lý mới (spinDecay 11, β băng .30, squirt theo độ nâng, lực gậy phá). Bỏ giá trị cũ đã
             // lưu của các khóa này để dùng mặc định mới; các chỉnh tay khác giữ nguyên.
-            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<21 {
+            if UserDefaults.standard.integer(forKey:Prefs.physicsModelVersion)<21 {
                 for key in ["spinDecay","railTangentialRestitution","squirtRampDegrees","breakSpeedGain","tipProfile","squirtEnabled"]{config[key]=nil}
-                UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(21,forKey:"physicsModelVersion")
+                UserDefaults.standard.set(config,forKey:Prefs.physics);UserDefaults.standard.set(21,forKey:Prefs.physicsModelVersion)
             }
             // 0.30: ma sát băng .45 (đo bàn thật, mục 11) và xoáy ngang tắt nhanh hơn (18 rad/s²).
-            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<30 {
+            if UserDefaults.standard.integer(forKey:Prefs.physicsModelVersion)<30 {
                 for key in ["railFriction","spinDecay","ballFrictionMin","railGrip0","railGrip1","railGrip2","railGrip3"]{config[key]=nil}
-                UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(30,forKey:"physicsModelVersion")
+                UserDefaults.standard.set(config,forKey:Prefs.physics);UserDefaults.standard.set(30,forKey:Prefs.physicsModelVersion)
             }
             // 0.31: hệ số theo nguồn công bố (băng .20, xoáy ngang 15 rad/s²).
-            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<31 {
+            if UserDefaults.standard.integer(forKey:Prefs.physicsModelVersion)<31 {
                 for key in ["railFriction","spinDecay","ballFrictionMin","railGrip0","railGrip1","railGrip2","railGrip3"]{config[key]=nil}
-                UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(31,forKey:"physicsModelVersion")
+                UserDefaults.standard.set(config,forKey:Prefs.physics);UserDefaults.standard.set(31,forKey:Prefs.physicsModelVersion)
             }
             // 0.43: xoáy ngang 11 rad/s² của 0.42 — 0.42 quên bỏ giá trị 15 đã lưu nên máy cũ vẫn chạy 15; squirt theo
             // tuỳ chọn mới. Bỏ giá trị đã lưu của các khóa này để dùng mặc định mới.
-            if UserDefaults.standard.integer(forKey:"physicsModelVersion")<43 {
+            if UserDefaults.standard.integer(forKey:Prefs.physicsModelVersion)<43 {
                 for key in ["spinDecay","squirtRampDegrees","ballFrictionMin","ballFrictionFactor"]{config[key]=nil}   // + độ sạch bi: về Thường
-                UserDefaults.standard.set(config,forKey:"physics");UserDefaults.standard.set(43,forKey:"physicsModelVersion")
+                UserDefaults.standard.set(config,forKey:Prefs.physics);UserDefaults.standard.set(43,forKey:Prefs.physicsModelVersion)
             }
             engine.settings=config
         }
         table=TableScene(rails:engine.rails)
         // 0.40b: four "300" card colours were put in front of the list — shift a colour saved by 0.39 or earlier.
-        if !UserDefaults.standard.bool(forKey:"clothTintMigrated040"){
-            if let old=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int {UserDefaults.standard.set(old+4,forKey:"clothTintIndex")}
-            UserDefaults.standard.set(true,forKey:"clothTintMigrated040")}
-        if let color=UserDefaults.standard.object(forKey:"clothTintIndex") as? Int {table.setClothColor(color)}
+        if !UserDefaults.standard.bool(forKey:Prefs.clothTintMigrated){
+            if let old=UserDefaults.standard.object(forKey:Prefs.clothTintIndex) as? Int {UserDefaults.standard.set(old+4,forKey:Prefs.clothTintIndex)}
+            UserDefaults.standard.set(true,forKey:Prefs.clothTintMigrated)}
+        if let color=UserDefaults.standard.object(forKey:Prefs.clothTintIndex) as? Int {table.setClothColor(color)}
         scn=SCNView(frame:.zero);scn.scene=table.scene;scn.pointOfView=table.camera;scn.delegate=table.pacer
         scn.backgroundColor = .black;scn.antialiasingMode = .multisampling2X;scn.preferredFramesPerSecond=60;scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
         scn.isPlaying=false;scn.rendersContinuously=false;scn.translatesAutoresizingMaskIntoConstraints=false
@@ -330,20 +330,20 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         GameCenterHub.shared.onMatch={[weak self] match,rule in self?.startGameCenterMatch(match,rule:rule)}
         // 0.44.1 review (high): Game Center's sign-in sheet used to pop up during the intro, then openLobby() bailed out
         // on presentedViewController and the first launch had neither Lobby nor tutorial. It now waits for the table.
-        let aimZoom=UserDefaults.standard.double(forKey:"aimCameraZoom013")
+        let aimZoom=UserDefaults.standard.double(forKey:Prefs.aimCameraZoom)
         table.zoom=Float(aimZoom>=0.45 && aimZoom<=2.6 ? aimZoom:1)
-        let savedPitch=Float(UserDefaults.standard.double(forKey:"aimCameraPitch014"))
+        let savedPitch=Float(UserDefaults.standard.double(forKey:Prefs.aimCameraPitch))
         table.aimPitch=TableScene.aimPitchRange.contains(savedPitch) ? savedPitch:TableScene.defaultAimPitch
         let configured=engine.settings
         spin.maximumOffset=tipLimit(elevated:configured["experimental3D"]?.boolValue ?? false)
         table.selectCue(configured["cueType"]?.intValue ?? 0)
         table.cueElevation=(configured["experimental3D"]?.boolValue ?? false) ? (configured["cueElevationDegrees"]?.doubleValue ?? 0):0
-        shotKind=ProcessInfo.processInfo.arguments.contains("--visual-qa") ? 0:(UserDefaults.standard.object(forKey:"shotKind017") as? Int ?? (configured["cueType"]?.intValue ?? 0))
+        shotKind=ProcessInfo.processInfo.arguments.contains("--visual-qa") ? 0:(UserDefaults.standard.object(forKey:Prefs.shotKind) as? Int ?? (configured["cueType"]?.intValue ?? 0))
         applySquirtPolicy()
         syncQuickRail()
-        highGraphics=UserDefaults.standard.object(forKey:"highGraphics018") as? Bool ?? false
+        highGraphics=UserDefaults.standard.object(forKey:Prefs.highGraphics) as? Bool ?? false
         applyGraphics()
-        table.camera.camera?.exposureOffset=CGFloat(UserDefaults.standard.object(forKey:"zokerExposure017") as? Double ?? -0.8)
+        table.camera.camera?.exposureOffset=CGFloat(UserDefaults.standard.object(forKey:Prefs.exposure) as? Double ?? -0.8)
         if ProcessInfo.processInfo.arguments.contains("--visual-qa") {
             let startupCameraMode=table.cameraMode
             loadShowcase()
@@ -492,7 +492,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         applyCoachVisibility()
         NotificationCenter.default.addObserver(self,selector:#selector(thermalChanged),name:ProcessInfo.thermalStateDidChangeNotification,object:nil);thermalChanged()
 
-        stroke.sensitivity=UserDefaults.standard.double(forKey:"sensitivity");if stroke.sensitivity==0{stroke.sensitivity=1}
+        stroke.sensitivity=UserDefaults.standard.double(forKey:Prefs.sensitivity);if stroke.sensitivity==0{stroke.sensitivity=1}
         spin.changed={[weak self]x,y in self?.side=x;self?.top=y;self?.guideDirty=true;self?.wakeRendering();self?.updateSpinLoupe()}
         if ProcessInfo.processInfo.arguments.contains("--cue-contact-qa") {spin.select(side:-0.5,top:0.49)}
         if ProcessInfo.processInfo.arguments.contains("--spin-detail") {
@@ -533,7 +533,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if shotActive {shotProfile.layoutPasses+=1}
         Self.perfSegment?.layoutPasses+=1
         let safe=hudSafeFrame
-        let key="\(view.bounds.size)|\(safe)|\(leftHanded)|\(spinExpanded)|\(UserDefaults.standard.object(forKey:"loupes042") as? Bool ?? true)|\(menuOpen)|\(matchIsCompetitive)|\(matchIsCompetitive && matchBool("requiresCall"))|\(Tuning.hudScale)|\(replayIndex != nil)"
+        let key="\(view.bounds.size)|\(safe)|\(leftHanded)|\(spinExpanded)|\(UserDefaults.standard.object(forKey:Prefs.loupes) as? Bool ?? true)|\(menuOpen)|\(matchIsCompetitive)|\(matchIsCompetitive && matchBool("requiresCall"))|\(Tuning.hudScale)|\(replayIndex != nil)"
         // 0.39d (CI 125): skip ONLY while balls are moving (live shot / replay) and nothing that places keys changed.
         // At rest every pass lays the HUD out exactly like 0.39 (shot kind, coach, ball editing… all rely on it);
         // a pass skipped mid-motion is replayed once the table is still.
@@ -546,6 +546,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         layoutRightHUD();wakeRendering()
     }
     var lobbyShown=false,gameCenterAsked=false
+    /// 0.45 M5.3: launch state machine (AppFlow047.swift).
+    let appFlow=AppFlow()
     override func viewDidAppear(_ animated:Bool){
         super.viewDidAppear(animated)
         if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders()}
@@ -553,25 +555,42 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             guard let self=self else{return false}
             return self.shotActive || self.replayIndex != nil || (self.matchPlay.session.latestSnapshot?.isMoving==true && self.matchPlay.session.role == .guest)
         }
-        // 0.44.1 M5: the intro plays FIRST, on this table; the Lobby opens only when it has finished or was skipped
-        // (0.43 put the intro on the window and the Lobby covered it at once).
+        // 0.45 M5.3: launch = AppFlow (intro → Lobby → tutorial if not seen → table). Each step reports done by a call
+        // (intro finish, Lobby closed, first shot of the tutorial); no timers chain the steps any more.
         if !introStarted {
             introStarted=true
-            if let director=makeIntro() {intro=director;director.run{[weak self] in self?.intro=nil;self?.viewDidAppear(false)};return}
+            configureAppFlow();appFlow.begin()
+            return
         }
-        if intro != nil {return}
-        // QA/CI launches go straight to the table so probes and gestures are unchanged.
-        // 0.44.1: --keep-lobby-qa runs the real first-launch path (Lobby → Tập tự do → tutorial) under QA.
-        let qa=(ProcessInfo.processInfo.arguments.contains{$0.hasPrefix("--") && $0.hasSuffix("qa")} || ProcessInfo.processInfo.arguments.contains("--visual-qa")) && !ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") && !ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa")
-        if !lobbyShown && !qa {lobbyShown=openLobby()}   // only "shown" if it really was presented
-        // Game Center sign-in only once the player is at the table (after intro and Lobby).
-        if lobbyShown && presentedViewController==nil && !gameCenterAsked && !ProcessInfo.processInfo.arguments.contains(where:{$0.hasPrefix("--")}) {
-            gameCenterAsked=true;DispatchQueue.main.asyncAfter(deadline:.now()+2.5){GameCenterHub.shared.authenticate()}
+        // Later appearances (a full-screen screen closed): the tutorial check the flow already made, if still due.
+        if appFlow.step == .table && presentedViewController==nil && (lobbyShown || QA.has("--tutorial-qa")) {maybeStartTutorial()}
+    }
+    /// The four launch steps. QA/CI launches skip the intro and Lobby so probes and gestures are unchanged;
+    /// --keep-lobby-qa / --intro-lobby-qa run the real first-launch path under QA.
+    func configureAppFlow(){
+        appFlow.startIntro={[weak self] in
+            guard let self=self,let director=self.makeIntro() else{return false}
+            self.intro=director
+            director.run{[weak self] in self?.intro=nil;self?.appFlow.done(.intro)}
+            return true
         }
-        // 0.44.1 M4: the tutorial starts when the player first reaches the table AFTER the Lobby has closed (this
-        // runs again when the full-screen Lobby is dismissed). 0.44 started it from a timer while the Lobby covered
-        // the table, so startTutorial() bailed out on view.window and the first launch never saw it.
-        if presentedViewController==nil && (lobbyShown || ProcessInfo.processInfo.arguments.contains("--tutorial-qa")) {DispatchQueue.main.asyncAfter(deadline:.now()+0.4){[weak self] in self?.maybeStartTutorial()}}
+        appFlow.startLobby={[weak self] in
+            guard let self=self else{return false}
+            let qa=QA.anyQA && !QA.has("--keep-lobby-qa") && !QA.has("--intro-lobby-qa")
+            if qa {return false}
+            self.lobbyShown=self.openLobby()   // only "shown" if it really was presented
+            return self.lobbyShown
+        }
+        appFlow.startTutorial={[weak self] in
+            guard let self=self else{return false}
+            if !self.lobbyShown && !QA.has("--tutorial-qa") {return false}
+            return self.maybeStartTutorial()
+        }
+        appFlow.arrivedAtTable={[weak self] in
+            // Game Center sign-in only once the player is at the table (after intro, Lobby and first shot).
+            guard let self=self,self.lobbyShown,!self.gameCenterAsked,!QA.anyFlag else{return}
+            self.gameCenterAsked=true;GameCenterHub.shared.authenticate()
+        }
     }
     var toastGeneration=0
     var lastCoachToggle=0.0

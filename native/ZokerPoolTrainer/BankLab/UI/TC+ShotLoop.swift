@@ -50,6 +50,7 @@ extension TrainingController {
         guard matchAllowsEditing else{return}
         guard !presentationBusy,localTurn else{return}
         drillIndex=index;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
+        PlayerStore.shared.noteDrillOpened(drill.id)   // 0.45 M5: attempt time starts when the drill is on the table
         table.target(coachOn ? drill.goal:nil)
         initial=drill.balls;before=initial;angle=drill.angle
         engine.loadLayout(initial.map{$0.dictionary});clearShot();locked=false;isPlacingBalls=false;spin.reset();applyDrillTip()
@@ -122,7 +123,7 @@ extension TrainingController {
         mark("squirt+record");hideCoach();mark("hideCoach")
         publishShotStart(strikeAngle:strikeAngle,speed:speed)   // 0.44 lockstep: the guest runs the same solver
         engine.strike(angle:strikeAngle,speed:speed,side:side,top:top);mark("strike")
-        if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
+        if UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
         mark("cueSound")
         shotActive=true;didStartMatchShot();mark("matchStart");attempts+=1;statusLabel.text=String(format:"Đang chạy · tốc độ đầu %.2f m/s",speed)
         feedback.impactOccurred();mark("haptic");guideDirty=true;table.trails([:]);mark("trails");setMenu(false);mark("menu");updateControls();mark("controls")
@@ -246,7 +247,7 @@ extension TrainingController {
                         // 0.44 (owner item 15): the replay shows its stroke's power in the same free slot, not on the HUD.
                         if let shot=lastShot{showOpponentShot(speed:shot.speed,side:shot.side,top:shot.top,elevation:shot.elevation,cueType:shot.cueType,who:"",mirrorControls:false)}
                         if let export=videoExport {export.sound(kind:3,impact:lastShot?.speed ?? 1,pan:0)}
-                        else if !replayPaused,UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true{poolAudio.play(kind:3,impact:lastShot?.speed ?? 1,pan:0)}
+                        else if !replayPaused,UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true{poolAudio.play(kind:3,impact:lastShot?.speed ?? 1,pan:0)}
                     }
                 }
                 replaySlider.value=Float(replayClock)
@@ -282,7 +283,7 @@ extension TrainingController {
             let fresh=engine.events(since:UInt(lastEventCount))
             if !fresh.isEmpty {
                 defer{if let perf=perf {perf.audio.append(CACurrentMediaTime()-e0);perf.audioCalls+=fresh.count}}
-                if UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true {
+                if UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true {
                     for event in fresh {poolAudio.play(kind:event["kind"]?.intValue ?? 1,impact:event["impact"]?.doubleValue ?? 0.3,pan:audioPan(event["x"]?.doubleValue ?? 0,event["y"]?.doubleValue ?? 0),eventAge:max(0,engine.elapsed-(event["time"]?.doubleValue ?? engine.elapsed)))}
                 }
                 lastEventCount+=fresh.count
@@ -370,7 +371,7 @@ extension TrainingController {
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
         if shotActive && shotKind==1 {qaJumpSeen=true}
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa") || ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") || ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";lang="+L10n.code+";intro="+(intro?.mode ?? "none")+";introDone=\(introFinishCount)"+";lobby="+(presentedViewController is LobbyController ? "1":"0")+";tut="+(firstShotCoach?.state ?? "none")+String(format:";aimTarget=%.6f;elev=%.2f;stroke=%.2f",Drill.all[Drill.startup].angle,table.cueElevation,strokeClearance)+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa") || ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") || ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";lang="+L10n.code+";intro="+(intro?.mode ?? "none")+";introDone=\(introFinishCount)"+";lobby="+(presentedViewController is LobbyController ? "1":"0")+";tut="+(firstShotCoach?.state ?? "none")+";flow="+appFlow.step.name+";flowLog="+appFlow.logText+String(format:";aimTarget=%.6f;elev=%.2f;stroke=%.2f",Drill.all[Drill.startup].angle,table.cueElevation,strokeClearance)+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
@@ -446,7 +447,7 @@ extension TrainingController {
         // switches the app to 60 Hz for good (saved; Tuỳ chỉnh → Độ mượt can set 120 again). PresentationPolicy.h.
         let paced=table.pacer.diagnostics
         if BLShouldDropTo60Hz(Int32(shotProfile.frameRate),Int32(clamping:paced.starvedFrames),Int32(clamping:paced.sampledFrames)) != 0 {
-            UserDefaults.standard.set(60,forKey:"tuneFPS036")
+            UserDefaults.standard.set(60,forKey:Prefs.tuneFPS)
             setLinkRate(60)
             notifyStatus("Đã chuyển 60 Hz cho mượt")   // one language (L10n: en "Switched to 60 Hz for smoothness")
         }
@@ -461,7 +462,7 @@ extension TrainingController {
         let finishedMatch=finishMatchShot()
         tutorialShotFinished(events:events)   // 0.44.1 M4: "Vào rồi!" / "Thử lại nhé" + one contextual hint
         resetShotInputsAndAim()
-        if finishedMatch{refresh();updateControls();return}
+        if finishedMatch{PlayerStore.shared.recordShot(drill:nil,made:false);refresh();updateControls();return}   // 0.45 M5: usage counter
         table.trails(coachOn && trailsOn ? paths:[:])
         let scratch=events.contains{$0["kind"]?.intValue==2 && $0["a"]?.intValue==0}
         var passed=false,railCount=0
@@ -487,10 +488,12 @@ extension TrainingController {
         passed=passed && !scratch && !timedOut
         lastPassed=passed;lastScratch=scratch
         if passed{successes+=1}
+        // 0.45 M5: one attempt per drill shot (stable id) + the usage shot counter. Free table: counter only.
+        PlayerStore.shared.recordShot(drill:(d.goal != nil || d.rails>0) && !matchPlay.active ? d.id:nil,made:passed)
         if d.goal != nil || d.rails>0 {
             var history=practiceRecords()
             history.append(PracticeRecord(date:Date(),drill:d.title,passed:passed,speed:lastShotSpeed,side:lastShot?.side ?? 0,top:lastShot?.top ?? 0))
-            if let data=try? JSONEncoder().encode(Array(history.suffix(200))){UserDefaults.standard.set(data,forKey:"practiceHistory")}
+            if let data=try? JSONEncoder().encode(Array(history.suffix(200))){UserDefaults.standard.set(data,forKey:Prefs.practiceHistory)}
         }
         let distance:Double = paths[0].map {p in zip(p,p.dropFirst()).reduce(0.0){$0+Double(simd_distance($1.0,$1.1))}} ?? 0
         if timedOut {statusLabel.text="Dừng sau 60 giây · cú không tính đạt"}

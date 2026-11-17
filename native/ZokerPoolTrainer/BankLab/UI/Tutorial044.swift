@@ -49,10 +49,10 @@ enum TutorialScript {
         TutorialHint(id: "spin", caption: "Kéo để chọn điểm chạm", target: { $0.spin }),
         TutorialHint(id: "elevation", caption: "Kéo để nâng đuôi cơ", target: { $0.elevationPad }),
     ]
-    static let seenKey = "tutorial044Seen"          // kept: "đã xem" only after the first shot is played
-    static let enabledKey = "tutorialEnabled044"    // auto-start on first launch
-    static let hintsKey = "tutorialHints0441"       // Tuỳ chỉnh: contextual hints on/off
-    static func hintSeenKey(_ id: String) -> String { "tutorialHint0441." + id }
+    static let seenKey = Prefs.tutorialSeen          // kept: "đã xem" only after the first shot is played
+    static let enabledKey = Prefs.tutorialEnabled    // auto-start on first launch
+    static let hintsKey = Prefs.tutorialHints       // Tuỳ chỉnh: contextual hints on/off
+    static func hintSeenKey(_ id: String) -> String { Prefs.tutorialHintSeen(id) }
 }
 
 /// Drives the beats and hints with a handful of small, touch-transparent views.
@@ -126,7 +126,7 @@ final class FirstShotCoach {
         }
         // QA only (--tutorial-stroke-qa): XCUITest cannot hold B with one finger and stroke with another, so the UI
         // test lets the app fire the stroke 1.5 s after beat 2 is on screen. The real gesture needs a device.
-        if firstShotRunning, beats[index].id == "stroke", ProcessInfo.processInfo.arguments.contains("--tutorial-stroke-qa"),
+        if firstShotRunning, beats[index].id == "stroke", QA.has("--tutorial-stroke-qa"),
            !tc.qaTutorialStrokeFired, Date().timeIntervalSince(beatShownAt) > 1.5, !tc.shotActive, !tc.presentationBusy {
             tc.qaTutorialStrokeFired = true; tc.locked = true; tc.shoot(2.0)
         }
@@ -152,7 +152,8 @@ final class FirstShotCoach {
     func shotFinished(potted: Bool, scratch: Bool, shots: Int) {
         guard let tc = tc else { return }
         if state == "shot" {
-            UserDefaults.standard.set(true, forKey: TutorialScript.seenKey)   // "đã xem" only after the first shot
+            UserDefaults.standard.set(true, forKey: Prefs.tutorialSeen)   // "đã xem" only after the first shot
+            tc.appFlow.done(.tutorial)   // 0.45 M5.3: launch flow reaches the table (ignored if not in the tutorial step)
             if potted && !scratch {
                 state = "potted"; say("Vào rồi!"); UINotificationFeedbackGenerator().notificationOccurred(.success)
                 hideLater(2.2) { [weak self] in self?.hint(missed: false, shots: shots) }
@@ -284,32 +285,34 @@ final class FirstShotCoach {
         let f = CAKeyframeAnimation(keyPath: "opacity"); f.values = [0, 1, 1, 0]; f.keyTimes = [0, 0.12, 0.8, 1]
         f.duration = d; f.repeatCount = .infinity; return f
     }
-    func stop() { timer?.invalidate(); timer = nil; index = beats.count; hideWork?.cancel(); state = "none"; hideAll(keepCaption: false) }
+    func stop() { timer?.invalidate(); timer = nil; index = beats.count; hideWork?.cancel(); state = "none"; hideAll(keepCaption: false); tc?.appFlow.done(.tutorial) }
 }
 
 extension TrainingController {
     static let tutorialSeenKey = TutorialScript.seenKey
     /// First time the player reaches the table after the Lobby closes (practice, "Cú đầu tiên"). QA: --tutorial-qa
     /// forces it; --keep-lobby-qa runs the real path (Lobby → Tập tự do → tutorial); other QA launches never show it.
-    func maybeStartTutorial() {
-        let args = ProcessInfo.processInfo.arguments
-        let forced = args.contains("--tutorial-qa"), realPath = args.contains("--keep-lobby-qa")
-        if !forced && !realPath && (args.contains("--visual-qa") || args.contains { $0.hasPrefix("--ux0") || $0.hasPrefix("--g1-") }) { return }
-        if args.contains("--fresh-tutorial") && !freshTutorialDone {
+    /// 0.45 M5.3: called by AppFlow (tutorial step) right after the Lobby closed — no timer. Returns true if the beats
+    /// started (the flow then waits for `appFlow.done(.tutorial)` from the first shot).
+    @discardableResult func maybeStartTutorial() -> Bool {
+        let forced = QA.has("--tutorial-qa"), realPath = QA.has("--keep-lobby-qa")
+        if !forced && !realPath && (QA.has("--visual-qa") || QA.arguments.contains { $0.hasPrefix("--ux0") || $0.hasPrefix("--g1-") }) { return false }
+        if QA.has("--fresh-tutorial") && !freshTutorialDone {
             freshTutorialDone = true
-            UserDefaults.standard.removeObject(forKey: TutorialScript.seenKey)
-            for h in TutorialScript.hints { UserDefaults.standard.removeObject(forKey: TutorialScript.hintSeenKey(h.id)) }
+            UserDefaults.standard.removeObject(forKey: Prefs.tutorialSeen)
+            for h in TutorialScript.hints { UserDefaults.standard.removeObject(forKey: Prefs.tutorialHintSeen(h.id)) }
         }
-        guard forced || ((UserDefaults.standard.object(forKey: TutorialScript.enabledKey) as? Bool ?? true) && !UserDefaults.standard.bool(forKey: TutorialScript.seenKey)) else { return }
+        guard forced || (Prefs.flag(Prefs.tutorialEnabled, true) && !UserDefaults.standard.bool(forKey: Prefs.tutorialSeen)) else { return false }
         guard view.window != nil, presentedViewController == nil, !matchPlay.active, replayIndex == nil,
-              firstShotCoach?.firstShotRunning != true, firstShotCoach?.state != "shot", drillIndex == Drill.startup || forced else { return }
-        startTutorial()
+              firstShotCoach?.firstShotRunning != true, firstShotCoach?.state != "shot", drillIndex == Drill.startup || forced else { return false }
+        return startTutorial()
     }
     /// Starts the two first-shot beats now (Menu → Hướng dẫn chơi → "Cú đầu tiên").
-    func startTutorial() {
-        guard view.window != nil, !matchPlay.active, replayIndex == nil else { return }
+    @discardableResult func startTutorial() -> Bool {
+        guard view.window != nil, !matchPlay.active, replayIndex == nil else { return false }
         let coach = firstShotCoach ?? FirstShotCoach(owner: self); firstShotCoach = coach
         coach.startFirstShot()
+        return true
     }
     /// finishShot hook: result caption for the first shot, then at most one contextual hint.
     func tutorialShotFinished(events: [[String: NSNumber]]) {

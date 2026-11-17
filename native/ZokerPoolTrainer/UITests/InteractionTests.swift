@@ -422,6 +422,54 @@ final class InteractionTests: XCTestCase {
         let scene = app.otherElements["PoolScene"]
         if scene.exists { XCTAssertTrue((scene.value as? String ?? "").contains(";introDone=1;"), "finish ran exactly once") }
     }
+    /// 0.45 M5.3: a fresh install on a Vietnamese device walks the whole AppFlow — intro → Sảnh → hướng dẫn → bàn —
+    /// each step entered once, in order, each started by the previous one finishing (no timers). Debug build only
+    /// (QA flags are compiled out of Release). Written 18/11; NOT RUN yet (Simulator broken on the Mac at the time).
+    func testFreshInstallLaunchFlowIntroLobbyTutorialTable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--intro-lobby-qa", "--fresh-intro", "--fresh-tutorial", "--fresh-player-qa", "--tutorial-stroke-qa",
+                               "--l10n-real", "--fresh-language", "-AppleLanguages", "(vi)", "-AppleLocale", "vi_VN"]
+        app.launch()
+        let scene = app.otherElements["PoolScene"]
+        func value() -> String { scene.value as? String ?? "" }
+        func part(_ key: String) -> String { value().components(separatedBy: ";").first { $0.hasPrefix(key + "=") }.map { String($0.dropFirst(key.count + 1)) } ?? "" }
+        // 1 · intro first, alone
+        let intro = app.descendants(matching: .any)["IntroOverlay"].firstMatch
+        XCTAssertTrue(intro.waitForExistence(timeout: 60), "fresh install: the intro is shown first")
+        XCTAssertFalse(app.buttons["LobbyFree"].exists, "no Lobby on top of the intro")
+        if scene.exists { XCTAssertEqual(part("flow"), "intro") }
+        intro.tap()
+        // 2 · Lobby only after the intro finished (Vietnamese device → Vietnamese Lobby)
+        let free = app.buttons["LobbyFree"]
+        XCTAssertTrue(free.waitForExistence(timeout: 20 * slow), "the Lobby comes after the intro")
+        XCTAssertTrue(free.label.contains("Tập tự do"), "Vietnamese Lobby: \(free.label)")
+        XCTAssertFalse(intro.exists)
+        free.tap()
+        // 3 · tutorial right after the Lobby closed
+        wait(scene, timeout: 10 * slow) { part("tut") == "aim" }
+        XCTAssertEqual(part("flow"), "tutorial")
+        XCTAssertEqual(part("flowLog"), "intro>lobby>tutorial", "each step once, in order")
+        let target = field(scene, "aimTarget")
+        func err() -> Double { remainder(field(scene, "angle") - target, 2 * .pi) }
+        func drag(_ dx: Double) {
+            let s = scene.coordinate(withNormalizedOffset: CGVector(dx: 0.5 - dx / 2, dy: 0.62))
+            let e = scene.coordinate(withNormalizedOffset: CGVector(dx: 0.5 + dx / 2, dy: 0.62))
+            s.press(forDuration: 0.05, thenDragTo: e)
+        }
+        var before = err(); drag(0.06); var gain = (err() - before) / 0.06
+        for _ in 0..<10 where part("tut") == "aim" {
+            before = err()
+            guard abs(gain) > 1e-4 else { drag(-0.06); gain = (err() - before) / -0.06; continue }
+            let dx = max(-0.35, min(0.35, -before / gain)); drag(dx)
+            let moved = err() - before
+            if abs(dx) > 0.004, abs(moved) > 1e-5 { gain = moved / dx }
+        }
+        // 4 · the first shot (fired by --tutorial-stroke-qa) ends the tutorial → table
+        wait(scene, timeout: 40 * slow) { part("flow") == "table" }
+        XCTAssertEqual(part("flowLog"), "intro>lobby>tutorial>table", "intro → Sảnh → hướng dẫn → bàn, nothing twice")
+        XCTAssertTrue(value().contains(";introDone=1;"), "intro finish ran exactly once")
+        XCTAssertEqual(part("lang"), "vi")
+    }
     /// 0.46 M1: from the Lobby, "Tiếp tục" is one tap to the table (open app → Lobby → Tiếp tục = 2 steps to the first shot).
     func testLobbyContinueReachesTableInTwoTaps() {
         let app = XCUIApplication()

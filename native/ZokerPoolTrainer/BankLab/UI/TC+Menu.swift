@@ -35,8 +35,9 @@ extension TrainingController {
                           for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
                           sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)}),
                       A(title:"Tài khoản · Game Center",icon:"gamecontroller",id:"LobbyAccount",run:{[weak self] in self?.openAccount()}),
-                      A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()}),
-                      A(title:"Phòng thử vật lý (nâng cao)",icon:"flask",id:"LobbyLab",run:{[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})]
+                      A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()})]
+        // 0.46 M2: engineer tools only with Phòng thí nghiệm on (Tuỳ chỉnh → Máy).
+        if Prefs.lab {lobby.footer.append(A(title:"Phòng thử vật lý (nâng cao)",icon:"flask",id:"LobbyLab",run:{[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)}))}
         lobby.onClosed={[weak self] in self?.afterLobbyClosed()}
         lobby.modalPresentationStyle = .overFullScreen;lobby.modalTransitionStyle = .crossDissolve
         present(lobby,animated:true);return true
@@ -53,7 +54,7 @@ extension TrainingController {
         sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));presentSheet(sheet,source:menuButton)
     }
     func setLeftHanded(_ on:Bool){
-        UserDefaults.standard.set(on,forKey:"leftHanded022");hudLayoutKey="";view.setNeedsLayout();view.layoutIfNeeded()
+        UserDefaults.standard.set(on,forKey:Prefs.leftHanded);hudLayoutKey="";view.setNeedsLayout();view.layoutIfNeeded()
         notifyStatus(on ? "Tay trái: phím và bi effect bên trái":"Tay phải: phím và bi effect bên phải")
     }
 
@@ -90,7 +91,7 @@ extension TrainingController {
             self.engine.settings=values
             self.spin.maximumOffset=self.tipLimit(elevated:values["experimental3D"]?.boolValue ?? false)
             self.spin.select(side:self.side,top:self.top)
-            UserDefaults.standard.set(self.engine.settings,forKey:"physics")
+            UserDefaults.standard.set(self.engine.settings,forKey:Prefs.physics)
             self.table.selectCue(values["cueType"]?.intValue ?? 0)
             self.table.cueElevation=(values["experimental3D"]?.boolValue ?? false) ? (values["cueElevationDegrees"]?.doubleValue ?? 0):0
             self.guideDirty=true;self.syncQuickRail()
@@ -101,8 +102,8 @@ extension TrainingController {
     }
     func chooseClothColor(){
         let sheet=UIAlertController(title:"Màu nỉ",message:"Chọn màu bàn luyện. Vân nỉ matte và texture vẫn được giữ.",preferredStyle:.actionSheet)
-        for (index,item) in TableScene.clothColors.enumerated(){sheet.addAction(UIAlertAction(title:item.0,style:.default){[weak self]_ in UserDefaults.standard.set(index,forKey:"clothTintIndex");self?.table.setClothColor(index)})}
-        sheet.addAction(UIAlertAction(title:"Theo mẫu bàn đang chọn",style:.default){[weak self]_ in UserDefaults.standard.removeObject(forKey:"clothTintIndex");self?.table.setClothColor(nil)})
+        for (index,item) in TableScene.clothColors.enumerated(){sheet.addAction(UIAlertAction(title:item.0,style:.default){[weak self]_ in UserDefaults.standard.set(index,forKey:Prefs.clothTintIndex);self?.table.setClothColor(index)})}
+        sheet.addAction(UIAlertAction(title:"Theo mẫu bàn đang chọn",style:.default){[weak self]_ in UserDefaults.standard.removeObject(forKey:Prefs.clothTintIndex);self?.table.setClothColor(nil)})
         sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));presentSheet(sheet,source:menuButton)
     }
     func presentSheet(_ sheet:UIAlertController,source:UIView?=nil){
@@ -183,12 +184,12 @@ extension TrainingController {
         if !savedLayouts().isEmpty {a.addAction(UIAlertAction(title:"Xóa một thế bi đã lưu…",style:.destructive){[weak self]_ in self?.deleteLayout()})}
         a.addAction(UIAlertAction(title:"Đóng",style:.cancel));presentSheet(a,source:layoutButton)
     }
-    func savedLayouts()->[Layout]{guard let data=UserDefaults.standard.data(forKey:"layouts") else{return []};return (try? JSONDecoder().decode([Layout].self,from:data)) ?? []}
+    func savedLayouts()->[Layout]{guard let data=UserDefaults.standard.data(forKey:Prefs.layouts) else{return []};return (try? JSONDecoder().decode([Layout].self,from:data)) ?? []}
     func saveLayout(){
         let a=UIAlertController(title:"Tên thế bi",message:nil,preferredStyle:.alert);a.addTextField{$0.placeholder="Ví dụ: Kick 3 băng góc dài"}
         a.addAction(UIAlertAction(title:"Lưu",style:.default){[weak self,weak a]_ in
             guard let self=self else{return};var list=self.savedLayouts();list.append(Layout(name:a?.textFields?.first?.text?.isEmpty==false ? a!.textFields!.first!.text!:"Thế bi \(list.count+1)",balls:self.balls,angle:self.angle))
-            if let data=try? JSONEncoder().encode(list){UserDefaults.standard.set(data,forKey:"layouts")};self.statusLabel.text="Đã lưu thế bi"
+            if let data=try? JSONEncoder().encode(list){UserDefaults.standard.set(data,forKey:Prefs.layouts)};self.statusLabel.text="Đã lưu thế bi"
         });a.addAction(UIAlertAction(title:"Hủy",style:.cancel));presentSheet(a)
     }
     func openLayout(_ index:Int){
@@ -199,7 +200,7 @@ extension TrainingController {
     }
     func deleteLayout(){
         let a=UIAlertController(title:"Xóa thế bi",message:nil,preferredStyle:.actionSheet)
-        for(i,l) in savedLayouts().enumerated(){a.addAction(UIAlertAction(title:l.name,style:.destructive){[weak self]_ in guard let self=self else{return};var list=self.savedLayouts();list.remove(at:i);if let d=try? JSONEncoder().encode(list){UserDefaults.standard.set(d,forKey:"layouts")}})}
+        for(i,l) in savedLayouts().enumerated(){a.addAction(UIAlertAction(title:l.name,style:.destructive){[weak self]_ in guard let self=self else{return};var list=self.savedLayouts();list.remove(at:i);if let d=try? JSONEncoder().encode(list){UserDefaults.standard.set(d,forKey:Prefs.layouts)}})}
         a.addAction(UIAlertAction(title:"Hủy",style:.cancel));presentSheet(a,source:layoutButton)
     }
     /// Xếp bi ngẫu nhiên theo seed (in ra để tái tạo): không chồng bi, cách miệng lỗ và băng.
@@ -264,7 +265,7 @@ extension TrainingController {
         }}
     }
     func practiceRecords()->[PracticeRecord]{
-        guard let data=UserDefaults.standard.data(forKey:"practiceHistory") else{return []}
+        guard let data=UserDefaults.standard.data(forKey:Prefs.practiceHistory) else{return []}
         return (try? JSONDecoder().decode([PracticeRecord].self,from:data)) ?? []
     }
     func showPracticeHistory(){
@@ -281,7 +282,7 @@ extension TrainingController {
         table.quality(highGraphics)
         scn.antialiasingMode=highGraphics ? .multisampling4X:.multisampling2X
         scn.preferredFramesPerSecond=60
-        UserDefaults.standard.set(highGraphics,forKey:"highGraphics018")
+        UserDefaults.standard.set(highGraphics,forKey:Prefs.highGraphics)
     }
     func loadShowcase(){
         guard !shotActive,replayIndex==nil else{return}
@@ -328,9 +329,9 @@ extension TrainingController {
         let message=smoothnessReport()
         let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
         alert.addAction(UIAlertAction(title:Self.legacyStatusAB ? "A/B: tắt trạng thái 5 Hz cũ":"A/B: bật lại trạng thái 5 Hz cũ (để so)",style:.default){_ in
-        UserDefaults.standard.set(!Self.legacyStatusAB,forKey:"diagLegacyStatus039")})
+        UserDefaults.standard.set(!Self.legacyStatusAB,forKey:Prefs.diagLegacyStatus)})
         alert.addAction(UIAlertAction(title:Self.replayNoSlowAB ? "A/B: xem lại có quay chậm tự động":"A/B: xem lại 1× không quay chậm",style:.default){_ in
-        UserDefaults.standard.set(!Self.replayNoSlowAB,forKey:"diagReplayNoSlow039")})
+        UserDefaults.standard.set(!Self.replayNoSlowAB,forKey:Prefs.diagReplayNoSlow)})
         alert.addAction(UIAlertAction(title:"Sao chép số đo",style:.default){_ in UIPasteboard.general.string=message})
         alert.addAction(UIAlertAction(title:"Đóng",style:.cancel));topPresenter.present(alert,animated:true)
     }
@@ -345,16 +346,18 @@ extension TrainingController {
         for item in [("Tối",-1.25),("Dịu · mặc định",-0.95),("Sáng",-0.65)] {
             a.addAction(UIAlertAction(title:item.0,style:.default){[weak self]_ in
                 self?.table.camera.camera?.exposureOffset=CGFloat(item.1)
-                UserDefaults.standard.set(item.1,forKey:"zokerExposure017")
+                UserDefaults.standard.set(item.1,forKey:Prefs.exposure)
             })
         }
-        a.addAction(UIAlertAction(title:"Hiện FPS / thống kê render",style:.default){[weak self]_ in self?.scn.showsStatistics.toggle()})
-        a.addAction(UIAlertAction(title:"Nhịp hiển thị cú vừa đánh",style:.default){[weak self]_ in self?.showSmoothnessDiagnostics()})
+        if Prefs.lab {   // 0.46 M2: FPS / diagnostics only with Phòng thí nghiệm on
+            a.addAction(UIAlertAction(title:"Hiện FPS / thống kê render",style:.default){[weak self]_ in self?.scn.showsStatistics.toggle()})
+            a.addAction(UIAlertAction(title:"Nhịp hiển thị cú vừa đánh",style:.default){[weak self]_ in self?.showSmoothnessDiagnostics()})
+        }
         a.addAction(UIAlertAction(title:"Khôi phục góc máy",style:.default){[weak self]_ in self?.table.orbit=0;self?.table.zoom=1;self?.table.aimPitch=TableScene.defaultAimPitch
-            UserDefaults.standard.removeObject(forKey:"aimCameraPitch014");UserDefaults.standard.removeObject(forKey:"aimCameraZoom013")})
+            UserDefaults.standard.removeObject(forKey:Prefs.aimCameraPitch);UserDefaults.standard.removeObject(forKey:Prefs.aimCameraZoom)})
         if !shotActive,replayIndex==nil {
             a.addAction(UIAlertAction(title:"Mở cảnh studio 15 bi",style:.default){[weak self]_ in self?.loadShowcase()})
-            a.addAction(UIAlertAction(title:"Kiểm tra lăn · 0.5 m/s",style:.default){[weak self]_ in self?.rollingCheck()})
+            if Prefs.lab {a.addAction(UIAlertAction(title:"Kiểm tra lăn · 0.5 m/s",style:.default){[weak self]_ in self?.rollingCheck()})}
         }
         a.addAction(UIAlertAction(title:"Xuất ảnh cảnh 3D",style:.default){[weak self]_ in
             guard let self=self else{return}
@@ -399,7 +402,7 @@ extension TrainingController {
         let vc=SettingsController(settings:engine.settings,sensitivity:stroke.sensitivity)
         vc.apply={[weak self]settings,sensitivity in
             guard let self=self else{return};self.engine.settings=settings;self.stroke.sensitivity=sensitivity
-            UserDefaults.standard.set(settings,forKey:"physics");UserDefaults.standard.set(sensitivity,forKey:"sensitivity")
+            UserDefaults.standard.set(settings,forKey:Prefs.physics);UserDefaults.standard.set(sensitivity,forKey:Prefs.sensitivity)
             self.table.selectCue(self.engine.settings["cueType"]?.intValue ?? 0)
             self.table.cueElevation=(self.engine.settings["experimental3D"]?.boolValue ?? false) ? (self.engine.settings["cueElevationDegrees"]?.doubleValue ?? 0):0
             self.spin.maximumOffset=self.tipLimit(elevated:self.engine.settings["experimental3D"]?.boolValue ?? false)
