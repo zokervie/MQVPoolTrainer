@@ -317,6 +317,32 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"cameraAngle"),field(scene,"angle"),accuracy:1e-4)
         XCTAssertEqual(field(scene,"zoom"),aimZoom,accuracy:0.005)
     }
+    /// 0.44.1 (owner): a fresh install on a Vietnamese device opens in Vietnamese (no more English default), and
+    /// everything in the Coach card is Vietnamese. Control: an English device still gets English.
+    func testFreshInstallFollowsDeviceLanguageAndCoachIsVietnamese() {
+        let vietnamese = CharacterSet(charactersIn: "ạảãàáâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐ")
+        let app = XCUIApplication()
+        app.launchArguments = ["--visual-qa", "--g1-default-qa", "--l10n-real", "--fresh-language", "--coach-card-qa", "-AppleLanguages", "(vi)", "-AppleLocale", "vi_VN"]
+        app.launch()
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 60))
+        let card = app.otherElements["CoachCard"]
+        XCTAssertTrue(card.waitForExistence(timeout: 30 * slow))
+        XCTAssertTrue((scene.value as? String ?? "").contains(";lang=vi;"), "fresh install on a Vietnamese device must be vi")
+        let texts = card.staticTexts.allElementsBoundByIndex.map { $0.label }.filter { !$0.isEmpty }
+        XCTAssertFalse(texts.isEmpty, "Coach card shows text")
+        for text in texts {
+            XCTAssertNotNil(text.rangeOfCharacter(from: vietnamese), "Coach text is Vietnamese: \(text)")
+        }
+        app.terminate()
+        let english = XCUIApplication()
+        english.launchArguments = ["--visual-qa", "--g1-default-qa", "--l10n-real", "--fresh-language", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        english.launch()
+        let englishScene = english.otherElements["PoolScene"]
+        XCTAssertTrue(englishScene.waitForExistence(timeout: 60))
+        wait(englishScene, timeout: 20 * slow) { (englishScene.value as? String ?? "").contains(";lang=") }
+        XCTAssertTrue((englishScene.value as? String ?? "").contains(";lang=en;"), "an English device keeps English")
+    }
     func testComputerOpponentTakesItsTurns() {
         let (_,scene)=launch(["--computer-qa"])
         wait(scene,timeout:40 * slow){self.field(scene,"cpuShots")>=1}

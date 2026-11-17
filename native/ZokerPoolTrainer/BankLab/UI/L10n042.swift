@@ -1,7 +1,7 @@
 import UIKit
 import ObjectiveC
 
-/// 0.42 (owner acceptance 0.41 item 12): seven languages, English by default — en, vi, fil, es, zh-Hans, ja, hi.
+/// 0.42 (owner acceptance 0.41 item 12): seven languages; 0.44.1: device language by default, else Vietnamese — en, vi, fil, es, zh-Hans, ja, hi.
 /// The source text of the app is Vietnamese. Rather than touching ~900 call sites, UIKit's text entry points
 /// (UILabel, UIButton, UIAlertController/Action, UISegmentedControl, UINavigationItem) are swizzled once and pass
 /// through `L10n.tr`: exact phrase first, then known phrases inside dynamic text ("Bi 5 · lỗ 3"), longest first.
@@ -13,8 +13,13 @@ enum L10n {
                                                              ("es", "Español"), ("zh", "中文"), ("ja", "日本語"), ("hi", "हिन्दी")]
     static let key = "appLanguage042"
     /// QA launches (UI tests, probes) always run in the source language so their text assertions stay valid.
-    static let qa = ProcessInfo.processInfo.arguments.contains("--visual-qa")
-    static var code: String { qa ? "vi" : (UserDefaults.standard.string(forKey: key) ?? "en") }
+    /// `--l10n-real` lets a QA launch use the real device language (first-launch language UI test).
+    static let qa = ProcessInfo.processInfo.arguments.contains("--visual-qa") && !ProcessInfo.processInfo.arguments.contains("--l10n-real")
+    /// 0.44.1 (owner): no saved choice → the device language if supported, else Vietnamese (was: English).
+    static var code: String {
+        qa ? "vi" : (UserDefaults.standard.string(forKey: key)
+            ?? L10nDefault.code(preferred: Locale.preferredLanguages, supported: languages.map { $0.code }))
+    }
     private static var cache: [String: String] = [:]
     private static var loaded: [String: [String: String]] = [:]
     /// Order of each row: en, fil, es, zh, ja, hi.

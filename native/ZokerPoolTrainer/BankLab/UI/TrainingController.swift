@@ -358,6 +358,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
             if args.contains("--perf-qa"){startPerfQA()}   // 0.44-mm
             startLANQA()   // 0.44-mm: no-op without --lan-host-qa / --lan-join-qa
+            if args.contains("--coach-card-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in   // 0.44.1 language test
+                guard let self=self else{return};self.coaching=true;self.cardOn=true;self.loadDrill(Drill.startup);self.showCoach(self.drillBrief(Drill.all[Drill.startup]))}}
             if args.contains("--cue-look-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startCueLookQA()}}   // 0.44.1 M3 stills
             if args.contains("--wall-photo-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startWallPhotoQA()}}   // 0.44.1 M2
             if args.contains("--nearby-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+(args.contains("--lan-host-qa") ? 6:2)){[weak self] in self?.openNearbyLobby(tab:args.contains("--lan-host-qa") ? 0:1)}}   // 0.44-mm Nearby Play screen (QA guest opens Tìm phòng)
@@ -554,9 +556,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         for (k,icon) in cueIcons.enumerated(){place(icon,BLHUDCueIcon(f,Int32(k)))}
         elevationPad.leftHanded=leftHanded
         let small=BLRectMake(0,f.coach.y+4,pad ? 76:62,36),guideW=pad ? 92:80
-        var n=small,g=small,c=small;g.w=Double(guideW);c.w=pad ? 64:52
+        var n=small,g=small,c=small;g.w=Double(guideW);c.w=pad ? 72:60   // 0.44.1: "Chấm cú" fits on one line
         if leftHanded{n.x=f.coach.x-6-n.w;g.x=n.x-6-g.w;c.x=g.x-6-c.w}else{n.x=f.coach.x+f.coach.w+6;g.x=n.x+n.w+6;c.x=g.x+g.w+6}
         place(numbersButton,n);place(guideToggle,g);place(cardToggle,c)
+        for b in [numbersButton,guideToggle,cardToggle]{b.setNeedsUpdateConfiguration()}
         // Replay bar: top row between Coach and the shortcut column (never over Coach); mirrored for left hand.
         if (replayBarRight.first?.isActive ?? false) == leftHanded {   // only on a hand change (avoids a layout loop)
             NSLayoutConstraint.deactivate(leftHanded ? replayBarRight:replayBarLeft);NSLayoutConstraint.activate(leftHanded ? replayBarLeft:replayBarRight)
@@ -846,6 +849,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             ("Nỉ: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setClothWear(old:!self.table.oldCloth);self.wakeRendering();self.notifyStatus(self.table.oldCloth ? "Nỉ cũ: vệt lăn, vết chấm, bụi phấn":"Nỉ mới")}),
             ("Bi: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setBallWear(old:!self.table.oldBalls);self.wakeRendering();self.notifyStatus(self.table.oldBalls ? "Bi cũ: mờ bóng":"Bi mới: bóng gương")}),
             ("Màu nỉ",{[weak self] in self?.chooseClothColor()}),
+            ("Sao chép số đo cú vừa đánh",{[weak self] in self?.setMenu(false);self?.copySmoothnessReport()}),   // 0.44.1 owner
             ("Hướng dẫn chơi (dắt tay từng bước)",{[weak self] in self?.setMenu(false);DispatchQueue.main.asyncAfter(deadline:.now()+0.3){self?.startTutorial()}}),
             ("Thư viện \(TableLook.all.count) bàn · \(CueLook.all.count) cơ",{[weak self] in self?.openLibrary()}),
             ("Không gian bàn (\(TableScene.spaces.count) cảnh)",{[weak self] in self?.chooseSpace()}),
@@ -988,7 +992,18 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Chấm cú","CoachCardToggle")] {
             var c=UIButton.Configuration.plain();c.title=title;c.background.backgroundColor=UIColor(white:0.03,alpha:0.42);c.background.cornerRadius=10
             c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:12,weight:.semibold);return a}
+            c.titleLineBreakMode = .byClipping   // 0.44.1 owner: one line, never split inside a word
             b.configuration=c;b.accessibilityIdentifier=id;view.addSubview(b)
+            // One line that shrinks (down to 70 %) to the button's real width instead of wrapping or clipping a word.
+            // UIButton.Configuration ignores adjustsFontSizeToFitWidth, so the font size is computed here.
+            b.configurationUpdateHandler={button in
+                guard var c=button.configuration,let title=c.title,button.bounds.width>0 else{return}
+                c.contentInsets=NSDirectionalEdgeInsets(top:4,leading:5,bottom:4,trailing:5)
+                let full=(title as NSString).size(withAttributes:[.font:UIFont.systemFont(ofSize:12,weight:.semibold)]).width
+                let size=12*max(0.7,min(1,(button.bounds.width-10)/max(1,full)))
+                c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:size,weight:.semibold);return a}
+                button.configuration=c
+            }
         }
         numbersButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.numbersOn.toggle()
             UserDefaults.standard.set(self.numbersOn,forKey:"numbersOn033");self.applyCoachVisibility();self.syncOverlayButtons()},for:.touchUpInside)
@@ -1820,7 +1835,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
         if shotActive && shotKind==1 {qaJumpSeen=true}
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";lang="+L10n.code+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
@@ -2412,7 +2427,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let all=balls
         if let c=all.first(where:{$0.id==0}) {lines.append("Bi cái: "+diamondPoint(c.x,c.y))}
         if let t=all.first(where:{$0.id==1}),!t.sunk {lines.append("Bi 1: "+diamondPoint(t.x,t.y))}
-        if let g=d.goal {lines.append("Vùng đích: "+diamondPoint(g.x,g.y)+String(format:" · bán kính %.0f cm",g.radius*100))}
+        if let g=d.goal,g.radius>0 {lines.append("Vùng đích: "+diamondPoint(g.x,g.y)+String(format:" · bán kính %.0f cm",g.radius*100))}
         if d.kick,d.rails==1,let c=all.first(where:{$0.id==0}),let t=all.first(where:{$0.id==1}) {
             var refs:[String]=[]
             for rail in [BLRailLeft,BLRailRight,BLRailFoot,BLRailHead] {
@@ -2445,9 +2460,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func hideCoach(){coachCard.alpha=0;coachCard.isHidden=true}
     func buildCoachCard(){
-        coachCard.backgroundColor=UIColor(white:0.02,alpha:0.62);coachCard.layer.cornerRadius=14
+        GlassPill.apply(to:coachCard,cornerRadius:14)   // 0.44.1 owner: no black box — the M4 frosted pill
         coachCard.translatesAutoresizingMaskIntoConstraints=false;coachCard.accessibilityIdentifier="CoachCard"
-        coachLabel.numberOfLines=0;coachLabel.font = .systemFont(ofSize:12,weight:.medium);coachLabel.textColor=UIColor.white.withAlphaComponent(0.92)
+        coachLabel.numberOfLines=0;GlassPill.styleCaption(coachLabel,size:12.5)
         coachLabel.translatesAutoresizingMaskIntoConstraints=false;coachCard.addSubview(coachLabel);view.addSubview(coachCard)
         NSLayoutConstraint.activate([
             coachCard.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),
@@ -2671,6 +2686,46 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         cameraButton.configuration?.title="Toàn bàn";titleLabel.text="Studio · 15 bi"
         guideOn=false;guideButton.configuration?.title="Dự báo: tắt";clearShot();refresh();updateControls()
     }
+    /// 0.44.1 (owner): the "Chẩn đoán độ mượt" numbers for the last shot — opened straight from Tuỳ chỉnh (no Hình ảnh
+    /// sheet first) and copied from the main Menu ("Sao chép số đo cú vừa đánh").
+    func smoothnessReport()->String {
+        let values=displayDurations.sorted(),count=values.count
+        let render=table.pacer.diagnostics, intervals=render.intervals.sorted()
+        func summary(_ v:[Double])->String {
+        guard !v.isEmpty else{return "chưa có dữ liệu"}
+        return String(format:"%lld khung · p50 %.2f · p95 %.2f · max %.2f ms",v.count,v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
+        }
+        let pr=shotProfile
+        func ms(_ v:[Double])->String {
+        let v=v.sorted();guard !v.isEmpty else{return "—"}
+        return String(format:"p50 %.2f · p95 %.2f · max %.2f",v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
+        }
+        let budget=1000.0/Double(pr.frameRate)   // 0.44.1: the rate the shot was struck at
+        let over=pr.tick.filter{$0*1000>budget*0.8}.count
+        var lines:[String]=[]
+        lines.append("Tần số lúc đánh: \(pr.frameRate) Hz\n")
+        lines.append("Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%lld/%lld khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000))
+        lines.append("\nĐồng hồ SceneKit − hiện tại (ms): "+ms(render.clockOffsets))
+        lines.append("\n\nCPU luồng chính mỗi khung (ms):\nVật lý: "+ms(pr.physics)+"\nGhi xem lại: "+ms(pr.record)+"\nSự kiện/âm: "+ms(pr.events)+"\nCảnh 3D: "+ms(pr.scene)+"\nCả tick: "+ms(pr.tick))
+        lines.append(String(format:"\n%lld/%lld khung dùng quá 80%% ngân sách %.1f ms\nBố cục UIKit giữa cú: %lld lượt · dựng lại phím: %lld · mẫu xem lại: %lld",over,pr.tick.count,budget,pr.layoutPasses,pr.hudRelayouts,pr.recordedSamples))
+        lines.append("\nA/B: trạng thái 5 Hz cũ "+(Self.legacyStatusAB ? "BẬT":"tắt")+" · xem lại không quay chậm "+(Self.replayNoSlowAB ? "BẬT":"tắt"))
+        let message=count==0 ? "Đánh một cú trước để đo nhịp trên thiết bị.":lines.joined()
+        return message
+    }
+    func showSmoothnessDiagnostics(){
+        let message=smoothnessReport()
+        let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
+        alert.addAction(UIAlertAction(title:Self.legacyStatusAB ? "A/B: tắt trạng thái 5 Hz cũ":"A/B: bật lại trạng thái 5 Hz cũ (để so)",style:.default){_ in
+        UserDefaults.standard.set(!Self.legacyStatusAB,forKey:"diagLegacyStatus039")})
+        alert.addAction(UIAlertAction(title:Self.replayNoSlowAB ? "A/B: xem lại có quay chậm tự động":"A/B: xem lại 1× không quay chậm",style:.default){_ in
+        UserDefaults.standard.set(!Self.replayNoSlowAB,forKey:"diagReplayNoSlow039")})
+        alert.addAction(UIAlertAction(title:"Sao chép số đo",style:.default){_ in UIPasteboard.general.string=message})
+        alert.addAction(UIAlertAction(title:"Đóng",style:.cancel));topPresenter.present(alert,animated:true)
+    }
+    func copySmoothnessReport(){
+        UIPasteboard.general.string=smoothnessReport()
+        notifyStatus(displayDurations.isEmpty ? "Chưa có cú để đo · No shot measured yet":"Đã sao chép số đo cú vừa đánh · Copied")
+    }
     func graphics(){
         let a=UIAlertController(title:"Hình ảnh · Premium Classic",message:"Mặc định Cân bằng: giảm tải GPU; tự giảm chất lượng khi máy nóng. Chất lượng cao tăng độ nét và bóng. Thử trên máy thật để chọn phù hợp.",preferredStyle:.actionSheet)
         a.addAction(UIAlertAction(title:highGraphics ? "✓ Cao cấp":"Cao cấp",style:.default){[weak self]_ in self?.highGraphics=true;self?.applyGraphics()})
@@ -2682,37 +2737,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             })
         }
         a.addAction(UIAlertAction(title:"Hiện FPS / thống kê render",style:.default){[weak self]_ in self?.scn.showsStatistics.toggle()})
-        a.addAction(UIAlertAction(title:"Nhịp hiển thị cú vừa đánh",style:.default){[weak self]_ in
-            guard let self=self else{return}
-            let values=self.displayDurations.sorted(),count=values.count
-            let render=self.table.pacer.diagnostics, intervals=render.intervals.sorted()
-            func summary(_ v:[Double])->String {
-                guard !v.isEmpty else{return "chưa có dữ liệu"}
-                return String(format:"%lld khung · p50 %.2f · p95 %.2f · max %.2f ms",v.count,v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
-            }
-            let pr=self.shotProfile
-            func ms(_ v:[Double])->String {
-                let v=v.sorted();guard !v.isEmpty else{return "—"}
-                return String(format:"p50 %.2f · p95 %.2f · max %.2f",v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
-            }
-            let budget=1000.0/Double(pr.frameRate)   // 0.44.1: the rate the shot was struck at
-            let over=pr.tick.filter{$0*1000>budget*0.8}.count
-            var lines:[String]=[]
-            lines.append("Tần số lúc đánh: \(pr.frameRate) Hz\n")
-            lines.append("Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%lld/%lld khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000))
-            lines.append("\nĐồng hồ SceneKit − hiện tại (ms): "+ms(render.clockOffsets))
-            lines.append("\n\nCPU luồng chính mỗi khung (ms):\nVật lý: "+ms(pr.physics)+"\nGhi xem lại: "+ms(pr.record)+"\nSự kiện/âm: "+ms(pr.events)+"\nCảnh 3D: "+ms(pr.scene)+"\nCả tick: "+ms(pr.tick))
-            lines.append(String(format:"\n%lld/%lld khung dùng quá 80%% ngân sách %.1f ms\nBố cục UIKit giữa cú: %lld lượt · dựng lại phím: %lld · mẫu xem lại: %lld",over,pr.tick.count,budget,pr.layoutPasses,pr.hudRelayouts,pr.recordedSamples))
-            lines.append("\nA/B: trạng thái 5 Hz cũ "+(Self.legacyStatusAB ? "BẬT":"tắt")+" · xem lại không quay chậm "+(Self.replayNoSlowAB ? "BẬT":"tắt"))
-            let message=count==0 ? "Đánh một cú trước để đo nhịp trên thiết bị.":lines.joined()
-            let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
-            alert.addAction(UIAlertAction(title:Self.legacyStatusAB ? "A/B: tắt trạng thái 5 Hz cũ":"A/B: bật lại trạng thái 5 Hz cũ (để so)",style:.default){_ in
-                UserDefaults.standard.set(!Self.legacyStatusAB,forKey:"diagLegacyStatus039")})
-            alert.addAction(UIAlertAction(title:Self.replayNoSlowAB ? "A/B: xem lại có quay chậm tự động":"A/B: xem lại 1× không quay chậm",style:.default){_ in
-                UserDefaults.standard.set(!Self.replayNoSlowAB,forKey:"diagReplayNoSlow039")})
-            alert.addAction(UIAlertAction(title:"Sao chép số đo",style:.default){_ in UIPasteboard.general.string=message})
-            alert.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(alert)
-        })
+        a.addAction(UIAlertAction(title:"Nhịp hiển thị cú vừa đánh",style:.default){[weak self]_ in self?.showSmoothnessDiagnostics()})
         a.addAction(UIAlertAction(title:"Khôi phục góc máy",style:.default){[weak self]_ in self?.table.orbit=0;self?.table.zoom=1;self?.table.aimPitch=TableScene.defaultAimPitch
             UserDefaults.standard.removeObject(forKey:"aimCameraPitch014");UserDefaults.standard.removeObject(forKey:"aimCameraZoom013")})
         if !shotActive,replayIndex==nil {
@@ -3069,7 +3094,7 @@ extension TrainingController {
         let vc=CustomizeController()
         vc.changed={[weak self] in self?.applyTuning()}
         vc.openPhysics={[weak self] in self?.settings()}
-        vc.openDiagnostics={[weak self] in self?.graphics()}
+        vc.openDiagnostics={[weak self] in self?.showSmoothnessDiagnostics()}
         vc.arrangeHUD={[weak self] in self?.beginHUDArrange()}
         vc.saveLayout={[weak self] n in self?.saveHUDLayout(n)}
         vc.loadLayout={[weak self] n in self?.loadHUDLayout(n)}
