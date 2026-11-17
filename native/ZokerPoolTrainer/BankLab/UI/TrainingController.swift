@@ -64,6 +64,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     struct ShotProfile {
         var physics:[Double]=[],record:[Double]=[],events:[Double]=[],scene:[Double]=[],tick:[Double]=[]
         var layoutPasses=0,hudRelayouts=0,recordedSamples=0
+        /// 0.44.1: the refresh rate in force when THIS shot was struck (the diagnostics must not read today's setting).
+        var frameRate=60
     }
     var shotProfile=ShotProfile()
     /// 0.44-mm: the first live tick after a strike advances at most one refresh, whatever the strike's own main-thread
@@ -1539,7 +1541,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         displayDurations=[]
         table.pacer.clear()
         table.pacer.interval=1.5/Double(Tuning.frameRate)   // 0.39d: half a frame of slack for main-thread jitter
-        table.pacer.resetDiagnostics();shotProfile=ShotProfile()
+        table.pacer.resetDiagnostics();shotProfile=ShotProfile();shotProfile.frameRate=Tuning.frameRate
         perfBegin("live")   // 0.44-mm: no-op unless --perf-qa
         liveStartPending=true
         // Seed the pre-strike pose, so the first interpolated frame includes
@@ -1890,6 +1892,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     }
     func finishShot(timedOut:Bool){
         table.pacer.endDiagnostics()
+        // 0.44.1 (owner device: 120 Hz → 202/557 late frames, 60 Hz → 0): a 120 Hz shot with > 10 % late frames
+        // switches the app to 60 Hz for good (saved; Tuỳ chỉnh → Độ mượt can set 120 again). PresentationPolicy.h.
+        let paced=table.pacer.diagnostics
+        if BLShouldDropTo60Hz(Int32(shotProfile.frameRate),Int32(clamping:paced.starvedFrames),Int32(clamping:paced.sampledFrames)) != 0 {
+            UserDefaults.standard.set(60,forKey:"tuneFPS036")
+            displayLink?.preferredFramesPerSecond=60
+            notifyStatus("Đã chuyển 60 Hz cho mượt · Switched to 60 Hz for smoothness")
+        }
         perfEnd();perfAfterShot()   // 0.44-mm: no-op unless --perf-qa
         if let restore=forcedElevationRestore{engine.settings=restore;forcedElevationRestore=nil}
         let d=Drill.all[drillIndex],events=engine.events
@@ -2685,9 +2695,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 let v=v.sorted();guard !v.isEmpty else{return "—"}
                 return String(format:"p50 %.2f · p95 %.2f · max %.2f",v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
             }
-            let budget=1000.0/Double(Tuning.frameRate)
+            let budget=1000.0/Double(pr.frameRate)   // 0.44.1: the rate the shot was struck at
             let over=pr.tick.filter{$0*1000>budget*0.8}.count
             var lines:[String]=[]
+            lines.append("Tần số lúc đánh: \(pr.frameRate) Hz\n")
             lines.append("Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%lld/%lld khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000))
             lines.append("\nĐồng hồ SceneKit − hiện tại (ms): "+ms(render.clockOffsets))
             lines.append("\n\nCPU luồng chính mỗi khung (ms):\nVật lý: "+ms(pr.physics)+"\nGhi xem lại: "+ms(pr.record)+"\nSự kiện/âm: "+ms(pr.events)+"\nCảnh 3D: "+ms(pr.scene)+"\nCả tick: "+ms(pr.tick))

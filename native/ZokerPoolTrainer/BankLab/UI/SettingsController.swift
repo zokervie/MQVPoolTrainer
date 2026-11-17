@@ -199,6 +199,8 @@ enum Tuning {
         #if targetEnvironment(simulator)
         return UserDefaults.standard.integer(forKey:"qaSimFPS")==60 ? 60:30   // CI Simulator: keep the runner responsive; 0.44-mm perf QA measures at the device rate (-qaSimFPS 60)
         #else
+        // 0.44.1: default 60 Hz (owner device: 120 Hz dropped 202/557 frames); a saved 120 is kept until a shot
+        // with > 10 % late frames switches it back (TrainingController.finishShot, BLShouldDropTo60Hz).
         return UserDefaults.standard.integer(forKey:"tuneFPS036")==120 ? 120:60
         #endif
     }

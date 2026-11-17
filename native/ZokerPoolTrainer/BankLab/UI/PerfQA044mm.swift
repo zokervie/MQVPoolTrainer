@@ -32,7 +32,7 @@ extension TrainingController {
         Self.perfIndex += 1
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("perf-qa")
         let record: [String: Any] = [
-            "kind": segment.kind, "index": Self.perfIndex, "frameRate": Tuning.frameRate,
+            "kind": segment.kind, "index": Self.perfIndex, "frameRate": shotProfile.frameRate,
             "tick": segment.tick, "match": segment.match, "motion": segment.motion, "audio": segment.audio, "camera": segment.camera,
             "dt": segment.dt, "physicsDt": segment.physicsDt, "layoutPasses": segment.layoutPasses, "hudRelayouts": segment.hudRelayouts, "audioCalls": segment.audioCalls,
             "pacing": FramePacer.enabled, "strike": segment.strike, "layoutTime": segment.layoutTime, "matchActive": matchPlay.active, "computer": matchPlay.computerLevel != nil,

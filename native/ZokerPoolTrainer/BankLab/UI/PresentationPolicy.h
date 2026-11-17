@@ -248,4 +248,12 @@ static inline double BLPocketJawImpact(double gain) {
     return 3.2 * pow(gain > 1 ? 1 : gain, 1.0 / 0.65);
 }
 
+/* 0.44.1 (owner device 17/11/2026: 120 Hz → 202 of 557 frames late, Cảnh 3D p95 25 ms; 60 Hz → 0 late).
+   After a shot at 120 Hz with MORE than 10 % late frames (FramePacer starved/sampled) the app falls back to 60 Hz.
+   Threshold 10 %: owner's rule. Minimum 20 sampled frames (GIẢ ĐỊNH) so a very short shot cannot flip it. */
+#define BL_FPS_DROP_MIN_SAMPLES 20
+static inline int BLShouldDropTo60Hz(int rate, int starved, int sampled) {
+    if (rate < 120 || sampled < BL_FPS_DROP_MIN_SAMPLES || starved < 0) return 0;
+    return starved * 10 > sampled;
+}
 #endif

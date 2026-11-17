@@ -226,5 +226,15 @@ int main() {
         }
         passed("jaw impact maps back to exactly the requested level through the rail-voice gain curve");
     }
+    // 0.44.1 (owner device 17/11: 120 Hz → 202/557 frames late, 60 Hz → 0): one shot with > 10 % late frames at
+    // 120 Hz drops the app to 60 Hz; never at 60 Hz, never on too few samples, exactly 10 % is not "more than".
+    assert(BLShouldDropTo60Hz(120, 202, 557));
+    assert(!BLShouldDropTo60Hz(60, 202, 557));
+    assert(!BLShouldDropTo60Hz(120, 10, 100));
+    assert(BLShouldDropTo60Hz(120, 11, 100));
+    assert(!BLShouldDropTo60Hz(120, 5, 10));          // below the minimum sample count
+    assert(!BLShouldDropTo60Hz(120, 0, 0));
+    assert(BLShouldDropTo60Hz(120, BL_FPS_DROP_MIN_SAMPLES, BL_FPS_DROP_MIN_SAMPLES));
+    passed("120 Hz falls back to 60 Hz after a shot with more than 10 % late frames");
     std::cout << "PASS: " << scenarios << " G1 policy scenarios (portable production C policy; UIKit integration still requires Xcode)\n";
 }
