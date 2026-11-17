@@ -401,10 +401,18 @@ final class InteractionTests: XCTestCase {
             let moved = err() - before
             if abs(dx) > 0.004, abs(moved) > 1e-5 { gain = moved / dx }
         }
-        wait(scene, timeout: 10 * slow) { tut() == "stroke" }
-        XCTAssertEqual(tut(), "stroke", "aiming onto the dot opens beat 2")
-        wait(scene, timeout: 40 * slow) { ["potted", "retry", "none"].contains(tut()) || tut().hasPrefix("hint") }
-        XCTAssertTrue(["potted", "retry"].contains(tut()) || tut().hasPrefix("hint"), "the shot ends with Vào rồi! or Thử lại nhé (got \(tut()))")
+        // Review CI 158: the app fires the QA stroke 1.5 s after beat 2 appears, so on a slow runner beat 2 can come and go
+        // between two polls — check the ORDER of states the coach went through, not one instant.
+        func log() -> [String] { (value().components(separatedBy: ";").first { $0.hasPrefix("tutLog=") }.map { String($0.dropFirst(7)) } ?? "").components(separatedBy: ">") }
+        wait(scene, timeout: 10 * slow) { log().contains("stroke") }
+        let seen = log()
+        XCTAssertTrue(seen.contains("stroke"), "aiming onto the dot opens beat 2 (log \(seen))")
+        if let a = seen.firstIndex(of: "aim"), let s = seen.firstIndex(of: "stroke") {
+            XCTAssertLessThan(a, s, "beat 1 then beat 2")
+            XCTAssertFalse(seen[a..<s].contains { $0.hasPrefix("hint") }, "no contextual hint between beat 1 and beat 2 (log \(seen))")
+        }
+        wait(scene, timeout: 40 * slow) { log().contains("potted") || log().contains("retry") }
+        XCTAssertTrue(log().contains("potted") || log().contains("retry"), "the shot ends with Vào rồi! or Thử lại nhé (log \(log()))")
     }
     /// 0.44.1 M5: a normal first launch (no Lobby-skipping flag): the intro is on screen and tappable, then it is gone,
     /// and only then the Lobby appears (0.43 opened the Lobby on top of the intro at once).
