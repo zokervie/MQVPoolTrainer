@@ -36,7 +36,8 @@ enum NearbyPhase: Equatable {
     case idle, hosting, browsing, joining(String), connected, reconnecting(attempt: Int), failed(NearbyFailure), left
 }
 
-enum NearbyInvitationDecision: Equatable { case ask, ignoreDuplicate, rejectBusy }
+/// `.acceptKnown` = the guest the host already accepted in this room, coming back after a drop: take it, no question.
+enum NearbyInvitationDecision: Equatable { case ask, acceptKnown, ignoreDuplicate, rejectBusy }
 
 struct NearbyLobby {
     /// Retry delays after a drop (s): 1, 2, 4, 8, then every 8 s.
@@ -52,7 +53,11 @@ struct NearbyLobby {
     private(set) var rooms: [NearbyRoomAd] = []
     private(set) var incompatibleRooms = 0
     private(set) var pendingInvitation: String?
-    private(set) var localReady = false
+    /// The guest the host said yes to in this room (0.44.1 review: a reconnecting guest was refused by its own host).
+    private(set) var acceptedPeer: String?
+    /// Guest side: invitations refused in a row (reset by a connection). Two = the host declined.
+    private(set) var refusals = 0
+    static let refusalsToStop = 2
     private(set) var mode = "nineBall"
     private(set) var rtt: [Double] = []
     private(set) var reconnects = 0, reconnectSuccesses = 0
@@ -92,6 +97,12 @@ struct NearbyLobby {
     // MARK: Invitations (host)
     /// The same peer inviting again while its question is open is a duplicate (MultipeerConnectivity retries).
     mutating func invitation(from peer: String) -> NearbyInvitationDecision {
+        if let known = acceptedPeer, known == peer {
+            switch phase {
+            case .hosting, .connected, .reconnecting, .failed(.reconnectTimedOut): return .acceptKnown
+            default: break
+            }
+        }
         switch phase {
         case .connected, .reconnecting: return .rejectBusy
         case .hosting:
@@ -102,18 +113,28 @@ struct NearbyLobby {
         default: return .rejectBusy
         }
     }
-    /// The host answered; on "no" the room stays open for someone else.
-    mutating func decide(accept: Bool) {
-        if !accept, let peer = pendingInvitation { declined.insert(peer) }
+    /// The host answered; on "no" the room stays open for someone else. `asked: false` = the question could not be
+    /// shown (another screen on top): refuse this once without remembering the player as declined.
+    mutating func decide(accept: Bool, asked: Bool = true) {
+        if let peer = pendingInvitation {
+            if accept { acceptedPeer = peer } else if asked { declined.insert(peer) }
+        }
         pendingInvitation = nil
     }
     /// Guest side: the host said no.
     mutating func rejectedByHost() { phase = .failed(.rejected) }
+    /// Guest side: an invitation ended without a connection. Returns true when the guest should stop inviting
+    /// (two in a row = the host declined); the phase then reads "Chủ phòng đã từ chối".
+    mutating func inviteRefused() -> Bool {
+        refusals += 1
+        guard refusals >= Self.refusalsToStop else { return false }
+        rejectedByHost(); return true
+    }
 
     // MARK: Link lifecycle
     mutating func linkUp(now: Double) {
         if case .reconnecting = phase { reconnectSuccesses += 1 }
-        phase = .connected; pendingInvitation = nil; droppedAt = nil; nextRetryAt = nil
+        phase = .connected; pendingInvitation = nil; droppedAt = nil; nextRetryAt = nil; refusals = 0
     }
     /// Only a match that was connected can be "reconnecting"; a drop while still looking leaves the search running.
     mutating func linkDown(now: Double) {
@@ -142,9 +163,8 @@ struct NearbyLobby {
     mutating func fail(_ reason: NearbyFailure) { phase = .failed(reason); pendingInvitation = nil }
     mutating func leave() { self = NearbyLobby(protocolVersion: protocolVersion); phase = .left }
 
-    // MARK: Ready / mode (local; the host's chosen game travels in the room advert and hello as before)
-    mutating func setReady(_ value: Bool) { localReady = value && phase == .connected }
-    var canStart: Bool { phase == .connected && localReady }
+    // MARK: Start (0.44.1: the local-only "Ready" switch is gone; the host's game travels in the advert and hello as before)
+    var canStart: Bool { phase == .connected }
 
     // MARK: Connection quality from ping/pong
     mutating func roundTrip(_ seconds: Double) {

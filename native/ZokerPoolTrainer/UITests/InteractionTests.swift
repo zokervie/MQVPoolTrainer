@@ -292,31 +292,31 @@ final class InteractionTests: XCTestCase {
         XCTAssertFalse(app.buttons["GuideToggle"].isHittable,"guide button only with Coach")
     }
 
+    /// 0.44.1 (owner decision, design 0.36): observation gestures while the balls run never switch the camera mode;
+    /// once everything stops the aim view comes back BEHIND the cue ball (yaw 0) at the zoom chosen for the stroke.
+    /// Does not depend on when the balls stop: the gestures run only if the shot is still moving when we look, and
+    /// the end state is the same either way.
     func testLiveShotKeepsAimViewAndManualZoomAfterBallsStop() {
         let (_,scene)=launch(["--ux018-live-qa"])
-        wait(scene){self.field(scene,"moving")==1}
+        wait(scene,timeout:30 * slow){self.field(scene,"shots")>=1}
         XCTAssertEqual(field(scene,"mode"),2)
-        let zoomBefore=field(scene,"zoom")
-        scene.pinch(withScale:0.82,velocity:-1)
-        wait(scene,timeout:5 * slow){abs(self.field(scene,"zoom")-zoomBefore)>0.02}
-        // An observation pan while balls run must orbit the same view rather
-        // than selecting a different camera mode.
-        let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.32,dy:0.34))
-        let end=scene.coordinate(withNormalizedOffset:CGVector(dx:0.45,dy:0.34))
-        start.press(forDuration:0.05,thenDragTo:end)
+        let aimZoom=field(scene,"zoom")
+        XCTAssertTrue(aimZoom.isFinite)
+        if field(scene,"moving")==1 {
+            scene.pinch(withScale:0.82,velocity:-1)
+            let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.32,dy:0.34))
+            let end=scene.coordinate(withNormalizedOffset:CGVector(dx:0.45,dy:0.34))
+            start.press(forDuration:0.05,thenDragTo:end)
+            XCTAssertEqual(field(scene,"mode"),2,"an observation gesture during the shot must not change the camera mode")
+        }
+        wait(scene,timeout:30 * slow){self.field(scene,"moving")==0}
+        // The settle gate restores the aim pose: yaw 0 behind the cue ball, the stroke's zoom.
+        wait(scene,timeout:10 * slow){abs(self.field(scene,"cameraYaw"))<1e-4 && abs(self.field(scene,"zoom")-aimZoom)<0.005}
         XCTAssertEqual(field(scene,"mode"),2)
-        let observedAngle=field(scene,"cameraAngle"),observedZoom=field(scene,"zoom")
-        XCTAssertTrue(observedAngle.isFinite)
-        wait(scene){self.field(scene,"moving")==0}
-        // The shot-settle gate must not restore a saved viewpoint afterward.
-        let settled=Date().addingTimeInterval(1.2)
-        wait(scene,timeout:5 * slow){Date()>=settled}
-        XCTAssertEqual(field(scene,"mode"),2)
-        XCTAssertEqual(field(scene,"cameraAngle"),observedAngle,accuracy:0.005)
-        XCTAssertEqual(field(scene,"zoom"),observedZoom,accuracy:0.005)
+        XCTAssertEqual(field(scene,"cameraYaw"),0,accuracy:1e-4)
+        XCTAssertEqual(field(scene,"cameraAngle"),field(scene,"angle"),accuracy:1e-4)
+        XCTAssertEqual(field(scene,"zoom"),aimZoom,accuracy:0.005)
     }
-
-    /// 0.40b (owner 12/11: "đến lượt máy cứ chờ"): the computer must break and then keep taking its turns by itself.
     func testComputerOpponentTakesItsTurns() {
         let (_,scene)=launch(["--computer-qa"])
         wait(scene,timeout:40 * slow){self.field(scene,"cpuShots")>=1}

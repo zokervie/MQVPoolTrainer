@@ -44,7 +44,7 @@ extension TrainingController {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
-            try data.write(to: directory.appendingPathComponent(String(format: "%02d-%@.json", Self.perfIndex, segment.kind)), options: .atomic)
+            try data.write(to: directory.appendingPathComponent(String(format: "%02lld-%@.json", Self.perfIndex, segment.kind)), options: .atomic)
         } catch { NSLog("perf-qa write failed: \(error)") }
     }
     /// Scripted session: a pass-and-play 9-ball match, a 7 m/s break (live), then its replay at 1×.

@@ -55,6 +55,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_zt-pool18._tcp</string>
+		<string>_zt-pool18._udp</string>
 	</array>
 	<key>UIUserInterfaceStyle</key>
 	<string>Dark</string>

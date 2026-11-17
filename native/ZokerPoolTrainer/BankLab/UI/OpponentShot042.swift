@@ -40,7 +40,7 @@ extension TrainingController {
         strip.addSubview(needle)
         let cueName = cueType == 1 ? "Jump" : (cueType == 2 ? "Break" : (elevation > 35 ? "Massé" : L10n.tr("Đánh")))
         let info = UILabel(frame: CGRect(x: 0, y: 12, width: w, height: 17)); info.textAlignment = .center
-        info.text = String(format: "%.1f m/s · %@ · %d°", speed, cueName, Int(elevation.rounded()))
+        info.text = String(format: "%.1f m/s · %@ · %lld°", speed, cueName, Int(elevation.rounded()))
         info.font = .monospacedDigitSystemFont(ofSize: 12, weight: .heavy); info.textColor = PowerFX.color(t)
         info.shadowColor = .black; info.shadowOffset = CGSize(width: 0, height: 1); info.adjustsFontSizeToFitWidth = true
         strip.addSubview(info)

@@ -70,7 +70,7 @@ extension TableScene {
     func photoMaterial(_ k:Int)->SCNMaterial {
         if let m=Self.photoCache[k]{return m}
         let m=SCNMaterial();m.lightingModel = .physicallyBased
-        let image=UIImage(named:String(format:"ZWall%02d",max(1,min(Self.photoCount,k))))
+        let image=UIImage(named:String(format:"ZWall%02lld",max(1,min(Self.photoCount,k))))
         m.diffuse.contents=image ?? UIColor(white:0.3,alpha:1);m.emission.contents=image;m.emission.intensity=0.06
         m.roughness.contents=0.92;m.metalness.contents=0.0;m.specular.contents=UIColor(white:0.04,alpha:1)
         m.diffuse.mipFilter = .linear;m.diffuse.maxAnisotropy=4

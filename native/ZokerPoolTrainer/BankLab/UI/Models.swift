@@ -142,6 +142,8 @@ struct Drill {
     var system:String = ""
     /// 0.35: public video / article of the author (opened, never embedded).
     var video:String? = nil
+    /// 0.44.1: default vertical tip (fraction of R, negative = below centre) set when the drill loads and after each shot.
+    var tipTop:Double = 0
     static let levelNames=["Công cụ","Cấp 1 · Nền tảng: lực và vị trí bi cái","Cấp 2 · Nút số: kick 1 băng (hệ gương)","Cấp 3 · Nút số: kick 2–3 băng (Corner-5)","Cấp 4 · Bank và hệ Plus","Cấp 5 · Trick shot"]
     static let levelIcons=["wrench","target","1.circle","3.circle","arrow.triangle.branch","sparkles"]
     var levelName:String { Drill.levelNames[max(0,min(5,level))] }
@@ -159,7 +161,10 @@ struct Drill {
     }
     var coaching:String { "Một lượt = 5 cú cùng thế bi; sau mỗi cú app tự xếp lại bi. Qua bài khi đạt từ 3/5 cú. Sao = số cú đạt; 5 sao cần thêm điểm trung bình từ 85.\n\nĐiểm mỗi cú (0–100) app tự chấm: cú đạt được 100 (bài vùng dừng trừ theo khoảng cách tới tâm vòng); cú trượt được điểm theo độ gần: bi cái trượt bi 1 bao nhiêu cm, bi 1 dừng cách lỗ bao xa, sai số băng. Bi cái vào lỗ = 0. Bật Coach để xem điểm va băng và lời khuyên một thay đổi cho cú sau." }
     // Công cụ và bài khởi động: chỉ số cố định, mã QA và màn mở đầu dùng chúng.
-    static let free=0, rollTest=1, startup=3
+    static let free=0, rollTest=1
+    /// 0.44.1 M1.2: the app opens on "Cú đầu tiên" (straight, forgiving; Tests/FirstShotTests.cpp), not the 1-rail kick.
+    static let startup:Int = all.firstIndex{$0.title==firstShotTitle} ?? 3
+    static let firstShotTitle="Cú đầu tiên"
     static var lessonCount:Int { all.filter{$0.level>0}.count }
     static func bestStars()->[String:Int]{UserDefaults.standard.dictionary(forKey:"lessonStars035") as? [String:Int] ?? [:]}
     static func recordStars(_ stars:Int,for title:String){
@@ -276,6 +281,12 @@ struct Drill {
             "Trick · Massé vòng bi cản":"https://www.youtube.com/shorts/D_lf-6KgFTo",
             "Trick · Reverse bank zigzag":"https://youtube.com/shorts/c-ZBSi9KBfc",
             "Trick · Kick 3 băng thoát cụm":"https://drdavepoolinfo.com/faq/bank-kick/corner-5/"]
+        // 0.44.1 M1.2: appended (never shifts the indices that QA flags and saved state use). Layout: FirstShot.h.
+        r.append(Drill(title:firstShotTitle,note:"Bi 1 thẳng hàng với lỗ góc: ngắm vào bi 1, ra cơ vừa tay.",rails:0,kick:false,
+            balls:[BallState(id:0,x:BLFirstShotCueX(),y:BLFirstShotCueY()),BallState(id:1,x:BLFirstShotObjectX(),y:BLFirstShotObjectY())],
+            angle:BLFirstShotAngle(),goal:PracticeGoal(x:0,y:0,radius:0,potRequired:true,potOnly:true),level:0,
+            system:"Bi cái, bi 1 và lỗ góc thẳng hàng: ngắm thẳng vào tâm bi 1. Điểm chạm hơi dưới tâm để bi cái dừng lại, không lăn theo vào lỗ.",
+            tipTop:BLFirstShotTop()))
         return r.map{var d=$0;d.video=videos[d.title];return d}
     }()
 }

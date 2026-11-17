@@ -56,18 +56,48 @@ import Foundation
         try check(host.invitation(from: "P3") == .rejectBusy, "a full room refuses others")
         host.linkDown(now: 1); try check(host.invitation(from: "P3") == .rejectBusy, "a stranger cannot take the seat during reconnect")
 
+        // 0.44.1 review: the host must take its own guest back after a drop (no question, strangers still refused)
+        var rh = NearbyLobby(protocolVersion: v); rh.host(mode: "nineBall")
+        try check(rh.invitation(from: "P2") == .ask, "first guest asks")
+        rh.decide(accept: true); try check(rh.acceptedPeer == "P2", "the accepted guest is remembered")
+        rh.linkUp(now: 0); try check(rh.invitation(from: "P2") == .acceptKnown, "known guest re-inviting while connected is taken")
+        rh.linkDown(now: 1); try check(rh.invitation(from: "P2") == .acceptKnown, "known guest is taken back while reconnecting")
+        try check(rh.invitation(from: "P3") == .rejectBusy, "a stranger is refused while reconnecting")
+        try check(rh.pendingInvitation == nil, "taking a known guest back never opens a question")
+        var tr = 1.0; while rh.tick(now: tr) != .giveUp { tr += 1 }
+        try check(rh.invitation(from: "P2") == .acceptKnown, "known guest is taken back after give-up")
+        try check(rh.invitation(from: "P3") == .rejectBusy, "a stranger is refused after give-up")
+        rh.manualReconnect(now: tr + 1); try check(rh.invitation(from: "P2") == .acceptKnown, "known guest is taken back after manual Reconnect")
+        rh.linkUp(now: tr + 2); try check(rh.phase == .connected && rh.reconnectSuccesses == 1, "reconnect completes")
+        rh.leave(); try check(rh.acceptedPeer == nil, "leaving forgets the accepted guest")
+
+        // A question that could not be shown refuses this once but does not blacklist the player
+        var unseen = NearbyLobby(protocolVersion: v); unseen.host(mode: "nineBall")
+        _ = unseen.invitation(from: "P4"); unseen.decide(accept: false, asked: false)
+        try check(unseen.invitation(from: "P4") == .ask, "an unseen question asks again next time")
+        unseen.decide(accept: false); try check(unseen.invitation(from: "P4") == .rejectBusy, "a real No is remembered")
+
+        // Guest: two refusals in a row stop inviting and show "Chủ phòng đã từ chối"
+        var rg = NearbyLobby(protocolVersion: v); rg.joinDirect(code: "777777")
+        try check(!rg.inviteRefused(), "first refusal keeps trying")
+        try check(rg.phase != .failed(.rejected), "one refusal is not yet a rejection")
+        try check(rg.inviteRefused() && rg.phase == .failed(.rejected), "second refusal in a row reports the host declined")
+        var rg2 = NearbyLobby(protocolVersion: v); rg2.joinDirect(code: "777777")
+        _ = rg2.inviteRefused(); rg2.linkUp(now: 0); rg2.linkDown(now: 1)
+        try check(!rg2.inviteRefused(), "a connection in between resets the refusal count")
+
         // Join by typed code (no scan): straight to joining
         var typed = NearbyLobby(protocolVersion: v); typed.joinDirect(code: "555555")
         try check(typed.phase == .joining("555555"), "typed code joins without a scan")
         typed.linkUp(now: 0); try check(typed.phase == .connected, "typed join connects")
 
-        // Ready / start
+        // Start (0.44.1: no local-only "Ready" switch — Start lights up once connected)
         var lobby = NearbyLobby(protocolVersion: v); lobby.host(mode: "nineBall")
-        lobby.setReady(true); try check(!lobby.localReady && !lobby.canStart, "cannot be ready before a player connects")
+        try check(!lobby.canStart, "cannot start before a player connects")
         _ = lobby.invitation(from: "P"); lobby.decide(accept: true); lobby.linkUp(now: 0)
-        lobby.setReady(true); try check(lobby.canStart, "ready once connected")
+        try check(lobby.canStart, "start once connected")
         lobby.linkDown(now: 1); try check(!lobby.canStart, "a drop blocks Start")
-        lobby.leave(); try check(lobby.phase == .left && lobby.rooms.isEmpty && !lobby.localReady, "leave clears the room")
+        lobby.leave(); try check(lobby.phase == .left && lobby.rooms.isEmpty, "leave clears the room")
 
         // Guest rejected / failures
         var g2 = NearbyLobby(protocolVersion: v); g2.browse(); g2.roomFound(ad("444444")); _ = g2.join(code: "444444")

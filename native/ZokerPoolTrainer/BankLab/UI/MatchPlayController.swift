@@ -42,8 +42,6 @@ final class MatchPlayState {
     var predictorChecks: [(elapsed: Double, balls: [LANBall])] = [], predictorVerified = 0, lockstepShots = 0, lockstepFallbacks = 0
     /// 0.44-mm (highlight on the Wi‑Fi guest): the guest's own lockstep run, sampled exactly like the host's live shot.
     var guestRecord: GuestShotRecord?
-    /// 0.44-mm Nearby Play: this player's "Sẵn sàng" in the lobby (local only; the protocol is unchanged).
-    var nearbyReady = false
     var snapshots: [LANSnapshot] = []
     var guestClock = 0.0
     var playout = PlayoutClock()
@@ -358,7 +356,7 @@ extension TrainingController {
             _ = self.matchPlay.session.joinRoom(code: code, internet: online)
             self.setMenu(false); self.syncMatchControls(); self.updateControls()
         })
-        present(alert, animated: true)
+        topPresenter.present(alert, animated: true)   // 0.44.1: also from the Nearby sheet
     }
     func prepareGuestMatch() {
         clearShot()

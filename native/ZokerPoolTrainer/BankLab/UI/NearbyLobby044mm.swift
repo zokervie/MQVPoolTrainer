@@ -13,7 +13,6 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
     private var gameRules: [String] = []
     private let createButton = UIButton(type: .system), joinCodeButton = UIButton(type: .system)
     private let codeLabel = UILabel(), statusLabel = UILabel(), qualityLabel = UILabel(), failureLabel = UILabel(), emptyLabel = UILabel()
-    private let readySwitch = UISwitch(), readyLabel = UILabel()
     private let startButton = UIButton(type: .system), reconnectButton = UIButton(type: .system), leaveButton = UIButton(type: .system)
     private let rooms = UITableView(frame: .zero, style: .insetGrouped)
     private var timer: Timer?
@@ -43,12 +42,9 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
         failureLabel.textColor = UIColor(red: 1, green: 0.55, blue: 0.45, alpha: 1); failureLabel.accessibilityIdentifier = "NearbyFailure"
         emptyLabel.textColor = UIColor(white: 0.65, alpha: 1)
         qualityLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold); qualityLabel.accessibilityIdentifier = "NearbyQuality"
-        readyLabel.text = "Sẵn sàng"; readyLabel.textColor = .white
-        readySwitch.onTintColor = Self.gold; readySwitch.accessibilityIdentifier = "NearbyReady"
-        readySwitch.addAction(UIAction { [weak self] _ in self?.readyChanged() }, for: .valueChanged)
         rooms.dataSource = self; rooms.delegate = self; rooms.backgroundColor = .clear; rooms.accessibilityIdentifier = "NearbyRooms"
         rooms.heightAnchor.constraint(greaterThanOrEqualToConstant: 160).isActive = true
-        let ready = UIStackView(arrangedSubviews: [readyLabel, readySwitch, UIView(), qualityLabel]); ready.spacing = 10; ready.alignment = .center
+        let ready = UIStackView(arrangedSubviews: [UIView(), qualityLabel]); ready.spacing = 10; ready.alignment = .center
         let actions = UIStackView(arrangedSubviews: [reconnectButton, leaveButton, startButton]); actions.spacing = 10; actions.distribution = .fillEqually
         let stack = UIStackView(arrangedSubviews: [title, note, tabs, games, createButton, joinCodeButton, rooms, emptyLabel, codeLabel, statusLabel, failureLabel, ready, actions])
         stack.axis = .vertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = false
@@ -64,8 +60,6 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 20),
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -20),
             stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40)])
-        // A nearby guest asks first; the host answers in this sheet (duplicates and declined peers never re-ask).
-        session?.askInvitation = { [weak self] name, reply in self?.askHost(name, reply) ?? reply(false) }
         session?.onLobbyChanged = { [weak self] in self?.render() }
         tabs.selectedSegmentIndex = session?.role == LocalMatchSession.Role.guest ? 1 : (session?.role == LocalMatchSession.Role.host ? 0 : initialTab)
         tabChanged()
@@ -78,8 +72,8 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
         timer?.invalidate(); timer = nil
         session?.onLobbyChanged = nil
         if session?.role == LocalMatchSession.Role.none { session?.stopScan() }
-        // Keep asking the host while a room is open, even with the sheet closed (falls back to auto-accept on leave).
-        if session?.role != LocalMatchSession.Role.host { session?.askInvitation = nil }
+        // 0.44.1: the host's Accept/Decline question is owned by TrainingController and survives this sheet;
+        // LocalMatchSession.leave() clears it.
     }
     private func style(_ b: UIButton, _ title: String, filled: Bool, _ action: @escaping () -> Void) {
         var c = filled ? UIButton.Configuration.filled() : UIButton.Configuration.bordered()
@@ -98,7 +92,7 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
         let rule = gameRules.indices.contains(games.selectedSegmentIndex) ? gameRules[games.selectedSegmentIndex] : "nineBall"
         session?.stopScan()
         owner.startMatch(rule: rule, network: true)
-        session?.askInvitation = { [weak self] name, reply in self?.askHost(name, reply) ?? reply(false) }
+        owner.installNearbyInvitationPrompt()
         render()
     }
     private func join(_ code: String) {
@@ -110,20 +104,9 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
     }
     private func leave() {
         owner?.leaveNearbyMatch()
-        readySwitch.isOn = false
         if tabs.selectedSegmentIndex == 1 { session?.startScan() }
         render()
     }
-    private func readyChanged() { owner?.matchPlay.nearbyReady = readySwitch.isOn; render() }
-    private func askHost(_ name: String, _ reply: @escaping (Bool) -> Void) {
-        let alert = UIAlertController(title: "\(name) muốn vào phòng", message: "\(name) wants to join · Nhận để bắt đầu trận với máy này.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Từ chối · Decline", style: .cancel) { _ in reply(false) })
-        alert.addAction(UIAlertAction(title: "Nhận · Accept", style: .default) { _ in reply(true) })
-        if viewIfLoaded?.window != nil, presentedViewController == nil { present(alert, animated: true) }
-        else if let owner = owner, owner.presentedViewController == nil { owner.present(alert, animated: true) }
-        else { reply(false) }   // something else is on screen: refuse rather than accept unseen
-    }
-
     func render() {
         guard let session = session, isViewLoaded else { return }
         let lobby = session.lobby, hosting = tabs.selectedSegmentIndex == 0, inRoom = session.role != .none
@@ -138,9 +121,7 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
         if case .failed(let reason) = lobby.phase { failureLabel.isHidden = false; failureLabel.text = reason.vietnamese + "\n" + reason.english }
         else { failureLabel.isHidden = true }
         let connected = session.isConnected
-        readyLabel.superview?.isHidden = !inRoom
-        readySwitch.isEnabled = connected
-        if !connected { readySwitch.isOn = false; owner?.matchPlay.nearbyReady = false }
+        qualityLabel.superview?.isHidden = !inRoom
         let q = lobby.quality
         let bars = ["○○○", "●○○", "●●○", "●●●"][q]
         let rtt = lobby.rttMs.map { String(format: "%.0f ms", $0) } ?? "—", jitter = lobby.jitterMs.map { String(format: " ±%.0f", $0) } ?? ""
@@ -151,7 +132,7 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
         reconnectButton.isHidden = !(inRoom && reconnecting)   // waiting for a first guest is not a reconnect
         leaveButton.isHidden = !inRoom
         startButton.isHidden = !inRoom
-        startButton.isEnabled = connected && readySwitch.isOn
+        startButton.isEnabled = lobby.canStart   // 0.44.1: lights up once connected (no local-only Ready switch)
         startButton.configuration?.title = session.role == .host ? "Bắt đầu" : "Vào bàn"
         if !rooms.isHidden { rooms.reloadData() }
         // QA only: join the first room found, to exercise the host's Accept/Decline question on two Simulators.
@@ -186,7 +167,32 @@ extension TrainingController {
     /// Leave the nearby room the same way the in-match menu does (the session tells the other phone).
     func leaveNearbyMatch() {
         matchPlay.session.askInvitation = nil
-        matchPlay.nearbyReady = false
         if matchPlay.active { leaveMatch() } else { matchPlay.session.leave() }
+    }
+
+    /// 0.44.1: the visible top of the presentation stack (a sheet, the menu…) — present questions and code entry here,
+    /// never from a controller that is already presenting something (UIKit then drops the new one silently).
+    var topPresenter: UIViewController {
+        var top: UIViewController = self
+        while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
+        return top
+    }
+    /// Host: ask Accept/Decline for a nearby guest, from whatever screen is on top, sheet open or not.
+    func installNearbyInvitationPrompt() {
+        matchPlay.session.askInvitation = { [weak self] name, reply in
+            guard let self = self else { reply(false, false); return }
+            self.presentNearbyInvitation(name, reply)
+        }
+    }
+    private func presentNearbyInvitation(_ name: String, _ reply: @escaping (Bool, Bool) -> Void) {
+        let top = topPresenter
+        guard !(top is UIAlertController), top.viewIfLoaded?.window != nil, !top.isBeingPresented else {
+            reply(false, false); return   // cannot ask now: refuse this once, the guest may ask again
+        }
+        let alert = UIAlertController(title: "\(name) muốn vào phòng", message: "\(name) wants to join · Nhận để bắt đầu trận với máy này.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Từ chối · Decline", style: .cancel) { _ in reply(false, true) })
+        alert.addAction(UIAlertAction(title: "Nhận · Accept", style: .default) { _ in reply(true, true) })
+        alert.view.accessibilityIdentifier = "NearbyInvitation"
+        top.present(alert, animated: true)
     }
 }

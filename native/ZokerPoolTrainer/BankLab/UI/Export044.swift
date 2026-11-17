@@ -91,7 +91,7 @@ final class ReplayVideoExport {
         ctx.setFillColor(UIColor.white.cgColor)
         ctx.fill(CGRect(x: bar.minX + bar.width * CGFloat(t) - 2.5 * u, y: bar.minY - 7 * u, width: 5 * u, height: bar.height + 14 * u))
         // text (UIKit draws y-down: flip locally)
-        let text = String(format: "%.1f m/s  ·  %@  ·  %d°", info.speed, info.cue, Int(info.elevation.rounded()))
+        let text = String(format: "%.1f m/s  ·  %@  ·  %lld°", info.speed, info.cue, Int(info.elevation.rounded()))
         let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.monospacedDigitSystemFont(ofSize: 30 * u, weight: .heavy),
                                                          .foregroundColor: PowerFX.color(t)]
         UIGraphicsPushContext(ctx)

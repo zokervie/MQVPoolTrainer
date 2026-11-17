@@ -1049,7 +1049,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             icon.isEnabled = localTurn && !presentationBusy && !locked
             icon.accessibilityValue=on ? "Đang chọn":""
             let role=Int(BLCueIconKind(Int32(k)))==2 ? 2:(Int(BLCueIconKind(Int32(k)))==1 ? 1:0)
-            icon.configuration?.subtitle=CueBag.cue(role).title.components(separatedBy:" · ").first
+            icon.configuration?.subtitle=CueBag.cue(role).short
             // 0.44 (#18): the key shows the cue that is in the bag — colour, inlay, shaft, ferrule and tip.
             let look=CueBag.cue(role)
             if icon.accessibilityHint != look.id {icon.accessibilityHint=look.id;icon.configuration?.image=look.iconImage()}
@@ -1140,20 +1140,20 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         let potted=events.contains{$0["kind"]?.intValue==2 && $0["a"]?.intValue==target}
         table.aimGuide(cue:SIMD2(Float(c0.x),Float(c0.y)),ghost:SIMD2(Float(c0.x),Float(c0.y)),object:SIMD2(Float(p0.x),Float(p0.y)),objectEnd:SIMD2(Float(best.1),Float(best.2)))
         aimGuideShown=true;predictionRevealAngle=angle
-        notifyStatus(String(format:"Dự đoán · bi %d %@ lỗ %@: lệch %.1f°",target,potted ? "vào":"tới",best.0,abs(off)))
+        notifyStatus(String(format:"Dự đoán · bi %lld %@ lỗ %@: lệch %.1f°",target,potted ? "vào":"tới",best.0,abs(off)))
     }
     /// 0.38 "Chấm độ đều tay": the same layout shot again and again (Tập lại) — how tightly do the cue ball's stopping
     /// points cluster? RMS radius from their centre, in cm; 5 stars under 3 cm (coach standard for a repeatable stroke).
     func scoreConsistency(){
         guard let start=lastShot?.balls,let cb=balls.first(where:{$0.id==0}),!cb.sunk else{return}
-        let key=start.sorted{$0.id<$1.id}.map{String(format:"%d:%.3f,%.3f",$0.id,$0.x,$0.y)}.joined(separator:"|")
+        let key=start.sorted{$0.id<$1.id}.map{String(format:"%lld:%.3f,%.3f",$0.id,$0.x,$0.y)}.joined(separator:"|")
         if key != consistencyKey {consistencyKey=key;consistencyStops=[]}
         consistencyStops.append(SIMD2(cb.x,cb.y));if consistencyStops.count>10{consistencyStops.removeFirst()}
         let n=consistencyStops.count;guard n>=2 else{return}
         let c=consistencyStops.reduce(SIMD2<Double>(0,0),+)/Double(n)
         let rms=(consistencyStops.map{simd_length_squared($0-c)}.reduce(0,+)/Double(n)).squareRoot()*100
         let stars=rms<3 ? 5:(rms<6 ? 4:(rms<10 ? 3:(rms<16 ? 2:1)))
-        notifyStatus(String(format:"Độ đều tay · %d cú cùng thế: điểm dừng chụm ±%.1f cm · %@",n,rms,String(repeating:"★",count:stars)+String(repeating:"☆",count:5-stars)))
+        notifyStatus(String(format:"Độ đều tay · %lld cú cùng thế: điểm dừng chụm ±%.1f cm · %@",n,rms,String(repeating:"★",count:stars)+String(repeating:"☆",count:5-stars)))
     }
     func notifyStatus(_ text:String){
         statusLabel.text=text;statusToast.text="  "+text+"  ";statusToast.isHidden=false;view.bringSubviewToFront(statusToast)
@@ -1306,7 +1306,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         drillIndex=index;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
         table.target(coachOn ? drill.goal:nil)
         initial=drill.balls;before=initial;angle=drill.angle
-        engine.loadLayout(initial.map{$0.dictionary});clearShot();locked=false;isPlacingBalls=false;spin.reset()
+        engine.loadLayout(initial.map{$0.dictionary});clearShot();locked=false;isPlacingBalls=false;spin.reset();applyDrillTip()
         titleLabel.text=drill.title;hintLabel.text=strokeHint
         statusLabel.text="Trắng: bi cái · Vàng: bi 1";updateControls();refresh()
         table.showRailContacts([])
@@ -1450,8 +1450,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         table.cameraMode=frame.mode;table.zoom=frame.zoom;table.orbit=frame.yaw;table.focusBounds=frame.focus
         if frame.mode==2{table.aimPitch=frame.pitch}else{table.orbitPitch=frame.pitch}
     }
+    /// 0.44.1 M1.2: a drill's default tip (e.g. "Cú đầu tiên" slightly below centre). Never in a rules match.
+    func applyDrillTip(){
+        guard !matchPlay.active,Drill.all.indices.contains(drillIndex) else{return}
+        let tip=Drill.all[drillIndex].tipTop
+        if tip != 0 {spin.select(side:0,top:tip)}
+    }
     func resetShotInputsAndAim(){
-        spin.reset();side=0;top=0
+        spin.reset();side=0;top=0;applyDrillTip()
         if shotKind==1 {
             shotKind=0;var settings=engine.settings;settings["cueType"]=0;settings["cueElevationDegrees"]=0;settings["experimental3D"]=false;shotKindPhysics(0,&settings)
             engine.settings=settings;table.selectCue(0);table.cueElevation=0;spin.maximumOffset=0.7;UserDefaults.standard.set(0,forKey:"shotKind017")
@@ -1810,7 +1816,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
         if shotActive && shotKind==1 {qaJumpSeen=true}
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%d;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%d;guide=%d;numbers=%d",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%d;coachUp=%d;locked=%d;expanded=%d;coachEnabled=%d",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
@@ -2325,7 +2331,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         self.guideOn=true;self.guideDirty=true
                         self.guideButton.configuration?.title="Dự báo: bật";self.refresh()
                     }
-                    let message=hit ? String(format:"Đã tìm góc trong mô phỏng: %d băng → bi %d, %.1f m/s.\nX %+.0f / Y %+.0f %% bán kính.\n\nTốc độ tham chiếu từ cú trước; lực cú vuốt tiếp theo có thể khác. Kết quả phụ thuộc thông số bàn; chưa xác nhận độ chính xác ngoài thực tế.",rails,target,speed,x*100,y*100):"Chưa tìm được góc ở lực và ép phê hiện tại trong phạm vi tìm kiếm. Thử đổi lực hoặc điểm chạm; điều này không chứng minh cú đánh bất khả thi."
+                    let message=hit ? String(format:"Đã tìm góc trong mô phỏng: %lld băng → bi %lld, %.1f m/s.\nX %+.0f / Y %+.0f %% bán kính.\n\nTốc độ tham chiếu từ cú trước; lực cú vuốt tiếp theo có thể khác. Kết quả phụ thuộc thông số bàn; chưa xác nhận độ chính xác ngoài thực tế.",rails,target,speed,x*100,y*100):"Chưa tìm được góc ở lực và ép phê hiện tại trong phạm vi tìm kiếm. Thử đổi lực hoặc điểm chạm; điều này không chứng minh cú đánh bất khả thi."
                     let alert=UIAlertController(title:hit ? "Đã cập nhật góc ngắm":"Chưa tìm được lời giải",message:message,preferredStyle:.alert)
                     alert.addAction(UIAlertAction(title:"Đã hiểu",style:.default));self.presentSheet(alert)
                 }
@@ -2670,7 +2676,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             let render=self.table.pacer.diagnostics, intervals=render.intervals.sorted()
             func summary(_ v:[Double])->String {
                 guard !v.isEmpty else{return "chưa có dữ liệu"}
-                return String(format:"%d khung · p50 %.2f · p95 %.2f · max %.2f ms",v.count,v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
+                return String(format:"%lld khung · p50 %.2f · p95 %.2f · max %.2f ms",v.count,v[v.count/2]*1000,v[min(v.count-1,Int(Double(v.count)*0.95))]*1000,(v.last ?? 0)*1000)
             }
             let pr=self.shotProfile
             func ms(_ v:[Double])->String {
@@ -2680,10 +2686,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             let budget=1000.0/Double(Tuning.frameRate)
             let over=pr.tick.filter{$0*1000>budget*0.8}.count
             var lines:[String]=[]
-            lines.append("Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%d/%d khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000))
+            lines.append("Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%lld/%lld khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000))
             lines.append("\nĐồng hồ SceneKit − hiện tại (ms): "+ms(render.clockOffsets))
             lines.append("\n\nCPU luồng chính mỗi khung (ms):\nVật lý: "+ms(pr.physics)+"\nGhi xem lại: "+ms(pr.record)+"\nSự kiện/âm: "+ms(pr.events)+"\nCảnh 3D: "+ms(pr.scene)+"\nCả tick: "+ms(pr.tick))
-            lines.append(String(format:"\n%d/%d khung dùng quá 80%% ngân sách %.1f ms\nBố cục UIKit giữa cú: %d lượt · dựng lại phím: %d · mẫu xem lại: %d",over,pr.tick.count,budget,pr.layoutPasses,pr.hudRelayouts,pr.recordedSamples))
+            lines.append(String(format:"\n%lld/%lld khung dùng quá 80%% ngân sách %.1f ms\nBố cục UIKit giữa cú: %lld lượt · dựng lại phím: %lld · mẫu xem lại: %lld",over,pr.tick.count,budget,pr.layoutPasses,pr.hudRelayouts,pr.recordedSamples))
             lines.append("\nA/B: trạng thái 5 Hz cũ "+(Self.legacyStatusAB ? "BẬT":"tắt")+" · xem lại không quay chậm "+(Self.replayNoSlowAB ? "BẬT":"tắt"))
             let message=count==0 ? "Đánh một cú trước để đo nhịp trên thiết bị.":lines.joined()
             let alert=UIAlertController(title:"Chẩn đoán độ mượt",message:message,preferredStyle:.alert)
@@ -2928,11 +2934,11 @@ extension TrainingController {
             let closest=(paths[0] ?? []).reduce(Double.infinity){min($0,hypot(Double($1.x)-o.x,Double($1.z)-o.y))}
             let miss=closest.isFinite ? closest-2*geometry.radius:1.0
             let score=max(0,70-Int(max(0,miss)*250)-(railCount != d.rails ? 20:0))
-            return (score,String(format:"%d/%d băng · trượt bi 1 %.0f cm",railCount,d.rails,max(0,miss)*100))
+            return (score,String(format:"%lld/%lld băng · trượt bi 1 %.0f cm",railCount,d.rails,max(0,miss)*100))
         }
         if passed {return (100,"đúng \(d.rails) băng vào lỗ")}
         let miss=pocketMiss(1)
-        return (miss.isFinite ? max(0,55-Int(miss*150)):0,String(format:"%d/%d băng · bi 1 cách lỗ %.0f cm",railCount,d.rails,miss.isFinite ? miss*100:0))
+        return (miss.isFinite ? max(0,55-Int(miss*150)):0,String(format:"%lld/%lld băng · bi 1 cách lỗ %.0f cm",railCount,d.rails,miss.isFinite ? miss*100:0))
     }
     func scoreLesson(_ d:Drill,passed:Bool,scratch:Bool,timedOut:Bool,railCount:Int,events:[[String:NSNumber]]){
         let (score,detail)=lessonShotScore(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount)

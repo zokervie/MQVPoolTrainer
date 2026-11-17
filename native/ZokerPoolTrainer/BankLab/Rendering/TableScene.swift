@@ -509,8 +509,8 @@ final class TableScene {
     }
     private func buildTable(_ rails:[[String:NSNumber]]){
         // 0.35 (owner: rail geometry may be shared, but colour and MATERIAL follow each brand): finish per model family.
-        // Gloss lacquer: Z-Ra (Rasson OX / Acurra / Victory), Z-Di Smart, Z-Pr ARC; matte powder-coat: Z-Br Black Wolf;
-        // brushed metal: Z-Max, Z-Pr APEX; satin: the rest. Wood tables keep the walnut maps tinted to the cabinet colour.
+        // Gloss lacquer: Z-Titan / Z-Vector / Z-Vanguard II, Z-Arena Lite, Z-Onyx Wave; matte powder-coat: Z-Night;
+        // brushed metal: Z-Max, Z-Onyx Pro; satin: the rest. Wood tables keep the walnut maps tinted to the cabinet colour.
         let gloss:Set<String>=["ox","acurra","victory","smart","arc","zbarpro"],matte:Set<String>=["blackwolf","blackwolfpro","zbar"],brushed:Set<String>=["zmax","apex","tournament"]
         let graphite=look.wood ? premiumMaterial("WalnutDark"):mat(.rgb(look.cabinet),roughness:gloss.contains(look.id) ? 0.22:(matte.contains(look.id) ? 0.78:(brushed.contains(look.id) ? 0.38:0.5)),metal:brushed.contains(look.id) ? 0.35:0.08)
         if !look.wood && gloss.contains(look.id) {graphite.clearCoat.contents=0.8;graphite.clearCoatRoughness.contents=0.08}
@@ -1519,8 +1519,9 @@ final class TableScene {
         m.diffuse.contents=texture(CGSize(width:1024,height:176)){c in
             UIColor(white:0.045,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:1024,height:176))
             let style=NSMutableParagraphStyle();style.alignment = .center
-            (look.brand.uppercased() as NSString).draw(in:CGRect(x:14,y:12,width:996,height:80),withAttributes:[.font:UIFont.systemFont(ofSize:56,weight:.bold),.foregroundColor:UIColor(red:0.92,green:0.83,blue:0.61,alpha:1),.paragraphStyle:style])
-            (look.name as NSString).draw(in:CGRect(x:14,y:100,width:996,height:64),withAttributes:[.font:UIFont.systemFont(ofSize:40,weight:.medium),.foregroundColor:UIColor.white,.paragraphStyle:style])
+            // 0.44.1: one Zoker name ("Z-REGENT 7"); the " · mặt 9 ft" note stays in the library list, not on the plate.
+            let plate=(look.name.components(separatedBy:" · ").first ?? look.name).uppercased()
+            (plate as NSString).draw(in:CGRect(x:14,y:44,width:996,height:90),withAttributes:[.font:UIFont.systemFont(ofSize:64,weight:.bold),.foregroundColor:UIColor(red:0.92,green:0.83,blue:0.61,alpha:1),.paragraphStyle:style])
         };g.materials=[m];let n=SCNNode(geometry:g);n.name="table-nameplate";n.eulerAngles.x = 0;n.position=p;n.castsShadow=false;scene.rootNode.addChildNode(n)
     }
     private func ballTexture(_ id:Int)->UIImage{

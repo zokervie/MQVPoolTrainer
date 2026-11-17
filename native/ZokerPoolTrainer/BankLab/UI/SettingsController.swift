@@ -172,7 +172,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
     private func showFit(_ result:NSDictionary,rail:Int){
             if let error=result["error"] as? String{message(error);return}
             guard let bounce=result["bounce"] as? Double,let grip=result["grip"] as? Double,let train=result["trainRMSE"] as? Double,let validation=result["validationRMSE"] as? Double,let baseline=result["baselineRMSE"] as? Double else{message("Không tính được kết quả.");return}
-            let text=String(format:"Băng %d · e=%.4f · μ=%.4f\nSai số fit: %.4f m/s\nKiểm định: %.4f → %.4f m/s\nSai số gộp vận tốc và R×xoáy. Chưa kiểm định chuỗi nhiều băng hoặc cú Jump/Massé.",rail,bounce,grip,train,baseline,validation)
+            let text=String(format:"Băng %lld · e=%.4f · μ=%.4f\nSai số fit: %.4f m/s\nKiểm định: %.4f → %.4f m/s\nSai số gộp vận tốc và R×xoáy. Chưa kiểm định chuỗi nhiều băng hoặc cú Jump/Massé.",rail,bounce,grip,train,baseline,validation)
             let alert=UIAlertController(title:"Kết quả hiệu chuẩn ứng viên",message:text,preferredStyle:.alert)
             alert.addAction(UIAlertAction(title:"Đóng",style:.cancel))
             if validation<baseline {alert.addAction(UIAlertAction(title:"Chọn kết quả · sau đó bấm Lưu",style:.default){[weak self]_ in
@@ -375,7 +375,7 @@ final class CustomizeController:UIViewController {
         let l=UILabel();l.text=text.uppercased();l.textColor=UIColor.rgb(0xEAC583);l.font = .systemFont(ofSize:13,weight:.bold);target.addArrangedSubview(l)
     }
     private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,fallback:Double=1,format:((Double)->String)? = nil){
-        let fmt=format ?? {String(format:"%d %%",Int(($0*100).rounded()))}
+        let fmt=format ?? {String(format:"%lld %%",Int(($0*100).rounded()))}
         let label=UILabel();label.textColor = .white;label.font = .systemFont(ofSize:13,weight:.medium)
         let current=Tuning.value(key,fallback);label.text="\(title)  ·  \(fmt(current))"
         let s=UISlider();s.minimumValue=Float(lo);s.maximumValue=Float(hi);s.value=Float(current);s.tintColor = .mint;s.accessibilityLabel=title

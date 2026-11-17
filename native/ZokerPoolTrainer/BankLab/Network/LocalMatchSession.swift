@@ -33,7 +33,10 @@ final class LocalMatchSession: NSObject {
     private(set) var lobby = NearbyLobby(protocolVersion: LANEnvelope.protocolVersion)
     var onLobbyChanged: (() -> Void)?
     /// Host: ask the player before a nearby guest takes the seat (nil = accept a matching invitation as before).
-    var askInvitation: ((String, @escaping (Bool) -> Void) -> Void)?
+    /// Reply `(accept, asked)`: `asked == false` = the question could not be shown; refuse once, do not remember.
+    /// Owned by TrainingController (outlives the lobby sheet); cleared by `leave()` so a later Wi‑Fi room by code
+    /// never inherits it.
+    var askInvitation: ((String, @escaping (_ accept: Bool, _ asked: Bool) -> Void) -> Void)?
     var localName: String { peerID.displayName }
     private(set) var transport: Transport = .nearby
     private(set) var roomCode = ""
@@ -222,6 +225,7 @@ final class LocalMatchSession: NSObject {
         lastPublished = -Double.infinity
         endBackgroundGrace()
         stopScan(); lobby.leave(); onLobbyChanged?()
+        askInvitation = nil   // 0.44.1 review: the Nearby question must not outlive its room
         describe("Chưa vào phòng")
     }
 
@@ -419,6 +423,8 @@ final class LocalMatchSession: NSObject {
             }
             return
         }
+        // 0.44.1: the host declined twice — stop inviting; the player picks another room or leaves.
+        if role == .guest, case .failed(.rejected) = lobby.phase { return }
         switch lobby.tick(now: now) {
         case .retry: startDiscovery(); onLobbyChanged?()
         case .giveUp: describe(NearbyFailure.reconnectTimedOut.vietnamese); onLobbyChanged?()
@@ -432,6 +438,8 @@ final class LocalMatchSession: NSObject {
             }
             if remoteReady && now - lastPing >= 2 { lastPing = now; send(kind: .ping) }
         } else if pendingPeer != nil && now - inviteStarted > 15 {
+            // An unanswered question must not block the room: refuse once, never remember the player as declined.
+            if lobby.pendingInvitation != nil { lobby.decide(accept: false, asked: false); onLobbyChanged?() }
             describe("Chưa nối được · kiểm tra Wi-Fi và quyền Mạng cục bộ")
             restartSession()
         } else if now - retryAt > 5 {
@@ -828,9 +836,20 @@ extension LocalMatchSession: MCSessionDelegate {
             case .connecting:
                 self.describe("Đang nối \(peerID.displayName)")
             case .notConnected:
-                self.lobby.linkDown(now: ProcessInfo.processInfo.systemUptime); self.onLobbyChanged?()   // 0.44-mm
+                let now = ProcessInfo.processInfo.systemUptime
+                var wasLinked = false
+                switch self.lobby.phase { case .connected, .reconnecting: wasLinked = true; default: break }
+                // 0.44.1: a guest whose invitation ends quickly without ever connecting was refused by the host.
+                let refused = self.role == .guest && self.transport == .nearby && !wasLinked
+                    && self.pendingPeer == peerID && now - self.inviteStarted < 11
+                self.lobby.linkDown(now: now); self.onLobbyChanged?()   // 0.44-mm
                 self.pendingPeer = nil; self.remoteReady = false; self.snapshotReady = false
                 self.awaitingCommandID = nil; self.awaitingRevision = nil
+                if refused && self.lobby.inviteRefused() {
+                    self.stopDiscovery(); self.onLobbyChanged?()
+                    self.describe(NearbyFailure.rejected.vietnamese + " · chọn phòng khác hoặc Rời phòng")
+                    return
+                }
                 if !self.backgrounded && !self.protocolBlocked {
                     self.describe("Mất kết nối · trận tạm dừng, đang nối lại")
                     let token = self.generation
@@ -881,12 +900,15 @@ extension LocalMatchSession: MCNearbyServiceAdvertiserDelegate {
             // 0.44-mm: Nearby Play asks the host first (duplicates / declined peers never re-ask).
             guard let ask = self.askInvitation else { invitationHandler(true, session); return }
             switch self.lobby.invitation(from: peerID.displayName) {
+            case .acceptKnown:   // 0.44.1 review: our own guest coming back after a drop — no question
+                self.inviteStarted = ProcessInfo.processInfo.systemUptime
+                invitationHandler(true, session)
             case .ask:
                 let token = self.generation
                 self.onLobbyChanged?()
-                ask(peerID.displayName) { [weak self] accept in
+                ask(peerID.displayName) { [weak self] accept, asked in
                     guard let self = self else { invitationHandler(false, nil); return }
-                    self.lobby.decide(accept: accept); self.onLobbyChanged?()
+                    self.lobby.decide(accept: accept, asked: asked); self.onLobbyChanged?()
                     guard accept, self.generation == token, self.session === session, self.pendingPeer == peerID else {
                         if self.pendingPeer == peerID { self.pendingPeer = nil }
                         invitationHandler(false, nil); return
