@@ -84,7 +84,11 @@ struct CueLook {
         .init(id:"zbreak",name:"Break Classic",role:2,color:0x322b26,accent:0xb29b70,carbon:false)
     ]
     /// 0.44: small horizontal picture of THIS cue (butt colour + inlay, wrap, shaft, ferrule, tip) for the cue keys.
+    /// 0.44.1 M3: rendered from the 3D cue (CueIcon0441); the hand-drawn picture is only the fallback without Metal.
     func iconImage(size:CGSize=CGSize(width:44,height:12))->UIImage {
+        CueIcon0441.image(self,size:size) ?? drawnIcon(size:size)
+    }
+    private func drawnIcon(size:CGSize)->UIImage {
         UIGraphicsImageRenderer(size:size).image{c in
             let w=size.width,h=size.height,mid=h/2
             func seg(_ x0:CGFloat,_ x1:CGFloat,_ r0:CGFloat,_ r1:CGFloat,_ colour:UIColor){

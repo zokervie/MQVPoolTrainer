@@ -1231,6 +1231,10 @@ final class TableScene {
     }
     private func buildCue(){
         let appearance=CueBag.cue(cueType);cueLookID=appearance.id
+        // 0.44.1 M3: one lathe mesh (CueModel0441) — no separate parts, so a faded cue shows no joints or end caps.
+        if !Tuning.flag("legacyCue0441",false) {
+            cueRoot.addChildNode(CueModel0441.node(look:appearance,kind:cueType,masse:masseLook && cueType==0));return
+        }
         if let base=premiumCue(appearance.id),let geometry=base.copy() as? SCNGeometry{
             // 0.35 (owner: the cue must change look with the cue chosen): the kit meshes share one set of wood/carbon
             // maps, so every cue looked the same. Tint butt/forearm with the cue's colour and the rings with its accent.
@@ -2046,6 +2050,10 @@ final class TableScene {
     /// to a ghost while — on screen — it covers the aim line in front of the cue ball (first 1.2 m) or the object ball.
     /// Views where the line is visible keep a solid cue. Pure screen-space test, so it works for any camera/elevation.
     private var cueFade:Float=1
+    /// 0.44.1 M3 QA only: hold the cue at this opacity (solid 1, ghost 0.42) for the before/after stills.
+    var qaCueFade:Float?
+    /// QA: world positions of the cue tip and of a point `back` metres toward the butt.
+    func qaCueAxis(back:Float)->(tip:SCNVector3,butt:SCNVector3){(cueRoot.convertPosition(SCNVector3Zero,to:nil),cueRoot.convertPosition(SCNVector3(0,-back,0),to:nil))}
     func updateCueFade(view:SCNView,cue:BallState?,angle:Double,target:SIMD2<Float>?,dt:Double){
         var want:Float=1
         if Tuning.flag("tuneCueFade039",true),!cueRoot.isHidden,let c=cue {
@@ -2079,6 +2087,7 @@ final class TableScene {
             // Owner 12/11: "đừng trong quá, vừa thấy để ngắm bi đích là được" → a see-through but still visible cue.
             if hidden>=2 || !(tip.z>0&&tip.z<1) {want=Float(Tuning.value("tuneCueGhost040",0.42))}
         }
+        if let forced=qaCueFade {want=forced;cueFade=forced}   // 0.44.1 M3 probe (--cue-look-qa)
         let k=Float(min(1,dt*10));cueFade+=(want-cueFade)*k
         if abs(cueRoot.opacity-CGFloat(cueFade))>0.004 {cueRoot.opacity=CGFloat(cueFade)}
     }
