@@ -643,4 +643,126 @@ final class InteractionTests: XCTestCase {
         wait(scene,timeout:5 * slow){self.field(scene,"replay")==0}
     }
 
+    // MARK: 0.47 "Quay lại mỗi ngày" (written for CI; NOT RUN locally — the Simulator on the Mac is broken)
+    private func text(_ scene: XCUIElement, _ key: String) -> String {
+        let value = scene.value as? String ?? ""
+        for part in value.components(separatedBy: ";") where part.hasPrefix(key + "=") { return String(part.dropFirst(key.count + 1)) }
+        return ""
+    }
+    /// M0: Sảnh → Bài tập → chương 1 (thẻ mẹo lần đầu) → bài 1 → lượt 5 cú bằng cú bắn QA → kết quả; rồi thi chương 1
+    /// (bậc đã qua bằng --chapter-unlock-qa) đủ 10 cú không trợ giúp → kết quả thi.
+    func testChapterOneLadderAndExam() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa"]
+        app.launch()
+        XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60))
+        app.buttons["LobbyDrills"].tap()
+        XCTAssertTrue(app.tables["Chapters"].waitForExistence(timeout: 10 * slow), "chapters replace the 5-level list")
+        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].exists, "chapter 1 rung 1 open")
+        app.cells["ChapterDrill-first-shot"].tap()
+        XCTAssertTrue(app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow), "first time in a chapter: its tip card")
+        app.buttons["TipCardOK"].tap()
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 5 * slow)); start.tap()
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 60 * slow) { self.text(scene, "drill") == "first-shot" && self.text(scene, "lesson") == "1" }
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 120 * slow), "five QA shots close the round")
+        app.alerts.firstMatch.buttons["Đóng"].tap()
+
+        let exam = XCUIApplication()
+        exam.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--chapter-unlock-qa", "--auto-shot-qa"]
+        exam.launch()
+        XCTAssertTrue(exam.buttons["LobbyDrills"].waitForExistence(timeout: 60)); exam.buttons["LobbyDrills"].tap()
+        XCTAssertTrue(exam.cells["ChapterExam-1"].waitForExistence(timeout: 10 * slow)); exam.cells["ChapterExam-1"].tap()
+        if exam.buttons["TipCardOK"].waitForExistence(timeout: 3 * slow) { exam.buttons["TipCardOK"].tap() }
+        let examScene = exam.otherElements["PoolScene"]
+        wait(examScene, timeout: 30 * slow) { self.text(examScene, "test").hasPrefix("chapter-1:") }
+        XCTAssertTrue(exam.alerts.firstMatch.waitForExistence(timeout: 240 * slow), "ten shots, then the only result")
+        XCTAssertTrue(exam.alerts.firstMatch.label.contains("Thi chương 1"))
+    }
+    /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
+    func testPowerBarDragStrikesWithMappedSpeed() {
+        let (app, scene) = launch(["--power-bar-qa"])
+        let bar = app.descendants(matching: .any)["PowerBar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 10 * slow), "power bar on the right")
+        XCTAssertEqual(field(scene, "bar"), 1)
+        let f = bar.frame, track = f.height - 20, travel = track * 0.9
+        let origin = bar.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+        let from = origin.withOffset(CGVector(dx: f.width / 2, dy: 20 + 10))
+        let to = origin.withOffset(CGVector(dx: f.width / 2, dy: 20 + 10 + travel * 0.5))
+        from.press(forDuration: 0.2, thenDragTo: to)
+        wait(scene, timeout: 10 * slow) { self.field(scene, "shotSpeed") > 0 }
+        let frac = field(scene, "barFrac"), maxSpeed = field(scene, "barMax"), speed = field(scene, "shotSpeed")
+        XCTAssertEqual(frac, 0.5, accuracy: 0.03, "half the travel loads half the bar")
+        let expected = 0.5 * pow(maxSpeed / 0.5, frac)   // BLPowerBarSpeed (DailyLoop.h)
+        XCTAssertEqual(speed, expected, accuracy: expected * 0.02, "speed within ±2 % of the core mapping")
+        let expectedHalf = 0.5 * pow(maxSpeed / 0.5, 0.5)
+        XCTAssertEqual(speed, expectedHalf, accuracy: expectedHalf * 0.08, "and close to the half-bar speed")
+    }
+    /// M2: thẻ "Bài hôm nay" đứng đầu Sảnh (trên "Tiếp tục"), có chuỗi ngày; chạm → vào một trong ba bài của hôm nay.
+    func testDailyCardOnTopOfLobbyStartsTodaysDrill() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]
+        app.launch()
+        let card = app.descendants(matching: .any)["LobbyDaily"]
+        XCTAssertTrue(card.waitForExistence(timeout: 60), "Bài hôm nay card")
+        let cont = app.buttons["LobbyContinue"]
+        XCTAssertTrue(cont.exists)
+        XCTAssertLessThan(card.frame.minY, cont.frame.minY, "Bài hôm nay sits above Tiếp tục")
+        XCTAssertTrue(card.label.contains("Bắt đầu chuỗi ngày"), "fresh player: no streak yet")
+        card.tap()
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 20 * slow) { self.text(scene, "lesson") == "1" }
+        XCTAssertTrue(["first-shot", "stop-hold", "follow-zone", "draw-zone"].contains(text(scene, "drill")),
+                      "a new player only gets drills of open chapters (chapter 1)")
+    }
+    /// M3: màn Tiến bộ (Swift Charts) với 30 ngày dữ liệu giả — biểu đồ, chuỗi, nút bài kiểm tuần; ảnh cho nghiệm thu.
+    func testProgressScreenWithThirtyDemoDays() {
+        let (app, _) = launch(["--progress-demo-qa"])
+        XCTAssertTrue(app.descendants(matching: .any)["ProgressChart"].waitForExistence(timeout: 20 * slow), "Tiến bộ opens with the chart")
+        XCTAssertTrue(app.buttons["WeeklyTest"].exists, "weekly test entry")
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "progress-30-days"; shot.lifetime = .keepAlways; add(shot)
+        app.buttons["ProgressDone"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["ProgressChart"].waitForNonExistence(timeout: 10 * slow))
+    }
+    /// M5: bài kiểm tuần 10 cú — không hiện kết quả giữa chừng (chỉ "đã đánh n/10"), kết quả cuối mới hiện.
+    func testWeeklyTestShowsNothingUntilTheEnd() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa"]
+        app.launch()
+        let chip = app.buttons["LobbyWeeklyTest"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 60)); chip.tap()
+        let scene = app.otherElements["PoolScene"]
+        wait(scene, timeout: 30 * slow) { self.text(scene, "test").hasPrefix("weekly:") }
+        for _ in 0..<40 where !app.alerts.firstMatch.exists {
+            let status = text(scene, "status")
+            XCTAssertFalse(status.contains("ĐẠT") || status.contains("chưa đạt") || status.contains("điểm"), "no result between shots: \(status)")
+            Thread.sleep(forTimeInterval: 3)
+        }
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 120 * slow), "the result only at the end")
+        XCTAssertTrue(app.alerts.firstMatch.label.contains("Bài kiểm tuần"))
+    }
+    /// M6: mã sai một ký tự bị từ chối (CRC-9); mã đúng (81R0-0Y9J = "Cắt phải 30° vào lỗ góc", người thách vào 3/5) → đúng bài.
+    func testChallengeCodeOpensTheSameDrillAndRejectsATypo() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]
+        app.launch()
+        let chip = app.buttons["LobbyChallenge"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 60)); chip.tap()
+        let field = app.textFields["ChallengeCodeField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10 * slow)); field.tap(); field.typeText("81R0-0Y9K")
+        app.alerts.firstMatch.buttons["Chơi bài này"].tap()
+        XCTAssertTrue(app.alerts["Mã không đúng"].waitForExistence(timeout: 10 * slow), "a one-character typo is refused")
+        app.alerts["Mã không đúng"].buttons["Đóng"].tap()
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertNotEqual(text(scene, "drill"), "cut-30-r")
+        // The Lobby closed when the chip was chosen: start again from a fresh launch.
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["LobbyChallenge"].waitForExistence(timeout: 60)); app.buttons["LobbyChallenge"].tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 10 * slow)); field.tap(); field.typeText("81r0 0y9j")
+        app.alerts.firstMatch.buttons["Chơi bài này"].tap()
+        wait(scene, timeout: 20 * slow) { self.text(scene, "drill") == "cut-30-r" && self.text(scene, "lesson") == "1" }
+    }
 }

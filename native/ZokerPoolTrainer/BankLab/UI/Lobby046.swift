@@ -60,7 +60,10 @@ final class LobbyController: UIViewController {
     struct Action { let title: String; let icon: String; let id: String; let run: () -> Void }
     struct Card { let title: String; let subtitle: String; let icon: String; let color: UIColor; let actions: [Action] }
     struct Resume { let title: String; let subtitle: String; let run: () -> Void }
+    /// 0.47 M2: "Bài hôm nay" (above "Tiếp tục"): three drills with ticks, the day streak.
+    struct Daily { let title: String; let subtitle: String; let streak: Int; let items: [(title: String, done: Bool)]; let run: () -> Void }
     var resume: Resume?
+    var daily: Daily?
     var cards: [Card] = []
     var footer: [Action] = []
     /// Gọi (trước khi chạy hành động đã chọn) khi Sảnh đã đóng.
@@ -87,6 +90,7 @@ final class LobbyController: UIViewController {
             t.append(NSAttributedString(string: "  TRAINER", attributes: [.font: UIFont.systemFont(ofSize: 14, weight: .bold), .foregroundColor: Self.gold, .kern: 5]))
             return t }()
         var rows: [UIView] = [title]
+        if let d = daily { rows.append(makeDaily(d)) }
         if let r = resume { rows.append(makeContinue(r)) }
         let tiles = UIStackView(); tiles.axis = .horizontal; tiles.spacing = 10; tiles.distribution = .fillEqually; tiles.alignment = .fill
         for card in cards { tiles.addArrangedSubview(makeTile(card)) }
@@ -129,6 +133,38 @@ final class LobbyController: UIViewController {
         let b = UIButton(configuration: cfg); b.accessibilityIdentifier = "LobbyContinue"; b.contentHorizontalAlignment = .leading
         b.heightAnchor.constraint(greaterThanOrEqualToConstant: 64).isActive = true
         b.addAction(UIAction { [weak self] _ in self?.choose(r.run) }, for: .touchUpInside)
+        return b
+    }
+    /// 0.47 M2: one tappable card — title, streak flame, the three drills with ticks. Tap = next drill not done.
+    private func makeDaily(_ d: Daily) -> UIView {
+        let b = UIControl(); b.backgroundColor = UIColor.rgb(0x171B20).withAlphaComponent(0.9); b.layer.cornerRadius = 18
+        b.layer.borderWidth = 1.5; b.layer.borderColor = ZDesign.Color.gold.withAlphaComponent(0.8).cgColor
+        b.accessibilityIdentifier = "LobbyDaily"; b.isAccessibilityElement = true; b.accessibilityTraits = .button
+        let icon = UIImageView(image: UIImage(systemName: "calendar.badge.clock", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .bold)))
+        icon.tintColor = ZDesign.Color.gold; icon.setContentHuggingPriority(.required, for: .horizontal)
+        let title = UILabel(); title.text = d.title; title.font = .systemFont(ofSize: 19, weight: .heavy); title.textColor = .white
+        let sub = UILabel(); sub.text = d.subtitle; sub.font = .systemFont(ofSize: 13, weight: .semibold); sub.textColor = UIColor(white: 0.75, alpha: 1)
+        let head = UIStackView(arrangedSubviews: [title, sub]); head.axis = .vertical; head.spacing = 1
+        let flame = UILabel(); flame.font = .systemFont(ofSize: 15, weight: .bold); flame.textColor = d.streak > 0 ? UIColor.rgb(0xFF9F43) : UIColor(white: 0.6, alpha: 1)
+        flame.text = d.streak > 0 ? "\(d.streak) ngày liên tiếp" : "Bắt đầu chuỗi ngày"; flame.setContentHuggingPriority(.required, for: .horizontal)
+        let flameIcon = UIImageView(image: UIImage(systemName: "flame.fill")); flameIcon.tintColor = flame.textColor
+        let streak = UIStackView(arrangedSubviews: [flameIcon, flame]); streak.spacing = 4; streak.alignment = .center
+        streak.accessibilityIdentifier = "LobbyStreak"
+        let top = UIStackView(arrangedSubviews: [icon, head, UIView(), streak]); top.spacing = 12; top.alignment = .center
+        let chips = UIStackView(); chips.spacing = 8; chips.distribution = .fillEqually
+        for item in d.items {
+            let l = UILabel(); l.text = (item.done ? "✓ " : "") + item.title; l.font = .systemFont(ofSize: 12, weight: .semibold)
+            l.textColor = item.done ? UIColor.systemGreen : .white; l.adjustsFontSizeToFitWidth = true; l.minimumScaleFactor = 0.7
+            l.textAlignment = .center; l.backgroundColor = UIColor(white: 1, alpha: item.done ? 0.06 : 0.12); l.layer.cornerRadius = 10; l.clipsToBounds = true
+            l.heightAnchor.constraint(equalToConstant: 26).isActive = true
+            chips.addArrangedSubview(l)
+        }
+        let stack = UIStackView(arrangedSubviews: [top, chips]); stack.axis = .vertical; stack.spacing = 8; stack.isUserInteractionEnabled = false
+        stack.translatesAutoresizingMaskIntoConstraints = false; b.addSubview(stack)
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: b.leadingAnchor, constant: 16), stack.trailingAnchor.constraint(equalTo: b.trailingAnchor, constant: -16),
+                                     stack.topAnchor.constraint(equalTo: b.topAnchor, constant: 10), stack.bottomAnchor.constraint(equalTo: b.bottomAnchor, constant: -10)])
+        b.accessibilityLabel = d.title + ", " + d.subtitle + ", " + flame.text!
+        b.addAction(UIAction { [weak self] _ in self?.choose(d.run) }, for: .touchUpInside)
         return b
     }
     /// Ô một việc = cả ô là nút (định danh của việc đó); ô nhiều việc = tiêu đề + các nút gọn.

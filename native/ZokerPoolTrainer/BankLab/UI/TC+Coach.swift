@@ -291,7 +291,10 @@ extension TrainingController {
         let (score,detail)=lessonShotScore(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount)
         lessonScores.append(score);if passed{lessonPasses+=1}
         let n=lessonScores.count
-        statusLabel.text="Cú \(n)/5 · \(score) điểm · "+(passed ? "ĐẠT":"chưa đạt")+" · "+detail
+        // 0.47 M5: full detail after every shot, or (level 3–5 on an easy drill) made/missed only — details kept for "Xem chi tiết".
+        if n==1 {feedbackDetails=[];feedbackMode=feedbackMode047(d)}
+        feedbackDetails.append("Cú \(n): \(score) điểm · "+(passed ? "ĐẠT":"chưa đạt")+" · "+detail)
+        statusLabel.text=feedbackMode==BL_FEEDBACK_SUMMARY ? "Cú \(n)/5 · "+(passed ? "ĐẠT":"chưa đạt"):"Cú \(n)/5 · \(score) điểm · "+(passed ? "ĐẠT":"chưa đạt")+" · "+detail
         scoreLabel.text="Lượt 5 cú · đạt \(lessonPasses) / \(n)"
         notifyStatus(statusLabel.text ?? "")
         let index=drillIndex
@@ -307,14 +310,16 @@ extension TrainingController {
         let average=lessonScores.reduce(0,+)/max(1,n)
         let stars=lessonPasses>=5 && average>=85 ? 5:min(4,lessonPasses)
         let cleared=lessonPasses>=3
-        PlayerStore.shared.recordRound(drill:d.id,stars:stars,average:Double(average))   // 0.45 M5: the only writer of progress
+        let round=PlayerStore.shared.recordRound(drill:d.id,stars:stars,average:Double(average),made:lessonPasses)   // 0.45 M5: the only writer of progress
+        roundFinished047(d,round:round,stars:stars,average:average)   // 0.47 M2/M3/M5/M6: streak, record, summary, challenge
         lessonScores=[];lessonPasses=0
-        let next=Drill.all.indices.first{$0>index && Drill.all[$0].level>0}
+        let next=FeatureFlags.chapters && Chapters.locate(d.id) != nil ? Chapters.nextRung(after:d.id):Drill.all.indices.first{$0>index && Drill.all[$0].level>0}   // 0.47 M0: next rung of the ladder
         let alert=UIAlertController(title:(cleared ? "Qua bài · ":"Chưa qua · ")+Drill.starText(stars),
             message:"\(d.title)\nĐiểm trung bình \(average)/100.\n"+(cleared ? "Bài đã được đánh dấu hoàn thành.":"Cần đạt ít nhất 3/5 cú. Gợi ý: bật Coach để xem điểm va băng và một thay đổi cho cú sau."),preferredStyle:.alert)
         alert.addAction(UIAlertAction(title:"Tập lại lượt mới",style:.default){[weak self]_ in self?.beginDrill(index,guided:false)})
         if let next=next {alert.addAction(UIAlertAction(title:"Bài tiếp theo",style:.default){[weak self]_ in self?.beginDrill(next,guided:false)})}
+        roundAlertExtras047(alert,drill:d,round:round,index:index)   // 0.47: Bài hôm nay tiếp theo · chuỗi ngày · Xem chi tiết · Thách bạn
         alert.addAction(UIAlertAction(title:"Đóng",style:.cancel){[weak self]_ in self?.lessonActive=false})
-        DispatchQueue.main.asyncAfter(deadline:.now()+1.2){[weak self] in self?.present(alert,animated:true)}
+        DispatchQueue.main.asyncAfter(deadline:.now()+(round.newRecord && FeatureFlags.progress ? 1.7:1.2)){[weak self] in self?.present(alert,animated:true)}   // 0.47 M3: "Kỷ lục mới" (≤ 1,5 s) first
     }
 }

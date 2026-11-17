@@ -55,6 +55,7 @@ extension TrainingController {
         for item in quickRail.arrangedSubviews{item.constraints.first{$0.firstAttribute == .height && $0.secondItem==nil}?.constant=CGFloat(f.button)}
         spinWidth.constant=CGFloat(f.spin.w);spinHeight.constant=CGFloat(f.spin.h)
         applyHUDOffsets()
+        placePowerBar(rail:railFrame,safe:safe)   // 0.47 M1
     }
     func recordG1QA(_ name:String,_ values:[String:Any]){
         let directory=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("g1-qa")
@@ -591,6 +592,7 @@ extension TrainingController {
     func refresh(){wakeRendering();updateCueClearance();table.update(balls,dt:0);guideDirty=true;scoreLabel.text="\(successes) / \(attempts) đạt · góc \(String(format:"%.1f",angle*180/Double.pi))°"}
     func updateControls(){
         let busy=presentationBusy
+        defer{syncPowerBar()}   // 0.47 M1
         syncCueIcons()
         fineWheel.isEnabled = !busy && localTurn && !isPlacingBalls
         lockButton.isEnabled = strokeAllowed

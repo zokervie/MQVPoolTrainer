@@ -8,6 +8,7 @@
 #import "UI/PowerScale.h"
 #import "UI/DailyLoop.h"
 #import "UI/Challenge.h"
+#import "UI/Chapters.h"
 #import "UI/StrokeResponse.h"
 #import "UI/ShotKindPolicy.h"
 #import "Core/BLMatch.h"

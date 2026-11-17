@@ -17,6 +17,12 @@ enum Prefs {
     static let recentPlay = "recentPlay046"
     /// 0.46 M2: Phòng thí nghiệm (Tuỳ chỉnh → Máy). Off by default: engineer tools hidden from every menu.
     static let labEnabled = "labEnabled047"
+    /// 0.47: feature flags (FeatureFlags047.swift) — one key per feature, default ON for the test build.
+    static func featureFlag(_ name: String) -> String { "ff047." + name }
+    /// 0.47 M1: stroke input. Absent = automatic (power bar for a new player, < 50 shots); 1 = power bar; 0 = swipe B.
+    static let powerBarMode = "powerBarMode047"
+    /// 0.47 M4: in-play effects (pocket sparks, strike haptic by power, light camera shake on a hard break).
+    static let playFX = "playFX047"
     // Legacy progress (read once by the PlayerStore migration, then left untouched for rollback)
     static let legacyLessonStars = "lessonStars035"
     static let practiceHistory = "practiceHistory"

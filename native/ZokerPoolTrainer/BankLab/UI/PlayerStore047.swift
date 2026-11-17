@@ -42,6 +42,22 @@ struct StreakRecord: Codable, Equatable {
     var c: BLStreak { BLStreak(count: count, best: best, lastDay: lastDay, freezes: freezes, freezeWeek: freezeWeek, freezesUsed: freezesUsed) }
 }
 
+/// 0.47: one finished 5-shot round (Bài hôm nay "đã xong", màn Tiến bộ).
+struct RoundLog: Codable, Equatable {
+    var drill: String
+    var day: Int64
+    var stars: Int
+    var made: Int
+    var average: Double
+}
+/// 0.47 M0/M5: a 10-shot test without help (chapter exam or the weekly "Bài kiểm không trợ giúp").
+struct TestLog: Codable, Equatable {
+    var kind: String       // "chapter-<n>" or "weekly"
+    var day: Int64
+    var made: Int
+    var shots: Int
+}
+
 struct PlayerData: Codable, Equatable {
     static let currentSchema = 1
     var schemaVersion = PlayerData.currentSchema
@@ -52,6 +68,11 @@ struct PlayerData: Codable, Equatable {
     var level: Int32 = 1
     var metrics: UsageMetrics
     var legacyStarsMigrated = false
+    // 0.47 (all optional in the file: older files decode with empty values)
+    var rounds: [RoundLog] = []
+    var tests: [TestLog] = []
+    var examBest: [String: Int] = [:]   // "chapter-<n>" → best made out of 10 (a full exam only)
+    var tipsSeen: [Int] = []            // chapters whose tip card was shown once
 
     init(now: Date, day: Int64) { metrics = UsageMetrics(installedAt: now, installDay: day) }
     // Missing fields (older / newer files) fall back to defaults instead of failing the whole file.
@@ -65,6 +86,10 @@ struct PlayerData: Codable, Equatable {
         level = try c.decodeIfPresent(Int32.self, forKey: .level) ?? 1
         metrics = try c.decode(UsageMetrics.self, forKey: .metrics)
         legacyStarsMigrated = try c.decodeIfPresent(Bool.self, forKey: .legacyStarsMigrated) ?? false
+        rounds = try c.decodeIfPresent([RoundLog].self, forKey: .rounds) ?? []
+        tests = try c.decodeIfPresent([TestLog].self, forKey: .tests) ?? []
+        examBest = try c.decodeIfPresent([String: Int].self, forKey: .examBest) ?? [:]
+        tipsSeen = try c.decodeIfPresent([Int].self, forKey: .tipsSeen) ?? []
     }
 }
 
@@ -80,6 +105,7 @@ final class PlayerStore {
     }()
     static let maxAttempts = 2000
     static let maxAttemptSeconds = 600.0
+    static let maxRounds = 1000, maxTests = 300
 
     let fileURL: URL
     var backupURL: URL { fileURL.appendingPathExtension("bak") }
@@ -178,8 +204,10 @@ final class PlayerStore {
     }
     struct RoundResult: Equatable { var newBestStars: Bool; var newRecord: Bool; var streakGrew: Bool; var level: Int32 }
     /// A 5-shot round finished: best stars, personal record (average), streak day, level from the last 7 days.
-    @discardableResult func recordRound(drill: String, stars: Int, average: Double, at now: Date = Date()) -> RoundResult {
+    @discardableResult func recordRound(drill: String, stars: Int, average: Double, made: Int = -1, at now: Date = Date()) -> RoundResult {
         let s = max(0, min(5, stars))
+        data.rounds.append(RoundLog(drill: drill, day: day(now), stars: s, made: made < 0 ? min(4, s) : max(0, min(5, made)), average: average))
+        if data.rounds.count > Self.maxRounds { data.rounds.removeFirst(data.rounds.count - Self.maxRounds) }
         let newBest = s > (data.stars[drill] ?? 0)
         if newBest { data.stars[drill] = s }
         let previous = data.bestAverage[drill]
@@ -197,7 +225,69 @@ final class PlayerStore {
         return RoundResult(newBestStars: newBest, newRecord: record, streakGrew: grew, level: data.level)
     }
 
+    /// 0.47 M0/M5: a 10-shot test finished. Chapter exams keep the best made of a FULL exam (10 shots); the weekly test
+    /// is a log (the "real progress" line on the Tiến bộ screen). Returns true if the chapter best improved.
+    @discardableResult func recordTest(kind: String, made: Int, shots: Int, at now: Date = Date()) -> Bool {
+        let m = max(0, min(shots, made))
+        data.tests.append(TestLog(kind: kind, day: day(now), made: m, shots: shots))
+        if data.tests.count > Self.maxTests { data.tests.removeFirst(data.tests.count - Self.maxTests) }
+        var improved = false
+        if kind != "weekly", shots == 10, m > (data.examBest[kind] ?? -1) { data.examBest[kind] = m; improved = true }
+        save()
+        return improved
+    }
+    /// 0.47 M0: the chapter's tip card has been shown (it then lives in "Sổ mẹo").
+    func markTipSeen(_ chapter: Int) {
+        guard !data.tipsSeen.contains(chapter) else { return }
+        data.tipsSeen.append(chapter); data.tipsSeen.sort(); save()
+    }
+    #if DEBUG
+    /// QA (`--progress-demo-qa`): replace the progress with 30 days of made-up practice so the Tiến bộ screen can be
+    /// photographed. Debug builds only; never called otherwise.
+    func loadDemo(days: Int = 30, drills: [String], now: Date = Date()) {
+        let today = day(now)
+        var rng = SystemRandomNumberGenerator()
+        var demo = PlayerData(now: now.addingTimeInterval(-Double(days) * 86400), day: today - Int64(days))
+        var st = BLStreakNew()
+        for back in stride(from: days - 1, through: 0, by: -1) {
+            let d = today - Int64(back)
+            if back % 9 == 5 { continue }   // a few missed days (freeze / reset visible on the chart)
+            let skill = 0.35 + 0.45 * Double(days - back) / Double(days)
+            for k in 0..<3 {
+                let id = drills[(Int(d) + k) % max(1, drills.count)]
+                var made = 0
+                for s in 0..<5 {
+                    let ok = Double.random(in: 0..<1, using: &rng) < skill; if ok { made += 1 }
+                    demo.attempts.append(DrillAttempt(drill: id, at: now.addingTimeInterval(-Double(back) * 86400 + Double(k * 300 + s * 40)), day: d, made: ok, stars: 0, seconds: 40))
+                }
+                let stars = min(4, made)
+                demo.rounds.append(RoundLog(drill: id, day: d, stars: stars, made: made, average: Double(made) * 18 + 8))
+                demo.stars[id] = max(demo.stars[id] ?? 0, stars)
+                demo.bestAverage[id] = max(demo.bestAverage[id] ?? 0, Double(made) * 18 + 8)
+            }
+            _ = BLStreakComplete(&st, d)
+            if back % 7 == 0 { demo.tests.append(TestLog(kind: "weekly", day: d, made: Int((skill * 10).rounded()), shots: 10)) }
+        }
+        demo.streak = StreakRecord(st); demo.level = 3; demo.legacyStarsMigrated = true
+        demo.metrics.sessions = 41; demo.metrics.shots = demo.attempts.count; demo.metrics.drillsCompleted = demo.rounds.count
+        data = demo; save()
+    }
+    #endif
+
     // MARK: reads
+    /// Rounds finished today (local day) on a drill — "Bài hôm nay" ticks.
+    func roundsToday(_ drill: String, at now: Date = Date()) -> Int { let t = day(now); return data.rounds.filter { $0.drill == drill && $0.day == t }.count }
+    /// Weekly test already taken this week?
+    func weeklyTestDone(at now: Date = Date()) -> Bool { let w = BLWeekIndex(day(now)); return data.tests.contains { $0.kind == "weekly" && BLWeekIndex($0.day) == w } }
+    /// Per local day over the last `days` days (oldest first): attempts and made.
+    func daily(days: Int, at now: Date = Date()) -> [(day: Int64, attempts: Int, made: Int, rounds: Int)] {
+        let today = day(now)
+        return (0..<days).reversed().map { back in
+            let d = today - Int64(back)
+            let a = data.attempts.filter { $0.day == d }
+            return (d, a.count, a.filter { $0.made }.count, data.rounds.filter { $0.day == d }.count)
+        }
+    }
     func stars(_ drill: String) -> Int { data.stars[drill] ?? 0 }
     func streakShown(at now: Date = Date()) -> Int32 { BLStreakShown(data.streak.c, day(now)) }
 

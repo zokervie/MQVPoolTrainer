@@ -126,7 +126,7 @@ extension TrainingController {
         if UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
         mark("cueSound")
         shotActive=true;didStartMatchShot();mark("matchStart");attempts+=1;statusLabel.text=String(format:"Đang chạy · tốc độ đầu %.2f m/s",speed)
-        feedback.impactOccurred();mark("haptic");guideDirty=true;table.trails([:]);mark("trails");setMenu(false);mark("menu");updateControls();mark("controls")
+        strikeFX047(speed);mark("haptic")   // 0.47 M4: haptic by power, light shake on a hard break;guideDirty=true;table.trails([:]);mark("trails");setMenu(false);mark("menu");updateControls();mark("controls")
     }
     @objc func tick(_ link:CADisplayLink){
         frameStep(targetTimestamp:link.targetTimestamp,linkStamp:link.timestamp)
@@ -287,6 +287,7 @@ extension TrainingController {
                     for event in fresh {poolAudio.play(kind:event["kind"]?.intValue ?? 1,impact:event["impact"]?.doubleValue ?? 0.3,pan:audioPan(event["x"]?.doubleValue ?? 0,event["y"]?.doubleValue ?? 0),eventAge:max(0,engine.elapsed-(event["time"]?.doubleValue ?? engine.elapsed)))}
                 }
                 lastEventCount+=fresh.count
+                playFXEvents(fresh)   // 0.47 M4: sparks at the pocket mouth
             }
             didAdvanceMatchShot()
             let s0=CACurrentMediaTime()
@@ -371,7 +372,7 @@ extension TrainingController {
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
         if shotActive && shotKind==1 {qaJumpSeen=true}
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa") || ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") || ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";lang="+L10n.code+";intro="+(intro?.mode ?? "none")+";introDone=\(introFinishCount)"+";lobby="+(presentedViewController is LobbyController ? "1":"0")+";tut="+(firstShotCoach?.state ?? "none")+";flow="+appFlow.step.name+";flowLog="+appFlow.logText+String(format:";aimTarget=%.6f;elev=%.2f;stroke=%.2f",Drill.all[Drill.startup].angle,table.cueElevation,strokeClearance)+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa") || ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") || ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";lang="+L10n.code+";intro="+(intro?.mode ?? "none")+";introDone=\(introFinishCount)"+";lobby="+(presentedViewController is LobbyController ? "1":"0")+";tut="+(firstShotCoach?.state ?? "none")+";flow="+appFlow.step.name+";flowLog="+appFlow.logText+String(format:";aimTarget=%.6f;elev=%.2f;stroke=%.2f",Drill.all[Drill.startup].angle,table.cueElevation,strokeClearance)+qa047+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
@@ -503,14 +504,16 @@ extension TrainingController {
         else {statusLabel.text="\(passed ? "ĐẠT":"Chưa đạt") · \(railCount) băng / yêu cầu \(d.rails)"}
         hintLabel.text="Tập lại: trở về trước cú · Xem lại: phân tích đường bi"
         refresh();updateControls()
-        if Tuning.predictFirst && !timedOut {revealPrediction(events)}
+        if testRun != nil {}   // 0.47: a test without help shows nothing between shots
+        else if Tuning.predictFirst && !timedOut {revealPrediction(events)}
         else if !timedOut && !scratch {scoreConsistency()}
         if coachOn && !timedOut && (d.goal != nil || d.rails>0) {
             let tracked=d.kick || d.goal != nil ? 0:1
             table.showRailContacts(railContacts(events,ball:tracked,untilFirstHit:d.kick).map{($0.x,$0.y)})
             requestCoachReport(drill:d,events:events,passed:passed,scratch:scratch)
         }
-        if lessonActive && d.level>0 {scoreLesson(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount,events:events)}
+        if lessonActive && (d.level>0 || d.goal != nil || d.rails>0) {scoreLesson(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount,events:events)}
+        if testRun != nil {testRunShotFinished(passed:passed)}   // 0.47 M0/M5: no feedback until the 10th shot
     }
     /// 0.25 highlight score: object balls potted, kick cushions before contact, banked pots.
     func recordSessionShot(_ events:[[String:NSNumber]]){

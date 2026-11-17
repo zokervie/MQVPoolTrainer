@@ -296,7 +296,7 @@ struct Drill {
     }()
 }
 
-private final class DrillLessonController:UIViewController {
+final class DrillLessonController:UIViewController {
     let drill:Drill
     var start:(()->Void)?
     var guidedStart:(()->Void)?

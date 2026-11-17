@@ -23,6 +23,15 @@ import Foundation
         let all = ["en", "vi", "fil", "es", "zh", "ja", "hi"]
         try check(LanguagePicker.codes(all: all, lab: false) == ["vi", "en"], "lab off: Tiếng Việt + English only")
         try check(LanguagePicker.codes(all: all, lab: true) == all, "lab on: all seven")
+        // 0.47 feature flags: default ON (test build), saved switch read back; power bar automatic for < 50 shots.
+        for f in FeatureFlags.Flag.allCases { try check(FeatureFlags.isOn(f, d), "flag \(f.rawValue) on by default") }
+        d.set(false, forKey: Prefs.featureFlag("challenge"))
+        try check(!FeatureFlags.isOn(.challenge, d) && FeatureFlags.isOn(.powerBar, d), "one flag off, others untouched")
+        try check(Prefs.featureFlag("powerBar") == "ff047.powerBar" && Prefs.powerBarMode == "powerBarMode047", "0.47 keys frozen")
+        try check(FeatureFlags.usesPowerBar(shots: 0, d) && !FeatureFlags.usesPowerBar(shots: 50, d), "auto: bar for a new player, swipe after 50 shots")
+        d.set(0, forKey: Prefs.powerBarMode); try check(!FeatureFlags.usesPowerBar(shots: 0, d), "saved swipe wins")
+        d.set(1, forKey: Prefs.powerBarMode); try check(FeatureFlags.usesPowerBar(shots: 500, d), "saved bar wins")
+        d.set(false, forKey: Prefs.featureFlag("powerBar")); try check(!FeatureFlags.usesPowerBar(shots: 0, d), "flag off: never the bar")
         print("PASS Prefs: \(checks) checks (frozen keys, Phòng thí nghiệm default off, language picker vi+en)")
     }
 }

@@ -14,11 +14,12 @@ extension TrainingController {
         typealias A=LobbyController.Action
         // 0.46 M1: "Tiếp tục" (bài/trận gần nhất) · Tập tự do · Bài tập · Đấu · Thư viện bàn‑cơ; mọi mục cũ còn ở hàng chip.
         lobby.resume=continueCard()
+        lobby.daily=dailyCard()   // 0.47 M2
         lobby.cards=[
             .init(title:"Tập tự do",subtitle:"Bàn trống, tự đánh",icon:"circle.dashed",color:LobbyController.practice,actions:[
                 A(title:"Tập tự do",icon:"circle.dashed",id:"LobbyFree",run:{[weak self] in RecentPlay.saveFree();self?.setMenu(false)})]),
             .init(title:"Bài tập",subtitle:"Bài chấm sao, tìm góc kick",icon:"star.circle",color:LobbyController.practice,actions:[
-                A(title:"Bài tập · 5 cấp",icon:"star.circle",id:"LobbyDrills",run:{[weak self] in self?.chooseDrill()}),
+                A(title:FeatureFlags.chapters ? "Bài tập · 6 chương":"Bài tập · 5 cấp",icon:"star.circle",id:"LobbyDrills",run:{[weak self] in self?.chooseDrill()}),
                 A(title:"Thử thách kick 1–3 băng",icon:"arrow.triangle.turn.up.right.diamond",id:"LobbyKick",run:{[weak self] in self?.chooseKick()})]),
             .init(title:"Đấu",subtitle:"8 · 9 · 10 Ball luật WPA, 15 Ball Rotation",icon:"trophy",color:LobbyController.match,actions:[
                 A(title:"Đấu với máy · 6 cấp",icon:"cpu",id:"LobbyComputer",run:{[weak self] in self?.openComputerMatch()}),
@@ -36,6 +37,9 @@ extension TrainingController {
                           sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)}),
                       A(title:"Tài khoản · Game Center",icon:"gamecontroller",id:"LobbyAccount",run:{[weak self] in self?.openAccount()}),
                       A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()})]
+        if FeatureFlags.fadingFeedback && !PlayerStore.shared.weeklyTestDone() {lobby.footer.insert(A(title:"Bài kiểm tuần",icon:"flag.checkered",id:"LobbyWeeklyTest",run:{[weak self] in self?.startWeeklyTest()}),at:1)}   // 0.47 M5
+        if FeatureFlags.challenge {lobby.footer.insert(A(title:"Nhập mã thách đấu",icon:"person.2.wave.2",id:"LobbyChallenge",run:{[weak self] in self?.enterChallengeCode()}),at:1)}   // 0.47 M6
+        if FeatureFlags.progress {lobby.footer.insert(A(title:"Tiến bộ",icon:"chart.bar.xaxis",id:"LobbyProgress",run:{[weak self] in self?.openProgress()}),at:1)}   // 0.47 M3
         // 0.46 M2: engineer tools only with Phòng thí nghiệm on (Tuỳ chỉnh → Máy).
         if Prefs.lab {lobby.footer.append(A(title:"Phòng thử vật lý (nâng cao)",icon:"flask",id:"LobbyLab",run:{[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)}))}
         lobby.onClosed={[weak self] in self?.afterLobbyClosed()}
@@ -114,15 +118,24 @@ extension TrainingController {
     }
     func beginDrill(_ index:Int,guided:Bool){
         RecentPlay.saveDrill(index)   // 0.46: "Tiếp tục" ở Sảnh
+        if testRun != nil {endTestRun(cancelled:true)}   // 0.47: leaving a test for a drill ends the test
+        challengePlaying=nil   // 0.47 M6: a challenge is set again right after, by enterChallengeCode
         if let previous=guidedCoachBefore{coaching=previous;guidedCoachBefore=nil}
         if guided{guidedCoachBefore=coaching;coaching=true;cardOn=true}   // 0.44: a guided lesson shows its brief/grade
         loadDrill(index);applyCoachVisibility()
-        lessonActive=Drill.all[index].level>0;lessonScores=[];lessonPasses=0
+        lessonActive=Drill.all[index].level>0 || (FeatureFlags.chapters && Chapters.locate(Drill.all[index].id) != nil);lessonScores=[];lessonPasses=0   // 0.47 M0: every ladder drill (also "Cú đầu tiên") is a 5-shot round
         if lessonActive {scoreLabel.text="Lượt 5 cú · 0 / 5";notifyStatus("Bài tập: "+Drill.all[index].title+" · cần đạt 3/5 cú")}
     }
     func chooseDrill(){
         guard matchAllowsEditing else{return}
         guard !shotActive,replayIndex==nil else{return}
+        if FeatureFlags.chapters {   // 0.47 M0: chapters, tips, ladder, exam
+            let vc=ChaptersController(style:.insetGrouped)
+            vc.load={[weak self]index in self?.beginDrill(index,guided:false)}
+            vc.guidedLoad={[weak self]index in self?.beginDrill(index,guided:true)}
+            vc.exam={[weak self]n in self?.startChapterExam(n)}
+            present(UINavigationController(rootViewController:vc),animated:true);return
+        }
         let vc=DrillsController(style:.insetGrouped)
         vc.load={[weak self]index in self?.beginDrill(index,guided:false)}
         vc.guidedLoad={[weak self]index in self?.beginDrill(index,guided:true)}

@@ -41,6 +41,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func layoutHUDAfterIntro(){refresh();updateControls();view.setNeedsLayout()}
     /// 0.35: lượt bài tập 5 cú (chỉ khi mở từ menu Bài tập).
     var lessonActive=false,lessonScores:[Int]=[],lessonPasses=0
+    /// 0.47 (Practice047.swift): 10-shot test without help (chapter exam / weekly test), M5 feedback mode and the
+    /// per-shot details kept for "Xem chi tiết", M6 challenge being played, M1 power bar, M4 in-play effects.
+    var testRun:TestRun?
+    var powerBar:PowerBarControl?
+    var playFX:ShotFX?
+    var challengePlaying:ChallengeInfo?   // 0.47 M6
+    var feedbackMode:Int32=2,feedbackDetails:[String]=[]   // 0.47 M5 (BL_FEEDBACK_FULL = 2)
     var before:[BallState]=[],initial:[BallState]=[]
     var shotCameraAnchor:BallState?
     var savedAimCamera:CameraPose?
@@ -482,6 +489,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 }
             }
             if args.contains("--cue-contact-qa") {table.cameraMode=2}
+            qa047Launch()   // 0.47 QA flags (Practice047.swift)
             if args.contains("--observation-qa") {
                 DispatchQueue.main.asyncAfter(deadline:.now()+0.8){[weak self] in
                     guard let self=self else{return};self.loadDrill(Drill.rollTest);self.table.cameraMode=2;self.locked=true;self.shoot(1.8)
@@ -508,6 +516,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self.powerFX.track(self.stroke.convert(p,to:self.powerFX),speed:v*Tuning.maxPower,forward:forward)}
         stroke.released={[weak self] fired in guard let self=self,!fired,self.locked else{return};self.setHold(false)}
         stroke.pullChanged={[weak self]p in self?.pull=p}
+        installPowerBar()   // 0.47 M1 (PowerBar047.swift)
         displayLink=CADisplayLink(target:self,selector:#selector(tick(_:)));setLinkRate(60)
         displayLink?.add(to:.main,forMode:.common)
         NotificationCenter.default.addObserver(self,selector:#selector(resumed),name:UIApplication.willResignActiveNotification,object:nil)

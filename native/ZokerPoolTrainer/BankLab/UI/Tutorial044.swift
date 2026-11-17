@@ -11,7 +11,7 @@ import SceneKit
 
 /// One teaching beat: the gesture the hand replays, the caption, what to ring, and when it is done.
 struct TutorialBeat {
-    enum Gesture { case dragAcross, holdBAndStroke }
+    enum Gesture { case dragAcross, holdBAndStroke, pullPowerBar }
     let id: String
     let caption: String          // Vietnamese source; L10n translates on display (en + 5 drafts in L10n.table)
     let gesture: Gesture
@@ -33,14 +33,17 @@ enum TutorialScript {
     static let aimTolerance = 1.0 * Double.pi / 180
     static let hintSeconds = 6.0
 
-    static func firstShot(straight: Double) -> [TutorialBeat] {
+    static func firstShot(straight: Double, powerBar: Bool = false) -> [TutorialBeat] {
         [
             TutorialBeat(id: "aim", caption: "Kéo để ngắm vào chấm vàng", gesture: .dragAcross, showsAimDot: true,
                          ring: { _ in nil },
                          done: { tc in abs(remainder(tc.angle - straight, 2 * .pi)) < aimTolerance }),
-            TutorialBeat(id: "stroke", caption: "Giữ B, vuốt lùi rồi đẩy tới", gesture: .holdBAndStroke, showsAimDot: true,
-                         ring: { tc in tc.lockButton },
-                         done: { tc in tc.shotActive }),
+            powerBar ? TutorialBeat(id: "stroke", caption: "Kéo thanh lực xuống rồi thả", gesture: .pullPowerBar, showsAimDot: true,
+                                    ring: { tc in tc.powerBar },
+                                    done: { tc in tc.shotActive })   // 0.47 M1: beat 2 with the power bar on
+                     : TutorialBeat(id: "stroke", caption: "Giữ B, vuốt lùi rồi đẩy tới", gesture: .holdBAndStroke, showsAimDot: true,
+                                    ring: { tc in tc.lockButton },
+                                    done: { tc in tc.shotActive }),
         ]
     }
     static let hints: [TutorialHint] = [
@@ -103,7 +106,7 @@ final class FirstShotCoach {
         objectBall = SIMD2(drill.balls.first { $0.id == 1 }?.x ?? 0, drill.balls.first { $0.id == 1 }?.y ?? 0)
         tc.angle = straight + TutorialScript.aimOffset; tc.aimCameraYaw = 0
         tc.refresh(); tc.wakeRendering()
-        beats = TutorialScript.firstShot(straight: straight)
+        beats = TutorialScript.firstShot(straight: straight, powerBar: tc.usesPowerBar)
         attach(); show(beat: 0)
         timer?.invalidate()
         let t = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.tick() }
@@ -278,6 +281,14 @@ final class FirstShotCoach {
             move.values = [CGPoint(x: x, y: b.height * 0.55), CGPoint(x: x, y: b.height * 0.72), CGPoint(x: x, y: b.height * 0.40),
                            CGPoint(x: x, y: b.height * 0.40)].map { NSValue(cgPoint: $0) }
             move.keyTimes = [0, 0.45, 0.7, 1]; move.duration = 1.9; move.repeatCount = .infinity
+            hand.layer.add(move, forKey: "move"); hand.layer.add(fade(1.9), forKey: "fade")
+        case .pullPowerBar:   // 0.47 M1: the hand pulls the bar down and lets go
+            bHand.isHidden = true
+            guard let bar = tc?.powerBar, bar.window != nil else { break }
+            let top = bar.convert(CGPoint(x: bar.bounds.midX, y: 26), to: view), bottom = bar.convert(CGPoint(x: bar.bounds.midX, y: bar.bounds.height * 0.75), to: view)
+            let move = CAKeyframeAnimation(keyPath: "position")
+            move.values = [top, top, bottom, bottom].map { NSValue(cgPoint: CGPoint(x: $0.x + 12, y: $0.y + 18)) }
+            move.keyTimes = [0, 0.15, 0.7, 1]; move.duration = 1.9; move.repeatCount = .infinity
             hand.layer.add(move, forKey: "move"); hand.layer.add(fade(1.9), forKey: "fade")
         }
     }

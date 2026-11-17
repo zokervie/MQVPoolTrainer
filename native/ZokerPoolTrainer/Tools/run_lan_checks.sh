@@ -16,5 +16,5 @@ xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/DailyLoop.h Bank
 build/lan-checks/PlayerStoreTests
 xcrun swiftc -warnings-as-errors BankLab/UI/AppFlow047.swift Tests/AppFlowTests.swift -o build/lan-checks/AppFlowTests
 build/lan-checks/AppFlowTests
-xcrun swiftc -warnings-as-errors BankLab/UI/Prefs047.swift Tests/PrefsTests.swift -o build/lan-checks/PrefsTests
+xcrun swiftc -warnings-as-errors BankLab/UI/Prefs047.swift BankLab/UI/FeatureFlags047.swift BankLab/UI/AppFlow047.swift Tests/PrefsTests.swift -o build/lan-checks/PrefsTests
 build/lan-checks/PrefsTests
