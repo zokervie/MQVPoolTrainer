@@ -106,6 +106,30 @@ int main() {
         check(BLDailyPick(mon, 1, nullptr, 3, c) == 0 && BLDailyPick(mon, 1, few, 0, c) == 0, "empty input");
     }
 
+    // ---- interleaving: three kinds available at the level → one of each
+    {
+        const int32_t stars[] = {3, 3, 3, 3, 3, 3, 3, 3, 3};
+        const int32_t kind[]  = {0, 0, 0, 0, 0, 1, 1, 2, 2};   // many cut drills, few bank/position
+        int32_t c[3]; int all = 0;
+        for (int d = 0; d < 60; ++d) {
+            BLDailyPickMixed(mon + d, 3, stars, kind, 9, c);
+            std::set<int> k{kind[c[0]], kind[c[1]], kind[c[2]]};
+            if (k.size() == 3) ++all;
+        }
+        check(all == 60, "every day mixes three different kinds when they exist at the level");
+        const int32_t one[] = {0, 0, 0, 0};
+        const int32_t s4[] = {3, 3, 3, 3};
+        check(BLDailyPickMixed(mon, 3, s4, one, 4, c) == 3, "a single kind still yields three drills");
+        const int32_t sk[] = {3, 3, 2, 3}, kk[] = {0, 0, 1, 0};
+        BLDailyPickMixed(mon, 3, sk, kk, 4, c);
+        std::set<int> got(c, c + 3);
+        check(got.count(2) == 1, "a new kind one level away beats a repeat at the exact level");
+        const int32_t sf[] = {3, 3, 3, 5}, kf[] = {0, 0, 0, 1};
+        BLDailyPickMixed(mon, 3, sf, kf, 4, c);
+        std::set<int> far(c, c + 3);
+        check(far.count(3) == 0, "variety never pulls in a drill two levels away while the level has enough");
+    }
+
     // ---- stars and records
     check(BLStarsFromMargin(2.5) == 1 && BLStarsFromMargin(1.5) == 2 && BLStarsFromMargin(0.9) == 3 && BLStarsFromMargin(0.5) == 4 && BLStarsFromMargin(0.1) == 5, "bands");
     check(BLStarsFromMargin(0.8) <= 3 && BLStarsFromMargin(NAN) == 5 && BLStarsFromMargin(-1) == 5, "edges");

@@ -99,27 +99,43 @@ static inline uint64_t BLSplitMix64(uint64_t *x) {
 /* Pick BL_DAILY_COUNT distinct drills for `day`. stars[i] = difficulty 1–5 of drill i (≤ 0 = not eligible, e.g. locked).
    Preference: |stars − level| = 0, then 1, then 2 …; inside a band the order is a deterministic shuffle seeded by the
    day, so everyone at the same level gets the same three on the same day and tomorrow differs.
+   category[i] (may be NULL) = kind of drill (cut, bank, position…). Interleaving: inside the allowed bands a drill
+   whose category is not yet in today's set is always taken before one that repeats a category — mixed (varied)
+   practice gives better retention and transfer than blocked practice (contextual interference; motor-learning
+   literature), while the level band keeps the difficulty right.
    Writes indices to out[0..n-1] in play order (easiest first) and returns n (< 3 only if fewer eligible drills). */
+static inline int32_t BLDailyPickMixed(int64_t day, int32_t level, const int32_t *stars, const int32_t *category, int32_t drillCount, int32_t *out);
 static inline int32_t BLDailyPick(int64_t day, int32_t level, const int32_t *stars, int32_t drillCount, int32_t *out) {
+    return BLDailyPickMixed(day, level, stars, 0, drillCount, out);
+}
+static inline int32_t BLDailyPickMixed(int64_t day, int32_t level, const int32_t *stars, const int32_t *category, int32_t drillCount, int32_t *out) {
     if (!stars || !out || drillCount <= 0) return 0;
     uint64_t seed = (uint64_t)day * 0x2545F4914F6CDD1DULL ^ 0x5A6F6B6572ULL;   /* "Zoker" */
     int32_t n = 0;
-    for (int32_t band = 0; band <= 4 && n < BL_DAILY_COUNT; ++band) {
-        /* reservoir-free: draw a random key per eligible drill in this band, take the smallest keys */
-        for (int32_t take = n; take < BL_DAILY_COUNT; ++take) {
-            int32_t best = -1; uint64_t bestKey = 0;
-            for (int32_t i = 0; i < drillCount; ++i) {
-                if (stars[i] <= 0) continue;
-                const int32_t d = stars[i] > level ? stars[i] - level : level - stars[i];
-                if (d != band) continue;
-                int dup = 0; for (int32_t k = 0; k < n; ++k) if (out[k] == i) dup = 1;
-                if (dup) continue;
-                uint64_t x = seed ^ ((uint64_t)(i + 1) * 0x9E3779B97F4A7C15ULL);
-                const uint64_t key = BLSplitMix64(&x);
-                if (best < 0 || key < bestKey) { best = i; bestKey = key; }
+    /* Pass 0 takes only drills of a category not yet picked; pass 1 fills what is left. Within a pass, the nearest
+       difficulty band wins; inside a band the smallest day-seeded key wins. Variety may stretch difficulty by at most
+       one level (pass 0 stops at band 1); beyond that a repeated kind at the right level is preferred. */
+    for (int32_t pass = 0; pass < 2 && n < BL_DAILY_COUNT; ++pass) {
+        for (int32_t band = 0; band <= (pass == 0 ? 1 : 4) && n < BL_DAILY_COUNT; ++band) {
+            for (int32_t take = n; take < BL_DAILY_COUNT; ++take) {
+                int32_t best = -1; uint64_t bestKey = 0;
+                for (int32_t i = 0; i < drillCount; ++i) {
+                    if (stars[i] <= 0) continue;
+                    const int32_t d = stars[i] > level ? stars[i] - level : level - stars[i];
+                    if (d != band) continue;
+                    int dup = 0, sameKind = 0;
+                    for (int32_t k = 0; k < n; ++k) {
+                        if (out[k] == i) dup = 1;
+                        if (category && category[out[k]] == category[i]) sameKind = 1;
+                    }
+                    if (dup || (pass == 0 && sameKind)) continue;
+                    uint64_t x = seed ^ ((uint64_t)(i + 1) * 0x9E3779B97F4A7C15ULL);
+                    const uint64_t key = BLSplitMix64(&x);
+                    if (best < 0 || key < bestKey) { best = i; bestKey = key; }
+                }
+                if (best < 0) break;
+                out[n++] = best;
             }
-            if (best < 0) break;
-            out[n++] = best;
         }
     }
     /* easiest first (stable by index for equal stars) */
