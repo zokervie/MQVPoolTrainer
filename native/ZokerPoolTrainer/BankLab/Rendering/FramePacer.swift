@@ -38,7 +38,12 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
         var clockOffsets: [Double] = []
         var lastRenderTime: Double?
         var interval = 1.0 / 60.0
+        /// 0.45 M1: SceneKit's own render pass per frame (willRender → didRender on the render thread, s): the CPU side
+        /// of encoding + any wait for a drawable. With "Cảnh 3D" (main-thread node writes) it separates "the GPU/render
+        /// thread is the limit" from "the main thread waits for SceneKit's scene lock".
+        var renderPass: [Double] = []
     }
+    private var willRenderAt = 0.0
     private let lock = NSLock()
     private var tracks: [Int: Track] = [:]
     private var intervalValue = 1.0 / 60.0
@@ -120,6 +125,14 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
     }
 
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) { render(at: time) }
+    func renderer(_ renderer: SCNSceneRenderer, willRenderScene scene: SCNScene, atTime time: TimeInterval) {
+        lock.lock(); willRenderAt = CACurrentMediaTime(); lock.unlock()
+    }
+    func renderer(_ renderer: SCNSceneRenderer, didRenderScene scene: SCNScene, atTime time: TimeInterval) {
+        lock.lock(); defer { lock.unlock() }
+        guard measuring, willRenderAt > 0 else { return }
+        measured.renderPass.append(CACurrentMediaTime() - willRenderAt); willRenderAt = 0
+    }
 
     /// Shared with native tests using real SCNNodes (no mock interpolation).
     /// 0.44.1 M5: frames the SceneKit renderer actually asked for (the intro falls back to its 2D logo if none in 0.5 s).

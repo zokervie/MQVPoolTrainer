@@ -1678,7 +1678,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if !table.pacer.isActive {table.pacer.interval=1.5/Double(Tuning.frameRate)}
         // 0.36: idle 30 (15 made the first aim frame lag); active 60/120 from Tuỳ chỉnh. 0.39c: set only on change.
         let wantRate=active ? Tuning.frameRate:30,playing=active || guestMoving
-        if displayLink?.preferredFramesPerSecond != wantRate {displayLink?.preferredFramesPerSecond=wantRate}
+        // 0.45 M1 (c): a frame-rate RANGE, so ProMotion may hold 60 when a 120 Hz deadline cannot be met instead of
+        // dropping single frames (owner's device: 33–36 % starved at 120 Hz). Set only on change (0.39c).
+        let wantRange=wantRate>60 ? CAFrameRateRange(minimum:60,maximum:120,preferred:120):CAFrameRateRange(minimum:Float(wantRate),maximum:Float(wantRate),preferred:Float(wantRate))
+        if displayLink?.preferredFrameRateRange != wantRange {displayLink?.preferredFrameRateRange=wantRange}
         if scn.isPlaying != playing {scn.isPlaying=playing}
         if scn.rendersContinuously != playing {scn.rendersContinuously=playing}
         if hudLayoutDeferred && !shotActive && replayIndex == nil && !guestMoving {hudLayoutDeferred=false;view.setNeedsLayout()}
@@ -2732,6 +2735,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         lines.append("Tần số lúc đánh: \(pr.frameRate) Hz\n")
         lines.append("Cập nhật app: "+summary(values)+"\nRender SceneKit: "+summary(intervals)+String(format:"\n%lld/%lld khung thiếu mẫu · mẫu trễ nhất %.2f ms · đệm %.2f ms",render.starvedFrames,render.sampledFrames,render.maximumSampleAge*1000,render.interval*1000))
         lines.append("\nĐồng hồ SceneKit − hiện tại (ms): "+ms(render.clockOffsets))
+        lines.append("\nLượt vẽ SceneKit (luồng render, ms): "+ms(render.renderPass))   // 0.45 M1
         lines.append("\n\nCPU luồng chính mỗi khung (ms):\nVật lý: "+ms(pr.physics)+"\nGhi xem lại: "+ms(pr.record)+"\nSự kiện/âm: "+ms(pr.events)+"\nCảnh 3D: "+ms(pr.scene)+"\nCả tick: "+ms(pr.tick))
         lines.append(String(format:"\n%lld/%lld khung dùng quá 80%% ngân sách %.1f ms\nBố cục UIKit giữa cú: %lld lượt · dựng lại phím: %lld · mẫu xem lại: %lld",over,pr.tick.count,budget,pr.layoutPasses,pr.hudRelayouts,pr.recordedSamples))
         lines.append("\nA/B: trạng thái 5 Hz cũ "+(Self.legacyStatusAB ? "BẬT":"tắt")+" · xem lại không quay chậm "+(Self.replayNoSlowAB ? "BẬT":"tắt"))
