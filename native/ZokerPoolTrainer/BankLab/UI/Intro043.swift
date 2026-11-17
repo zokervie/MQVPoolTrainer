@@ -12,8 +12,8 @@ final class IntroOverlay: UIView, SCNSceneRendererDelegate {
     /// Called once after the window is shown.
     static func present(in window: UIWindow) {
         let args = ProcessInfo.processInfo.arguments
-        let qa = args.contains("--intro-qa")
-        if !qa && (args.contains("--visual-qa") || args.contains("--g1-default-qa")) { return }
+        let qa = args.contains("--intro-qa") || args.contains("--old-intro-qa")
+        if !qa && (args.contains("--visual-qa") || args.contains("--g1-default-qa") || args.contains("--keep-lobby-qa")) { return }
         guard qa || (UserDefaults.standard.object(forKey: "introEnabled043") as? Bool ?? true) else { return }
         let full = qa || !UserDefaults.standard.bool(forKey: seenKey)
         let overlay = IntroOverlay(frame: window.bounds, full: full && !args.contains("--intro-sting"))
@@ -132,6 +132,11 @@ final class IntroOverlay: UIView, SCNSceneRendererDelegate {
         camera.camera?.bloomIntensity = 0.9; camera.camera?.bloomThreshold = 0.78; camera.camera?.bloomBlurRadius = 10
         camera.camera?.colorFringeStrength = 0.6; camera.camera?.colorFringeIntensity = 0.25
         camera.camera?.contrast = 0.12; camera.camera?.saturation = 1.06
+        // 0.44.1 investigation (-oldIntroNoPost YES): the same intro with every post effect off.
+        if UserDefaults.standard.bool(forKey: "oldIntroNoPost") {
+            camera.camera?.wantsHDR = false; camera.camera?.bloomIntensity = 0; camera.camera?.wantsDepthOfField = false
+            camera.camera?.motionBlurIntensity = 0; camera.camera?.colorFringeStrength = 0; camera.camera?.vignettingIntensity = 0
+        }
         // Reflections: a studio gradient (warm key, navy fill) so the lacquered balls carry real highlights.
         scene.lightingEnvironment.contents = Self.studioEnvironment(); scene.lightingEnvironment.intensity = 0.9
         // Gold rim from behind the 9-ball — the brand colour lives on the ball's edge.

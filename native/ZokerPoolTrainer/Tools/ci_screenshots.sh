@@ -179,9 +179,12 @@ xcrun simctl io "$device_id" recordVideo --codec h264 --force build/screenshots/
 rec_pid=$!
 sleep 1
 xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --intro-qa
-i=0; for t in 1.2 0.8 1.6 1.4; do sleep "$t"; i=$((i+1)); xcrun simctl io "$device_id" screenshot "build/screenshots/intro-$i.png" 2>/dev/null; done
+# 0.44.1 M5: stills at 0.5 · 1 · 2 · 3 · 4.5 s of the new on-table intro (+ the in-app probe's own stills and summary).
+i=0; for t in 0.5 0.5 1.0 1.0 1.5; do sleep "$t"; i=$((i+1)); xcrun simctl io "$device_id" screenshot "build/screenshots/intro-$i.png" 2>/dev/null; done
 sleep 3
 kill -INT "$rec_pid" 2>/dev/null; wait "$rec_pid" 2>/dev/null
+intro_data=$(xcrun simctl get_app_container "$device_id" com.maiquocviet.BankLabS data 2>/dev/null)
+mkdir -p build/screenshots/intro-qa; cp "$intro_data"/Documents/intro-qa/* build/screenshots/intro-qa/ 2>/dev/null
 ls -la build/screenshots/intro* 2>/dev/null
 # 0.44: first-launch guided tutorial (#19) — two stills of the coach marks, for review only.
 xcrun simctl terminate "$device_id" com.maiquocviet.BankLabS 2>/dev/null

@@ -343,6 +343,67 @@ final class InteractionTests: XCTestCase {
         wait(englishScene, timeout: 20 * slow) { (englishScene.value as? String ?? "").contains(";lang=") }
         XCTAssertTrue((englishScene.value as? String ?? "").contains(";lang=en;"), "an English device keeps English")
     }
+    /// 0.44.1 M4: first launch through the real Lobby (--keep-lobby-qa keeps it under QA): "Tập tự do" → beat 1
+    /// within 2 s → drag the aim onto the gold dot → beat 2 → stroke → "Vào rồi!" or "Thử lại nhé". No tap is required
+    /// by the tutorial itself and nothing covers the screen. The stroke is fired by the app (--tutorial-stroke-qa):
+    /// XCUITest cannot hold B and swipe with a second finger; the real gesture is device-only.
+    func testFirstLaunchTutorialFromLobbyAimThenStroke() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-tutorial", "--tutorial-stroke-qa"]
+        app.launch()
+        let free = app.buttons["LobbyFree"]
+        XCTAssertTrue(free.waitForExistence(timeout: 60), "the Lobby is shown on a real first launch")
+        free.tap()
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        func value() -> String { scene.value as? String ?? "" }
+        func tut() -> String { value().components(separatedBy: ";").first { $0.hasPrefix("tut=") }.map { String($0.dropFirst(4)) } ?? "" }
+        let shown = Date()
+        wait(scene, timeout: 10 * slow) { tut() == "aim" }
+        XCTAssertLessThan(Date().timeIntervalSince(shown), 2.0 * slow, "beat 1 within 2 s of reaching the table")
+        let pill = app.otherElements["TutorialPill"]
+        if pill.exists {
+            XCTAssertLessThanOrEqual(pill.frame.height, 36.5, "caption pill at most 36 pt tall")
+            XCTAssertLessThan(pill.frame.width, app.windows.firstMatch.frame.width * 0.8, "no full-screen overlay")
+        }
+        // Drag the aim onto the dot: measure the drag gain once, then correct until within 1°.
+        let target = field(scene, "aimTarget")
+        func err() -> Double { remainder(field(scene, "angle") - target, 2 * .pi) }
+        func drag(_ dx: Double) {
+            let s = scene.coordinate(withNormalizedOffset: CGVector(dx: 0.5 - dx / 2, dy: 0.62))
+            let e = scene.coordinate(withNormalizedOffset: CGVector(dx: 0.5 + dx / 2, dy: 0.62))
+            s.press(forDuration: 0.05, thenDragTo: e)
+        }
+        var before = err(); drag(0.06); var gain = (err() - before) / 0.06
+        for _ in 0..<10 where tut() == "aim" {
+            before = err()
+            guard abs(gain) > 1e-4 else { drag(-0.06); gain = (err() - before) / -0.06; continue }
+            let dx = max(-0.35, min(0.35, -before / gain))
+            drag(dx)
+            let moved = err() - before
+            if abs(dx) > 0.004, abs(moved) > 1e-5 { gain = moved / dx }
+        }
+        wait(scene, timeout: 10 * slow) { tut() == "stroke" }
+        XCTAssertEqual(tut(), "stroke", "aiming onto the dot opens beat 2")
+        wait(scene, timeout: 40 * slow) { ["potted", "retry", "none"].contains(tut()) || tut().hasPrefix("hint") }
+        XCTAssertTrue(["potted", "retry"].contains(tut()) || tut().hasPrefix("hint"), "the shot ends with Vào rồi! or Thử lại nhé (got \(tut()))")
+    }
+    /// 0.44.1 M5: a normal first launch (no Lobby-skipping flag): the intro is on screen and tappable, then it is gone,
+    /// and only then the Lobby appears (0.43 opened the Lobby on top of the intro at once).
+    func testIntroPlaysBeforeLobbyAndTapSkips() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--intro-lobby-qa", "--fresh-intro"]
+        app.launch()
+        let intro = app.descendants(matching: .any)["IntroOverlay"].firstMatch
+        XCTAssertTrue(intro.waitForExistence(timeout: 60), "the intro is shown first")
+        XCTAssertFalse(app.buttons["LobbyFree"].exists, "the Lobby is not on top of the intro")
+        intro.tap()
+        let gone = NSPredicate(format: "exists == false")
+        expectation(for: gone, evaluatedWith: intro); waitForExpectations(timeout: 5 * slow)
+        XCTAssertTrue(app.buttons["LobbyFree"].waitForExistence(timeout: 20 * slow), "the Lobby comes after the intro")
+        let scene = app.otherElements["PoolScene"]
+        if scene.exists { XCTAssertTrue((scene.value as? String ?? "").contains(";introDone=1;"), "finish ran exactly once") }
+    }
     func testComputerOpponentTakesItsTurns() {
         let (_,scene)=launch(["--computer-qa"])
         wait(scene,timeout:40 * slow){self.field(scene,"cpuShots")>=1}

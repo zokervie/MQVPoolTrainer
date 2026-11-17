@@ -17,6 +17,8 @@ static inline double BLFirstShotObjectX(void) { return BL_FIRST_SHOT_POCKET_X - 
 static inline double BLFirstShotObjectY(void) { return BL_FIRST_SHOT_POCKET_Y - BL_FIRST_SHOT_DIAGONAL * BL_FIRST_SHOT_OBJECT_TO_POCKET; }
 static inline double BLFirstShotCueX(void) { return BLFirstShotObjectX() - BL_FIRST_SHOT_DIAGONAL * BL_FIRST_SHOT_CUE_TO_OBJECT; }
 static inline double BLFirstShotCueY(void) { return BLFirstShotObjectY() - BL_FIRST_SHOT_DIAGONAL * BL_FIRST_SHOT_CUE_TO_OBJECT; }
+static inline double BLFirstShotPocketX(void) { return BL_FIRST_SHOT_POCKET_X; }
+static inline double BLFirstShotPocketY(void) { return BL_FIRST_SHOT_POCKET_Y; }
 static inline double BLFirstShotTop(void) { return -0.15; }
 static inline double BLFirstShotAngle(void) {
     return atan2(BLFirstShotObjectY() - BLFirstShotCueY(), BLFirstShotObjectX() - BLFirstShotCueX());

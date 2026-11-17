@@ -23,6 +23,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var angle=Double.pi/2,side=0.0,top=0.0,pull=0.0
     var locked=false,isPlacingBalls=false,guideOn=false,shotActive=false
     var drillIndex=Drill.startup,attempts=0,successes=0
+    /// 0.44.1 M4: the new tutorial (Tutorial044.swift).
+    var firstShotCoach:FirstShotCoach?
+    var tutorialShots=0,freshTutorialDone=false,qaTutorialStrokeFired=false
+    /// 0.44.1 M5: the intro films on the play table — while it runs, the play loop leaves the balls and camera alone.
+    var introRunning=false,introFinishCount=0,introStarted=false
+    var intro:IntroDirector0441?
+    func layoutHUDAfterIntro(){refresh();updateControls();view.setNeedsLayout()}
     /// 0.35: lượt bài tập 5 cú (chỉ khi mở từ menu Bài tập).
     var lessonActive=false,lessonScores:[Int]=[],lessonPasses=0
     var before:[BallState]=[],initial:[BallState]=[]
@@ -301,7 +308,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         scn.isPlaying=false;scn.rendersContinuously=false;scn.translatesAutoresizingMaskIntoConstraints=false
         view.addSubview(scn)
         scn.isMultipleTouchEnabled=true
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.isAccessibilityElement=true;scn.accessibilityIdentifier="PoolScene"}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa") || ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") || ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa"){scn.isAccessibilityElement=true;scn.accessibilityIdentifier="PoolScene"}
         NSLayoutConstraint.activate([
             scn.leadingAnchor.constraint(equalTo:view.leadingAnchor),
             scn.trailingAnchor.constraint(equalTo:view.trailingAnchor),
@@ -604,14 +611,26 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var lobbyShown=false
     override func viewDidAppear(_ animated:Bool){
         super.viewDidAppear(animated)
-        if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders();maybeStartTutorial()}   // 0.44 #19: first launch
+        if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders()}
         table.pacingOwner={[weak self] in
             guard let self=self else{return false}
             return self.shotActive || self.replayIndex != nil || (self.matchPlay.session.latestSnapshot?.isMoving==true && self.matchPlay.session.role == .guest)
         }
+        // 0.44.1 M5: the intro plays FIRST, on this table; the Lobby opens only when it has finished or was skipped
+        // (0.43 put the intro on the window and the Lobby covered it at once).
+        if !introStarted {
+            introStarted=true
+            if let director=makeIntro() {intro=director;director.run{[weak self] in self?.intro=nil;self?.viewDidAppear(false)};return}
+        }
+        if intro != nil {return}
         // QA/CI launches go straight to the table so probes and gestures are unchanged.
-        let qa=ProcessInfo.processInfo.arguments.contains{$0.hasPrefix("--") && $0.hasSuffix("qa")} || ProcessInfo.processInfo.arguments.contains("--visual-qa")
+        // 0.44.1: --keep-lobby-qa runs the real first-launch path (Lobby → Tập tự do → tutorial) under QA.
+        let qa=(ProcessInfo.processInfo.arguments.contains{$0.hasPrefix("--") && $0.hasSuffix("qa")} || ProcessInfo.processInfo.arguments.contains("--visual-qa")) && !ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") && !ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa")
         if !lobbyShown && !qa {lobbyShown=true;openLobby()}
+        // 0.44.1 M4: the tutorial starts when the player first reaches the table AFTER the Lobby has closed (this
+        // runs again when the full-screen Lobby is dismissed). 0.44 started it from a timer while the Lobby covered
+        // the table, so startTutorial() bailed out on view.window and the first launch never saw it.
+        if presentedViewController==nil && (lobbyShown || ProcessInfo.processInfo.arguments.contains("--tutorial-qa")) {DispatchQueue.main.asyncAfter(deadline:.now()+0.4){[weak self] in self?.maybeStartTutorial()}}
     }
     func openAccount(){
         let hub=GameCenterHub.shared
@@ -850,7 +869,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             ("Bi: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setBallWear(old:!self.table.oldBalls);self.wakeRendering();self.notifyStatus(self.table.oldBalls ? "Bi cũ: mờ bóng":"Bi mới: bóng gương")}),
             ("Màu nỉ",{[weak self] in self?.chooseClothColor()}),
             ("Sao chép số đo cú vừa đánh",{[weak self] in self?.setMenu(false);self?.copySmoothnessReport()}),   // 0.44.1 owner
-            ("Hướng dẫn chơi (dắt tay từng bước)",{[weak self] in self?.setMenu(false);DispatchQueue.main.asyncAfter(deadline:.now()+0.3){self?.startTutorial()}}),
+            ("Hướng dẫn chơi",{[weak self] in self?.setMenu(false);DispatchQueue.main.asyncAfter(deadline:.now()+0.3){self?.showTutorialList()}}),
             ("Thư viện \(TableLook.all.count) bàn · \(CueLook.all.count) cơ",{[weak self] in self?.openLibrary()}),
             ("Không gian bàn (\(TableScene.spaces.count) cảnh)",{[weak self] in self?.chooseSpace()}),
             ("Tay trái / tay phải (đổi bên phím)",{[weak self] in guard let self=self else{return};self.setLeftHanded(!self.leftHanded)}),
@@ -1603,6 +1622,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         // Cold shader compilation can outlast the wake requested in viewDidLoad.
         // Always present the initial camera and accessibility state on first tick.
         if lastTime==0{startupRenderUntil=ProcessInfo.processInfo.systemUptime+8;wakeRendering()}
+        if introRunning {lastTime=targetTimestamp;return}   // 0.44.1 M5: the intro director owns the table
         // 0.33: advance to the time this frame will be SHOWN (targetTimestamp), not when the callback ran — removes the
         // judder of variable callback latency; on ProMotion the shot runs at up to 120 Hz.
         let shownAt=targetTimestamp
@@ -1835,7 +1855,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
         if shotActive && shotKind==1 {qaJumpSeen=true}
-        if ProcessInfo.processInfo.arguments.contains("--visual-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";lang="+L10n.code+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
+        if ProcessInfo.processInfo.arguments.contains("--visual-qa") || ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") || ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";lang="+L10n.code+";intro="+(intro?.mode ?? "none")+";introDone=\(introFinishCount)"+";lobby="+(presentedViewController is LobbyController ? "1":"0")+";tut="+(firstShotCoach?.state ?? "none")+String(format:";aimTarget=%.6f;elev=%.2f;stroke=%.2f",Drill.all[Drill.startup].angle,table.cueElevation,strokeClearance)+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}
             table.cueElevation=sample.elevation
@@ -1924,6 +1944,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         if timedOut {let stopped=balls;engine.loadLayout(stopped.map{$0.dictionary})}
         shotActive=false;locked=false
         let finishedMatch=finishMatchShot()
+        tutorialShotFinished(events:events)   // 0.44.1 M4: "Vào rồi!" / "Thử lại nhé" + one contextual hint
         resetShotInputsAndAim()
         if finishedMatch{refresh();updateControls();return}
         table.trails(coachOn && trailsOn ? paths:[:])

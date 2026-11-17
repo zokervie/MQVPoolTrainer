@@ -1,6 +1,7 @@
 #import "Core/BLWorld.h"
 #import "UI/PresentationPolicy.h"
 #import "UI/FirstShot.h"
+#import "UI/IntroBreakAccess.h"
 #import "UI/CueClearance.h"
 #import "UI/DiamondSystem.h"
 #import "UI/PowerScale.h"

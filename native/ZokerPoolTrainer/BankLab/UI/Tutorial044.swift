@@ -1,197 +1,333 @@
 import UIKit
+import SceneKit
 
-/// 0.44 (owner item 19: "hướng dẫn dắt tay chỉ điểm cho người lần đầu, chú thích từng phím như nhiều game đã làm,
-/// thay vì chỉ hướng dẫn trong menu hay file").
-///
-/// A coach-mark overlay: the screen dims, ONE control stays lit inside a soft spotlight with an arrowed bubble, and the
-/// first six steps advance only when the player really does the action (aim, contact point, elevation, the stroke,
-/// replay, undo). Then a quick tour of the remaining keys (tap to go on). The lit control keeps working through the
-/// hole; everything else is blocked so the player cannot get lost. "Bỏ qua" at any time; Menu → "Hướng dẫn chơi"
-/// replays it; Tuỳ chỉnh can switch the first-launch tour off (tutorialEnabled044).
-final class TutorialOverlay: UIView {
-    struct Step {
-        let target: () -> CGRect?          // in the overlay's coordinates; nil = no hole
-        let title: String
-        let text: String
-        let done: (() -> Bool)?             // nil = advances with "Tiếp"
-        var passThrough = false             // the action happens outside the lit control (the stroke on the table)
+/// 0.44.1 M4 — new tutorial (owner 17/11: "hướng dẫn rườm rà… đồ hoạ trực quan… đừng dùng khung đen").
+/// Replaces the 0.44 15-step overlay (62 % dim, black 340 pt boxes, forced spin/elevation steps before the first shot).
+/// Now: no full-screen view, no dim, no black box, no "Next" button, nothing blocks a touch. Captions are the shared
+/// GlassPill (white 17 pt bold, ≤ 36 pt tall, ≤ 6 words); a faded hand replays the gesture until the player does it;
+/// the key to press only gets a blinking gold ring. First time: two beats on "Cú đầu tiên", then contextual hints
+/// (each once, at most one per shot, gone after 6 s). Beats and hints are data records so 0.45 can swap the stroke
+/// beat for the power bar without rewriting this file.
+
+/// One teaching beat: the gesture the hand replays, the caption, what to ring, and when it is done.
+struct TutorialBeat {
+    enum Gesture { case dragAcross, holdBAndStroke }
+    let id: String
+    let caption: String          // Vietnamese source; L10n translates on display (en + 5 drafts in L10n.table)
+    let gesture: Gesture
+    let showsAimDot: Bool
+    let ring: (TrainingController) -> UIView?
+    let done: (TrainingController) -> Bool
+}
+/// A contextual hint: shown once, at most one per shot, hidden after 6 s.
+struct TutorialHint {
+    let id: String
+    let caption: String
+    let target: (TrainingController) -> UIView?
+}
+
+enum TutorialScript {
+    /// Initial aim offset for beat 1 (brief: 12–18°): the player must actually turn the aim onto the dot.
+    static let aimOffset = 15.0 * Double.pi / 180
+    /// Beat 1 is done within 1° of the line into the pocket.
+    static let aimTolerance = 1.0 * Double.pi / 180
+    static let hintSeconds = 6.0
+
+    static func firstShot(straight: Double) -> [TutorialBeat] {
+        [
+            TutorialBeat(id: "aim", caption: "Kéo để ngắm vào chấm vàng", gesture: .dragAcross, showsAimDot: true,
+                         ring: { _ in nil },
+                         done: { tc in abs(remainder(tc.angle - straight, 2 * .pi)) < aimTolerance }),
+            TutorialBeat(id: "stroke", caption: "Giữ B, vuốt lùi rồi đẩy tới", gesture: .holdBAndStroke, showsAimDot: true,
+                         ring: { tc in tc.lockButton },
+                         done: { tc in tc.shotActive }),
+        ]
     }
-    private var steps: [Step] = []
-    private var index = 0
-    private let dim = CAShapeLayer(), ring = CAShapeLayer()
-    private let bubble = UIView(), titleLabel = UILabel(), textLabel = UILabel(), counter = UILabel()
-    private let nextButton = UIButton(type: .system), skip = UIButton(type: .system)
+    static let hints: [TutorialHint] = [
+        TutorialHint(id: "replay", caption: "Xem lại cú này", target: { $0.quickReplay }),
+        TutorialHint(id: "retry", caption: "Đánh lại từ đây", target: { $0.retryButton }),
+        TutorialHint(id: "spin", caption: "Kéo để chọn điểm chạm", target: { $0.spin }),
+        TutorialHint(id: "elevation", caption: "Kéo để nâng đuôi cơ", target: { $0.elevationPad }),
+    ]
+    static let seenKey = "tutorial044Seen"          // kept: "đã xem" only after the first shot is played
+    static let enabledKey = "tutorialEnabled044"    // auto-start on first launch
+    static let hintsKey = "tutorialHints0441"       // Tuỳ chỉnh: contextual hints on/off
+    static func hintSeenKey(_ id: String) -> String { "tutorialHint0441." + id }
+}
+
+/// Drives the beats and hints with a handful of small, touch-transparent views.
+final class FirstShotCoach {
+    private weak var tc: TrainingController?
+    private var beats: [TutorialBeat] = []
+    private var index = -1
+    private(set) var state = "none"
+    private let caption = UIView(), captionLabel = UILabel()
+    private let hand = UIImageView(), bHand = UIImageView(), aimDot = UIView(), ring = UIView()
     private var timer: Timer?
-    private var hole: CGRect = .null
-    var finished: (() -> Void)?
+    private var hideWork: DispatchWorkItem?
+    private var objectBall = SIMD2<Double>(0, 0)
+    private var beatShownAt = Date()
+    var firstShotRunning: Bool { index >= 0 && index < beats.count }
 
-    init(frame: CGRect, steps: [Step]) {
-        self.steps = steps
-        super.init(frame: frame)
-        accessibilityIdentifier = "TutorialOverlay"
-        dim.fillRule = .evenOdd; dim.fillColor = UIColor(white: 0, alpha: 0.62).cgColor; layer.addSublayer(dim)
-        ring.fillColor = UIColor.clear.cgColor; ring.strokeColor = UIColor.rgb(0xEAC583).cgColor; ring.lineWidth = 2.5
-        ring.shadowColor = UIColor.rgb(0xEAC583).cgColor; ring.shadowOpacity = 0.9; ring.shadowRadius = 8; ring.shadowOffset = .zero
-        layer.addSublayer(ring)
-        let pulse = CABasicAnimation(keyPath: "lineWidth"); pulse.fromValue = 2; pulse.toValue = 4.5; pulse.duration = 0.8
-        pulse.autoreverses = true; pulse.repeatCount = .infinity; ring.add(pulse, forKey: "pulse")
-        bubble.backgroundColor = UIColor(red: 0.05, green: 0.06, blue: 0.09, alpha: 0.96); bubble.layer.cornerRadius = 14
-        bubble.layer.borderColor = UIColor.rgb(0xEAC583).withAlphaComponent(0.7).cgColor; bubble.layer.borderWidth = 1
-        titleLabel.font = .systemFont(ofSize: 16, weight: .heavy); titleLabel.textColor = .rgb(0xEAC583); titleLabel.numberOfLines = 0
-        textLabel.font = .systemFont(ofSize: 14, weight: .medium); textLabel.textColor = .white; textLabel.numberOfLines = 0
-        counter.font = .monospacedDigitSystemFont(ofSize: 11, weight: .semibold); counter.textColor = UIColor(white: 1, alpha: 0.55)
-        nextButton.setTitle("Tiếp ›", for: .normal); nextButton.tintColor = .rgb(0xEAC583); nextButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
-        nextButton.accessibilityIdentifier = "TutorialNext"
-        skip.setTitle("Bỏ qua", for: .normal); skip.tintColor = UIColor(white: 1, alpha: 0.7); skip.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
-        skip.accessibilityIdentifier = "TutorialSkip"
-        nextButton.addAction(UIAction { [weak self] _ in self?.advance() }, for: .touchUpInside)
-        skip.addAction(UIAction { [weak self] _ in self?.close() }, for: .touchUpInside)
-        for v in [titleLabel, textLabel, counter, nextButton, skip] as [UIView] { bubble.addSubview(v) }
-        addSubview(bubble)
-    }
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    func start() {
-        show(0)
-        timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in self?.poll() }
-    }
-    private func poll() {
-        guard steps.indices.contains(index) else { return }
-        if let done = steps[index].done, done() { advance(); return }
-        layoutStep(animated: false)   // the lit control can move (HUD relayout, rotation)
-    }
-    private func advance() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        if index + 1 >= steps.count { close(); return }
-        show(index + 1)
-    }
-    private func show(_ i: Int) {
-        index = i
-        let step = steps[i]
-        titleLabel.text = step.title; textLabel.text = step.text
-        counter.text = "\(i + 1)/\(steps.count)"
-        nextButton.setTitle(step.done == nil ? (i + 1 == steps.count ? "Xong ✓" : "Tiếp ›") : "Làm thử ↑", for: .normal)
-        nextButton.isEnabled = step.done == nil
-        nextButton.alpha = step.done == nil ? 1 : 0.55
-        layoutStep(animated: true)
-        UIAccessibility.post(notification: .announcement, argument: step.title + ". " + step.text)
-    }
-    private func layoutStep(animated: Bool) {
-        let target = steps[index].target() ?? .null
-        let lit = target.isNull ? CGRect.null : target.insetBy(dx: -10, dy: -10)
-        if lit == hole && !animated { return }
-        hole = lit
-        let full = UIBezierPath(rect: bounds)
-        if !lit.isNull { full.append(UIBezierPath(roundedRect: lit, cornerRadius: min(22, lit.height / 2))) }
-        CATransaction.begin(); CATransaction.setAnimationDuration(animated ? 0.3 : 0)
-        dim.path = full.cgPath
-        ring.path = lit.isNull ? nil : UIBezierPath(roundedRect: lit, cornerRadius: min(22, lit.height / 2)).cgPath
-        CATransaction.commit()
-        // bubble: beside the lit area, on the side with the most room, never over it
-        let width = min(340, bounds.width - 32)
-        titleLabel.frame = CGRect(x: 16, y: 14, width: width - 32, height: 0); titleLabel.sizeToFit()
-        textLabel.frame = CGRect(x: 16, y: titleLabel.frame.maxY + 6, width: width - 32, height: 0); textLabel.sizeToFit()
-        let rowY = textLabel.frame.maxY + 10
-        counter.frame = CGRect(x: 16, y: rowY + 8, width: 60, height: 20)
-        skip.frame = CGRect(x: width - 196, y: rowY, width: 80, height: 36)
-        nextButton.frame = CGRect(x: width - 112, y: rowY, width: 100, height: 36)
-        let height = rowY + 46
-        var origin: CGPoint
-        if lit.isNull { origin = CGPoint(x: bounds.midX - width / 2, y: bounds.midY - height / 2) }
-        else {
-            let room = [("right", bounds.maxX - lit.maxX), ("left", lit.minX), ("above", lit.minY), ("below", bounds.maxY - lit.maxY)]
-            let side = room.max { $0.1 < $1.1 }!.0
-            switch side {
-            case "right": origin = CGPoint(x: lit.maxX + 16, y: lit.midY - height / 2)
-            case "left": origin = CGPoint(x: lit.minX - 16 - width, y: lit.midY - height / 2)
-            case "above": origin = CGPoint(x: lit.midX - width / 2, y: lit.minY - 16 - height)
-            default: origin = CGPoint(x: lit.midX - width / 2, y: lit.maxY + 16)
-            }
+    init(owner: TrainingController) {
+        tc = owner
+        GlassPill.apply(to: caption, cornerRadius: 18)
+        GlassPill.styleCaption(captionLabel, size: 17)
+        captionLabel.textAlignment = .center; captionLabel.numberOfLines = 1
+        captionLabel.adjustsFontSizeToFitWidth = true; captionLabel.minimumScaleFactor = 0.75
+        captionLabel.accessibilityIdentifier = "TutorialCaption"
+        caption.addSubview(captionLabel); caption.accessibilityIdentifier = "TutorialPill"
+        for v in [hand, bHand] {
+            v.image = UIImage(systemName: "hand.point.up.left.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 40, weight: .regular))
+            v.tintColor = UIColor.white.withAlphaComponent(0.6); v.contentMode = .scaleAspectFit
+            v.layer.shadowColor = UIColor.black.cgColor; v.layer.shadowOpacity = 0.4; v.layer.shadowRadius = 3
         }
-        let safe = bounds.inset(by: safeAreaInsets).insetBy(dx: 8, dy: 8)
-        origin.x = max(safe.minX, min(safe.maxX - width, origin.x)); origin.y = max(safe.minY, min(safe.maxY - height, origin.y))
-        let frame = CGRect(origin: origin, size: CGSize(width: width, height: height))
-        if animated { UIView.animate(withDuration: 0.3) { self.bubble.frame = frame } } else { bubble.frame = frame }
+        hand.accessibilityIdentifier = "TutorialHand"
+        aimDot.backgroundColor = GlassPill.gold; aimDot.layer.cornerRadius = 7
+        aimDot.layer.borderColor = UIColor.white.cgColor; aimDot.layer.borderWidth = 2
+        aimDot.accessibilityIdentifier = "TutorialAimDot"
+        ring.layer.borderColor = GlassPill.gold.cgColor; ring.layer.borderWidth = 3; ring.accessibilityIdentifier = "TutorialRing"
+        for v in [caption, hand, bHand, aimDot, ring] { v.isUserInteractionEnabled = false; v.isHidden = true }
     }
-    /// Touches inside the lit hole reach the real control; the bubble works; everything else is blocked.
-    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        if bubble.frame.contains(point) { return super.hitTest(point, with: event) }
-        if !hole.isNull && hole.contains(point) { return nil }
-        if steps.indices.contains(index) && steps[index].passThrough { return nil }
-        return self
+    private func attach() {
+        guard let view = tc?.view else { return }
+        for v in [ring, aimDot, hand, bHand, caption] where v.superview !== view { view.addSubview(v) }
+        for v in [ring, aimDot, hand, bHand, caption] { view.bringSubviewToFront(v) }
     }
-    override func layoutSubviews() { super.layoutSubviews(); dim.frame = bounds; ring.frame = bounds; if steps.indices.contains(index) { layoutStep(animated: false) } }
-    private func close() {
-        timer?.invalidate(); timer = nil
-        UIView.animate(withDuration: 0.25, animations: { self.alpha = 0 }) { _ in self.removeFromSuperview(); self.finished?() }
+
+    // MARK: first shot
+    func startFirstShot() {
+        guard let tc = tc else { return }
+        tc.loadDrill(Drill.startup)
+        let drill = Drill.all[Drill.startup], straight = drill.angle
+        objectBall = SIMD2(drill.balls.first { $0.id == 1 }?.x ?? 0, drill.balls.first { $0.id == 1 }?.y ?? 0)
+        tc.angle = straight + TutorialScript.aimOffset; tc.aimCameraYaw = 0
+        tc.refresh(); tc.wakeRendering()
+        beats = TutorialScript.firstShot(straight: straight)
+        attach(); show(beat: 0)
+        timer?.invalidate()
+        let t = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.tick() }
+        RunLoop.main.add(t, forMode: .common); timer = t
     }
+    private func show(beat i: Int) {
+        index = i
+        guard i < beats.count, let tc = tc else { endBeats(); return }
+        let beat = beats[i]; state = beat.id; beatShownAt = Date()
+        say(beat.caption)
+        aimDot.isHidden = !beat.showsAimDot
+        animateHand(beat.gesture)
+        if let target = beat.ring(tc) { ringAround(target) } else { stopRing() }
+    }
+    private func tick() {
+        guard let tc = tc else { return }
+        if firstShotRunning, beats[index].showsAimDot { placeAimDot(tc) }
+        if !ring.isHidden, let t = ringTarget, t.window != nil {
+            ring.frame = t.convert(t.bounds, to: tc.view).insetBy(dx: -6, dy: -6); ring.layer.cornerRadius = min(ring.bounds.width, ring.bounds.height) / 2
+        }
+        // QA only (--tutorial-stroke-qa): XCUITest cannot hold B with one finger and stroke with another, so the UI
+        // test lets the app fire the stroke 1.5 s after beat 2 is on screen. The real gesture needs a device.
+        if firstShotRunning, beats[index].id == "stroke", ProcessInfo.processInfo.arguments.contains("--tutorial-stroke-qa"),
+           !tc.qaTutorialStrokeFired, Date().timeIntervalSince(beatShownAt) > 1.5, !tc.shotActive, !tc.presentationBusy {
+            tc.qaTutorialStrokeFired = true; tc.locked = true; tc.shoot(2.0)
+        }
+        if firstShotRunning, beats[index].done(tc) {
+            if beats[index].id == "stroke" { state = "shot"; index = beats.count; hideAll(keepCaption: false); return }
+            show(beat: index + 1)
+        }
+    }
+    private func endBeats() { index = beats.count; hideAll(keepCaption: false) }
+    /// Ghost-ball aim point on the object ball (2R back from its centre along the line into the corner pocket).
+    private func placeAimDot(_ tc: TrainingController) {
+        let r = 0.028575, pocket = SIMD2(BLFirstShotPocketX(), BLFirstShotPocketY())
+        let u = simd_normalize(pocket - objectBall), ghost = objectBall - u * 2 * r
+        let p = tc.scn.projectPoint(SCNVector3(Float(ghost.x), Float(r), Float(ghost.y)))
+        guard p.z > 0, p.z < 1 else { aimDot.isHidden = true; return }
+        aimDot.isHidden = false
+        aimDot.frame = CGRect(x: CGFloat(p.x) - 7, y: CGFloat(p.y) - 7, width: 14, height: 14)
+    }
+
+    /// Called by TrainingController.finishShot.
+    func shotFinished(potted: Bool, scratch: Bool, shots: Int) {
+        guard let tc = tc else { return }
+        if state == "shot" {
+            UserDefaults.standard.set(true, forKey: TutorialScript.seenKey)   // "đã xem" only after the first shot
+            if potted && !scratch {
+                state = "potted"; say("Vào rồi!"); UINotificationFeedbackGenerator().notificationOccurred(.success)
+                hideLater(2.2) { [weak self] in self?.hint(missed: false, shots: shots) }
+            } else {
+                state = "retry"; say("Thử lại nhé"); UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self, weak tc] in
+                    guard let self = self, let tc = tc else { return }
+                    self.restoreFirstShot(tc, attempts: 8)
+                }
+            }
+            return
+        }
+        hint(missed: !potted, shots: shots)
+    }
+    /// "Thử lại nhé": the balls go back by themselves and beat 2 runs again (aim kept).
+    private func restoreFirstShot(_ tc: TrainingController, attempts: Int) {
+        guard tc.drillIndex == Drill.startup, !tc.matchPlay.active else { hideAll(keepCaption: false); return }
+        if tc.shotActive || tc.presentationBusy || !tc.localTurn {
+            guard attempts > 0 else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.restoreFirstShot(tc, attempts: attempts - 1) }; return
+        }
+        let aim = tc.angle
+        tc.loadDrill(Drill.startup); tc.angle = aim; tc.refresh(); tc.wakeRendering()
+        show(beat: 1)
+    }
+
+    // MARK: contextual hints
+    private func hint(missed: Bool, shots: Int) {
+        guard let tc = tc, UserDefaults.standard.object(forKey: TutorialScript.hintsKey) as? Bool ?? true else { hideAll(keepCaption: false); return }
+        func unseen(_ id: String) -> Bool { !UserDefaults.standard.bool(forKey: TutorialScript.hintSeenKey(id)) }
+        let c = tc.cue
+        let nearRail = c.map { abs($0.x) > 0.635 - 0.06 || abs($0.y) > 1.27 - 0.06 } ?? false
+        let title = Drill.all.indices.contains(tc.drillIndex) ? Drill.all[tc.drillIndex].title : ""
+        let elevated = tc.shotKind != 0 || title.contains("Jump") || title.contains("Massé")
+        var pick: String?
+        if unseen("replay") { pick = "replay" }
+        else if missed && unseen("retry") { pick = "retry" }
+        else if shots >= 3 && unseen("spin") { pick = "spin" }
+        else if (nearRail || elevated) && unseen("elevation") { pick = "elevation" }
+        guard let id = pick else { hideAll(keepCaption: false); return }
+        showHint(id)
+    }
+    /// Shows one hint now (also from Menu → Hướng dẫn chơi); marks it seen.
+    func showHint(_ id: String) {
+        guard let tc = tc, let h = TutorialScript.hints.first(where: { $0.id == id }) else { return }
+        UserDefaults.standard.set(true, forKey: TutorialScript.hintSeenKey(id))
+        attach(); state = "hint-" + id
+        hand.layer.removeAllAnimations(); hand.isHidden = true; bHand.isHidden = true; aimDot.isHidden = true
+        say(h.caption)
+        if let t = h.target(tc), t.window != nil, !t.isHidden { ringAround(t) } else { stopRing() }
+        hideLater(TutorialScript.hintSeconds, then: nil)
+    }
+
+    // MARK: drawing
+    private var ringTarget: UIView?
+    private func say(_ text: String) {
+        guard let view = tc?.view else { return }
+        hideWork?.cancel()
+        captionLabel.text = text   // L10n swizzle translates
+        let shown = captionLabel.text ?? text
+        let width = min(view.bounds.width - 40, captionLabel.intrinsicContentSize.width + 36)
+        // Low on the screen, between B / the effect ball and the elevation dial: never over the balls in the aim view.
+        let y = view.bounds.height - view.safeAreaInsets.bottom - 36 - 14
+        caption.frame = CGRect(x: (view.bounds.width - width) / 2, y: y, width: width, height: 36)
+        captionLabel.frame = caption.bounds.insetBy(dx: 16, dy: 0)
+        caption.isHidden = false; caption.alpha = 0
+        UIView.animate(withDuration: 0.2) { self.caption.alpha = 1 }
+        UIAccessibility.post(notification: .announcement, argument: shown)   // VoiceOver reads the caption
+    }
+    private func hideLater(_ seconds: Double, then: (() -> Void)?) {
+        hideWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if let then = then { then() } else { self.hideAll(keepCaption: false) }
+        }
+        hideWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
+    }
+    private func hideAll(keepCaption: Bool) {
+        hand.layer.removeAllAnimations(); bHand.layer.removeAllAnimations(); hand.isHidden = true; bHand.isHidden = true
+        aimDot.isHidden = true; stopRing()
+        if !keepCaption { UIView.animate(withDuration: 0.2, animations: { self.caption.alpha = 0 }) { _ in if self.caption.alpha == 0 { self.caption.isHidden = true } } }
+        if state.hasPrefix("hint") || state == "potted" { state = "none" }
+        if !firstShotRunning && state == "none" { timer?.invalidate(); timer = nil }
+    }
+    private func ringAround(_ v: UIView) {
+        guard let view = tc?.view else { return }
+        ringTarget = v
+        ring.frame = v.convert(v.bounds, to: view).insetBy(dx: -6, dy: -6)
+        ring.layer.cornerRadius = min(ring.bounds.width, ring.bounds.height) / 2
+        ring.isHidden = false
+        let blink = CABasicAnimation(keyPath: "opacity"); blink.fromValue = 1; blink.toValue = 0.15
+        blink.duration = 0.55; blink.autoreverses = true; blink.repeatCount = .infinity
+        ring.layer.add(blink, forKey: "blink")
+    }
+    private func stopRing() { ring.layer.removeAllAnimations(); ring.isHidden = true; ringTarget = nil }
+    /// The faded hand replays the gesture in a loop until the beat is done.
+    private func animateHand(_ gesture: TutorialBeat.Gesture) {
+        guard let view = tc?.view else { return }
+        hand.layer.removeAllAnimations(); bHand.layer.removeAllAnimations()
+        let b = view.bounds
+        hand.frame = CGRect(x: 0, y: 0, width: 48, height: 48); hand.isHidden = false
+        switch gesture {
+        case .dragAcross:
+            bHand.isHidden = true
+            let move = CAKeyframeAnimation(keyPath: "position")
+            move.values = [CGPoint(x: b.width * 0.40, y: b.height * 0.60), CGPoint(x: b.width * 0.40, y: b.height * 0.60),
+                           CGPoint(x: b.width * 0.60, y: b.height * 0.60), CGPoint(x: b.width * 0.60, y: b.height * 0.60)].map { NSValue(cgPoint: $0) }
+            move.keyTimes = [0, 0.15, 0.75, 1]; move.duration = 1.8; move.repeatCount = .infinity
+            hand.layer.add(move, forKey: "move"); hand.layer.add(fade(1.8), forKey: "fade")
+        case .holdBAndStroke:
+            if let lock = tc?.lockButton, lock.window != nil {
+                let c = lock.convert(CGPoint(x: lock.bounds.midX, y: lock.bounds.midY), to: view)
+                bHand.frame = CGRect(x: 0, y: 0, width: 48, height: 48); bHand.center = CGPoint(x: c.x + 10, y: c.y + 18); bHand.isHidden = false
+                let press = CABasicAnimation(keyPath: "transform.scale"); press.fromValue = 1; press.toValue = 0.86
+                press.duration = 0.45; press.autoreverses = true; press.repeatCount = .infinity
+                bHand.layer.add(press, forKey: "press")
+            }
+            let x = b.width * 0.58
+            let move = CAKeyframeAnimation(keyPath: "position")
+            move.values = [CGPoint(x: x, y: b.height * 0.55), CGPoint(x: x, y: b.height * 0.72), CGPoint(x: x, y: b.height * 0.40),
+                           CGPoint(x: x, y: b.height * 0.40)].map { NSValue(cgPoint: $0) }
+            move.keyTimes = [0, 0.45, 0.7, 1]; move.duration = 1.9; move.repeatCount = .infinity
+            hand.layer.add(move, forKey: "move"); hand.layer.add(fade(1.9), forKey: "fade")
+        }
+    }
+    private func fade(_ d: Double) -> CAKeyframeAnimation {
+        let f = CAKeyframeAnimation(keyPath: "opacity"); f.values = [0, 1, 1, 0]; f.keyTimes = [0, 0.12, 0.8, 1]
+        f.duration = d; f.repeatCount = .infinity; return f
+    }
+    func stop() { timer?.invalidate(); timer = nil; index = beats.count; hideWork?.cancel(); state = "none"; hideAll(keepCaption: false) }
 }
 
 extension TrainingController {
-    static let tutorialSeenKey = "tutorial044Seen"
-    /// First launch (after the intro), practice mode. QA: --tutorial-qa forces it; visual/G1 QA never shows it.
+    static let tutorialSeenKey = TutorialScript.seenKey
+    /// First time the player reaches the table after the Lobby closes (practice, "Cú đầu tiên"). QA: --tutorial-qa
+    /// forces it; --keep-lobby-qa runs the real path (Lobby → Tập tự do → tutorial); other QA launches never show it.
     func maybeStartTutorial() {
         let args = ProcessInfo.processInfo.arguments
-        let qa = args.contains("--tutorial-qa")
-        if !qa && (args.contains("--visual-qa") || args.contains("--g1-default-qa") || args.contains { $0.hasPrefix("--ux0") || $0.hasPrefix("--g1-") }) { return }
-        guard qa || ((UserDefaults.standard.object(forKey: "tutorialEnabled044") as? Bool ?? true) && !UserDefaults.standard.bool(forKey: Self.tutorialSeenKey)) else { return }
-        let delay = qa ? 0.5 : (UserDefaults.standard.bool(forKey: "intro043Seen") ? 6.2 : 1.0)   // after the intro
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.startTutorial() }
+        let forced = args.contains("--tutorial-qa"), realPath = args.contains("--keep-lobby-qa")
+        if !forced && !realPath && (args.contains("--visual-qa") || args.contains { $0.hasPrefix("--ux0") || $0.hasPrefix("--g1-") }) { return }
+        if args.contains("--fresh-tutorial") && !freshTutorialDone {
+            freshTutorialDone = true
+            UserDefaults.standard.removeObject(forKey: TutorialScript.seenKey)
+            for h in TutorialScript.hints { UserDefaults.standard.removeObject(forKey: TutorialScript.hintSeenKey(h.id)) }
+        }
+        guard forced || ((UserDefaults.standard.object(forKey: TutorialScript.enabledKey) as? Bool ?? true) && !UserDefaults.standard.bool(forKey: TutorialScript.seenKey)) else { return }
+        guard view.window != nil, presentedViewController == nil, !matchPlay.active, replayIndex == nil,
+              firstShotCoach?.firstShotRunning != true, firstShotCoach?.state != "shot", drillIndex == Drill.startup || forced else { return }
+        startTutorial()
     }
-    /// Menu → "Hướng dẫn chơi".
+    /// Starts the two first-shot beats now (Menu → Hướng dẫn chơi → "Cú đầu tiên").
     func startTutorial() {
-        guard view.window != nil, !matchPlay.active, replayIndex == nil, view.subviews.first(where: { $0 is TutorialOverlay }) == nil else { return }
-        UserDefaults.standard.set(true, forKey: Self.tutorialSeenKey)
-        let startAngle = angle, startSide = side, startTop = top, startElevation = table.cueElevation
-        var shotsAtStart = attempts
-        func frame(_ v: UIView?) -> CGRect? {
-            guard let v = v, v.window != nil, !v.isHidden, v.alpha > 0.01 else { return nil }
-            return v.convert(v.bounds, to: view)
+        guard view.window != nil, !matchPlay.active, replayIndex == nil else { return }
+        let coach = firstShotCoach ?? FirstShotCoach(owner: self); firstShotCoach = coach
+        coach.startFirstShot()
+    }
+    /// finishShot hook: result caption for the first shot, then at most one contextual hint.
+    func tutorialShotFinished(events: [[String: NSNumber]]) {
+        guard !matchPlay.active, replayIndex == nil else { return }
+        let potted = events.contains { $0["kind"]?.intValue == 2 && ($0["a"]?.intValue ?? 0) > 0 }
+        let scratch = events.contains { $0["kind"]?.intValue == 2 && $0["a"]?.intValue == 0 }
+        tutorialShots += 1
+        let coach = firstShotCoach ?? FirstShotCoach(owner: self); firstShotCoach = coach
+        coach.shotFinished(potted: potted, scratch: scratch, shots: tutorialShots)
+    }
+    /// Menu → "Hướng dẫn chơi": the first shot again, or any hint on its own.
+    func showTutorialList() {
+        let sheet = UIAlertController(title: "Hướng dẫn chơi", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Cú đầu tiên · ngắm và ra cơ", style: .default) { [weak self] _ in self?.startTutorial() })
+        for h in TutorialScript.hints {
+            sheet.addAction(UIAlertAction(title: "Gợi ý · " + h.caption, style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                let coach = self.firstShotCoach ?? FirstShotCoach(owner: self); self.firstShotCoach = coach; coach.showHint(h.id)
+            })
         }
-        let tableRect: () -> CGRect? = { [weak self] in
-            guard let self = self else { return nil }
-            let b = self.view.bounds; return CGRect(x: b.width * 0.30, y: b.height * 0.25, width: b.width * 0.40, height: b.height * 0.40)
-        }
-        var steps: [TutorialOverlay.Step] = [
-            .init(target: { nil }, title: "Chào mừng tới Zoker Pool 👋",
-                  text: "Một phút để đánh cú đầu tiên. Làm theo phần được chiếu sáng — mỗi bước chỉ cần một thao tác.", done: nil),
-            .init(target: tableRect, title: "1 · Ngắm",
-                  text: "Kéo MỘT ngón trên mặt bàn để xoay hướng đánh. Hai ngón: xoay / kéo camera, chụm để phóng to.",
-                  done: { [weak self] in guard let self = self else { return false }; return abs(self.angle - startAngle) > 0.05 }),
-            .init(target: { [weak self] in frame(self?.spin) }, title: "2 · Điểm chạm đầu cơ (bi effect)",
-                  text: "Chạm và kéo trên bi trắng nhỏ để chọn điểm đánh: trên = theo, dưới = kéo, trái/phải = effect. Vòng cam là giới hạn thật.",
-                  done: { [weak self] in guard let self = self else { return false }; return abs(self.side - startSide) + abs(self.top - startTop) > 0.08 }),
-            .init(target: { [weak self] in frame(self?.elevationPad) }, title: "3 · Độ dốc cơ",
-                  text: "Kéo cung này để nâng đuôi cơ (cho Jump, Massé hoặc khi bi sát băng). Cú thường để gần 0°.",
-                  done: { [weak self] in guard let self = self else { return false }; return abs(self.table.cueElevation - startElevation) > 2 }),
-            .init(target: { [weak self] in frame(self?.lockButton) }, title: "4 · Ra cơ",
-                  text: "Chạm giữ B để khoá hướng, rồi vuốt LÙI trên bàn và ĐẨY tới. Đẩy càng nhanh cú càng mạnh — thang lực 7 màu hiện ở góc trên.",
-                  done: { [weak self] in guard let self = self else { return false }; return self.attempts > shotsAtStart }, passThrough: true),
-            .init(target: { [weak self] in frame(self?.quickReplay) }, title: "5 · Xem lại",
-                  text: "Xem lại cú vừa đánh với nhiều góc máy, tua chậm, và xuất video MP4 để chia sẻ.",
-                  done: { [weak self] in self?.replayIndex != nil }),
-            .init(target: { [weak self] in frame(self?.retryButton) }, title: "6 · Lùi cú",
-                  text: "Đưa bi về trước cú đánh — giữ nguyên góc ngắm, điểm chạm, độ dốc và loại cơ để thử lại ngay.",
-                  done: nil)
-        ]
-        let tour: [(UIView?, String, String)] = [
-            (cueIcons.first?.superview == nil ? nil : cueIcons.first, "Loại cú", "Đánh · Jump · Massé · Break — mỗi phím dùng cây cơ tương ứng trong bao."),
-            (quickPlace, "Đặt bi", "Kéo bi tới vị trí bất kỳ, kể cả sát băng hoặc chạm bi khác."),
-            (quickAdd, "Thêm bi", "Thêm bi mục tiêu để dựng thế bài tập của riêng bạn."),
-            (quickRole, "Bao cơ", "Xem cơ trong bao, thêm cơ mới (10 mẫu Zoker) — màu, đầu tẩy hiện ngay trên các phím cơ."),
-            (quickCamera, "Camera", "Chạm: đổi góc ngắm / toàn cảnh. Giữ: nhìn tạm góc kia, thả là quay lại."),
-            (coachButton, "Coach", "Bật trợ giúp: nút số kim cương và điểm ngắm. \"Chấm cú\" bật bảng chấm điểm khi bạn muốn."),
-            (menuButton, "Menu", "Bài tập, đấu với máy, chơi Wi‑Fi, phòng chơi, bàn, Tuỳ chỉnh — và \"Hướng dẫn chơi\" để xem lại hướng dẫn này.")
-        ]
-        for (control, name, text) in tour {
-            steps.append(.init(target: { frame(control) }, title: name, text: text, done: nil))
-        }
-        steps.append(.init(target: { nil }, title: "Sẵn sàng!", text: "Chúc bạn đánh hay. Mọi lúc: Menu → Hướng dẫn chơi.", done: nil))
-        let overlay = TutorialOverlay(frame: view.bounds, steps: steps)
-        overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        overlay.finished = { [weak self] in self?.notifyStatus("Menu → Hướng dẫn chơi để xem lại") }
-        view.addSubview(overlay)
-        shotsAtStart = attempts
-        overlay.start()
+        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        presentSheet(sheet, source: menuButton)
     }
 }

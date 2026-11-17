@@ -122,8 +122,11 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) { render(at: time) }
 
     /// Shared with native tests using real SCNNodes (no mock interpolation).
+    /// 0.44.1 M5: frames the SceneKit renderer actually asked for (the intro falls back to its 2D logo if none in 0.5 s).
+    private(set) var renderedFrames = 0
     func render(at time: Double) {
         guard time.isFinite else { return }
+        renderedFrames &+= 1
         lock.lock()
         guard !tracks.isEmpty else { recordProbe(time); lock.unlock(); return }
         let target = time - intervalValue

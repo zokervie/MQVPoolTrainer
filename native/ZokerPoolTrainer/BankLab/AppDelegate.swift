@@ -14,7 +14,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.rootViewController = TrainingController()
         window.makeKeyAndVisible()
         self.window = window
-        IntroOverlay.present(in: window)   // 0.43: "The Golden Break" (full once, then a 1 s sting; tap to skip)
+        // 0.44.1 M5 investigation only: --old-intro-qa replays the 0.43/0.44 window overlay to find why it was black.
+        if ProcessInfo.processInfo.arguments.contains("--old-intro-qa") { IntroOverlay.present(in: window) }
+        // 0.44.1 M5: the intro now runs inside TrainingController on the play table (Intro0441.swift), before the Lobby.
         return true
     }
 }
