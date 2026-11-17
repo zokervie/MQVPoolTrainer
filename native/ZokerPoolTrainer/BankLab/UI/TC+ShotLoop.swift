@@ -126,7 +126,7 @@ extension TrainingController {
         if UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
         mark("cueSound")
         shotActive=true;didStartMatchShot();mark("matchStart");attempts+=1;statusLabel.text=String(format:"Đang chạy · tốc độ đầu %.2f m/s",speed)
-        strikeFX047(speed);mark("haptic")   // 0.47 M4: haptic by power, light shake on a hard break;guideDirty=true;table.trails([:]);mark("trails");setMenu(false);mark("menu");updateControls();mark("controls")
+        strikeFX047(speed);mark("haptic");guideDirty=true;table.trails([:]);mark("trails");setMenu(false);mark("menu");updateControls();mark("controls")   // 0.47 M4: haptic by power, light shake on a hard break (review 0.47: the old statements had slipped into this comment)
     }
     @objc func tick(_ link:CADisplayLink){
         frameStep(targetTimestamp:link.targetTimestamp,linkStamp:link.timestamp)

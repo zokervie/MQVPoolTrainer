@@ -12,7 +12,7 @@ final class PowerBarControl: UIControl {
     var fire: ((Double) -> Void)?
     private var startY: CGFloat = 0
     private let track = UIView(), fill = CAGradientLayer(), label = UILabel(), arrow = UIImageView(image: UIImage(systemName: "chevron.compact.down"))
-    static let cancelBelow = 0.03
+    static let cancelBelow = 0.10   // review 0.47: 3 % was ~4 pt on iPhone — a resting finger fired a shot
 
     override init(frame: CGRect) {
         super.init(frame: frame)

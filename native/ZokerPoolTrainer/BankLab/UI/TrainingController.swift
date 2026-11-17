@@ -598,7 +598,11 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         appFlow.arrivedAtTable={[weak self] in
             // Game Center sign-in only once the player is at the table (after intro, Lobby and first shot).
             guard let self=self,self.lobbyShown,!self.gameCenterAsked,!QA.anyFlag else{return}
-            self.gameCenterAsked=true;GameCenterHub.shared.authenticate()
+            // review 0.47: never over another screen or over the first shot's "Vào rồi!" — wait, then only if the table is clear.
+            DispatchQueue.main.asyncAfter(deadline:.now()+2.5){[weak self] in
+                guard let self=self,!self.gameCenterAsked,self.presentedViewController==nil,!self.shotActive else{return}
+                self.gameCenterAsked=true;GameCenterHub.shared.authenticate()
+            }
         }
     }
     var toastGeneration=0
