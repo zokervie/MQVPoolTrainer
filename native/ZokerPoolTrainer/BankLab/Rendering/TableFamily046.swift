@@ -75,7 +75,8 @@ extension TableScene {
                 let ring=SCNTorus(ringRadius:0.085,pipeRadius:0.007);ring.ringSegmentCount=48;_=node(ring,SCNVector3(cx,top-0.13,cz),trim)
                 let vase=SCNCone(topRadius:0.065,bottomRadius:0.10,height:0.12);vase.radialSegmentCount=48;_=node(vase,SCNVector3(cx,top-0.19,cz),shell)
                 let bulb=SCNSphere(radius:0.105);bulb.segmentCount=48;_=node(bulb,SCNVector3(cx,top-0.29,cz),shell)
-                let taper=SCNCone(topRadius:0.085,bottomRadius:0.05,height:0.12)   // ends on the pad at the floor;taper.radialSegmentCount=48;_=node(taper,SCNVector3(cx,top-0.40,cz),shell)
+                let taper=SCNCone(topRadius:0.085,bottomRadius:0.05,height:0.12)
+                taper.radialSegmentCount=48;_=node(taper,SCNVector3(cx,top-0.40,cz),shell)   // ends on the pad at the floor (review 0.46: was commented out)
                 let pad=SCNCylinder(radius:0.06,height:0.015);pad.radialSegmentCount=40;_=node(pad,SCNVector3(cx,floor+0.0075,cz),foot)
             }}
         case .loft:
@@ -107,7 +108,7 @@ extension TableScene {
 /// 0.46 M3: library icons rendered from the real 3D table (same approach as CueIcon0441), cached in memory and in
 /// Caches/table-icons-*.png. nil without Metal (the caller keeps a drawn fallback).
 enum TableIcon046 {
-    static let version = "046a"
+    static let version = "046b"   // bump: 046a icons cached the floating Heritage legs
     private static var memory: [String: UIImage] = [:]
     private static let renderer: SCNRenderer? = {
         guard let device = MTLCreateSystemDefaultDevice() else { return nil }

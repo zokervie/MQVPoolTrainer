@@ -390,7 +390,7 @@ extension TrainingController {
             items.append(UIAction(title:"Thêm bi · số lượng / bố trí"){[weak self]_ in self?.randomOptions()})
             items.append(UIAction(title:"Thêm từng bi"){[weak self]_ in self?.addBall()})
             items.append(UIAction(title:"Thư viện 20 bàn · 12 cơ"){[weak self]_ in self?.openLibrary()})
-            if self.isPlacingBalls{items.append(UIAction(title:"Hủy đặt bi",attributes:.destructive){[weak self]_ in self?.cancelPlacement()})}
+            if self.isPlacingBalls{items.append(UIAction(title:"Hủy đặt bi",attributes:self.quickPlace.isEnabled ? .destructive:[.destructive,.disabled]){[weak self]_ in self?.cancelPlacement()})}
             completion(items)
         }])
         quickCue=UIButton(type:.system);quickBag=UIButton(type:.system)

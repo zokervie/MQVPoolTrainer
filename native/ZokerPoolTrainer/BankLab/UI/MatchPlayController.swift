@@ -1301,6 +1301,7 @@ extension TrainingController {
         UserDefaults.standard.set(level, forKey: "computerLevel040")
         RecentPlay.saveComputer(level: level, rule: rule, race: race)
         startMatch(rule: rule, network: false)
+        guard matchPlay.active else { return }   // review 0.46: startMatch bails out while busy — do not half-configure
         matchPlay.computerLevel = level
         matchPlay.computerFailures = 0; matchPlay.computerTurnKey = ""
         matchPlay.names = [UserDefaults.standard.string(forKey: "playerName0") ?? "Bạn", "Máy · " + Self.computerLevelTitles[level]]

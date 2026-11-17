@@ -40,11 +40,11 @@ extension TrainingController {
         switch recent {
         case .free: return free("Tiếp tục", "Tập tự do")
         case .drill(let i):
-            return .init(title: "Tiếp tục", subtitle: "Bài tập · " + Drill.all[i].title, run: { [weak self] in self?.setMenu(false); self?.beginDrill(i, guided: false) })
+            return .init(title: "Tiếp tục", subtitle: "Bài tập · " + Drill.all[i].title, run: { [weak self] in guard let self = self, !self.shotActive, self.replayIndex == nil, self.localTurn else { return }; self.setMenu(false); self.beginDrill(i, guided: false) })
         case .computer(let level, let rule, let race):
             let name = matchDisciplines.first { $0.0 == rule }?.1 ?? rule
             return .init(title: "Tiếp tục", subtitle: "Đấu với máy · " + Self.computerLevelTitles[level] + " · " + name + " · race \(race)",
-                         run: { [weak self] in self?.setMenu(false); self?.startComputerMatch(level: level, rule: rule, race: race) })
+                         run: { [weak self] in guard let self = self, !self.shotActive, self.replayIndex == nil, self.localTurn else { return }; self.setMenu(false); self.startComputerMatch(level: level, rule: rule, race: race) })
         }
     }
     /// Phần việc sau khi Sảnh đóng (viewDidAppear không chạy lại với `.overFullScreen`): Game Center + hướng dẫn cú đầu.
@@ -71,6 +71,7 @@ final class LobbyController: UIViewController {
     override var prefersStatusBarHidden: Bool { true }
 
     override func viewDidLoad() {
+        view.accessibilityViewIsModal = true   // review 0.46: VoiceOver/XCUITest never reach the HUD behind the lobby
         super.viewDidLoad()
         view.backgroundColor = .clear; view.accessibilityIdentifier = "Lobby"
         // Bàn 3D thật phía sau, mờ nhẹ.
