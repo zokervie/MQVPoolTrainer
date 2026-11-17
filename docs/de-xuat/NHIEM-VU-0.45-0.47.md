@@ -136,6 +136,7 @@ Luật lên bậc (theo cách Billiard University): mỗi bài 5 lượt, **đ�
 - Dữ liệu: mỗi bài có `id` ổn định, `chapter`, `rung` (1–3), `category` (dùng cho `BLDailyPickMixed`), `stars`. Bài hôm nay chỉ chọn trong các chương đã mở.
 - Bài mới chương 3–4: **phiên đám mây viết thế bi + test C++ quét (như `FirstShotTests`) trên `cho/native-0.47-core`** để chắc mỗi bài làm được bằng đúng mẹo của chương; phiên Mac chỉ nối dữ liệu và màn hình.
 - Kiểm: XCTest đi hết chương 1 bằng cú bắn QA; test C++ mọi bài mới; ảnh thẻ mẹo và màn chương.
+- Đo sơ bộ trên vật lý của app (phiên đám mây, 17/11 22:55, `Config::app()`, cắt ½ bi, bi cái cách 0,5 m): bi lăn lệch **33–34°** so với hướng ngắm ở 1–3 m/s → quy tắc 30° của Dr. Dave đúng trên app. Nhưng ngắm đúng "bi ma" ở cắt 30° và 48,6° thường **trượt** vì độ "ném" (throw) của app lớn hơn tài liệu (code ghi 3,6° so với 1,7° ở 3 m/s). Hệ quả: mẹo chương 3 phải kèm câu "cắt mỏng hơn một chút khi đánh chậm"; bài mới chương 3 được dựng bằng cách quét góc ngắm tìm khung vào lỗ (sao = `BLStarsFromMargin`). Phiên đám mây làm tiếp phần này.
 
 ### M1 — Thanh lực cho người mới (cờ `powerBar`, mặc định bật cho người mới)
 - Thanh dọc bên phải: kéo xuống để nạp lực, thả để đánh; ánh xạ lực qua `PowerScale.h` hiện có (giữ trần lực của Tuỳ chỉnh). Vuốt cơ (B) vẫn dùng được; Tuỳ chỉnh có công tắc chọn kiểu.
