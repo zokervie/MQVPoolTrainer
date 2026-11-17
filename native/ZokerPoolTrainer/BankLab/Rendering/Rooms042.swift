@@ -65,23 +65,90 @@ extension TableScene {
     /// celebration 10 13 · candid 18 19 20.
     static let photoCount=24
     private static var photoCache:[Int:SCNMaterial]=[:]
-    /// Printed photo behind glass: matte (no specular hot spot from the room lights — the old 0.45 roughness + self-glow
-    /// read as glare, owner item 5), lit by its own picture light only.
+    /// Category bit kept on the photo planes (0.44 picture lights are gone; the bit keeps them off the shadow light).
+    static let pictureLightCategory=1<<4
+    /// 0.44.1 M2 (owner 17/11: "các bức ảnh trên tường không thấy gì"). The old picture spot (260 lm, 16 cm off the
+    /// wall, ~20 cm above the photo) blew the middle of every photo out (probe: 26–59 % of pixels above 0.95 luma) while
+    /// the photo itself glowed only 6 %. Now the photo is self-lit and independent of the room lights: constant model,
+    /// emission = the photo with the picture-light look BAKED in (top up to +15 %, bottom down to −10 %), at a calibrated
+    /// level (`photoGlow`, measured by Tools/run_wall_photo_qa.sh against the play camera's exposure −2 EV).
+    static var photoGlow:CGFloat {
+        let qa=UserDefaults.standard.double(forKey:"qaPhotoGlow")   // QA sweep only (-qaPhotoGlow x)
+        return qa>0 ? CGFloat(qa):1.5
+    }
+    static let photoTopGain:CGFloat = 0.15, photoBottomLoss:CGFloat = 0.10
     func photoMaterial(_ k:Int)->SCNMaterial {
         if let m=Self.photoCache[k]{return m}
-        let m=SCNMaterial();m.lightingModel = .physicallyBased
-        let image=UIImage(named:String(format:"ZWall%02lld",max(1,min(Self.photoCount,k))))
-        m.diffuse.contents=image ?? UIColor(white:0.3,alpha:1);m.emission.contents=image;m.emission.intensity=0.06
-        m.roughness.contents=0.92;m.metalness.contents=0.0;m.specular.contents=UIColor(white:0.04,alpha:1)
-        m.diffuse.mipFilter = .linear;m.diffuse.maxAnisotropy=4
+        let m=SCNMaterial();m.lightingModel = .constant
+        let image=UIImage(named:String(format:"ZWall%02lld",max(1,min(Self.photoCount,k)))).map{Self.pictureLit($0)}
+        m.diffuse.contents=UIColor.black
+        m.emission.contents=image ?? UIColor(white:0.3,alpha:1);m.emission.intensity=Self.photoGlow
+        m.emission.mipFilter = .linear;m.emission.maxAnisotropy=4
         Self.photoCache[k]=m;return m
     }
-    /// Category bit of the picture lights: they light the photos and nothing else (no extra cost on the table/balls).
-    static let pictureLightCategory=1<<4
+    /// The picture-light gradient multiplied into the photo (×1.15 at the top edge → ×0.90 at the bottom edge).
+    /// Print curve baked before the gradient. The 24 sources differ a lot (mean luma 0.23–0.42) and the play camera's
+    /// filmic curve expands highlights, so one global level either blew the whites or left the dark photos murky.
+    /// Per photo: t' = white · t^γ, with γ found by bisection so the print's mean luma is `photoTarget`; whites stop at
+    /// `photoWhite`. Values GIẢ ĐỊNH, tuned with Tools/run_wall_photo_qa.sh (51 photos, 10 rooms).
+    static var photoWhite:Double { let q=UserDefaults.standard.double(forKey:"qaPhotoWhite");return q>0 ? q:0.75 }
+    static var photoTarget:Double { let q=UserDefaults.standard.double(forKey:"qaPhotoTarget");return q>0 ? q:0.42 }
+    static func printCurve(_ photo:UIImage,side:Int)->UIImage? {
+        guard let cg=photo.cgImage else{return nil}
+        let w=side,h=max(1,Int(Double(side)*Double(cg.height)/Double(max(cg.width,1))))
+        var px=[UInt8](repeating:0,count:w*h*4)
+        guard let ctx=CGContext(data:&px,width:w,height:h,bitsPerComponent:8,bytesPerRow:w*4,space:CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue) else{return nil}
+        ctx.interpolationQuality = .high;ctx.draw(cg,in:CGRect(x:0,y:0,width:w,height:h))
+        var hist=[Double](repeating:0,count:256)   // luma histogram (sampled)
+        for i in stride(from:0,to:px.count,by:4*7){hist[Int((0.2126*Double(px[i])+0.7152*Double(px[i+1])+0.0722*Double(px[i+2])).rounded())]+=1}
+        let total=max(1,hist.reduce(0,+)),white=photoWhite,target=photoTarget
+        func mean(_ g:Double)->Double{var m=0.0;for k in 0..<256 where hist[k]>0 {m+=hist[k]*white*pow(Double(k)/255,g)};return m/total}
+        var lo=0.3,hi=1.6
+        for _ in 0..<24 {let g=(lo+hi)/2;if mean(g)>target{lo=g}else{hi=g}}
+        let gamma=(lo+hi)/2
+        let lut=(0..<256).map{i->UInt8 in UInt8(max(0,min(255,(white*pow(Double(i)/255,gamma)*255).rounded())))}
+        px.withUnsafeMutableBufferPointer{b in for i in stride(from:0,to:b.count,by:4){b[i]=lut[Int(b[i])];b[i+1]=lut[Int(b[i+1])];b[i+2]=lut[Int(b[i+2])]}}
+        guard let out=ctx.makeImage() else{return nil}
+        return UIImage(cgImage:out)
+    }
+    static func pictureLit(_ source:UIImage)->UIImage {
+        let photo=printCurve(source,side:768) ?? source
+        let size=CGSize(width:768,height:768*photo.size.height/max(photo.size.width,1))
+        let format=UIGraphicsImageRendererFormat();format.scale=1;format.opaque=true
+        return UIGraphicsImageRenderer(size:size,format:format).image{c in
+            photo.draw(in:CGRect(origin:.zero,size:size))
+            let g=c.cgContext,space=CGColorSpaceCreateDeviceRGB()
+            // darken toward the bottom (multiply)
+            g.saveGState();g.setBlendMode(.multiply)
+            if let grad=CGGradient(colorsSpace:space,colors:[UIColor(white:1,alpha:1).cgColor,UIColor(white:1-photoBottomLoss,alpha:1).cgColor] as CFArray,locations:[0.35,1]) {
+                g.drawLinearGradient(grad,start:.zero,end:CGPoint(x:0,y:size.height),options:[.drawsBeforeStartLocation,.drawsAfterEndLocation])}
+            g.restoreGState()
+            // lift toward the top (screen-like: add a warm, faint white)
+            g.saveGState();g.setBlendMode(.screen)
+            if let grad=CGGradient(colorsSpace:space,colors:[UIColor(red:1,green:0.93,blue:0.80,alpha:photoTopGain).cgColor,UIColor(white:0,alpha:0).cgColor] as CFArray,locations:[0,0.45]) {
+                g.drawLinearGradient(grad,start:.zero,end:CGPoint(x:0,y:size.height),options:[])}
+            g.restoreGState()
+        }
+    }
+    /// Warm halo on the wall ABOVE the frame (never over the photo), at most 20 % opacity — the drawn "picture light".
+    private static var haloMaterial:SCNMaterial = {
+        let m=SCNMaterial();m.lightingModel = .constant;m.blendMode = .alpha;m.writesToDepthBuffer=false
+        let format=UIGraphicsImageRendererFormat();format.scale=1;format.opaque=false
+        m.diffuse.contents=UIGraphicsImageRenderer(size:CGSize(width:256,height:128),format:format).image{c in
+            let g=c.cgContext,space=CGColorSpaceCreateDeviceRGB()
+            if let grad=CGGradient(colorsSpace:space,colors:[UIColor(red:1,green:0.82,blue:0.55,alpha:0.20).cgColor,UIColor(red:1,green:0.82,blue:0.55,alpha:0).cgColor] as CFArray,locations:[0,1]) {
+                g.scaleBy(x:1,y:0.5)
+                g.drawRadialGradient(grad,startCenter:CGPoint(x:128,y:256),startRadius:0,endCenter:CGPoint(x:128,y:256),endRadius:128,options:[])
+            }
+        }
+        m.emission.contents=m.diffuse.contents;m.emission.intensity=1.5
+        return m
+    }()
     /// 0.44: one framed photo — satin black moulding with a thin champagne lip and an ivory mat (the frame is built,
-    /// not printed), a brass picture light above it with its own warm 3000 K spot aimed at the picture.
+    /// not printed), a brass picture light above it. 0.44.1: no real light; the photo is self-lit (see photoMaterial).
     func hangPhoto(_ k:Int,_ p:SCNVector3,yaw:Float,size:CGFloat=0.95,lamp:SCNMaterial?=nil){
-        let group=SCNNode();group.position=p;group.eulerAngles.y=yaw;scene.rootNode.addChildNode(group)
+        let group=SCNNode();group.position=p;group.eulerAngles.y=yaw;group.name="photo-\(k)";scene.rootNode.addChildNode(group)
         let moulding=mat(UIColor(white:0.035,alpha:1),roughness:0.55),lip=premiumMaterial("ChampagneGold"),matBoard=mat(.rgb(0xEFE8DA),roughness:0.95)
         let border:CGFloat=0.055,matW:CGFloat=0.045,outer=size+2*(border+matW)
         _=box(outer,outer,0.035,SCNVector3(0,0,-0.016),moulding,chamfer:0.008,parent:group)
@@ -95,11 +162,9 @@ extension TableScene {
         _=box(0.03,0.03,0.12,SCNVector3(0,top+0.04,0.05),brass,chamfer:0.004,parent:group)
         _=box(size*0.55,0.035,0.05,SCNVector3(0,top+0.06,0.11),brass,chamfer:0.008,parent:group)
         _=box(size*0.5,0.008,0.02,SCNVector3(0,top+0.04,0.12),emissive(.rgb(0xFFEBC4),.rgb(0xFFD99A)),chamfer:0,parent:group)
-        let light=SCNLight();light.type = .spot;light.temperature=3000;light.intensity=260
-        light.spotInnerAngle=38;light.spotOuterAngle=72;light.attenuationStartDistance=0.3;light.attenuationEndDistance=2.2
-        light.castsShadow=false;light.categoryBitMask=Self.pictureLightCategory
-        let lampNode=SCNNode();lampNode.light=light;lampNode.position=SCNVector3(0,top+0.05,0.16);group.addChildNode(lampNode)
-        lampNode.look(at:group.convertPosition(SCNVector3(0,-Float(size)*0.15,0),to:nil),up:SCNVector3(0,1,0),localFront:SCNVector3(0,0,-1))   // world target
+        // halo: bottom edge 1 cm above the frame, just off the wall (behind the lamp arm)
+        let haloH=CGFloat(0.36),halo=SCNPlane(width:size*1.1,height:haloH);halo.materials=[Self.haloMaterial]
+        let h=SCNNode(geometry:halo);h.name="photo-halo";h.position=SCNVector3(0,top+0.01+Float(haloH/2),-0.012);h.castsShadow=false;group.addChildNode(h)
     }
     /// Photos along a side wall (x = side·3.9x), centred, facing into the room.
     func sideGallery(_ photos:[Int],side:Float,y:Float=0.95,size:CGFloat=0.95,from z0:Float = -3.0,to z1:Float=3.0,lamp:SCNMaterial?=nil){

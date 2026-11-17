@@ -356,6 +356,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             }
             if args.contains("--perf-qa"){startPerfQA()}   // 0.44-mm
             startLANQA()   // 0.44-mm: no-op without --lan-host-qa / --lan-join-qa
+            if args.contains("--wall-photo-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startWallPhotoQA()}}   // 0.44.1 M2
             if args.contains("--nearby-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+(args.contains("--lan-host-qa") ? 6:2)){[weak self] in self?.openNearbyLobby(tab:args.contains("--lan-host-qa") ? 0:1)}}   // 0.44-mm Nearby Play screen (QA guest opens Tìm phòng)
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}
             if args.contains("--ux018-match-rotation-qa"){startMatch(rule:"rotation15",network:false)}
