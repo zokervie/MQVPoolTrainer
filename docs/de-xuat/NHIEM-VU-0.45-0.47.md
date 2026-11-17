@@ -20,6 +20,21 @@ Thay cho `NHIEM-VU-0.45.md` cũ (16/11). Viết bởi phiên đám mây; phiên 
 
 Không đổi luật chơi, vật lý hay luồng màn hình. Người dùng thấy: mượt hơn, chữ và nút đồng nhất.
 
+### M0 — Điều phối tự động theo vai (làm đầu tiên, ~15 phút)
+Phiên chính trên Mac là **người điều phối**: đọc nhiệm vụ, chia mốc, giao việc cho subagent theo bảng, gộp kết quả, chạy kiểm tra, commit. Không tự viết khối mã lớn khi đã có vai phù hợp.
+1. Thêm `.claude/agents/ky-su-loi.md`: `model: opus`, `effort: high`. Mô tả: "Kỹ sư lõi. Dùng chủ động cho vòng khung hình/render, tách mã lớn không đổi hành vi, lõi vật lý C++ và mọi lỗi gốc cần đo trước khi sửa."
+2. Sửa mô tả 3 vai có sẵn, thêm "Dùng chủ động …": `ky-su-giao-dien` thêm `effort: medium` (màn hình, ZDesign, i18n, XCUITest); `kiem-ke` thêm `effort: low` (đếm, đối chiếu, đọc log, chạy accept_local và trích PASS/FAIL); `giam-khao` giữ opus/high, gọi **cuối mỗi bản** trước khi đẩy nhánh, báo lỗi chặn thì sửa trước khi đẩy.
+3. Ghi bảng giao việc vào `CLAUDE.md` của `native/ZokerPoolTrainer` (mục "Điều phối"):
+
+| Việc | Vai |
+|---|---|
+| 0.45 M1 vòng khung hình, M2 tách TrainingController, 0.46 M3 hình học bàn + test 3 cỡ | ky-su-loi |
+| 0.45 M3 ZDesign + i18n, 0.46 M1–M2 Sảnh/HUD/menu, 0.47 M1–M4 phần Swift | ky-su-giao-dien |
+| Kiểm kê sau mỗi mốc, đọc log accept_local | kiem-ke |
+| Review cuối mỗi bản | giam-khao |
+
+4. Không đặt `CLAUDE_CODE_EFFORT_LEVEL` trong môi trường (biến này đè effort của từng vai).
+
 ### M1 — Vòng khung hình (đo trước, sửa sau)
 Số đo trên iPhone của chủ dự án (IPA 156, 17/11):
 
