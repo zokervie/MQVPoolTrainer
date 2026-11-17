@@ -1296,20 +1296,22 @@ extension TrainingController {
         }
         sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel)); presentSheet(sheet, source: menuButton)
     }
+    /// 0.46: also used by the Lobby's "Tiếp tục" (recent computer match).
+    func startComputerMatch(level: Int, rule: String, race: Int) {
+        UserDefaults.standard.set(level, forKey: "computerLevel040")
+        RecentPlay.saveComputer(level: level, rule: rule, race: race)
+        startMatch(rule: rule, network: false)
+        matchPlay.computerLevel = level
+        matchPlay.computerFailures = 0; matchPlay.computerTurnKey = ""
+        matchPlay.names = [UserDefaults.standard.string(forKey: "playerName0") ?? "Bạn", "Máy · " + Self.computerLevelTitles[level]]
+        matchPlay.raceTo = race
+        updateScoreboard(); syncMatchControls(); updateControls()
+        notifyStatus("Đấu với máy · \(Self.computerLevelTitles[level]) · race \(race) · bạn phá trước")
+    }
     func chooseComputerRace(_ level: Int, rule: String) {
         let sheet = UIAlertController(title: "Chạm mấy ván?", message: nil, preferredStyle: .actionSheet)
         for race in [1, 3, 5, 7, 9] {
-            sheet.addAction(UIAlertAction(title: "Race \(race)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                UserDefaults.standard.set(level, forKey: "computerLevel040")
-                self.startMatch(rule: rule, network: false)
-                self.matchPlay.computerLevel = level
-                self.matchPlay.computerFailures = 0; self.matchPlay.computerTurnKey = ""
-                self.matchPlay.names = [UserDefaults.standard.string(forKey: "playerName0") ?? "Bạn", "Máy · " + Self.computerLevelTitles[level]]
-                self.matchPlay.raceTo = race
-                self.updateScoreboard(); self.syncMatchControls(); self.updateControls()
-                self.notifyStatus("Đấu với máy · \(Self.computerLevelTitles[level]) · race \(race) · bạn phá trước")
-            })
+            sheet.addAction(UIAlertAction(title: "Race \(race)", style: .default) { [weak self] _ in self?.startComputerMatch(level: level, rule: rule, race: race) })
         }
         sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel)); presentSheet(sheet, source: menuButton)
     }

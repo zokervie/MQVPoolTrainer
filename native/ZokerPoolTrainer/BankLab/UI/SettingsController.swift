@@ -225,6 +225,7 @@ final class CustomizeController:UIViewController {
     var changed:(()->Void)?
     var openPhysics:(()->Void)?
     var openDiagnostics:(()->Void)?
+    var copyReport:(()->Void)?   // 0.46 M2: "Sao chép số đo cú vừa đánh" (was in the in-game menu)
     var arrangeHUD:(()->Void)?
     var resetHUD:(()->Void)?
     var saveLayout:((Int)->Void)?
@@ -345,6 +346,7 @@ final class CustomizeController:UIViewController {
         toggle("Đồng bộ khung hình (bi trôi mượt, không giật)","tuneFramePacing039",true)
         target.addArrangedSubview(UIButton.lab("Chẩn đoán độ mượt · số đo cú vừa đánh"){[weak self] in
             guard let self=self else{return};self.dismiss(animated:true){self.openDiagnostics?()}})
+        target.addArrangedSubview(UIButton.lab("Sao chép số đo cú vừa đánh"){[weak self] in self?.copyReport?()})
         header("Âm thanh")
         slider("Âm lượng tiếng bi","tuneVolume037",0,1)
         // 0.41: owner's pack (sliced, 3 lực × biến thể + phá bi) vs the 0.17 set — A/B on the device.
@@ -444,66 +446,4 @@ final class CustomizeController:UIViewController {
         let g=UIStackView(arrangedSubviews:[label,c]);g.axis = .vertical;g.spacing=4;target.addArrangedSubview(g)
     }
     @objc private func done(){dismiss(animated:true)}
-}
-
-// MARK: - 0.37 Sảnh chính (owner: "dễ tìm, dễ nhìn, dễ nắm bắt")
-/// Three colour-coded cards; every feature is at most two taps away. Colour = mode, gold = primary action only.
-final class LobbyController:UIViewController {
-    struct Action {let title:String;let icon:String;let id:String;let run:()->Void}
-    struct Card {let title:String;let subtitle:String;let icon:String;let color:UIColor;let actions:[Action]}
-    var cards:[Card]=[]
-    var footer:[Action]=[]
-    static let practice=UIColor.rgb(0x2FA36E),match=UIColor.rgb(0xE8833A),profile=UIColor.rgb(0x3D86DA),gold=UIColor.rgb(0xEAC583)
-    override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
-    override var prefersStatusBarHidden:Bool{true}
-    override func viewDidLoad(){
-        super.viewDidLoad();view.backgroundColor=UIColor.rgb(0x0E1114);view.accessibilityIdentifier="Lobby"
-        let glow=CAGradientLayer();glow.type = .radial;glow.colors=[UIColor.rgb(0x16473A).withAlphaComponent(0.55).cgColor,UIColor.clear.cgColor]
-        glow.startPoint=CGPoint(x:0.5,y:0.0);glow.endPoint=CGPoint(x:1.1,y:1.0);glow.frame=UIScreen.main.bounds;view.layer.insertSublayer(glow,at:0)
-        let title=UILabel();title.attributedText={
-            let t=NSMutableAttributedString(string:"ZOKER POOL",attributes:[.font:UIFont.systemFont(ofSize:30,weight:.heavy),.foregroundColor:UIColor.white,.kern:2])
-            t.append(NSAttributedString(string:"  TRAINER",attributes:[.font:UIFont.systemFont(ofSize:16,weight:.bold),.foregroundColor:Self.gold,.kern:5]))
-            return t}()
-        let row=UIStackView();row.axis = .horizontal;row.spacing=14;row.distribution = .fillEqually;row.alignment = .fill
-        for card in cards{row.addArrangedSubview(makeCard(card))}
-        let foot=UIStackView();foot.axis = .horizontal;foot.spacing=10;foot.distribution = .fillEqually
-        for a in footer{foot.addArrangedSubview(chip(a))}
-        let main=UIStackView(arrangedSubviews:[title,row,foot]);main.axis = .vertical;main.spacing=14;main.translatesAutoresizingMaskIntoConstraints=false
-        view.addSubview(main)
-        let g=view.safeAreaLayoutGuide
-        NSLayoutConstraint.activate([main.leadingAnchor.constraint(equalTo:g.leadingAnchor,constant:20),main.trailingAnchor.constraint(equalTo:g.trailingAnchor,constant:-20),
-            main.topAnchor.constraint(equalTo:g.topAnchor,constant:12),main.bottomAnchor.constraint(lessThanOrEqualTo:g.bottomAnchor,constant:-10),
-            foot.heightAnchor.constraint(equalToConstant:40)])
-    }
-    private func makeCard(_ c:Card)->UIView{
-        let v=UIView();v.backgroundColor=UIColor.rgb(0x171B20);v.layer.cornerRadius=18;v.layer.borderWidth=1;v.layer.borderColor=c.color.withAlphaComponent(0.55).cgColor
-        v.accessibilityIdentifier="LobbyCard-"+c.title
-        let bar=UIView();bar.backgroundColor=c.color;bar.layer.cornerRadius=2
-        let icon=UIImageView(image:UIImage(systemName:c.icon,withConfiguration:UIImage.SymbolConfiguration(pointSize:22,weight:.bold)));icon.tintColor=c.color
-        let t=UILabel();t.text=c.title;t.font = .systemFont(ofSize:20,weight:.bold);t.textColor = .white
-        let s=UILabel();s.text=c.subtitle;s.font = .systemFont(ofSize:12,weight:.medium);s.textColor=UIColor(white:0.72,alpha:1);s.numberOfLines=2
-        let head=UIStackView(arrangedSubviews:[icon,t]);head.spacing=8;head.alignment = .center
-        let list=UIStackView(arrangedSubviews:c.actions.map{action(button:$0,color:c.color)});list.axis = .vertical;list.spacing=8
-        let stack=UIStackView(arrangedSubviews:[bar,head,s,list]);stack.axis = .vertical;stack.spacing=8;stack.translatesAutoresizingMaskIntoConstraints=false
-        v.addSubview(stack)
-        NSLayoutConstraint.activate([bar.heightAnchor.constraint(equalToConstant:4),stack.leadingAnchor.constraint(equalTo:v.leadingAnchor,constant:14),stack.trailingAnchor.constraint(equalTo:v.trailingAnchor,constant:-14),
-            stack.topAnchor.constraint(equalTo:v.topAnchor,constant:12),stack.bottomAnchor.constraint(lessThanOrEqualTo:v.bottomAnchor,constant:-12)])
-        return v
-    }
-    private func action(button a:Action,color:UIColor)->UIButton{
-        var cfg=UIButton.Configuration.filled();cfg.title=a.title;cfg.image=UIImage(systemName:a.icon);cfg.imagePadding=8;cfg.imagePlacement = .leading
-        cfg.baseBackgroundColor=color.withAlphaComponent(0.16);cfg.baseForegroundColor = .white;cfg.cornerStyle = .large
-        cfg.contentInsets=NSDirectionalEdgeInsets(top:9,leading:10,bottom:9,trailing:10)
-        cfg.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{x in var x=x;x.font=UIFont.systemFont(ofSize:14,weight:.semibold);return x}
-        let b=UIButton(configuration:cfg);b.contentHorizontalAlignment = .leading;b.accessibilityIdentifier=a.id
-        b.addAction(UIAction{[weak self]_ in self?.dismiss(animated:true){a.run()}},for:.touchUpInside)
-        return b
-    }
-    private func chip(_ a:Action)->UIButton{
-        var cfg=UIButton.Configuration.gray();cfg.title=a.title;cfg.image=UIImage(systemName:a.icon);cfg.imagePadding=6;cfg.baseForegroundColor=UIColor(white:0.9,alpha:1);cfg.cornerStyle = .capsule
-        cfg.background.backgroundColor=UIColor(white:1,alpha:0.08)
-        let b=UIButton(configuration:cfg);b.accessibilityIdentifier=a.id
-        b.addAction(UIAction{[weak self]_ in self?.dismiss(animated:true){a.run()}},for:.touchUpInside)
-        return b
-    }
 }

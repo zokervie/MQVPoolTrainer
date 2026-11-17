@@ -29,7 +29,13 @@ extension TrainingController {
         let f=BLHUDLayout(Double(safe.minX),Double(safe.minY),Double(safe.width),Double(safe.height),pad ? 1:0,leftHanded ? 1:0,sixItems ? 1:0,spinExpanded && !loupeOn ? 1:0)
         // bounds + center (not frame): elevation/wheel may carry a zoom transform while touched.
         func place(_ v:UIView,_ b:BLRect){v.bounds=CGRect(x:0,y:0,width:b.w,height:b.h);v.center=CGPoint(x:b.x+b.w/2,y:b.y+b.h/2)}
-        place(quickScroll,f.rail);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
+        // 0.46: cột phím chỉ còn 2–3 nút: thu chiều cao theo số nút đang hiện, giữ đáy (dưới ngón cái) như cũ.
+        var railFrame=f.rail
+        if quickTable != nil {
+            let visible=Double(1+(matchIsCompetitive ? (matchBool("requiresCall") ? 1:0):1)+2)   // Xem lại + (Lùi cú | Call) + Camera + Bàn
+            if visible>0 {let h=min(f.rail.h,visible*f.button+(visible-1)*Double(quickRail.spacing));railFrame.y=f.rail.y+f.rail.h-h;railFrame.h=h}
+        }
+        place(quickScroll,railFrame);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
         place(menuButton,f.menu);place(coachButton,f.coach);place(panel,f.panel);spin.setNeedsDisplay()
         place(lockButton,f.lock);lockButton.isHidden=menuOpen || spinExpanded;lockButton.setNeedsDisplay()   // 0.36: B is back (hold = lock aim), square, left of the effect ball
         for (k,icon) in cueIcons.enumerated(){place(icon,BLHUDCueIcon(f,Int32(k)))}
@@ -82,7 +88,7 @@ extension TrainingController {
             if elevationPad.frame.maxY>fineWheel.frame.minY+1{failures.append("Elevation fan is not on top of the wheel")}
             if leftHanded ? spin.frame.minX<view.bounds.midX : spin.frame.maxX>view.bounds.midX{failures.append("Effect ball is not on the side opposite the shortcut column")}
         }
-        let interactive:[UIControl]=([spin,coachButton,quickReplay!,retryButton,quickCall,quickPlace!,quickAdd!,quickRole!,quickCamera!]+cueIcons).filter{!$0.isHidden}
+        let interactive:[UIControl]=([spin,coachButton,quickReplay!,retryButton,quickCall,quickCamera!,quickTable!]+cueIcons).filter{!$0.isHidden}
         for control in interactive {
             let name=control.accessibilityIdentifier ?? control.accessibilityLabel ?? String(describing:type(of:control))
             frames[name]=String(describing:control.convert(control.bounds,to:view))
@@ -267,13 +273,17 @@ extension TrainingController {
         let drills=group("Bài tập · 5 cấp · chấm điểm 5 sao",[
             ("Chọn bài tập",{[weak self] in self?.chooseDrill()}),
             ("Tìm góc kick 1–3 băng",{[weak self] in self?.chooseKick()})])
-        let library=group("Thư viện · Bàn – Nỉ – Bi – Gậy – Không gian",[
+        let more=group("Thêm…",[
+            ("Lưu cú vừa đánh",{[weak self] in self?.saveLastShot()}),
+            ("Xuất video cú vừa rồi (MP4)",{[weak self] in self?.setMenu(false);self?.offerVideoExport(source:self?.menuButton)}),
+            ("Cú đã lưu · video highlight",{[weak self] in guard let self=self else{return}
+                let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
+                for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
+                sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)}),
             ("Nỉ: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setClothWear(old:!self.table.oldCloth);self.wakeRendering();self.notifyStatus(self.table.oldCloth ? "Nỉ cũ: vệt lăn, vết chấm, bụi phấn":"Nỉ mới")}),
             ("Bi: mới / cũ (đổi)",{[weak self] in guard let self=self else{return};self.table.setBallWear(old:!self.table.oldBalls);self.wakeRendering();self.notifyStatus(self.table.oldBalls ? "Bi cũ: mờ bóng":"Bi mới: bóng gương")}),
             ("Màu nỉ",{[weak self] in self?.chooseClothColor()}),
-            ("Sao chép số đo cú vừa đánh",{[weak self] in self?.setMenu(false);self?.copySmoothnessReport()}),   // 0.44.1 owner
             ("Hướng dẫn chơi",{[weak self] in self?.setMenu(false);DispatchQueue.main.asyncAfter(deadline:.now()+0.3){self?.showTutorialList()}}),
-            ("Thư viện \(TableLook.all.count) bàn · \(CueLook.all.count) cơ",{[weak self] in self?.openLibrary()}),
             ("Không gian bàn (\(TableScene.spaces.count) cảnh)",{[weak self] in self?.chooseSpace()}),
             ("Tay trái / tay phải (đổi bên phím)",{[weak self] in guard let self=self else{return};self.setLeftHanded(!self.leftHanded)}),
             ("Bao cơ / Gậy",{[weak self] in self?.setMenu(false);self?.showCueBag()}),
@@ -281,6 +291,9 @@ extension TrainingController {
             ("Âm thanh: bật / tắt",{[weak self] in
                 let enabled = !(UserDefaults.standard.object(forKey:"poolAudioEnabled") as? Bool ?? true)
                 UserDefaults.standard.set(enabled,forKey:"poolAudioEnabled");self?.statusLabel.text=enabled ? "Âm thanh bi: bật":"Âm thanh bi: tắt"})])
+        // 0.46 M2: menu trong trận = Tiếp tục · Đổi bàn‑bi‑gậy · Tuỳ chỉnh · Về sảnh (+ "Thêm…" giữ các mục còn lại, không xoá chức năng).
+        let library=UIButton.lab("Đổi bàn · bi · gậy"){[weak self]in self?.openLibrary()}
+        library.accessibilityIdentifier="MenuLibrary";more.accessibilityIdentifier="MenuMore"
         let journal=UIButton.lab("Nhật ký tập luyện · Thế bi"){[weak self]in self?.layouts()}
         let tuning=group("Hiệu chỉnh vật lý · xuất Markdown",[
             ("Mở bảng hiệu chỉnh",{[weak self] in self?.settings()}),
@@ -289,23 +302,21 @@ extension TrainingController {
         // 0.36: one place for every user preference (owner IQ200 #4).
         let customize=UIButton.lab("Tuỳ chỉnh · ánh sáng, lực, bố cục phím, độ mượt"){[weak self] in self?.openCustomize()}
         customize.accessibilityIdentifier="MenuCustomize"
-        _=(center,trails,fine,felt,sound,coachToggle,cameraOptions,kick,advanced,physicsTuning,equipment,lessons,help,matches,guideButton,resetButton,graphicsButton,layoutButton,drillButton)
+        _=(recordings,center,trails,fine,felt,sound,coachToggle,cameraOptions,kick,advanced,physicsTuning,equipment,lessons,help,matches,guideButton,resetButton,graphicsButton,layoutButton,drillButton)
         // 0.37 (owner chose): in-game menu = 5 items. Modes, drills, journal and guide live in the Lobby (Về sảnh);
         // physics tuning in Tuỳ chỉnh → Vật lý.
         let resume=UIButton.lab("Tiếp tục"){[weak self]in self?.setMenu(false)}
         resume.accessibilityIdentifier="MenuResume"
         if var c=resume.configuration{c.baseBackgroundColor=LobbyController.gold;c.baseForegroundColor = .black;c.background.backgroundColor=LobbyController.gold;resume.configuration=c}
-        library.configuration?.title="Đổi bàn · bi · gậy · không gian"
         customize.configuration?.title="Tuỳ chỉnh · hình ảnh, điều khiển, vật lý, âm thanh"
-        recordings.configuration?.title="Lưu và xem lại · cú đánh / highlight"
         let lobby=UIButton.lab("Về sảnh · chế độ chơi, bài tập, hồ sơ"){[weak self]in self?.setMenu(false);self?.openLobby()}
         lobby.accessibilityIdentifier="MenuLobby"
         // 0.41: each section its own muted tone (bàn = rừng thông, tuỳ chỉnh = xanh đêm, lưu trữ = đỏ rượu, sảnh = đá).
         MenuSkin.tone(library,MenuSkin.tones[0]);MenuSkin.tone(customize,MenuSkin.tones[1])
-        MenuSkin.tone(recordings,MenuSkin.tones[4]);MenuSkin.tone(lobby,MenuSkin.tones[5])
+        MenuSkin.tone(more,MenuSkin.tones[4]);MenuSkin.tone(lobby,MenuSkin.tones[5])
         _=(modes,guide,drills,journal,tuning,close)
         let controls=stack(.vertical,10,[brand,titleLabel,statusLabel,scoreLabel,hintLabel,
-            resume,library,customize,recordings,lobby])
+            resume,library,customize,lobby,more])
         controls.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(controls)
         NSLayoutConstraint.activate([
             controls.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor,constant:16),
@@ -348,7 +359,7 @@ extension TrainingController {
             c.image=UIImage(systemName:symbol);c.title=name;c.imagePlacement = .top;c.imagePadding=1
             c.baseForegroundColor = .rgb(0xF3D9A4);c.background.backgroundColor=UIColor.rgb(0x131218).withAlphaComponent(0.42);c.background.cornerRadius=10
             c.background.strokeColor=UIColor.rgb(0xEAC583).withAlphaComponent(0.4);c.background.strokeWidth=0.7
-            let names=["QuickCamera":"Camera","QuickTools":"Tools","QuickReplay":"Replay","unused":"Undo"]
+            let names=["QuickCamera":"Camera","QuickTools":"Tools","QuickTable":"Tools","QuickReplay":"Replay","unused":"Undo"]
             if let name=names[id],let data=NSDataAsset(name:"PC_Icon_"+name),let image=UIImage(data:data.data){c.image=(image.preparingThumbnail(of:CGSize(width:18,height:18)) ?? image).withRenderingMode(.alwaysOriginal)}
             c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:12,weight:.medium)
             c.contentInsets=NSDirectionalEdgeInsets(top:4,leading:2,bottom:4,trailing:2)
@@ -390,7 +401,12 @@ extension TrainingController {
         // 0.26: in 8/10-ball matches the Lùi cú slot becomes Call (full-screen pick: ball, then pocket).
         quickCall.configuration=button("scope","Call","QuickCall").configuration;quickCall.accessibilityIdentifier="QuickCall"
         quickCall.addAction(UIAction{[weak self]_ in self?.beginMatchCallPick()},for:.touchUpInside)
-        for item in [quickReplay!,retryButton,quickCall,quickPlace!,quickAdd!,quickRole!,quickCamera!] {
+        // 0.46 M2: Xem lại · Lùi cú (hoặc Call) luôn hiện; Đặt bi · Thêm bi · Bao cơ gom vào nút "Bàn"; Camera giữ phím riêng (chạm = đổi góc, giữ = nhìn lướt).
+        // quickPlace/quickAdd/quickRole vẫn là đối tượng (trạng thái bật/tắt theo luật trận) nhưng không còn trên màn hình.
+        quickTable=button("tablecells","Bàn","QuickTable");quickTable.showsMenuAsPrimaryAction=true
+        quickTable.accessibilityLabel="Bàn";quickTable.accessibilityHint="Đặt bi, thêm bi, bao cơ"
+        quickTable.menu=UIMenu(title:"Bàn",children:[UIDeferredMenuElement.uncached{[weak self] completion in completion(self?.tableMenuItems() ?? [])}])
+        for item in [quickReplay!,retryButton,quickCall,quickCamera!,quickTable!] {
             item.heightAnchor.constraint(equalToConstant:44).isActive=true;quickRail.addArrangedSubview(item)
         }
         quickScroll.translatesAutoresizingMaskIntoConstraints=false;quickScroll.accessibilityIdentifier="QuickRailScroll";quickScroll.showsVerticalScrollIndicator=false
@@ -490,7 +506,7 @@ extension TrainingController {
             icon.isEnabled = localTurn && !presentationBusy && !locked
             icon.accessibilityValue=on ? "Đang chọn":""
             let role=Int(BLCueIconKind(Int32(k)))==2 ? 2:(Int(BLCueIconKind(Int32(k)))==1 ? 1:0)
-            icon.configuration?.subtitle=CueBag.cue(role).short
+            icon.configuration?.subtitle=nil   // 0.46: icon 3D của cơ trong bao thay cho nhãn phụ tên cơ
             // 0.44 (#18): the key shows the cue that is in the bag — colour, inlay, shaft, ferrule and tip.
             let look=CueBag.cue(role)
             if icon.accessibilityHint != look.id {icon.accessibilityHint=look.id;icon.configuration?.image=look.iconImage()}
@@ -511,11 +527,7 @@ extension TrainingController {
         quickPlace.showsMenuAsPrimaryAction=false
         quickAdd.configuration?.title=isPlacingBalls ? "Hủy":"Thêm bi"
         quickAdd.showsMenuAsPrimaryAction = !isPlacingBalls
-        quickAdd.menu=isPlacingBalls ? nil:UIMenu(title:"Thêm bi",children:[
-            UIAction(title:"Thêm từng bi"){[weak self]_ in self?.addBall()},
-            UIAction(title:"Thêm bi · số lượng / bố trí"){[weak self]_ in self?.randomOptions()},
-            UIMenu(title:"Thêm nhanh",children:Array(1...15).map{n in UIAction(title:"Thêm \(n) bi"){[weak self]_ in self?.addRandomBalls(n)}}),
-            UIMenu(title:"Tạo thế mới",children:Array(1...15).map{n in UIAction(title:"Tạo thế \(n) bi"){[weak self]_ in self?.addRandomBalls(n,replacing:true)}})])
+        quickAdd.menu=isPlacingBalls ? nil:UIMenu(title:"Thêm bi",children:addBallMenuChildren())
         // Camera: hold = overview, release = back to the aim view; quick tap = toggle. No long-press menu (it would steal the hold).
         quickCamera.menu=nil
         quickCamera.configuration?.title=table.cameraMode==2 ? "Camera · ngắm":"Toàn cảnh"   // 0.43: was 3 lines (overflow)
@@ -657,6 +669,7 @@ extension TrainingController {
         vc.changed={[weak self] in self?.applyTuning()}
         vc.openPhysics={[weak self] in self?.settings()}
         vc.openDiagnostics={[weak self] in self?.showSmoothnessDiagnostics()}
+        vc.copyReport={[weak self] in self?.copySmoothnessReport()}
         vc.arrangeHUD={[weak self] in self?.beginHUDArrange()}
         vc.saveLayout={[weak self] n in self?.saveHUDLayout(n)}
         vc.loadLayout={[weak self] n in self?.loadHUDLayout(n)}
@@ -696,5 +709,27 @@ extension TrainingController {
             }
         }
         overlay.addGestureRecognizer(pan);view.addSubview(overlay)
+    }
+}
+
+// 0.46 M2: nút "Bàn" — Đặt bi · Thêm bi · Bao cơ trong MỘT menu (hành động giữ nguyên như phím cũ).
+extension TrainingController {
+    func addBallMenuChildren()->[UIMenuElement]{
+        [UIAction(title:"Thêm từng bi"){[weak self]_ in self?.addBall()},
+         UIAction(title:"Thêm bi · số lượng / bố trí"){[weak self]_ in self?.randomOptions()},
+         UIMenu(title:"Thêm nhanh",children:Array(1...15).map{n in UIAction(title:"Thêm \(n) bi"){[weak self]_ in self?.addRandomBalls(n)}}),
+         UIMenu(title:"Tạo thế mới",children:Array(1...15).map{n in UIAction(title:"Tạo thế \(n) bi"){[weak self]_ in self?.addRandomBalls(n,replacing:true)}})]
+    }
+    func tableMenuItems()->[UIMenuElement]{
+        var items:[UIMenuElement]=[]
+        // Đặt bi / Xong đặt bi (bật theo luật trận: bi cầm tay) — đang đặt thì thêm "Hủy đặt bi".
+        items.append(UIAction(title:isPlacingBalls ? "Xong đặt bi":"Đặt bi",image:UIImage(systemName:"hand.draw"),attributes:quickPlace.isEnabled ? []:[.disabled]){[weak self]_ in self?.toggleEdit()})
+        if isPlacingBalls {
+            items.append(UIAction(title:"Hủy đặt bi",image:UIImage(systemName:"xmark.circle"),attributes:.destructive){[weak self]_ in self?.cancelPlacement()})
+        } else {
+            items.append(UIMenu(title:"Thêm bi",image:UIImage(systemName:"plus.circle"),children:quickAdd.isEnabled ? addBallMenuChildren():[UIAction(title:"Không dùng được lúc này",attributes:.disabled){_ in}]))
+        }
+        items.append(UIAction(title:"Bao cơ",image:UIImage(systemName:"bag"),attributes:quickRole.isEnabled ? []:[.disabled]){[weak self]_ in self?.showCueBag()})
+        return items
     }
 }

@@ -67,6 +67,24 @@ final class InteractionTests: XCTestCase {
         return button
     }
 
+    /// 0.46 M2: Đặt bi · Thêm bi · Bao cơ · Camera are items of the single "Bàn" menu. Opens it (retrying a dropped tap) and
+    /// taps the item whose label starts with `title` (path = submenu titles first, then the item).
+    @discardableResult
+    private func tableMenu(_ app: XCUIApplication, _ path: String...) -> Bool {
+        for _ in 0..<3 {
+            quick(app, "QuickTable").tap()
+            var ok = true
+            for title in path {
+                let item = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+                if !item.waitForExistence(timeout: 5 * slow) { ok = false; break }
+                item.tap()
+            }
+            if ok { return true }
+            if app.buttons["QuickTable"].exists, !app.buttons["QuickTable"].isHittable { app.windows.firstMatch.tap() }   // dismiss a half-open menu
+        }
+        return false
+    }
+
     /// CI log lines are cut at 300 chars: lead failures with the fields that explain a stall.
     private func brief(_ scene: XCUIElement) -> String {
         let v = scene.value as? String ?? ""
@@ -143,7 +161,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThan(coach.frame.minX,menu.frame.maxX)
         XCTAssertLessThan(coach.frame.midX,scene.frame.midX)
         XCTAssertGreaterThan(rail.frame.midX,scene.frame.midX)
-        let order=["QuickReplay","QuickRetry","QuickPlace","QuickAdd","QuickCue","QuickCamera"]
+        let order=["QuickReplay","QuickRetry","QuickCamera","QuickTable"]   // 0.46 M2: Đặt bi · Thêm bi · Bao cơ are in "Bàn"
         for (upper,lower) in zip(order,order.dropFirst()) {
             XCTAssertLessThan(app.buttons[upper].frame.midY,app.buttons[lower].frame.midY,"\(upper) above \(lower)")
         }
@@ -192,12 +210,12 @@ final class InteractionTests: XCTestCase {
     func testPlaceCueBallAtCentreAndCancelRestoresLayout() {
         let (app,scene)=launch(["--ux017-qa"])
         let x=field(scene,"cueX"),y=field(scene,"cueY")
-        quick(app,"QuickPlace").tap()
+        XCTAssertTrue(tableMenu(app,"Đặt bi"))
         let editing=NSPredicate { _,_ in self.field(scene,"editing")==1 }
         expectation(for:editing,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
         // 0.22: free spot nearest the centre (exactly the centre when it is empty)
         XCTAssertLessThan(hypot(field(scene,"cueX"),field(scene,"cueY")),0.15)
-        quick(app,"QuickAdd").tap()   // "Hủy" while placing
+        XCTAssertTrue(tableMenu(app,"Hủy đặt bi"))
         let cancelled=NSPredicate { _,_ in self.field(scene,"editing")==0 }
         expectation(for:cancelled,evaluatedWith:scene);waitForExpectations(timeout:5 * slow)
         XCTAssertEqual(field(scene,"cueX"),x,accuracy:0.001);XCTAssertEqual(field(scene,"cueY"),y,accuracy:0.001)
@@ -214,7 +232,7 @@ final class InteractionTests: XCTestCase {
     /// 0.44 (#18): Bao cơ shows the bag (3 slots) with "Thêm cơ vào bao…", which opens the cue library.
     func testCueBagOpensCueLibrary() {
         let (app,_)=launch(["--ux017-qa"])
-        quick(app,"QuickCue").tap()
+        XCTAssertTrue(tableMenu(app,"Bao cơ"))
         let add=app.buttons["＋ Thêm cơ vào bao…"]
         XCTAssertTrue(add.waitForExistence(timeout:5 * slow),"bag sheet offers adding a cue")
         add.tap()
@@ -404,6 +422,23 @@ final class InteractionTests: XCTestCase {
         let scene = app.otherElements["PoolScene"]
         if scene.exists { XCTAssertTrue((scene.value as? String ?? "").contains(";introDone=1;"), "finish ran exactly once") }
     }
+    /// 0.46 M1: from the Lobby, "Tiếp tục" is one tap to the table (open app → Lobby → Tiếp tục = 2 steps to the first shot).
+    func testLobbyContinueReachesTableInTwoTaps() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa"]
+        app.launch()
+        let cont = app.buttons["LobbyContinue"]
+        XCTAssertTrue(cont.waitForExistence(timeout: 60), "the Lobby opens with the big Tiếp tục card")
+        XCTAssertTrue(app.buttons["LobbyFree"].exists && app.buttons["LobbyDrills"].exists && app.buttons["LobbyComputer"].exists && app.buttons["LobbyLibrary"].exists,
+                      "four tiles: free practice, drills, match, library")
+        XCTAssertTrue(app.buttons["LobbyCustomize"].exists, "old Lobby functions stay (chip row)")
+        cont.tap()
+        XCTAssertTrue(cont.waitForNonExistence(timeout: 10 * slow), "the Lobby closes")
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["QuickReplay"].waitForExistence(timeout: 10 * slow), "at the table, HUD in front")
+        XCTAssertFalse(app.buttons["LobbyContinue"].exists)
+    }
     /// 0.45 M3: Lobby language follows the device on a fresh install — Vietnamese device: Vietnamese Lobby, English
     /// device: English Lobby (no source-language leftovers on the main card).
     func testLobbyLanguageFollowsDevice() {
@@ -438,11 +473,7 @@ final class InteractionTests: XCTestCase {
           let want=min(field(scene,"ballCount")+Double(count),15)
           for _ in 0..<4 where field(scene,"ballCount") != want {   // retry the whole menu if a tap was dropped
             if app.alerts["Thêm bi"].exists {app.alerts["Thêm bi"].buttons["Mặc định"].tap()}
-            quick(app,"QuickAdd").tap()
-            // slow runner: the menu tap can be dropped — only tap the item once the menu is really up
-            let item=app.buttons["Thêm bi · số lượng / bố trí"].firstMatch
-            if !item.waitForExistence(timeout:5 * slow) {continue}
-            item.tap()
+            if !tableMenu(app,"Thêm bi","Thêm bi · số lượng / bố trí") {continue}   // slow runner: a dropped tap retries the whole menu
             let alert=app.alerts["Thêm bi"]
             if !alert.waitForExistence(timeout:5 * slow) {continue}
             // Intel CI: keystrokes sent before the field has focus are lost — retype until the field shows the count.

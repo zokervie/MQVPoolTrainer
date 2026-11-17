@@ -175,7 +175,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     let qaReplayHold=ProcessInfo.processInfo.arguments.contains("--replay-hold-qa")
     var guidedCoachBefore:Bool?
     var shotKind=0 {didSet{spin.maxTop=shotKind==1 ? 0:1}} // Stable legacy IDs: 0 playing, 1 jump, 2 break; 3 massé preset.
-    var quickPlace:UIButton!,quickAdd:UIButton!
+    var quickPlace:UIButton!,quickAdd:UIButton!,quickTable:UIButton!   // 0.46: quickTable = nút "Bàn" (menu Đặt bi · Thêm bi · Bao cơ)
     let replayBar=UIStackView(),replaySlider=UISlider(),replayPause=UIButton(type:.system),replayRate=UIButton(type:.system),replayAutoButton=UIButton(type:.system)
     var replayPaused=false,replaySpeed=1.0,replayAuto=true,replayAudioIndex=0
     var lastShotEvents:[[String:NSNumber]]=[]

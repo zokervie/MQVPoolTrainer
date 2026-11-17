@@ -12,28 +12,33 @@ extension TrainingController {
         guard presentedViewController==nil else{return false}
         let lobby=LobbyController()
         typealias A=LobbyController.Action
+        // 0.46 M1: "Tiếp tục" (bài/trận gần nhất) · Tập tự do · Bài tập · Đấu · Thư viện bàn‑cơ; mọi mục cũ còn ở hàng chip.
+        lobby.resume=continueCard()
         lobby.cards=[
-            .init(title:"Luyện tập",subtitle:"Tập tự do, bài tập chấm sao, tìm góc kick",icon:"target",color:LobbyController.practice,actions:[
-                A(title:"Tập tự do",icon:"circle.dashed",id:"LobbyFree",run:{[weak self] in self?.setMenu(false)}),
+            .init(title:"Tập tự do",subtitle:"Bàn trống, tự đánh",icon:"circle.dashed",color:LobbyController.practice,actions:[
+                A(title:"Tập tự do",icon:"circle.dashed",id:"LobbyFree",run:{[weak self] in RecentPlay.saveFree();self?.setMenu(false)})]),
+            .init(title:"Bài tập",subtitle:"Bài chấm sao, tìm góc kick",icon:"star.circle",color:LobbyController.practice,actions:[
                 A(title:"Bài tập · 5 cấp",icon:"star.circle",id:"LobbyDrills",run:{[weak self] in self?.chooseDrill()}),
                 A(title:"Thử thách kick 1–3 băng",icon:"arrow.triangle.turn.up.right.diamond",id:"LobbyKick",run:{[weak self] in self?.chooseKick()})]),
-            .init(title:"Thi đấu",subtitle:"8 · 9 · 10 Ball luật WPA, 15 Ball Rotation",icon:"trophy",color:LobbyController.match,actions:[
+            .init(title:"Đấu",subtitle:"8 · 9 · 10 Ball luật WPA, 15 Ball Rotation",icon:"trophy",color:LobbyController.match,actions:[
                 A(title:"Đấu với máy · 6 cấp",icon:"cpu",id:"LobbyComputer",run:{[weak self] in self?.openComputerMatch()}),
                 A(title:"Hai người · một máy",icon:"person.2",id:"LobbyLocal",run:{[weak self] in self?.openMatchMenu(scope:0)}),
                 A(title:"Wi‑Fi gần nhau",icon:"wifi",id:"LobbyWifi",run:{[weak self] in self?.openMatchMenu(scope:1)}),
                 A(title:"Online · Game Center",icon:"globe",id:"LobbyOnline",run:{[weak self] in self?.openMatchMenu(scope:2)})]),
-            .init(title:"Hồ sơ",subtitle:"Nhật ký tập, cú đánh đã lưu, tài khoản",icon:"person.crop.circle",color:LobbyController.profile,actions:[
-                A(title:"Nhật ký · tiến bộ",icon:"chart.line.uptrend.xyaxis",id:"LobbyJournal",run:{[weak self] in self?.layouts()}),
-                A(title:"Cú đã lưu · video highlight",icon:"film.stack",id:"LobbyShots",run:{[weak self] in guard let self=self else{return}
-                    let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
-                    for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
-                    sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)}),
-                A(title:"Tài khoản · Game Center",icon:"gamecontroller",id:"LobbyAccount",run:{[weak self] in self?.openAccount()})])]
-        // 0.39 (owner: lobby a bit confusing): Tuỳ chỉnh first (most used), Hướng dẫn, then the lab under a plain name.
+            .init(title:"Thư viện bàn · cơ",subtitle:"Bàn, nỉ, bi, gậy, không gian",icon:"books.vertical",color:LobbyController.gold,actions:[
+                A(title:"Thư viện bàn · cơ",icon:"books.vertical",id:"LobbyLibrary",run:{[weak self] in self?.openLibrary()})])]
+        // Hồ sơ + tiện ích: hàng chip (0.39: Tuỳ chỉnh đứng đầu vì dùng nhiều nhất).
         lobby.footer=[A(title:"Tuỳ chỉnh",icon:"slider.horizontal.3",id:"LobbyCustomize",run:{[weak self] in self?.openCustomize()}),
+                      A(title:"Nhật ký · tiến bộ",icon:"chart.line.uptrend.xyaxis",id:"LobbyJournal",run:{[weak self] in self?.layouts()}),
+                      A(title:"Cú đã lưu · video highlight",icon:"film.stack",id:"LobbyShots",run:{[weak self] in guard let self=self else{return}
+                          let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
+                          for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
+                          sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)}),
+                      A(title:"Tài khoản · Game Center",icon:"gamecontroller",id:"LobbyAccount",run:{[weak self] in self?.openAccount()}),
                       A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()}),
                       A(title:"Phòng thử vật lý (nâng cao)",icon:"flask",id:"LobbyLab",run:{[weak self] in self?.present(UINavigationController(rootViewController:ZupeLabController()),animated:true)})]
-        lobby.modalPresentationStyle = .fullScreen;lobby.modalTransitionStyle = .crossDissolve
+        lobby.onClosed={[weak self] in self?.afterLobbyClosed()}
+        lobby.modalPresentationStyle = .overFullScreen;lobby.modalTransitionStyle = .crossDissolve
         present(lobby,animated:true);return true
     }
     func openAccount(){
@@ -67,7 +72,7 @@ extension TrainingController {
         sheet.addAction(UIAlertAction(title:"Đổi bao (Thi đấu / Luyện tập / Dự phòng)…",style:.default){[weak self]_ in self?.openLibrary(initialTab:2)})
         sheet.addAction(UIAlertAction(title:"Thông số gậy (vật lý)…",style:.default){[weak self]_ in self?.equipment()})
         sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel))
-        presentSheet(sheet,source:quickRole)
+        presentSheet(sheet,source:quickTable ?? menuButton)
     }
     func openLibrary(initialTab:Int=0){
         guard localTurn,!presentationBusy else{return};setMenu(false)
@@ -107,6 +112,7 @@ extension TrainingController {
         present(sheet,animated:true)
     }
     func beginDrill(_ index:Int,guided:Bool){
+        RecentPlay.saveDrill(index)   // 0.46: "Tiếp tục" ở Sảnh
         if let previous=guidedCoachBefore{coaching=previous;guidedCoachBefore=nil}
         if guided{guidedCoachBefore=coaching;coaching=true;cardOn=true}   // 0.44: a guided lesson shows its brief/grade
         loadDrill(index);applyCoachVisibility()
