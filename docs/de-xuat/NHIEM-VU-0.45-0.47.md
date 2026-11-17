@@ -88,6 +88,8 @@ Dùng `ZDesign` của 0.45. Không đổi vật lý (trừ kích thước bàn �
 
 ## 0.47 "Quay lại mỗi ngày" — vòng luyện tập
 
+**Chia việc (17/11 20:10):** phiên đám mây viết sẵn phần lõi C++ + test của 0.47 (ánh xạ thanh lực, chọn Bài hôm nay, chuỗi ngày + đóng băng, sao độ khó, kỷ lục) trên nhánh `cho/native-0.47-core`, chỉ thêm file mới trong `BankLab/Core/` và `Tests/` cộng dòng đăng ký bộ test. Khi bắt đầu 0.47: `git merge origin/cho/native-0.47-core` (xung đột chỉ có thể ở danh sách bộ test trong `CMakeLists.txt`/`Run-All-Checks.command`: giữ cả hai). Phiên Mac chỉ làm phần Swift + nối dây. Nếu nhánh đó chưa có thì tự viết lõi theo mô tả dưới.
+
 Logic thuần (chọn bài, tính chuỗi, sao, kỷ lục) viết C++ + test; Swift chỉ vẽ. Lưu cục bộ (UserDefaults/JSON trong Application Support), không mạng.
 
 ### M1 — Thanh lực cho người mới (cờ `powerBar`, mặc định bật cho người mới)
