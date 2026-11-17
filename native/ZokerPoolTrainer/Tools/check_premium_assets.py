@@ -15,5 +15,6 @@ for item in layout['sites']:
 cues=list(assets.glob('PC_Cue_*.dataset/mesh.json'));assert len(cues)==12
 for path in cues:
  m=json.loads(path.read_text());assert len(m['normals'])==len(m['vertices']);assert len(m['elements'])==len(m['names']);assert all(len(t)%3==0 for t in m['elements'])
-source=(root/'BankLab/UI/EquipmentLibrary.swift').read_text();tables=source[source.index('static let all:[TableLook]'):source.index('struct CueLook')];assert len(re.findall(r'\.init\(id:',tables))==24   # 0.35: + 3 bar-box
-print('PASS Premium Classic LITE:',len(manifest),'checksummed native assets, 18 sights, 12 cue meshes, 24 table choices; concept matching NOT VERIFIED')
+source=(root/'BankLab/UI/EquipmentLibrary.swift').read_text();tables=source[source.index('static let all:[TableLook]'):source.index('struct CueLook')];assert len(re.findall(r'\.init\(id:',tables))==12   # 0.46 M3: 4 families × 3 colourways
+assert len(re.findall(r'0x[0-9A-F]{16}:"',source[source.index('static let legacy'):source.index('static func fnv1a')]))==24   # 0.46: every pre-0.46 id maps
+print('PASS Premium Classic LITE:',len(manifest),'checksummed native assets, 18 sights, 12 cue meshes, 12 table choices (4 families × 3); concept matching NOT VERIFIED')

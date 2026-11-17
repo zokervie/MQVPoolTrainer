@@ -508,24 +508,24 @@ final class TableScene {
         return (0.2126*CGFloat(px[0])+0.7152*CGFloat(px[1])+0.0722*CGFloat(px[2]))/255
     }
     private func buildTable(_ rails:[[String:NSNumber]]){
-        // 0.35 (owner: rail geometry may be shared, but colour and MATERIAL follow each brand): finish per model family.
-        // Gloss lacquer: Z-Titan / Z-Vector / Z-Vanguard II, Z-Arena Lite, Z-Onyx Wave; matte powder-coat: Z-Night;
-        // brushed metal: Z-Max, Z-Onyx Pro; satin: the rest. Wood tables keep the walnut maps tinted to the cabinet colour.
-        let gloss:Set<String>=["ox","acurra","victory","smart","arc","zbarpro"],matte:Set<String>=["blackwolf","blackwolfpro","zbar"],brushed:Set<String>=["zmax","apex","tournament"]
-        let graphite=look.wood ? premiumMaterial("WalnutDark"):mat(.rgb(look.cabinet),roughness:gloss.contains(look.id) ? 0.22:(matte.contains(look.id) ? 0.78:(brushed.contains(look.id) ? 0.38:0.5)),metal:brushed.contains(look.id) ? 0.35:0.08)
-        if !look.wood && gloss.contains(look.id) {graphite.clearCoat.contents=0.8;graphite.clearCoatRoughness.contents=0.08}
+        // 0.46 M3: the cabinet finish follows the FAMILY (TableFamily.finish): Arena flat matte powder-coat, Heritage /
+        // Loft satin wood, Club deep lacquered wood. Dark woods keep the walnut maps tinted to the cabinet colour; the
+        // light Loft woods (multiply can only darken walnut) use their own colour with the walnut grain relief.
+        let fam=look.family
+        let lightWood=look.wood && fam == .loft
+        let graphite=look.wood && !lightWood ? premiumMaterial("WalnutDark"):mat(.rgb(look.cabinet),roughness:fam == .arena ? 0.78:0.5,metal:fam == .arena ? 0.06:0)
         if look.wood {
-            graphite.multiply.contents=UIColor.rgb(look.cabinet).blended(0.55)   // 0.35: brand wood tone (was one walnut for all)
+            if !lightWood {graphite.multiply.contents=UIColor.rgb(look.cabinet).blended(0.55)}   // 0.35: wood tone per look
             graphite.normal.contents=materialMap("PC_WalnutDark_normal"){self.clothNormal()};graphite.normal.intensity=0.08
             graphite.roughness.contents=materialMap("PC_WalnutDark_roughness"){self.clothNormal()}
             for channel in [graphite.diffuse,graphite.normal,graphite.roughness]{channel.minificationFilter = .linear;channel.mipFilter = .linear;channel.maxAnisotropy=16}
-            graphite.clearCoat.contents=0.6;graphite.clearCoatRoughness.contents=0.12
+            graphite.clearCoat.contents=fam == .club ? 0.8:0.6;graphite.clearCoatRoughness.contents=fam == .club ? 0.07:0.12
         }
         // 0.39 (owner: the metal band around the table looks alien — real tables do not have it). The deck-edge band and
         // every base accent now use the cabinet finish itself, a touch darker and satin: the shape stays (shadow line,
         // foot plates) but there is no bright metal anywhere on the table body.
         let edge=(graphite.copy() as? SCNMaterial) ?? graphite
-        edge.multiply.contents=(look.wood ? UIColor.rgb(look.cabinet).blended(0.55):UIColor.white).withAlphaComponent(1)
+        edge.multiply.contents=(look.wood && !lightWood ? UIColor.rgb(look.cabinet).blended(0.55):UIColor.white).withAlphaComponent(1)
         edge.diffuse.intensity=0.82;edge.metalness.contents=look.wood ? 0:0.10;edge.clearCoat.contents=0
         let clothColor=clothTintIndex.map{Self.clothColors[$0].1} ?? .rgb(look.cloth)
         let cloth=mat(clothColor,roughness:0.97)
@@ -556,13 +556,17 @@ final class TableScene {
         // skirt on all four sides (outer face 7 mm inside the rail edge, 0.27 m deep), a bottom panel, four heavy tapered
         // corner legs flush with the skirt corners. The pocket cups sit inside the skirt and are no longer visible.
         do {
+            let r=fam.edgeRadius   // 0.46: skirt edge per family (flat Arena … rounded Loft)
             for side:Float in [-1,1]{
-                _=box(0.05,0.27,2.86,SCNVector3(side*0.775,-0.19,0),graphite,chamfer:0.012)
-                _=box(1.60,0.27,0.05,SCNVector3(0,-0.19,side*1.415),graphite,chamfer:0.012)
-                _=box(0.012,0.014,2.84,SCNVector3(side*0.801,-0.318,0),edge,chamfer:0.004)    // lower shadow-line bead
-                _=box(1.58,0.014,0.012,SCNVector3(0,-0.318,side*1.441),edge,chamfer:0.004)
+                _=box(0.05,0.27,2.86,SCNVector3(side*0.775,-0.19,0),graphite,chamfer:r)
+                _=box(1.60,0.27,0.05,SCNVector3(0,-0.19,side*1.415),graphite,chamfer:r)
+                if !fam.bead && fam != .loft {
+                    _=box(0.012,0.014,2.84,SCNVector3(side*0.801,-0.318,0),edge,chamfer:0.004)    // lower shadow-line bead
+                    _=box(1.58,0.014,0.012,SCNVector3(0,-0.318,side*1.441),edge,chamfer:0.004)
+                }
             }
-            if look.base != 6 {_=box(1.50,0.02,2.78,SCNVector3(0,-0.315,0),graphite,chamfer:0.006)}   // bottom panel (bar-box: its body)
+            _=box(1.50,0.02,2.78,SCNVector3(0,-0.315,0),graphite,chamfer:0.006)   // bottom panel
+            buildFamilySkirtDetail(look,shell:graphite,trim:edge)
         }
         buildCushions(rails,material:cloth)
         for x:Float in [-0.67,0.67]{for z:Float in [-1.305,0,1.305]{
@@ -596,7 +600,7 @@ final class TableScene {
     }
     func setClothColor(_ index:Int?){clothTintIndex=index.map{max(0,min(Self.clothColors.count-1,$0))};selectTable(look)}
     /// 0.44: a frustum leg (rectangular, top wider than the foot) with flat-shaded faces, outward normals.
-    private func taperedLeg(top:SIMD2<Float>,bottom:SIMD2<Float>,height:Float,material:SCNMaterial)->SCNNode{
+    func taperedLeg(top:SIMD2<Float>,bottom:SIMD2<Float>,height:Float,material:SCNMaterial)->SCNNode{
         let h=height/2
         let t=[SIMD3<Float>(-top.x/2,h,-top.y/2),SIMD3(top.x/2,h,-top.y/2),SIMD3(top.x/2,h,top.y/2),SIMD3(-top.x/2,h,top.y/2)]
         let b=[SIMD3<Float>(-bottom.x/2,-h,-bottom.y/2),SIMD3(bottom.x/2,-h,-bottom.y/2),SIMD3(bottom.x/2,-h,bottom.y/2),SIMD3(-bottom.x/2,-h,bottom.y/2)]
@@ -615,44 +619,30 @@ final class TableScene {
         return SCNNode(geometry:g)
     }
     private func buildBase(shell:SCNMaterial,trim:SCNMaterial){
-        let dark=mat(UIColor(white:0.07,alpha:1),roughness:0.75)
-        func beam(_ a:SCNVector3,_ b:SCNVector3,_ width:CGFloat,_ depth:CGFloat,_ material:SCNMaterial){
-            let av=SIMD3<Float>(a.x,a.y,a.z),bv=SIMD3<Float>(b.x,b.y,b.z),d=bv-av
-            let n=box(width,CGFloat(simd_length(d)),depth,SCNVector3((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2),material,chamfer:0.016)
-            n.simdOrientation=simd_quatf(from:SIMD3(0,1,0),to:simd_normalize(d))
-        }
-        // 0.35 (owner: tables differ only by colour): three cabinet families, visible from the aim view and overview.
-        if look.base==6 { // Bar-box: one solid body down to a plinth, coin door on the foot end.
-            _=box(1.50,0.485,2.70,SCNVector3(0,-0.5075,0),shell,chamfer:0.03)
-            _=box(1.58,0.05,2.78,SCNVector3(0,-0.735,0),dark,chamfer:0.012)
-            _=box(0.34,0.17,0.014,SCNVector3(0,-0.43,1.357),trim,chamfer:0.01)
-            _=box(0.16,0.022,0.006,SCNVector3(0,-0.40,1.366),dark,chamfer:0.003)
-            for side:Float in [-1,1]{_=box(0.006,0.012,2.6,SCNVector3(side*0.753,-0.30,0),trim,chamfer:0.002)}
-            return
-        }
-        // 0.44: four corner legs, flush with the closed skirt (no pedestals, beams or cross bars). Leg family by look:
-        // square tapered (default), turned round (base 5), broad slab (bases 1, 3, 4).
-        let foot=mat(UIColor(white:0.05,alpha:1),roughness:0.6)
-        let slab=[1,3,4].contains(look.base),lx:Float=slab ? 0.65:0.69,lz:Float=slab ? 1.34:1.33
-        for x:Float in [-1,1]{for z:Float in [-1,1]{
-            let height:Float=0.455
-            let top:Float = -0.325
-            let centre:Float=top-height/2
-            if look.base==5 {
-                let g=SCNCone(topRadius:0.105,bottomRadius:0.07,height:CGFloat(height));g.radialSegmentCount=48;g.materials=[shell]
-                let n=SCNNode(geometry:g);n.position=SCNVector3(x*lx,centre,z*lz);scene.rootNode.addChildNode(n)
-            } else {
-                let n=taperedLeg(top:slab ? SIMD2(0.30,0.20):SIMD2(0.22,0.22),bottom:slab ? SIMD2(0.22,0.15):SIMD2(0.15,0.15),height:height,material:shell)
-                n.position=SCNVector3(x*lx,centre,z*lz);scene.rootNode.addChildNode(n)
-            }
-            let plate=SCNCylinder(radius:0.07,height:0.02);plate.radialSegmentCount=40;plate.materials=[foot]
-            let f=SCNNode(geometry:plate);f.position=SCNVector3(x*lx,top-height-0.01,z*lz);scene.rootNode.addChildNode(f)
-        }}
-        _=dark
-        if ["smart","proam","blackwolfpro","apex"].contains(look.id){
-            _=box(0.48,0.10,0.018,SCNVector3(0,-0.15,1.42),dark,chamfer:0.022)
-            _=box(0.50,0.008,0.025,SCNVector3(0,-0.20,1.425),trim,chamfer:0.003)
-        }
+        // 0.46 M3: the base is built per family (Rendering/TableFamily046.swift); the old 0…6 leg codes are gone.
+        buildFamilyBase(look,shell:shell,trim:trim)
+    }
+    /// 0.46 M3: a stand-alone copy of `other` (cabinet, base, bed, rails, pockets) for the library icons and QA; the
+    /// live table, its cloth override and its bed material are left exactly as they were.
+    func tableModel(_ other:TableLook)->SCNNode {
+        let savedLook=look,savedTint=clothTintIndex,savedBed=bedMaterial
+        look=other;clothTintIndex=nil
+        let old=Set(scene.rootNode.childNodes.map{ObjectIdentifier($0)})
+        buildTable(tableRails)
+        let holder=SCNNode()
+        for node in scene.rootNode.childNodes where !old.contains(ObjectIdentifier(node)){node.removeFromParentNode();holder.addChildNode(node)}
+        holder.enumerateHierarchy{node,_ in node.castsShadow=false}
+        look=savedLook;clothTintIndex=savedTint;bedMaterial=savedBed
+        return holder
+    }
+    /// Light rig + environment of the library preview, around any table node.
+    func tableStudio(_ node:SCNNode)->SCNScene {
+        let p=SCNScene();p.background.contents=UIColor(red:0.04,green:0.05,blue:0.06,alpha:1)
+        p.lightingEnvironment.contents=environment;p.lightingEnvironment.intensity=0.6
+        p.rootNode.addChildNode(node)
+        let l=SCNNode();l.light=SCNLight();l.light?.type = .omni;l.light?.intensity=80;l.position=SCNVector3(0,2.8,0);p.rootNode.addChildNode(l)
+        let fill=SCNNode();fill.light=SCNLight();fill.light?.type = .ambient;fill.light?.intensity=250;p.rootNode.addChildNode(fill)
+        return p
     }
     func tablePreviewScene()->SCNScene {
         let p=SCNScene();p.background.contents=UIColor(red:0.04,green:0.05,blue:0.06,alpha:1)

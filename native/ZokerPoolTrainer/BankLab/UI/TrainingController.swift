@@ -370,7 +370,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 tryShoot(120)
             }
             if args.contains("--premium-qa") {
-                table.setClothColor(nil);table.selectTable(TableLook.all.first{$0.id=="allenton"}!);table.camera.camera?.exposureOffset = -0.8
+                table.setClothColor(nil);table.selectTable(TableLook.look("heritage-1"));table.camera.camera?.exposureOffset = -0.8
                 if args.contains("--premium-high"){table.quality(true);scn.antialiasingMode = .multisampling4X}
             }
             if args.contains("--perf-qa"){startPerfQA()}   // 0.44-mm
@@ -379,6 +379,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 guard let self=self else{return};self.coaching=true;self.cardOn=true;self.loadDrill(Drill.startup);self.showCoach(self.drillBrief(Drill.all[Drill.startup]))}}
             if args.contains("--cue-look-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startCueLookQA()}}   // 0.44.1 M3 stills
             if args.contains("--wall-photo-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startWallPhotoQA()}}   // 0.44.1 M2
+            if args.contains("--table-family-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startTableFamilyQA()}}   // 0.46 M3
             if args.contains("--nearby-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+(args.contains("--lan-host-qa") ? 6:2)){[weak self] in self?.openNearbyLobby(tab:args.contains("--lan-host-qa") ? 0:1)}}   // 0.44-mm Nearby Play screen (QA guest opens Tìm phòng)
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}
             if args.contains("--ux018-match-rotation-qa"){startMatch(rule:"rotation15",network:false)}
@@ -451,14 +452,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if args.contains("--camera-top"){table.cameraMode=1;cameraButton.configuration?.title="Trên cao"}
             if args.contains("--camera-aim"){table.cameraMode=2;cameraButton.configuration?.title="Ngắm cơ"}
             if args.contains("--camera-orbit-qa"){table.cameraMode=0;table.orbit=0.62;table.zoom=1.35}
-            if args.contains("--table-arc"){table.selectTable(TableLook.all.first{$0.id=="arc"}!);table.cameraMode=0}
+            if args.contains("--table-arc"){table.selectTable(TableLook.look("arena-3"));table.cameraMode=0}
             // 0.34: screenshot gates measure GREEN cloth pixels; keep the legacy green table + classic club for every QA
             // shot except the explicit Z-Max / space shots (those use a brightness gate in ci_screenshots.sh).
             let spaceShot=(0..<TableScene.spaces.count).first{args.contains("--camera-space-\($0)")}
-            if args.contains("--visual-qa") && !args.contains("--table-zmax") && spaceShot==nil {table.selectTable(TableLook.all.first{$0.id=="allenton"}!);table.selectSpace(6)}
+            if args.contains("--visual-qa") && !args.contains("--table-zmax") && spaceShot==nil {table.selectTable(TableLook.look("heritage-1"));table.selectSpace(6)}
             if let k=spaceShot{table.selectSpace(k);table.cameraMode=0}
             if args.contains("--table-zmax"){table.selectTable(TableLook.all[0]);table.selectSpace(0);table.cameraMode=0}
-            if args.contains("--table-classic"){table.selectTable(TableLook.all.first{$0.id=="allenton"}!);table.cameraMode=0}
+            if args.contains("--table-classic"){table.selectTable(TableLook.look("heritage-1"));table.cameraMode=0}
             if args.contains("--jump-qa"){chooseRole(1)}
             if args.contains("--cue-library-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+1){[weak self]in self?.openLibrary(initialTab:1)}}
             if args.contains("--calibration-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+1){[weak self]in self?.settings()}}

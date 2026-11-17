@@ -1,45 +1,76 @@
 import UIKit
 import SceneKit
 
+/// 0.46 M3: four parametric table families (geometry built in code, Rendering/TableFamily046.swift). The playing bed,
+/// rails, pockets and sights are the same 9 ft WPA bed for every family — physics does not change with the look.
+enum TableFamily:Int,CaseIterable {
+    case arena,heritage,loft,club
+    /// Family name (Zoker names only; the owner may rename them).
+    var name:String {["Z-Arena","Z-Heritage","Z-Loft","Z-Club"][rawValue]}
+    /// Leg shape: 0 square box legs · 1 turned round legs · 2 steel tube A-frames · 3 twin pedestals.
+    var leg:Int {rawValue}
+    /// Cabinet finish: 0 flat matte · 1 satin wood · 2 satin wood, rounded edges · 3 deep lacquered wood.
+    var finish:Int {rawValue}
+    /// Skirt edge radius (m): flat for Arena, generous round-over for Loft.
+    var edgeRadius:CGFloat {[0.003,0.010,0.022,0.012][rawValue]}
+    /// Corner caps: 0 none · 1 metal caps (Arena) · 2 wood corner blocks (Heritage, Club).
+    var cornerCaps:Int {[1,2,0,2][rawValue]}
+    /// Simple carved bead along the skirt foot (Heritage, Club).
+    var bead:Bool {self == .heritage || self == .club}
+}
 struct TableLook {
-    let id:String,name:String,base:Int
+    let id:String,name:String,family:TableFamily
     let cabinet:UInt32,cloth:UInt32,trim:UInt32
     let wood:Bool
     var title:String {name}
-    // 0.44.1 (review: store-review risk): one Zoker name per table, no maker codes, no maker links in the app (the
-    // reference list stays in Docs/NGUON-MAU-BAN-CO.md). `id` unchanged so saved choices survive. "Z-Max Pro" = the
-    // owner's reference club table (black cabinet, silver-grey cloth, brushed aluminium caps) and the default.
+    /// 4 families × 3 colourways = 12 choices. Colourway 1 of each family is its reference look.
     static let all:[TableLook] = [
-        .init(id:"zmax",name:"Z-Max Pro 9 ft",base:0,cabinet:0x0e0f11,cloth:0x6e767d,trim:0xc4c9cd,wood:false),
-        .init(id:"apex",name:"Z-Onyx Pro",base:0,cabinet:0x20252b,cloth:0x237f92,trim:0xb8bec3,wood:false),
-        .init(id:"arc",name:"Z-Onyx Wave",base:4,cabinet:0xe2ddd2,cloth:0x377a8e,trim:0x41494d,wood:false),
-        .init(id:"gc7",name:"Z-Regent 7",base:1,cabinet:0x67513e,cloth:0x267e84,trim:0xc3c4c1,wood:true),
-        .init(id:"gc6",name:"Z-Regent 6",base:1,cabinet:0x71462c,cloth:0x287d67,trim:0xb4b8ba,wood:true),
-        .init(id:"blackwolf",name:"Z-Night",base:0,cabinet:0x28282a,cloth:0x2e728d,trim:0x55595c,wood:false),
-        .init(id:"blackwolfpro",name:"Z-Night Pro",base:0,cabinet:0x181e24,cloth:0x277f91,trim:0x9dabb0,wood:false),
-        .init(id:"allenton",name:"Z-Manor",base:2,cabinet:0x482615,cloth:0x12695D,trim:0xEAC583,wood:true),
-        .init(id:"glenwood",name:"Z-Lodge",base:5,cabinet:0x7b5032,cloth:0x80504b,trim:0xa88d60,wood:true),
-        .init(id:"oakland",name:"Z-Oak II",base:2,cabinet:0x503728,cloth:0x366c5a,trim:0x998b70,wood:true),
-        .init(id:"sanibel",name:"Z-Coast",base:3,cabinet:0x9b8a71,cloth:0x67858b,trim:0x494744,wood:true),
-        .init(id:"canton",name:"Z-Loft",base:3,cabinet:0x6e4933,cloth:0x3e6b75,trim:0x343231,wood:true),
-        .init(id:"botanic",name:"Z-Garden",base:5,cabinet:0x776951,cloth:0x526d57,trim:0x494940,wood:true),
-        .init(id:"proam",name:"Z-Arena",base:0,cabinet:0x493127,cloth:0x267ca1,trim:0x8a6f49,wood:true),
-        .init(id:"professional",name:"Z-Arena Classic",base:2,cabinet:0x604332,cloth:0x29864c,trim:0xa08c6c,wood:true),
-        .init(id:"smart",name:"Z-Arena Lite",base:0,cabinet:0x24282d,cloth:0x297e9c,trim:0x72777a,wood:false),
-        .init(id:"ox",name:"Z-Titan",base:3,cabinet:0x25282e,cloth:0x287b94,trim:0x8b949a,wood:false),
-        .init(id:"victory",name:"Z-Vanguard II",base:4,cabinet:0xd4d7d5,cloth:0x33828e,trim:0x60686d,wood:false),
-        .init(id:"acurra",name:"Z-Vector",base:3,cabinet:0x33383d,cloth:0x377f99,trim:0xbdc2c6,wood:false),
-        .init(id:"tournament",name:"Z-Tour Pro",base:4,cabinet:0x38332f,cloth:0x2d7d96,trim:0x94918a,wood:false),
-        .init(id:"champion",name:"Z-Grand III",base:1,cabinet:0x775136,cloth:0x31795b,trim:0xaaa49c,wood:true),
-        // 0.35: bar-box bodies (solid cabinet to the floor, coin door) — Zoker designs; the bed stays the 9 ft physics bed.
-        .init(id:"zbar",name:"Z-Bar Classic · mặt 9 ft",base:6,cabinet:0x1b1d20,cloth:0x7a2529,trim:0xb9bdc1,wood:false),
-        .init(id:"zbaroak",name:"Z-Bar Oak · mặt 9 ft",base:6,cabinet:0x6a4a30,cloth:0x2f6e4a,trim:0xc8b27a,wood:true),
-        .init(id:"zbarpro",name:"Z-Bar Pro · mặt 9 ft",base:6,cabinet:0x26292e,cloth:0x2a6fa8,trim:0x9aa3aa,wood:false),
+        .init(id:"arena-1",name:"Z-Arena · Graphite",family:.arena,cabinet:0x0e0f11,cloth:0x6e767d,trim:0xc4c9cd,wood:false),
+        .init(id:"arena-2",name:"Z-Arena · Tour Blue",family:.arena,cabinet:0x181e24,cloth:0x277f91,trim:0x9dabb0,wood:false),
+        .init(id:"arena-3",name:"Z-Arena · Ice",family:.arena,cabinet:0xd4d7d5,cloth:0x33828e,trim:0x60686d,wood:false),
+        .init(id:"heritage-1",name:"Z-Heritage · Walnut",family:.heritage,cabinet:0x482615,cloth:0x12695D,trim:0xEAC583,wood:true),
+        .init(id:"heritage-2",name:"Z-Heritage · Wine",family:.heritage,cabinet:0x7b5032,cloth:0x80504b,trim:0xa88d60,wood:true),
+        .init(id:"heritage-3",name:"Z-Heritage · Teal",family:.heritage,cabinet:0x67513e,cloth:0x267e84,trim:0xc3c4c1,wood:true),
+        .init(id:"loft-1",name:"Z-Loft · Maple",family:.loft,cabinet:0xc9a77c,cloth:0x3e6b75,trim:0x343231,wood:true),
+        .init(id:"loft-2",name:"Z-Loft · Ash",family:.loft,cabinet:0xb3a68f,cloth:0x67858b,trim:0x494744,wood:true),
+        .init(id:"loft-3",name:"Z-Loft · Sage",family:.loft,cabinet:0xb59c78,cloth:0x526d57,trim:0x494940,wood:true),
+        .init(id:"club-1",name:"Z-Club · Green",family:.club,cabinet:0x3a2416,cloth:0x29864c,trim:0xa08c6c,wood:true),
+        .init(id:"club-2",name:"Z-Club · Blue",family:.club,cabinet:0x493127,cloth:0x267ca1,trim:0x8a6f49,wood:true),
+        .init(id:"club-3",name:"Z-Club · Red",family:.club,cabinet:0x3d2a1e,cloth:0x7a2529,trim:0xc8b27a,wood:true),
     ]
+    static let defaultID="arena-1"   // = the old Z-Max Pro reference (black cabinet, silver-grey cloth)
+    /// Pre-0.46 saved ids → nearest family/colourway, keyed by FNV-1a 64 of the old id (the old ids carried maker
+    /// names, which stay out of the source; the readable list is in the 0.46 acceptance notes). 24 old ids.
+    static let legacy:[UInt64:String] = [
+        0xDD108F61104B2C91:"arena-1",0x7708E18434236F21:"arena-2",0xE756C2190570D01B:"arena-3",0xD4E92418FAB02D98:"heritage-3",
+        0xD4E92518FAB02F4B:"heritage-1",0x9C9B4769986442B4:"arena-2",0x24397F3F955CD3CF:"arena-2",0x16CE617114486E14:"heritage-1",
+        0xF41A5E801E10E3C0:"heritage-2",0xEF0755FA3F04E1BB:"club-1",0xB090679650F66AEB:"loft-2",0xA58AE1AA7FC9FE5E:"loft-1",
+        0x30B96FDEEE2CEC29:"loft-3",0xF972A9246DAEA6E2:"club-2",0x4D516E040DE6B362:"club-1",0x7D2FED72E064FFD2:"arena-2",
+        0x08B04E07B5565272:"arena-1",0xE939079CC62192B5:"arena-3",0xF047BA0509D1613F:"arena-1",0x9790B416E6ED10B2:"arena-1",
+        0xC198EAE4B3AD0746:"heritage-1",0x5C6BF26157B3C2D2:"club-3",0xE78B3E499D2E84FB:"club-1",0xFD04EF4918297FA9:"club-2",
+    ]
+    static func fnv1a(_ s:String)->UInt64 {
+        var h:UInt64=0xcbf29ce484222325
+        for b in s.utf8 {h ^= UInt64(b);h = h &* 0x100000001b3}
+        return h
+    }
+    /// Current id for any saved id (new ids pass through, old ids map to their family, unknown → nil).
+    static func resolve(_ id:String?)->String? {
+        guard let id=id else{return nil}
+        if all.contains(where:{$0.id==id}) {return id}
+        return legacy[fnv1a(id)]
+    }
+    static func look(_ id:String)->TableLook {all.first{$0.id==(resolve(id) ?? defaultID)} ?? all[0]}
+    /// Colourway 1 of a family (QA stills, the family icon).
+    static func reference(_ f:TableFamily)->TableLook {all.first{$0.family==f} ?? all[0]}
     static var selected:TableLook {
+        let d=UserDefaults.standard
         // 0.34: make the owner's reference table the default once, then respect later choices
-        if !UserDefaults.standard.bool(forKey:"tableDefault034"){UserDefaults.standard.set(true,forKey:"tableDefault034");UserDefaults.standard.set("zmax",forKey:"tableLook015")}
-        return all.first{$0.id==UserDefaults.standard.string(forKey:"tableLook015")} ?? all[0]
+        if !d.bool(forKey:"tableDefault034"){d.set(true,forKey:"tableDefault034");d.set(defaultID,forKey:"tableLook015")}
+        let saved=d.string(forKey:"tableLook015")
+        let id=resolve(saved) ?? defaultID
+        if saved != id {d.set(id,forKey:"tableLook015")}   // 0.46: migrate an old saved id once
+        return look(id)
     }
 }
 struct CueLook {
@@ -124,11 +155,18 @@ enum CueBag {
 extension UIColor {
     static func rgb(_ hex:UInt32)->UIColor {UIColor(red:CGFloat((hex>>16)&255)/255,green:CGFloat((hex>>8)&255)/255,blue:CGFloat(hex&255)/255,alpha:1)}
 }
-final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UITableViewDelegate {
+final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UITableViewDelegate,UICollectionViewDataSource,UICollectionViewDelegate {
     var changed:((Int?)->Void)?
     var initialTab=0
     private let table:TableScene
     private let list=UITableView(frame:.zero,style:.insetGrouped),preview=SCNView(),note=UILabel()
+    /// 0.46 M3: the 12 tables as a grid of icons rendered from the 3D table (TableIcon046), one per run-loop turn.
+    private let grid:UICollectionView={
+        let l=UICollectionViewFlowLayout();l.itemSize=CGSize(width:TableGridCell.icon.width+8,height:TableGridCell.icon.height+30)
+        l.minimumInteritemSpacing=8;l.minimumLineSpacing=10;l.sectionInset=UIEdgeInsets(top:6,left:10,bottom:10,right:10)
+        return UICollectionView(frame:.zero,collectionViewLayout:l)
+    }()
+    private var iconQueue:[Int]=[],rendering=false
     private let tabs=UISegmentedControl(items:["\(TableLook.all.count) bàn","\(CueLook.all.count) cơ","3 bao cơ"])
     private var chosenCue=CueBag.cue(0)
     init(table:TableScene){self.table=table;super.init(nibName:nil,bundle:nil)}
@@ -143,39 +181,69 @@ final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UI
         let bar=UINavigationBarAppearance();bar.configureWithOpaqueBackground();bar.backgroundColor = .ink;bar.titleTextAttributes=[.foregroundColor:UIColor.white]
         navigationController?.navigationBar.standardAppearance=bar;navigationController?.navigationBar.scrollEdgeAppearance=bar;navigationController?.navigationBar.compactAppearance=bar
         tabs.selectedSegmentIndex=initialTab;tabs.addAction(UIAction{[weak self]_ in self?.refresh()},for:.valueChanged)
-        for v in [tabs,list,preview,note]{v.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(v)}
+        for v in [tabs,list,grid,preview,note]{v.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(v)}
+        grid.dataSource=self;grid.delegate=self;grid.backgroundColor = .clear;grid.register(TableGridCell.self,forCellWithReuseIdentifier:"t")
+        grid.accessibilityIdentifier="table-library-grid"
         list.dataSource=self;list.delegate=self;list.backgroundColor = .clear
         preview.backgroundColor = .clear;preview.allowsCameraControl=true;preview.autoenablesDefaultLighting=false
         preview.antialiasingMode = .multisampling4X;preview.isPlaying=true
         note.numberOfLines=0;note.font = .systemFont(ofSize:11);note.textColor = .mint
         NSLayoutConstraint.activate([
             tabs.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),tabs.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),tabs.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-12),
+            grid.topAnchor.constraint(equalTo:list.topAnchor),grid.bottomAnchor.constraint(equalTo:list.bottomAnchor),grid.leadingAnchor.constraint(equalTo:list.leadingAnchor),grid.trailingAnchor.constraint(equalTo:list.trailingAnchor),
             list.topAnchor.constraint(equalTo:tabs.bottomAnchor,constant:8),list.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor),list.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor),list.widthAnchor.constraint(equalTo:view.widthAnchor,multiplier:0.47),
             preview.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor),preview.topAnchor.constraint(equalTo:tabs.bottomAnchor,constant:8),preview.trailingAnchor.constraint(equalTo:list.leadingAnchor),preview.bottomAnchor.constraint(equalTo:note.topAnchor,constant:-4),
             note.leadingAnchor.constraint(equalTo:preview.leadingAnchor,constant:12),note.trailingAnchor.constraint(equalTo:preview.trailingAnchor,constant:-10),note.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-8),note.heightAnchor.constraint(equalToConstant:62)])
         refresh()
     }
     private func refresh(){
-        list.reloadData()
+        list.reloadData();grid.reloadData()
+        list.isHidden=tabs.selectedSegmentIndex==0;grid.isHidden = !list.isHidden
         if tabs.selectedSegmentIndex==0 {
             preview.scene=table.tablePreviewScene()
-            note.text=TableLook.selected.title+"\nDựng tham khảo · xoay để xem. Tất cả dùng sân tập 9 ft; hình học và thông số hãng chưa được tái tạo chính xác."
+            // 0.46 M3: the bed is the 9 ft WPA bed (TableSizes.h). 8 ft / 7 ft need a rail + pocket mesh per size and the
+            // size in the physics Config — not wired yet, so they are not offered (no half-size table).
+            let size=BLTableDefaultSize(),len=String(format:"%.2f",BLTableLength(size)),wid=String(format:"%.2f",BLTableWidth(size))
+            note.text=TableLook.selected.title+"\n"+"Mặt chơi 9 ft · \(len) × \(wid) m (WPA) · xoay để xem"+"\n"+"Cỡ 8 ft và 7 ft: bản sau"
         }else{
             preview.scene=table.cuePreviewScene()
             note.text="Bao \(CueBag.names[CueBag.active]) · chọn cơ để đưa vào đúng ngăn Đánh / Jump / Phá.\nMẫu dựng tham khảo; vật lý dùng ba cấu hình chung của Zoker."
         }
     }
-    func tableView(_ tableView:UITableView,numberOfRowsInSection section:Int)->Int {[TableLook.all.count,CueLook.all.count,CueBag.names.count][tabs.selectedSegmentIndex]}
+    func tableView(_ tableView:UITableView,numberOfRowsInSection section:Int)->Int {tabs.selectedSegmentIndex==0 ? 0:[TableLook.all.count,CueLook.all.count,CueBag.names.count][tabs.selectedSegmentIndex]}
+    func collectionView(_ collectionView:UICollectionView,numberOfItemsInSection section:Int)->Int {tabs.selectedSegmentIndex==0 ? TableLook.all.count:0}
+    func collectionView(_ collectionView:UICollectionView,cellForItemAt indexPath:IndexPath)->UICollectionViewCell {
+        let cell=collectionView.dequeueReusableCell(withReuseIdentifier:"t",for:indexPath) as! TableGridCell
+        let item=TableLook.all[indexPath.item]
+        let icon=TableIcon046.cached(item,size:TableGridCell.icon)
+        if icon==nil {enqueueIcon(indexPath.item)}
+        cell.show(item,image:icon ?? tableIcon(item),chosen:item.id==TableLook.selected.id)
+        return cell
+    }
+    func collectionView(_ collectionView:UICollectionView,didSelectItemAt indexPath:IndexPath){
+        let look=TableLook.all[indexPath.item];UserDefaults.standard.set(look.id,forKey:"tableLook015");table.selectTable(look);changed?(nil)
+        refresh()
+    }
+    private func enqueueIcon(_ i:Int){if !iconQueue.contains(i){iconQueue.append(i)};pumpIcons()}
+    /// Renders one missing icon per main-queue turn (first open only; later opens read Caches).
+    private func pumpIcons(){
+        guard !rendering,!iconQueue.isEmpty else{return}
+        rendering=true
+        DispatchQueue.main.async{[weak self] in
+            guard let self=self else{return}
+            let k=self.iconQueue.removeFirst()
+            if TableIcon046.image(TableLook.all[k],table:self.table,size:TableGridCell.icon) != nil,self.tabs.selectedSegmentIndex==0 {
+                self.grid.reloadItems(at:[IndexPath(item:k,section:0)])
+            }
+            self.rendering=false;self.pumpIcons()
+        }
+    }
     func tableView(_ tableView:UITableView,cellForRowAt indexPath:IndexPath)->UITableViewCell {
         let cell=UITableViewCell(style:.subtitle,reuseIdentifier:nil);cell.backgroundColor=UIColor(white:0.12,alpha:1)
         cell.textLabel?.textColor = .white;cell.detailTextLabel?.textColor = .mint;cell.textLabel?.font = .systemFont(ofSize:13,weight:.medium)
         cell.detailTextLabel?.font = .systemFont(ofSize:11);cell.detailTextLabel?.numberOfLines=2
         let i=indexPath.row
-        if tabs.selectedSegmentIndex==0 {
-            let item=TableLook.all[i];cell.textLabel?.text=item.title
-            cell.detailTextLabel?.text="Bản dựng tham khảo · xem 3D";cell.imageView?.image=tableIcon(item)
-            cell.accessoryType=item.id==TableLook.selected.id ? .checkmark:.none
-        }else if tabs.selectedSegmentIndex==1 {
+        if tabs.selectedSegmentIndex==1 {
             let item=CueLook.all[i];cell.textLabel?.text=item.title+(item.code.isEmpty ? "":" · in "+item.printed)
             cell.detailTextLabel?.text=CueLook.roles[item.role]+" · chạm để mang vào bao "+CueBag.names[CueBag.active]+" (ngăn "+CueLook.roles[item.role]+")"
             cell.accessoryType=CueBag.cue(item.role).id==item.id ? .checkmark:.none
@@ -187,8 +255,7 @@ final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UI
     }
     func tableView(_ tableView:UITableView,didSelectRowAt indexPath:IndexPath){
         let i=indexPath.row
-        if tabs.selectedSegmentIndex==0 {let look=TableLook.all[i];UserDefaults.standard.set(look.id,forKey:"tableLook015");table.selectTable(look);changed?(nil)}
-        else if tabs.selectedSegmentIndex==1 {chosenCue=CueLook.all[i];CueBag.put(chosenCue);table.selectCue(chosenCue.role);changed?(chosenCue.role)}
+        if tabs.selectedSegmentIndex==1 {chosenCue=CueLook.all[i];CueBag.put(chosenCue);table.selectCue(chosenCue.role);changed?(chosenCue.role)}
         else {CueBag.active=i;table.selectCue(0);changed?(0)}
         refresh()
     }
@@ -200,4 +267,27 @@ final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UI
         }
     }
     @objc private func close(){preview.isPlaying=false;dismiss(animated:true)}
+}
+/// 0.46 M3: one table in the library grid — 3D icon, family · colourway name, mint frame when chosen.
+final class TableGridCell:UICollectionViewCell {
+    static let icon=CGSize(width:150,height:92)
+    private let picture=UIImageView(),name=UILabel()
+    override init(frame:CGRect){
+        super.init(frame:frame)
+        contentView.backgroundColor=UIColor(white:0.12,alpha:1);contentView.layer.cornerRadius=8;contentView.layer.masksToBounds=true
+        picture.contentMode = .scaleAspectFill;picture.clipsToBounds=true;picture.layer.cornerRadius=6
+        name.font = .systemFont(ofSize:11,weight:.medium);name.textColor = .white;name.textAlignment = .center;name.adjustsFontSizeToFitWidth=true;name.minimumScaleFactor=0.7
+        for v in [picture,name]{v.translatesAutoresizingMaskIntoConstraints=false;contentView.addSubview(v)}
+        NSLayoutConstraint.activate([
+            picture.topAnchor.constraint(equalTo:contentView.topAnchor,constant:4),picture.centerXAnchor.constraint(equalTo:contentView.centerXAnchor),
+            picture.widthAnchor.constraint(equalToConstant:Self.icon.width),picture.heightAnchor.constraint(equalToConstant:Self.icon.height),
+            name.topAnchor.constraint(equalTo:picture.bottomAnchor,constant:4),name.leadingAnchor.constraint(equalTo:contentView.leadingAnchor,constant:4),
+            name.trailingAnchor.constraint(equalTo:contentView.trailingAnchor,constant:-4)])
+    }
+    required init?(coder:NSCoder){fatalError()}
+    func show(_ look:TableLook,image:UIImage,chosen:Bool){
+        picture.image=image;name.text=look.title;accessibilityLabel=look.title;isAccessibilityElement=true
+        accessibilityTraits=chosen ? [.button,.selected]:.button
+        contentView.layer.borderWidth=chosen ? 2:0;contentView.layer.borderColor=UIColor.mint.cgColor
+    }
 }
