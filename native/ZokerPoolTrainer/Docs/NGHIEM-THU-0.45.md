@@ -38,3 +38,12 @@ thể (sửa + test, 15 kiểm tra) · `renderPass` không giới hạn (sửa).
 - Đo trên máy ProMotion: bảng "Nhịp hiển thị cú vừa đánh" ở 120 Hz (có thêm "Lượt vẽ SceneKit"); thử bật `tuneFrameRange045`.
 - Quyết: có tách `MatchPlayController.swift` (1.851 dòng) không.
 - Simulator: có thể cần khởi động lại Mac để CoreSimulatorService chạy lại.
+
+## Lỗi chặn CI 158 (review 18/11 00:29) — đã sửa
+`testFirstLaunchTutorialFromLobbyAimThenStroke` hỏng trên CI 158: thấy `hint-replay` thay vì nhịp 2. Nguyên nhân: cờ QA tự bắn cú 1,5 s
+sau khi nhịp 2 hiện; runner chậm thấy trạng thái đã sang `potted`/`hint-replay` giữa hai lần hỏi (người chơi thật không tự bắn nên
+vẫn thấy nhịp 2). Sửa (`6a21e7a` trên 0.45, cherry-pick sang 0.46 `bc04ca5`, 0.47 `27ad021`): gợi ý theo ngữ cảnh không bao giờ hiện
+khi hướng dẫn 2 nhịp chưa xong; app ghi lịch sử trạng thái (`tutLog`); test kiểm thứ tự `aim → stroke → potted/retry` và không có
+gợi ý giữa nhịp 1 và nhịp 2. Build-for-testing PASS cả 3 nhánh. Chạy test trên Mac: **không tin cậy** — Simulator tự lên lại lúc
+~02:30 nhưng quá tải (1 lần chạy 70 phút, kẹt ở bước ngắm), rồi treo khi cài app. ⇒ **NOT RUN** đúng nghĩa; cần CI hoặc Mac khởi
+động lại. `accept_local.sh` đầy đủ cho 0.45: **NOT RUN** vì cùng lý do.
