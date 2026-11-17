@@ -11,7 +11,7 @@ on:
       runner:
         description: Máy Mac (khi macos-15 Apple Silicon hết chỗ, chọn macos-15-intel)
         type: choice
-        options: [macos-15, macos-15-intel]
+        options: [macos-15, macos-15-intel, macos-26]
         default: macos-15
 permissions:
   contents: read
@@ -70,8 +70,17 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Chọn Xcode 16.4
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app && xcodebuild -version
+      - name: Chọn Xcode 26 (App Store yêu cầu SDK iOS 26 từ 28/4/2026)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode_26*.app 2>/dev/null || true
+          xc=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i -E 'beta|release_candidate' | sort -V | tail -1 || true)
+          if [ -z "$xc" ]; then echo "::error::Máy chạy không có Xcode 26"; exit 1; fi
+          sudo xcode-select -s "$xc"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun simctl list runtimes | grep -i ios || true
       - name: Thư viện sinh tài nguyên
         run: python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
       - name: Xuất IPA ứng viên trước nghiệm thu
