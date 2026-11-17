@@ -2,6 +2,9 @@
 // Logic lives in BankLab/UI/DailyLoop.h (plain C, shared with Swift through the bridging header).
 #include "../BankLab/UI/DailyLoop.h"
 #include "../BankLab/UI/PowerScale.h"
+#include "../BankLab/UI/Challenge.h"
+#include <cstring>
+#include <string>
 #include <cmath>
 #include <iostream>
 #include <set>
@@ -143,6 +146,47 @@ int main() {
     check(BLIsNewRecord(1, 0.8, 0.85, 1, 0.001) && !BLIsNewRecord(1, 0.8, 0.7, 1, 0.001), "higher is better");
     check(BLIsNewRecord(1, 42.0, 39.5, 0, 0.05) && !BLIsNewRecord(1, 42.0, 43.0, 0, 0.05), "time: lower is better");
     check(!BLIsNewRecord(1, NAN, 1, 1, 0) && !BLIsNewRecord(1, 1, INFINITY, 1, 0), "non-finite never a record");
+
+    // ---- 0.47 M5 feedback fading
+    check(BLFeedbackLevel(1, 2, 0) == BL_FEEDBACK_FULL && BLFeedbackLevel(2, 1, 0) == BL_FEEDBACK_FULL, "beginners get full feedback");
+    check(BLFeedbackLevel(4, 4, 0) == BL_FEEDBACK_FULL && BLFeedbackLevel(5, 5, 0) == BL_FEEDBACK_FULL, "hard drills keep full feedback");
+    check(BLFeedbackLevel(3, 3, 0) == BL_FEEDBACK_SUMMARY && BLFeedbackLevel(5, 1, 0) == BL_FEEDBACK_SUMMARY, "skilled player on easy drill: summary");
+    check(BLFeedbackLevel(1, 5, 1) == BL_FEEDBACK_NONE, "weekly test: no feedback, whatever the level");
+    {
+        int due = 0; for (int s = 1; s <= 12; ++s) due += BLFeedbackSummaryDue(BL_FEEDBACK_SUMMARY, s, s == 12);
+        check(due == 3, "summary after shots 5, 10 and the last (12)");
+        check(!BLFeedbackSummaryDue(BL_FEEDBACK_FULL, 5, 0) && !BLFeedbackSummaryDue(BL_FEEDBACK_NONE, 5, 1) && !BLFeedbackSummaryDue(BL_FEEDBACK_SUMMARY, 0, 1), "summary only in summary mode");
+    }
+
+    // ---- 0.47 M6 challenge code
+    {
+        char code[9];
+        check(BLChallengeEncode(17, 3001, 80, code) == 1 && std::strlen(code) == 8, "8 characters");
+        int32_t d = -1, s = -1, p = -1;
+        check(BLChallengeDecode(code, &d, &s, &p) == 1 && d == 17 && s == 3001 && p == 80, "round trip");
+        std::string lower(code); for (auto &ch : lower) ch = (char)std::tolower((unsigned char)ch);
+        std::string dashed = lower.substr(0, 4) + "-" + lower.substr(4);
+        check(BLChallengeDecode(dashed.c_str(), &d, &s, &p) == 1 && d == 17, "lower case and a dash are accepted");
+        check(BLChallengeEncode(1024, 0, 0, code) == 0 && BLChallengeEncode(0, 4096, 0, code) == 0 && BLChallengeEncode(0, 0, 101, code) == 0 && BLChallengeEncode(0, 0, 0, nullptr) == 0, "out of range refused");
+        check(!BLChallengeDecode("ABCDEFG", &d, &s, &p) && !BLChallengeDecode("ABCDEFGHJ", &d, &s, &p) && !BLChallengeDecode("ABCD!FGH", &d, &s, &p) && !BLChallengeDecode(nullptr, &d, &s, &p), "wrong length or character refused");
+        // every single-character substitution of many codes must be rejected (or decode to the same values)
+        const char *alpha = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+        long variants = 0, slipped = 0, roundOk = 0, codes = 0;
+        for (int drill = 0; drill < 1024; drill += 37) for (int seed = 0; seed < 4096; seed += 911) for (int score = 0; score <= 100; score += 33) {
+            ++codes;
+            BLChallengeEncode(drill, seed, score, code);
+            int32_t dd, ss, pp;
+            if (BLChallengeDecode(code, &dd, &ss, &pp) && dd == drill && ss == seed && pp == score) ++roundOk;
+            for (int i = 0; i < 8; ++i) for (int k = 0; k < 32; ++k) {
+                if (alpha[k] == code[i]) continue;
+                char m[9]; std::memcpy(m, code, 9); m[i] = alpha[k]; ++variants;
+                if (BLChallengeDecode(m, &dd, &ss, &pp)) ++slipped;
+            }
+        }
+        check(roundOk == codes, "every sampled code round-trips");
+        std::cout << "  challenge: " << codes << " codes, " << variants << " one-character typos, " << slipped << " accepted\n";
+        check(slipped == 0, "CRC-9: every one-character typo is rejected");
+    }
 
     if (fails) { std::cerr << "FAIL DailyLoop: " << fails << "/" << checks << "\n"; return 1; }
     std::cout << "PASS DailyLoop: " << checks << " checks\n";
