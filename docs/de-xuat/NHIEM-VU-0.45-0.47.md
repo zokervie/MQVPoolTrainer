@@ -69,6 +69,16 @@ Gấp đôi tần số mà cảnh 3D chậm ~100 lần ⇒ nhiều khả năng l
 - Nhánh rác `thu/realitykit` (không đẩy vào nhánh bản): dựng bàn 9 ft + 16 bi + đèn + nỉ bằng RealityKit, chạy cùng dữ liệu cú ghi sẵn, đo ms/khung trên Simulator và Mac.
 - Ghi `Docs/THU-REALITYKIT.md`: hơn/kém SceneKit ở mức khung, chất lượng hình, công sức chuyển. **Không chuyển engine trong 0.45–0.47.**
 
+### M5 — Dữ liệu người chơi, luồng khởi động, số liệu cục bộ (thêm 17/11 20:45 sau kiểm tra kiến trúc)
+Kiểm tra kiến trúc (VERIFIED trên `cho/native-0.44.1`): tiến bộ của người chơi chỉ là một từ điển sao `lessonStars035` gắn theo **tiêu đề tiếng Việt** (`UI/Models.swift`), không có lịch sử lượt tập; 81 khoá UserDefaults rải rác; 56 chỗ `DispatchQueue.main.asyncAfter` dùng hẹn giờ để nối các bước (đúng loại lỗi làm intro/hướng dẫn hỏng); 50 cờ QA trong bản phát hành. 0.47 không xây được vòng hằng ngày trên nền này.
+1. `PlayerStore` (một file JSON có `schemaVersion` trong Application Support, ghi nguyên tử, đọc lỗi thì giữ bản sao `.bak`): lượt tập (mã bài ổn định, thời điểm, ngày địa phương, vào/trượt, sao, thời gian), chuỗi ngày (`BLStreak`), cấp độ, kỷ lục. Một nơi duy nhất ghi; giao diện chỉ đọc.
+2. **Mã bài ổn định**: mỗi `Drill` có `id` chuỗi không đổi (ví dụ `cut-30-l2`); chuyển `lessonStars035` theo tiêu đề sang id một lần khi mở app (test chuyển đổi: dữ liệu cũ vẫn còn đủ sao).
+3. `AppFlow`: máy trạng thái khởi động `intro → sảnh → (hướng dẫn nếu chưa xong) → bàn`; mỗi bước báo xong bằng lời gọi, không hẹn giờ. Thay các `asyncAfter` của luồng khởi động và hướng dẫn; các chỗ còn lại ghi danh sách để dọn dần.
+4. `Prefs`: gom mọi khoá UserDefaults vào một enum (giữ nguyên chuỗi khoá để không mất cài đặt).
+5. Số liệu cục bộ (không mạng): số ngày mở app, số phiên, số cú, số bài xong, ngày cài. Tuỳ chỉnh → Máy → "Sao chép số liệu sử dụng" để người thử tự gửi. Đây là cách đo D1/D7 cho bản thử.
+6. Cờ QA: nếu ảnh CI chụp từ bản Debug thì bọc mọi nhánh `--*-qa` bằng `#if DEBUG`; nếu không, ghi lại và để 0.48 (không sửa workflow).
+- Kiểm: test Swift cho PlayerStore (ghi/đọc, file hỏng → khôi phục `.bak`, chuyển dữ liệu sao cũ), XCTest khởi động đi qua `AppFlow` (cài mới → intro → sảnh → hướng dẫn → bàn) trên máy tiếng Việt.
+
 ---
 
 ## 0.46 "Diện mạo mới" — Sảnh, HUD, menu, bàn dựng lại
@@ -86,6 +96,8 @@ Dùng `ZDesign` của 0.45. Không đổi vật lý (trừ kích thước bàn �
 - Bộ chọn cơ (Đánh/Jump/Massé/Break) dùng icon 3D của 0.44.1 M3, không còn nhãn mã.
 - Menu trong trận còn 4 mục: Tiếp tục · Đổi bàn‑bi‑gậy · Tuỳ chỉnh · Về sảnh. Mục "Sao chép số đo cú vừa đánh" chuyển vào Tuỳ chỉnh → Máy (đã mở thẳng ở 0.44.1).
 - Không xoá chức năng đang chạy; chỉ đổi chỗ. Bảng "trước/sau" mọi chức năng trong nghiệm thu.
+- **Phòng thí nghiệm** (Tuỳ chỉnh → Máy, công tắc mặc định TẮT): gom thanh vật lý, ZUPE Lab, A/B, FPS/chẩn đoán, chọn engine âm. Tắt thì ẩn khỏi mọi menu. Người chơi thường không thấy công cụ kỹ sư.
+- Ngôn ngữ hiển thị trong bộ chọn: chỉ Tiếng Việt và English; 5 ngôn ngữ dịch máy chỉ hiện khi bật Phòng thí nghiệm (đến khi có người dịch).
 - Kiểm: XCTest cử chỉ cũ PASS (cập nhật định danh nếu đổi chỗ); đếm số chạm cho 5 việc chính (đánh cú, xem lại, lùi cú, đổi cơ, đổi camera) — không việc nào tăng.
 
 ### M3 — Bàn dựng lại theo họ kiểu dáng
@@ -114,6 +126,7 @@ Logic thuần (chọn bài, tính chuỗi, sao, kỷ lục) viết C++ + test; S
 
 ### M2 — Bài hôm nay + chuỗi ngày
 - Thẻ "Bài hôm nay" ở đầu Sảnh (trên "Tiếp tục"): 3 bài/ngày chọn theo hạt giống ngày + trình độ (từ kết quả 7 ngày gần nhất), 5–8 phút.
+- Dùng `BLDailyPickMixed` (lõi đã có ở `cho/native-0.47-core`) với loại bài (cắt, băng, đi bi, kick…): mỗi ngày xen kẽ các loại khác nhau — luyện xen kẽ giữ kỹ năng tốt hơn luyện khối.
 - Chuỗi ngày: hoàn thành ≥ 1 bài trong ngày (theo giờ địa phương) +1; **đóng băng chuỗi** 1 lần/tuần tự động dùng khi lỡ 1 ngày.
 - Kiểm: test C++ chuỗi qua đổi múi giờ, nửa đêm, lỡ 1 ngày (dùng đóng băng), lỡ 2 ngày (về 0), đổi giờ máy lùi (không cộng chuỗi).
 
@@ -127,6 +140,19 @@ Logic thuần (chọn bài, tính chuỗi, sao, kỷ lục) viết C++ + test; S
 - Dùng lại `ShotFX` của intro 0.44.1: bi lọt lỗ có tia sáng nhỏ ở miệng lỗ, rung nhẹ (haptic) theo lực, camera rung rất nhẹ khi phá bi mạnh (tắt được, tắt khi Reduce Motion).
 - Ngân sách: không làm "Cảnh 3D" p95 tăng quá 0,5 ms (đo bằng `run_perf_qa.sh`).
 - Kiểm: perf QA trước/sau; ảnh khoảnh khắc lọt lỗ.
+
+### M5 — Phản hồi giảm dần (cái làm app "hữu dụng" chứ không chỉ vui)
+Nghiên cứu học vận động: phản hồi kết quả sau MỌI lượt giúp làm tốt lúc tập nhưng giữ kỹ năng kém hơn (giả thuyết "dẫn dắt"), trừ với việc khó; luyện xen kẽ giữ tốt hơn luyện khối.
+- Cấp 1–2 hoặc bài 4–5 sao: sau mỗi cú trượt hiện đầy đủ "lệch bao nhiêu, vì sao" (như nay).
+- Cấp 3–5 với bài 1–3 sao: chỉ hiện vào/trượt; chi tiết gộp sau 5 cú ("trung bình lệch trái 0,6°"). Người chơi bấm "Xem chi tiết" vẫn xem được (không giấu).
+- Mỗi tuần một "Bài kiểm không trợ giúp" 10 cú, không phản hồi giữa chừng, kết quả cuối mới hiện; đây là số "tiến bộ thật" trên màn Tiến bộ.
+- Logic chọn mức phản hồi viết C++ + test (bảng cấp × sao → mức).
+
+### M6 — Thách bạn bằng mã (nếu còn thời gian; không cần máy chủ)
+- Sau một bài: "Thách bạn" tạo mã 8 ký tự (mã bài + hạt giống + điểm), chia sẻ qua bảng chia sẻ iOS kèm ảnh thẻ kết quả.
+- Bạn nhập mã (hoặc mở liên kết `zoker://` khi có) → chơi đúng bài đó → hai điểm hiện cạnh nhau.
+- Lý do: trong ba nhu cầu làm game cuốn (năng lực, tự chủ, gắn kết), app hiện chưa có gì cho "gắn kết".
+- Kiểm: test C++ mã hoá/giải mã, mã sai bị từ chối; XCTest nhập mã → đúng bài.
 
 ---
 
