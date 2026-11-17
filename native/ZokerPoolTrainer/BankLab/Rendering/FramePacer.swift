@@ -132,6 +132,7 @@ final class FramePacer: NSObject, SCNSceneRendererDelegate {
         lock.lock(); defer { lock.unlock() }
         guard measuring, willRenderAt > 0 else { return }
         measured.renderPass.append(CACurrentMediaTime() - willRenderAt); willRenderAt = 0
+        if measured.renderPass.count > 3600 { measured.renderPass.removeFirst(measured.renderPass.count - 3600) }
     }
 
     /// Shared with native tests using real SCNNodes (no mock interpolation).

@@ -3,8 +3,9 @@
 UIPanGestureRecognizer(minimumNumberOfTouches=2) và UIPinchGestureRecognizer chỉ thất bại khi nhấc tay,
 nên `pan.require(toFail: orbit|pinch)` làm kéo một ngón không bao giờ bắt đầu → không xoay được cơ."""
 import re, sys, pathlib
-src = pathlib.Path(__file__).resolve().parent.parent / "BankLab/UI/TrainingController.swift"
-text = src.read_text()
+ui = pathlib.Path(__file__).resolve().parent.parent / "BankLab/UI"
+# 0.45 M2: TrainingController is split into TC+*.swift extensions — check the whole controller.
+text = "\n".join(p.read_text() for p in [ui / "TrainingController.swift"] + sorted(ui.glob("TC+*.swift")))
 bad = re.findall(r"\bpan\.require\(toFail:\s*(orbit|pinch)\)", text)
 if bad:
     print(f"FAIL: pan ngắm đang chờ {bad} thất bại — kéo một ngón sẽ không xoay được cơ")

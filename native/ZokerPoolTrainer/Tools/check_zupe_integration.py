@@ -9,7 +9,7 @@ for ref in ids:
 assert 'A01000000000000000000002,' in project and 'A01000000000000000000004,' in project
 for file in ['BankLab/UI/ZupeLabController.swift','BankLab/ZupeLab/index.html']:
  assert (root/file).is_file()
-controller=(root/'BankLab/UI/TrainingController.swift').read_text()
+controller='\n'.join(p.read_text() for p in [root/'BankLab/UI/TrainingController.swift']+sorted((root/'BankLab/UI').glob('TC+*.swift')))   # 0.45 M2 split
 assert 'ZupeLabController()' in controller and 'ZUPE Lab · nghiên cứu' in controller
 native=(root/'BankLab/UI/ZupeLabController.swift').read_text()
 assert 'subdirectory: "ZupeLab"' in native and 'zupeExport' in native

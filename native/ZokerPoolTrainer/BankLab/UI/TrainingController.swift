@@ -26,7 +26,15 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// 0.44.1 M4: the new tutorial (Tutorial044.swift).
     var firstShotCoach:FirstShotCoach?
     var tutorialShots=0,freshTutorialDone=false,qaTutorialStrokeFired=false
-    var toastObservers:[NSKeyValueObservation]=[]   // 0.45 M3: ZToast pill follows the status label
+    var toastObservers:[NSKeyValueObservation]=[]
+    /// 0.45 M1 + review: the ONE place that sets the display link's rate (0.39c: set only on change). The 60–120 range
+    /// (ProMotion may hold 60 instead of dropping single 120 Hz frames) stays behind `tuneFrameRange045` (off) until
+    /// measured on the owner's device: SCNView still renders at a fixed rate, and a link/view mismatch is the 0.39 judder.
+    func setLinkRate(_ rate:Int){
+        let range=rate>60 && Tuning.flag("tuneFrameRange045",false) ? CAFrameRateRange(minimum:60,maximum:120,preferred:120)
+            :CAFrameRateRange(minimum:Float(rate),maximum:Float(rate),preferred:Float(rate))
+        if displayLink?.preferredFrameRateRange != range {displayLink?.preferredFrameRateRange=range}
+    }   // 0.45 M3: ZToast pill follows the status label
     /// 0.44.1 M5: the intro films on the play table — while it runs, the play loop leaves the balls and camera alone.
     var introRunning=false,introFinishCount=0,introStarted=false
     var intro:IntroDirector0441?
@@ -248,7 +256,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     func wakeRendering(){
         renderUntil=ProcessInfo.processInfo.systemUptime+0.4
         // 0.39c: never re-assign an unchanged rate — re-arming the link mid-shot can shift its phase by a frame.
-        if displayLink?.preferredFramesPerSecond != Tuning.frameRate {displayLink?.preferredFramesPerSecond=Tuning.frameRate}
+        setLinkRate(Tuning.frameRate)
         scn?.setNeedsDisplay()
     }
     /// 0.39b: a thermal change rebuilds shader variants (shadow taps, ball segments) = a visible stall; never mid-shot.
@@ -499,7 +507,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             self.powerFX.track(self.stroke.convert(p,to:self.powerFX),speed:v*Tuning.maxPower,forward:forward)}
         stroke.released={[weak self] fired in guard let self=self,!fired,self.locked else{return};self.setHold(false)}
         stroke.pullChanged={[weak self]p in self?.pull=p}
-        displayLink=CADisplayLink(target:self,selector:#selector(tick(_:)));displayLink?.preferredFramesPerSecond=60
+        displayLink=CADisplayLink(target:self,selector:#selector(tick(_:)));setLinkRate(60)
         displayLink?.add(to:.main,forMode:.common)
         NotificationCenter.default.addObserver(self,selector:#selector(resumed),name:UIApplication.willResignActiveNotification,object:nil)
     }

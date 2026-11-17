@@ -9,7 +9,8 @@ enum L10nDefault {
             let lower = tag.lowercased()
             if supported.contains(lower) { return lower }   // full tag first (review 0.45)
             let base = lower.split(whereSeparator: { $0 == "-" || $0 == "_" }).first.map(String.init) ?? lower
-            if base == "zh", lower.contains("hant") { continue }   // the app has Simplified only; Traditional → next / vi
+            let parts = lower.split(whereSeparator: { $0 == "-" || $0 == "_" })
+            if base == "zh", lower.contains("hant") || (!lower.contains("hans") && parts.contains(where: { ["tw", "hk", "mo"].contains(String($0)) })) { continue }   // the app has Simplified only; Traditional → next / vi
             if supported.contains(base) { return base }
             if base == "tl", supported.contains("fil") { return "fil" }   // Tagalog devices → Filipino
         }

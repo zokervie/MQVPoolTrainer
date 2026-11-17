@@ -572,7 +572,7 @@ extension TrainingController {
         notifyStatus(String(format:"Độ đều tay · %lld cú cùng thế: điểm dừng chụm ±%.1f cm · %@",n,rms,String(repeating:"★",count:stars)+String(repeating:"☆",count:5-stars)))
     }
     func notifyStatus(_ text:String){
-        statusLabel.text=text;statusToast.text="  "+text+"  ";statusToast.isHidden=false;view.bringSubviewToFront(statusToast)
+        statusLabel.text=text;statusToast.text="  "+text+"  ";view.bringSubviewToFront(statusToast);statusToast.isHidden=false   // 0.45 review: front first, the pill follows
         toastGeneration+=1;let generation=toastGeneration
         DispatchQueue.main.asyncAfter(deadline:.now()+3){[weak self] in guard let self=self,self.toastGeneration==generation else{return};self.statusToast.isHidden=true}
     }
@@ -648,7 +648,7 @@ extension TrainingController {
         if matchPlay.active {updateScoreboard()}
         if table.cameraMode==2 && !shotActive && replayIndex==nil {restoreAimCamera(transition:0.3)}   // preview the default aim view
         scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
-        displayLink?.preferredFramesPerSecond=Tuning.frameRate
+        setLinkRate(Tuning.frameRate)
         guideDirty=true;wakeRendering()
     }
     func openCustomize(){

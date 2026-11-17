@@ -188,8 +188,7 @@ extension TrainingController {
         let wantRate=active ? Tuning.frameRate:30,playing=active || guestMoving
         // 0.45 M1 (c): a frame-rate RANGE, so ProMotion may hold 60 when a 120 Hz deadline cannot be met instead of
         // dropping single frames (owner's device: 33–36 % starved at 120 Hz). Set only on change (0.39c).
-        let wantRange=wantRate>60 ? CAFrameRateRange(minimum:60,maximum:120,preferred:120):CAFrameRateRange(minimum:Float(wantRate),maximum:Float(wantRate),preferred:Float(wantRate))
-        if displayLink?.preferredFrameRateRange != wantRange {displayLink?.preferredFrameRateRange=wantRange}
+        setLinkRate(wantRate)
         if scn.isPlaying != playing {scn.isPlaying=playing}
         if scn.rendersContinuously != playing {scn.rendersContinuously=playing}
         if hudLayoutDeferred && !shotActive && replayIndex == nil && !guestMoving {hudLayoutDeferred=false;view.setNeedsLayout()}
@@ -448,7 +447,7 @@ extension TrainingController {
         let paced=table.pacer.diagnostics
         if BLShouldDropTo60Hz(Int32(shotProfile.frameRate),Int32(clamping:paced.starvedFrames),Int32(clamping:paced.sampledFrames)) != 0 {
             UserDefaults.standard.set(60,forKey:"tuneFPS036")
-            displayLink?.preferredFramesPerSecond=60
+            setLinkRate(60)
             notifyStatus("Đã chuyển 60 Hz cho mượt")   // one language (L10n: en "Switched to 60 Hz for smoothness")
         }
         perfEnd();perfAfterShot()   // 0.44-mm: no-op unless --perf-qa
