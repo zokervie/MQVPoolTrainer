@@ -12,7 +12,7 @@ extension TrainingController {
         if replayIndex != nil{stopReplay();return}
         hideCoach();table.resetPocketPresentation();replayPlan=nil;replayOrigin=captureCamera();replayEquipment=(engine.settings["cueType"]?.intValue ?? 0,table.cueElevation);replayRenderedCueType=nil;replayPreparation=nil;replayStrikePlayed=false;replayIndex=0;replayClock = -replayLead;replayYaw=0;replayAudioIndex=0
         replayPaused=false;replayAuto=true;cameraManual=false;lastDirectorTime = -10
-        actionShot = -1;planReplayCamera048(aspect:videoExport.map{Double($0.size.width/max(1,$0.size.height))});cameraSmooth048=CameraSmoothness048()   // 0.48 M2
+        actionShot = -1;planReplayCamera048();cameraSmooth048=CameraSmoothness048()   // 0.48 M2
         DispatchQueue.main.async{[weak self] in self?.syncOverlayButtons()}
         replayAutoButton.setTitle(replayAngle048.title,for:.normal);table.replayTrails048([:],ghost:nil)
         if let pose=savedAimCamera{applyCamera(pose)}else{table.cameraMode=2}
@@ -34,7 +34,7 @@ extension TrainingController {
         perfEnd();perfAfterReplay()   // 0.44-mm
         table.actionCamera=nil;actionShot = -1
         cameraSmooth048.finish(plan:cameraPlan048);cameraPlan048=nil;trailCache048=nil;trailShown048 = -1   // 0.48
-        table.replayTrails048([:],ghost:nil);if replayAngle048 == .learn {table.showRailContacts([])}
+        table.replayTrails048([:],ghost:nil)
         if let recorder=highlightRecorder{
             highlightRecorder=nil
             recorder.finish{[weak self] url in
@@ -54,6 +54,7 @@ extension TrainingController {
         activeArchiveID=nil;table.update(balls,dt:0)
         if let pose=replayOrigin{applyCamera(pose)};replayOrigin=nil;observationCamera=false
         statusLabel.text="Xem lại xong";updateControls();applyCoachVisibility()
+        if replayAngle048 == .learn {table.trails(coachOn && trailsOn ? paths:[:])}   // 0.48: Learn hid the Coach trails
         // 0.44 #11: a highlight reel plays its next shot (the exporter chains its own frames).
         if !Self.highlightQueue.isEmpty && videoExport==nil {
             DispatchQueue.main.async{[weak self] in guard let self=self,self.replayIndex==nil,!self.shotActive else{return};if self.loadNextHighlight(){self.replay()}}
@@ -87,7 +88,7 @@ extension TrainingController {
             guard let self=self,self.replayIndex != nil else{return};self.replayClock=Double(self.replaySlider.value);self.replayStrikePlayed=self.replayClock>=0
             self.replayIndex=self.frameTimes.lastIndex(where:{$0<=self.replayClock}) ?? 0
             self.replayAudioIndex=self.lastShotEvents.prefix(while:{($0["time"]?.doubleValue ?? 0)<=self.replayClock}).count
-            self.lastDirectorTime = -10;self.table.resetPocketPresentation();self.wakeRendering()
+            self.lastDirectorTime = -10;self.cameraSmooth048.reset();self.trailShown048 = -1;self.table.resetPocketPresentation();self.wakeRendering()
         },for:.valueChanged)
         replayBar.isHidden=true
     }
@@ -106,8 +107,8 @@ extension TrainingController {
         replayAuto=true;cameraManual=false;lastDirectorTime = -10
         replayAutoButton.setTitle(a.title,for:.normal);replayAutoButton.menu=replayAngleMenu048()
         if replayIndex != nil {
-            table.replayTrails048([:],ghost:nil);table.showRailContacts([])
-            planReplayCamera048(aspect:videoExport.map{Double($0.size.width/max(1,$0.size.height))});cameraSmooth048=CameraSmoothness048()
+            table.replayTrails048([:],ghost:nil)
+            planReplayCamera048();cameraSmooth048=CameraSmoothness048()
             beginCameraTransition(0.45)
         }
         wakeRendering()

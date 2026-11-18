@@ -216,6 +216,9 @@ extension TrainingController {
         }
         videoExport = export
         replay()
+        guard replayIndex != nil else {   // review 0.48 #9: the replay could not open — no file
+            videoExport = nil; teaserExport048 = false; notifyStatus("Không tạo được video"); return
+        }
         if teaser, let plan = cameraPlan048 { startTeaserClock048(plan) }
         replayBar.isHidden = true; menuButton.isHidden = true
         displayLink?.isPaused = true
@@ -265,7 +268,7 @@ extension TrainingController {
         guard let export = videoExport else { return }
         if replayIndex != nil { stopReplay() }
         if teaserExport048, !export.cancelled { appendTeaserCard048(export) }
-        teaserExport048 = false; exportRenderer048 = nil
+        teaserExport048 = false; exportRenderer048 = nil; Teaser048.lastFrame = nil
         videoExport = nil
         lastTime = 0; displayLink?.isPaused = false; wakeRendering()
         if export.cancelled {

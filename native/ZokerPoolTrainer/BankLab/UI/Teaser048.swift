@@ -13,6 +13,7 @@ enum Teaser048 {
     static var lastFrame: UIImage?
     /// QA: exported files this run (UI test waits for it).
     static var qaExported = 0
+    static var qaLastSize = CGSize.zero
     /// Offline render of the intro sting (layers: sound, gain, rate, at; master) to 48 kHz stereo float.
     static func musicBed(at time: Double) -> (buffer: AVAudioPCMBuffer, at: Double)? {
         guard UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true,
@@ -82,8 +83,10 @@ extension TrainingController {
         if exportRenderer048 == nil { let r = SCNRenderer(device: scn.device, options: nil); r.scene = scn.scene; exportRenderer048 = r }
         guard let r = exportRenderer048 else { return scn.snapshot() }
         r.pointOfView = scn.pointOfView
+        SCNTransaction.flush()   // review 0.48 #4: render this frame's ball/camera state, not the last committed one
         let image = r.snapshot(atTime: CACurrentMediaTime(), with: size, antialiasingMode: .multisampling4X)
         Teaser048.lastFrame = image
+        Teaser048.qaLastSize = size
         return image
     }
     func startTeaserClock048(_ plan: BLCameraPlan) {
@@ -108,6 +111,7 @@ extension TrainingController {
     }
     /// "Ảnh thẻ": the best still (first contact or the drop) of the last shot, Director framing, 16:9 with the logo.
     func shareStillCard048(source: UIView?) {
+        if replayIndex != nil { stopReplay() }   // review 0.48 #3: offered from the replay bar too
         guard replayIndex == nil, !shotActive, !frames.isEmpty,
               let plan = CameraPlan048.make(frames: frames, times: frameTimes, events: lastShotEvents, aimAngle: lastShot?.aimAngle ?? angle,
                                             angle: .director, aspect: 16.0 / 9.0, lead: replayLead, tail: Self.replayTail) else {

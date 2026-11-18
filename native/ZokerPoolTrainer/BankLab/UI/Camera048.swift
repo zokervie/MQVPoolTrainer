@@ -44,9 +44,13 @@ enum ReplayAngle048: Int, CaseIterable {
         }
     }
     static let key = "replayCamera048"
+    private static var resetDone = false
     static var stored: ReplayAngle048 {
         get {
             let d = UserDefaults.standard
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--replay-angle-reset-qa") && !resetDone { resetDone = true; d.removeObject(forKey: key); d.removeObject(forKey: Prefs.replayCamera) }
+            #endif
             if let v = d.object(forKey: key) as? Int { return ReplayAngle048(rawValue: v) ?? .director }
             let migrated = fromLegacy041(d.integer(forKey: Prefs.replayCamera))
             d.set(migrated.rawValue, forKey: key)
@@ -91,14 +95,19 @@ enum CameraPlan048 {
 final class CameraSmoothness048 {
     static var last: (p95: Double, peak: Double, planP95: Double, planPeak: Double, visible: Double, samples: Int)?
     private var previous: SIMD3<Float>?
+    private var previousClock: Double?
     private var speeds: [Double] = []
     private var lastScene = -1
-    func sample(front: SIMD3<Float>, dt: Double, scene: Int) {
-        defer { previous = front; lastScene = scene }
-        guard dt > 1e-4, let prev = previous, scene == lastScene else { return }   // a planned cut is not a swing
+    /// Call before applying this tick's pose: `front` is what was rendered for the previous tick's clock.
+    func sample(front: SIMD3<Float>, dt: Double, clock: Double, plan: BLCameraPlan) {
+        let scene = previousClock.map { plan.sceneIndex(at: $0) } ?? -1
+        defer { previous = front; lastScene = scene; previousClock = clock }
+        guard dt > 1e-4, let prev = previous, scene == lastScene, scene >= 0 else { return }   // a planned cut is not a swing
         let c = Double(max(-1, min(1, simd_dot(simd_normalize(prev), simd_normalize(front)))))
         speeds.append(acos(c) * 180 / .pi / dt)
     }
+    /// After a seek, a pause or a hand-held move the next sample would compare unrelated views.
+    func reset() { previous = nil; previousClock = nil; lastScene = -1 }
     func finish(plan: BLCameraPlan?) {
         guard !speeds.isEmpty else { return }
         let sorted = speeds.sorted()
@@ -109,8 +118,10 @@ final class CameraSmoothness048 {
 
 extension TrainingController {
     /// Plans the camera for the replay buffers now loaded, for the chosen angle and the view's aspect.
-    func planReplayCamera048(aspect: Double? = nil) {
-        let a = aspect ?? Double(scn.bounds.width / max(1, scn.bounds.height))
+    func planReplayCamera048() {
+        // Review 0.48 #1: an export plans for its OUTPUT frame (9:16 / 16:9), set before the first frame is written.
+        let out = videoExport.map { $0.fixedSize ?? $0.size }
+        let a = out.map { Double($0.width / max(1, $0.height)) } ?? Double(scn.bounds.width / max(1, scn.bounds.height))
         cameraPlan048 = CameraPlan048.make(frames: frames, times: frameTimes, events: lastShotEvents,
                                            aimAngle: lastShot?.aimAngle ?? angle, angle: replayAngle048, aspect: a,
                                            lead: replayLead, tail: Self.replayTail, teaser: teaserExport048)
@@ -119,21 +130,27 @@ extension TrainingController {
     /// Per replay frame: camera from the plan (unless the viewer took the camera by hand) + trails in Learn / Director's wrap.
     func applyReplayCamera048(clock: Double, dt: Double) {
         guard let plan = cameraPlan048 else { table.actionCamera = nil; return }
-        if cameraManual { table.actionCamera = nil }
-        else {
+        if cameraManual {
+            // Review 0.48 #6: taking the camera by hand glides from the planned view instead of snapping.
+            if table.actionCamera != nil { table.actionCamera = nil; beginCameraTransition(0.35) }
+            cameraSmooth048.reset()
+        } else {
+            // Review 0.48 #7: the node's front now shows the pose applied on the PREVIOUS tick — pair it with that tick's scene.
+            if !replayPaused { cameraSmooth048.sample(front: table.camera.simdWorldFront, dt: dt, clock: clock, plan: plan) }
+            else { cameraSmooth048.reset() }
             var eye = simd_float3(), target = simd_float3(); var fov: Float = 40
             plan.pose(at: clock, eye: &eye, target: &target, fov: &fov)
             if eye.x.isFinite, eye.y.isFinite, eye.z.isFinite, target.x.isFinite, fov.isFinite {
                 table.actionCamera = (eye: eye, target: target, fov: fov)
             }
-            if !replayPaused { cameraSmooth048.sample(front: table.camera.simdWorldFront, dt: dt, scene: plan.sceneIndex(at: clock)) }
         }
         updateReplayTrails048(clock: clock, reveal: plan.trailReveal(at: clock))
     }
     /// Trails: cue ball white, object balls in their own colour; Learn grows them with time and marks rails + the ghost ball.
     func updateReplayTrails048(clock: Double, reveal: Double) {
         let learn = replayAngle048 == .learn
-        if !learn && reveal < 0.5 { if trailShown048 != 0 { table.replayTrails048([:], ghost: nil); table.showRailContacts([]); trailShown048 = 0 }; return }
+        if !learn && reveal < 0.5 { if trailShown048 != 0 { table.replayTrails048([:], ghost: nil, rails: []); trailShown048 = 0 }; return }
+        if learn && trailShown048 == -1 { table.trails([:]) }   // Learn draws its own growing map (Coach trails return on Xong)
         if trailCache048 == nil {
             var cache: [Int: [(Double, SIMD3<Float>)]] = [:]
             var lastT = -1.0
@@ -143,7 +160,8 @@ extension TrainingController {
             }
             trailCache048 = cache
         }
-        let until = learn ? clock : .infinity
+        // Review 0.48 #8: Learn grows the map in 0.1 s steps (≤ 10 rebuilds per replay second), not every sample.
+        let until = learn ? (clock * 10).rounded(.down) / 10 : .infinity
         let cache = trailCache048 ?? [:]
         let count = cache.values.reduce(0) { $0 + $1.prefix { $0.0 <= until }.count }
         guard count != trailShown048 else { return }
@@ -155,17 +173,16 @@ extension TrainingController {
         if learn, let hit = lastShotEvents.first(where: { $0["kind"]?.intValue == 1 && ($0["a"]?.intValue == 0 || $0["b"]?.intValue == 0) }),
            let t = hit["time"]?.doubleValue, t <= until, let f = frameTimes.lastIndex(where: { $0 <= t }),
            let cue = frames[f].first(where: { $0.id == 0 }) { ghost = SIMD2(Float(cue.x), Float(cue.y)) }
-        table.replayTrails048(paths, ghost: ghost)
-        let rails = lastShotEvents.filter { $0["kind"]?.intValue == 0 && ($0["time"]?.doubleValue ?? 0) <= until }
-            .compactMap { e -> (x: Double, y: Double)? in guard let x = e["x"]?.doubleValue, let y = e["y"]?.doubleValue else { return nil }; return (x, y) }
-        table.showRailContacts(learn ? rails : [])
+        let rails = !learn ? [] : lastShotEvents.filter { $0["kind"]?.intValue == 0 && ($0["time"]?.doubleValue ?? 0) <= until }
+            .compactMap { e -> SIMD2<Float>? in guard let x = e["x"]?.doubleValue, let y = e["y"]?.doubleValue else { return nil }; return SIMD2(Float(x), Float(y)) }
+        table.replayTrails048(paths, ghost: ghost, rails: rails)
     }
 }
 
 extension TableScene {
     /// 0.48: replay trail map (cue white, object balls in ball colour) + optional ghost ball, in the trail layer.
-    func replayTrails048(_ paths: [Int: [SIMD3<Float>]], ghost: SIMD2<Float>?) {
-        trails([:])
+    /// Own layer (not the Coach trails / rail numbers, which stay as the player left them — review 0.48 #2).
+    func replayTrails048(_ paths: [Int: [SIMD3<Float>]], ghost: SIMD2<Float>?, rails: [SIMD2<Float>] = []) {
         let root = replayTrailRoot048
         root.childNodes.forEach { $0.removeFromParentNode() }
         for (id, points) in paths where points.count > 1 {
@@ -174,7 +191,8 @@ extension TableScene {
             for i in 1..<points.count { indices += [Int32(i - 1), Int32(i)] }
             let g = SCNGeometry(sources: [source], elements: [SCNGeometryElement(indices: indices, primitiveType: .line)])
             let m = SCNMaterial(); m.lightingModel = .constant; m.writesToDepthBuffer = false
-            let colour = id == 0 ? UIColor(white: 0.97, alpha: 1) : TableScene.colors[id <= 8 ? id : max(1, id - 8)]
+            // The 8 ball is black on the cloth: its trail is drawn light grey to stay visible.
+            let colour = id == 0 ? UIColor(white: 0.97, alpha: 1) : (id == 8 ? UIColor(white: 0.62, alpha: 1) : TableScene.colors[id <= 8 ? id : max(1, id - 8)])
             m.diffuse.contents = colour.withAlphaComponent(0.85)
             g.materials = [m]; let n = SCNNode(geometry: g); n.castsShadow = false; n.renderingOrder = 40; root.addChildNode(n)
         }
@@ -184,6 +202,11 @@ extension TableScene {
             sphere.materials = [m]
             let n = SCNNode(geometry: sphere); n.position = SCNVector3(g.x, 0.028575, g.y); n.castsShadow = false; n.renderingOrder = 41
             root.addChildNode(n)
+        }
+        for p in rails {   // Learn: where the balls met a cushion
+            let dot = SCNSphere(radius: 0.011); let m = SCNMaterial(); m.lightingModel = .constant
+            m.diffuse.contents = UIColor(red: 1, green: 0.78, blue: 0.2, alpha: 0.95); dot.materials = [m]
+            let n = SCNNode(geometry: dot); n.position = SCNVector3(p.x, 0.03, p.y); n.castsShadow = false; root.addChildNode(n)
         }
     }
     var replayTrailRoot048: SCNNode {

@@ -778,18 +778,25 @@ final class InteractionTests: XCTestCase {
     /// M4: replay opens on the planned Director camera, switches to Học and a hand-picked angle (each re-planned),
     /// then exports the same shot as 9:16 and 16:9 (offline render at the output size).
     func testReplayPlannedAnglesAndExportBothFrames() {
-        let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa"])
+        let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa","--replay-angle-reset-qa"])
         let replay=app.buttons["QuickReplay"]
         expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay);waitForExpectations(timeout:30 * slow)
         wait(scene,timeout:30 * slow){self.field(scene,"moving")==0}
         quick(app,"QuickReplay").tap()
         wait(scene,timeout:10 * slow){self.field(scene,"replay")==1 && self.field(scene,"camPlan")==1}
         XCTAssertEqual(field(scene,"cam"),0,"Đạo diễn is the default replay angle")
-        wait(scene,timeout:20 * slow){self.field(scene,"camScene")>=1}   // the planned cut sequence advances with the clock
-        for (id,raw) in [("ReplayAngle-1",1.0),("ReplayAngle-6",6.0)] {
+        // The planned cut sequence advances with the clock (a slow roll with no contact may plan one merged scene).
+        if field(scene,"camScenes")>1 {wait(scene,timeout:20 * slow){self.field(scene,"camScene")>=1}}
+        else {XCTAssertEqual(field(scene,"camScenes"),1,"a plan has at least one scene")}
+        for (title,raw) in [("Học",1.0),("Đón ở lỗ",7.0)] {
             app.buttons["ReplayAuto"].tap()
-            let item=app.buttons[id].exists ? app.buttons[id]:app.collectionViews.buttons[id]
-            XCTAssertTrue(item.waitForExistence(timeout:5 * slow),id);item.tap()
+            let item=app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@",title)).firstMatch
+            // Landscape iPhone: the 8-angle menu is taller than the screen — scroll it to reach the last angles.
+            if !item.waitForExistence(timeout:2 * slow) || !item.isHittable {
+                let first=app.buttons["ReplayAngle-0"]
+                if first.exists && first.isHittable {first.swipeUp()}
+            }
+            XCTAssertTrue(item.waitForExistence(timeout:5 * slow),title);item.tap()
             wait(scene,timeout:5 * slow){self.field(scene,"cam")==raw && self.field(scene,"camPlan")==1}
         }
         app.buttons["ReplayDone"].tap()
@@ -800,6 +807,7 @@ final class InteractionTests: XCTestCase {
             app.buttons["ReplayExport"].tap()
             let option=app.buttons[title];XCTAssertTrue(option.waitForExistence(timeout:5 * slow),title);option.tap()
             wait(scene,timeout:180 * slow){self.field(scene,"exported")>=Double(n+1)}
+            XCTAssertEqual(field(scene,"exportW"),n==0 ? 1080:1920,"output frame width");XCTAssertEqual(field(scene,"exportH"),n==0 ? 1920:1080,"output frame height")
             let close=app.buttons["Đóng"];if close.waitForExistence(timeout:10 * slow){close.tap()}
         }
     }
