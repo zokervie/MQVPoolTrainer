@@ -773,4 +773,34 @@ final class InteractionTests: XCTestCase {
         app.alerts.firstMatch.buttons["Chơi bài này"].tap()
         wait(scene, timeout: 20 * slow) { self.text(scene, "drill") == "cut-30-r" && self.text(scene, "lesson") == "1" }
     }
+
+    // MARK: 0.48 "Máy quay" (written for CI; NOT RUN locally — the Simulator on the Mac is broken)
+    /// M4: replay opens on the planned Director camera, switches to Học and a hand-picked angle (each re-planned),
+    /// then exports the same shot as 9:16 and 16:9 (offline render at the output size).
+    func testReplayPlannedAnglesAndExportBothFrames() {
+        let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa"])
+        let replay=app.buttons["QuickReplay"]
+        expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay);waitForExpectations(timeout:30 * slow)
+        wait(scene,timeout:30 * slow){self.field(scene,"moving")==0}
+        quick(app,"QuickReplay").tap()
+        wait(scene,timeout:10 * slow){self.field(scene,"replay")==1 && self.field(scene,"camPlan")==1}
+        XCTAssertEqual(field(scene,"cam"),0,"Đạo diễn is the default replay angle")
+        wait(scene,timeout:20 * slow){self.field(scene,"camScene")>=1}   // the planned cut sequence advances with the clock
+        for (id,raw) in [("ReplayAngle-1",1.0),("ReplayAngle-6",6.0)] {
+            app.buttons["ReplayAuto"].tap()
+            let item=app.buttons[id].exists ? app.buttons[id]:app.collectionViews.buttons[id]
+            XCTAssertTrue(item.waitForExistence(timeout:5 * slow),id);item.tap()
+            wait(scene,timeout:5 * slow){self.field(scene,"cam")==raw && self.field(scene,"camPlan")==1}
+        }
+        app.buttons["ReplayDone"].tap()
+        wait(scene,timeout:5 * slow){self.field(scene,"replay")==0}
+        for (n,title) in ["Video dọc 9:16 (TikTok, Reels, Shorts)","Video ngang 16:9"].enumerated() {
+            quick(app,"QuickReplay").tap()
+            wait(scene,timeout:10 * slow){self.field(scene,"replay")==1}
+            app.buttons["ReplayExport"].tap()
+            let option=app.buttons[title];XCTAssertTrue(option.waitForExistence(timeout:5 * slow),title);option.tap()
+            wait(scene,timeout:180 * slow){self.field(scene,"exported")>=Double(n+1)}
+            let close=app.buttons["Đóng"];if close.waitForExistence(timeout:10 * slow){close.tap()}
+        }
+    }
 }

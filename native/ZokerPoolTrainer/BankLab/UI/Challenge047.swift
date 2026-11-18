@@ -12,6 +12,8 @@ struct ChallengeInfo: Equatable {
 }
 
 enum ChallengeCode {
+    /// 0.48 M3: the last code shared this session (shown on the teaser's end card).
+    static var lastIssued: String?
     /// Stable drill number = position in DrillIDs.byTitle (append-only table: a number never changes meaning).
     static func number(of id: String) -> Int? { DrillIDs.byTitle.firstIndex { $0.id == id } }
     static func encode(drillID: String, seed: Int, score: Int) -> String? {
@@ -42,6 +44,7 @@ extension TrainingController {
         share.popoverPresentationController?.sourceView = view
         share.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
         UIPasteboard.general.string = code
+        ChallengeCode.lastIssued = code
         topPresenter.present(share, animated: true)
     }
     func challengeCardImage(title: String, made: Int, stars: Int, code: String) -> UIImage {

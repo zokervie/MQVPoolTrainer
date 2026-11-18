@@ -87,7 +87,7 @@ extension TrainingController {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 guard let self = self else { return }
                 if self.replayIndex == nil && !self.presentationBusy && self.localTurn {
-                    self.replayCamera = 0; self.replay()
+                    self.replayAngle048 = .director; self.replay()
                     if self.replayIndex != nil { self.perfBegin("replay"); return }
                 }
                 if left > 0 { tryReplay(left - 1) }

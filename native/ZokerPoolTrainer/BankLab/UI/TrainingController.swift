@@ -255,6 +255,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var premiumProbeEye:SIMD3<Float>?,premiumProbeStable=0,premiumProbeLastMove:TimeInterval=0
     var replayPreparing=false,archiveGeneration=0,activeArchiveID:String?
     var replayPlan:ReplayDirector.Plan?
+    // 0.48 M2: camera planned once on the whole recording (BLCameraPlan); angle menu 2 automatic + 6 hand-picked.
+    var cameraPlan048:BLCameraPlan?
+    var replayAngle048:ReplayAngle048=ReplayAngle048.stored
+    var trailCache048:[Int:[(Double,SIMD3<Float>)]]?
+    var trailShown048 = -1
+    var cameraSmooth048=CameraSmoothness048()
+    var teaserExport048=false
+    var exportRenderer048:SCNRenderer?
     struct ReplayReturnState {var frames:[[BallState]];var times:[Double];var events:[[String:NSNumber]];var shot:SavedShot?;var paths:[Int:[SIMD3<Float>]];var coach:Bool;var preparation:[ReplayAimSample]}
     var archiveReturn:ReplayReturnState?
     let predictionQueue=DispatchQueue(label:"ZTrainer.prediction",qos:.utility)

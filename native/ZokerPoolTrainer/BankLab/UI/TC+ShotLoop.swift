@@ -217,16 +217,14 @@ extension TrainingController {
         if pendingThermal && !shotActive && replayIndex==nil {pendingThermal=false;thermalChanged()}
         let wasSimulating=shotActive,wasReplaying=replayIndex != nil
         if let index=replayIndex {
-            let direction=replayPlan?.frame(time:replayClock,balls:frames[index])
-            let endingRate=ReplayDirector.endingRate(time:replayClock,duration:frameTimes.last ?? 0)
-            // 0.44: slow motion only in the four "key moment" angles; the others always play in real time.
-            let slowCam=Self.replaySlowCameras.contains(replayCamera) && !cameraManual
-            let rate=replayClock<0 || Self.replayNoSlowAB || !slowCam ? 1:min(endingRate,replayAuto ? (direction?.slowMotion ?? 1):actionSlowRate(endingRate))
+            _ = index
+            // 0.48 M2: the playback speed is the planner's smooth curve (eases into ×0.35 and out; 1× for hand-picked angles).
+            let rate=Self.replayNoSlowAB || cameraManual ? 1:max(0.2,min(1,cameraPlan048?.rate(at:replayClock) ?? 1))
             replayClock += replayPaused ? 0:dt*replaySpeed*rate
             var i=index
             while i+1<frames.count && replayClock>=frameTimes[i+1] {i+=1}
-            if replayClock>=(frameTimes.last ?? 0)+Self.replayTail && qaReplayHold {replayClock=(frameTimes.last ?? 0)+Self.replayTail;replayPaused=true}   // QA: hold the last frame until Done
-            if replayClock>=(frameTimes.last ?? 0)+Self.replayTail && !qaReplayHold {stopReplay()}
+            if replayClock>=(frameTimes.last ?? 0)+Self.replayTail && qaReplayHold && videoExport==nil {replayClock=(frameTimes.last ?? 0)+Self.replayTail;replayPaused=true}   // QA: hold the last frame until Done
+            if replayClock>=(frameTimes.last ?? 0)+Self.replayTail && (!qaReplayHold || videoExport != nil) {stopReplay()}
             else{
                 replayIndex=i
                 let j=min(i+1,frames.count-1)
@@ -237,11 +235,9 @@ extension TrainingController {
                     let clock=replayClock+preparationDuration   // sample time in the recorded preparation (lead may be shorter)
                     replayPreparation=lastPreparation.last(where:{$0.time<=clock}) ?? lastPreparation.first
                     // 0.37 (owner): the replay opens on the wide establishing shot, also during the 1.5 s lead-in.
-                    if replayAuto,!cameraManual {directCamera(time:0,state:frames[0],replay:true)}
-                    if replayCamera>=4 {updateActionCamera(0,0,fraction:0,span:0,dt:dt)}   // 0.41: action cams run in the lead-in too
+                    applyReplayCamera048(clock:replayClock,dt:dt)   // 0.48: the plan covers the lead-in too
                 }else{
-                    directCamera(time:replayClock,state:frames[i],replay:true)
-                    if replayCamera>=4 {updateActionCamera(i,j,fraction:span>0 ? (replayClock-frameTimes[i])/span:0,span:span,dt:dt)}
+                    applyReplayCamera048(clock:replayClock,dt:dt)
                     if !replayStrikePlayed {
                         replayStrikePlayed=true
                         // 0.44 (owner item 15): the replay shows its stroke's power in the same free slot, not on the HUD.
@@ -373,7 +369,9 @@ extension TrainingController {
         cameraTransition=max(0,cameraTransition-dt)
         if shotActive && shotKind==1 {qaJumpSeen=true}
         let tutState:String=firstShotCoach?.state ?? "none",tutLog:String=firstShotCoach?.log.joined(separator:">") ?? ""
-        let tutQA:String=";tut="+tutState+";tutLog="+tutLog
+        let camScene:Int=cameraPlan048.map{$0.sceneIndex(at:replayClock)} ?? -1
+        let camQA:String=";cam=\(replayAngle048.rawValue);camPlan=\(cameraPlan048==nil ? 0:1);camScene=\(camScene);exported=\(Teaser048.qaExported)"   // 0.48 M4
+        let tutQA:String=";tut="+tutState+";tutLog="+tutLog+camQA
         if ProcessInfo.processInfo.arguments.contains("--visual-qa") || ProcessInfo.processInfo.arguments.contains("--keep-lobby-qa") || ProcessInfo.processInfo.arguments.contains("--intro-lobby-qa"){scn.accessibilityValue=String(format:"angle=%.6f;mode=%lld;moving=%lld;pitch=%.4f;coach=%lld;kind=%lld;zoom=%.4f;replay=%lld;editing=%lld;cueX=%.4f;cueY=%.4f",angle,table.cameraMode,shotActive ? 1:0,table.aimPitch,coaching ? 1:0,shotKind,table.zoom,replayIndex == nil ? 0:1,isPlacingBalls ? 1:0,cue?.x ?? 0,cue?.y ?? 0)+String(format:";side=%.4f;top=%.4f;cameraYaw=%.6f;worldCameraAngle=%.6f;ballCount=%lld;cameraAngle=%.6f",side,top,aimCameraYaw,cameraAngle,balls.filter{!$0.sunk && $0.id>0}.count,cameraAngle)+String(format:";match=%lld;guide=%lld;numbers=%lld",matchIsCompetitive ? 1:0,guideOn ? 1:0,table.showsDiamondNumbers ? 1:0)+String(format:";preRoll=%.3f;replayTime=%.3f;replayLead=%.3f",preparationDuration,replayClock,replayLead)+String(format:";coachDown=%lld;coachUp=%lld;locked=%lld;expanded=%lld;coachEnabled=%lld",qaCoachDown,qaCoachUp,locked ? 1:0,spinExpanded ? 1:0,coachButton.isEnabled ? 1:0)+";coachHit="+(view.hitTest(coachButton.center,with:nil).map{String(describing:type(of:$0))+"#"+($0.accessibilityIdentifier ?? "")} ?? "nil")+";lastTouch="+qaLastTouch+";busy="+(presentationBusy ? "1":"0")+";shots=\(qaShots);cpuShots=\(matchPlay.computerShots);cpuTurn="+(matchPlay.computerLevel != nil && matchInt("currentPlayer")==1 ? "1":"0")+";jumpSeen="+(qaJumpSeen ? "1":"0")+";lang="+L10n.code+";intro="+(intro?.mode ?? "none")+";introDone=\(introFinishCount)"+";lobby="+(presentedViewController is LobbyController ? "1":"0")+tutQA+";flow="+appFlow.step.name+";flowLog="+appFlow.logText+String(format:";aimTarget=%.6f;elev=%.2f;stroke=%.2f",Drill.all[Drill.startup].angle,table.cueElevation,strokeClearance)+qa047+";status="+(statusLabel.text ?? "").replacingOccurrences(of:";",with:",").replacingOccurrences(of:"=",with:":")}
         if let sample=replayPreparation,replayIndex != nil {
             if replayRenderedCueType != sample.cueType{table.selectCue(sample.cueType);replayRenderedCueType=sample.cueType}

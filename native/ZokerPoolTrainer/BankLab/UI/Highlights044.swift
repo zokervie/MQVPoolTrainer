@@ -101,7 +101,7 @@ extension TrainingController {
         guard !shotActive, replayIndex == nil, videoExport == nil else { return }
         Self.highlightQueue = Self.highlights
         guard loadNextHighlight() else { return }
-        replayCamera = 8
+        replayAngle048 = .director   // 0.48: Đạo diễn replaces Action Mix
         if export { startVideoExport(includeInfo: false) } else { notifyStatus(Self.highlightQueue.isEmpty ? "Highlight" : "Highlight · còn \(Self.highlightQueue.count) cú"); replay() }
     }
     /// Loads the next reel shot into the replay buffers (the live shot is restored by stopReplay via archiveReturn).

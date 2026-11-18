@@ -13,3 +13,4 @@
 #import "UI/ShotKindPolicy.h"
 #import "Core/BLMatch.h"
 #import "Core/BLOpponent.h"
+#import "Core/BLCameraPlan.h"
