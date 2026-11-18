@@ -34,7 +34,8 @@ static cam::Recording record(const std::vector<Ball>& balls,double angle,double 
     return r;
 }
 static const cam::RecEvent* firstEvent(const cam::Recording& r,int kind,int ball){
-    for(auto& e:r.events)if(e.kind==kind&&(e.a==ball||(kind==1&&e.b==ball)))return &e;return nullptr;
+    for(auto& e:r.events)if(e.kind==kind&&(e.a==ball||(kind==1&&e.b==ball)))return &e;
+    return nullptr;
 }
 static bool cueSunk(const cam::Recording& r){for(auto& e:r.events)if(e.kind==2&&e.a==0)return true;return false;}
 // First cue-ball event (cushion or ball).

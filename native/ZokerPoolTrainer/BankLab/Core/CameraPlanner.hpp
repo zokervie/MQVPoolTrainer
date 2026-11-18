@@ -291,7 +291,8 @@ public:
     const std::vector<Scene>& sceneList()const{return scenes;}
     SceneKind sceneKind(double t)const{return scenes.empty()?SceneKind::Manual:scenes[static_cast<std::size_t>(sceneIndex(t))].kind;}
     int subjectColumn(double t)const{
-        if(scenes.empty())return -1;const auto& s=scenes[static_cast<std::size_t>(sceneIndex(t))];
+        if(scenes.empty())return -1;
+        const auto& s=scenes[static_cast<std::size_t>(sceneIndex(t))];
         return(s.subject2>=0&&t>=s.switchTime)?s.subject2:s.subject;
     }
     int subjectBall(double t)const{const int c=subjectColumn(t);return c<0?-1:rec.ids[static_cast<std::size_t>(c)];}
@@ -608,7 +609,8 @@ private:
                 for(std::size_t i=0;i<N;++i){
                     const V3 v=flat(P(cueCol,ts[i]+.5)-P(cueCol,ts[i]));
                     double a=len(v)>.03?std::atan2(v.y,v.x):prev;
-                    while(a-prev>kPi)a-=2*kPi;while(a-prev<-kPi)a+=2*kPi;
+                    while(a-prev>kPi)a-=2*kPi;
+                    while(a-prev<-kPi)a+=2*kPi;
                     ph[i]=a;prev=a;
                 }
                 ph=smoothSeq(ph,.4*kHz);
@@ -714,7 +716,9 @@ private:
                 first=false;int seen=0,tot=0;
                 for(std::size_t i=0;i<N;++i){
                     const int cc=(sc.subject2>=0&&ts[i]>=sc.switchTime)?sc.subject2:sc.subject;
-                    if(cc<0||rec.sunkAt(cc,ts[i]))continue;++tot;if(ballVisible(rec,cc,ts[i],b.eye[i]))++seen;
+                    if(cc<0||rec.sunkAt(cc,ts[i]))continue;
+                ++tot;
+                if(ballVisible(rec,cc,ts[i],b.eye[i]))++seen;
                 }
                 b.vis=tot?static_cast<double>(seen)/tot:1;
                 if(b.vis<.9)return b;
@@ -741,7 +745,9 @@ private:
             int seen=0,tot=0;
             for(std::size_t i=0;i<N;++i){
                 const int cc=(sc.subject2>=0&&ts[i]>=sc.switchTime)?sc.subject2:sc.subject;
-                if(cc<0||rec.sunkAt(cc,ts[i]))continue;++tot;if(ballVisible(rec,cc,ts[i],b.eye[i]))++seen;
+                if(cc<0||rec.sunkAt(cc,ts[i]))continue;
+                ++tot;
+                if(ballVisible(rec,cc,ts[i],b.eye[i]))++seen;
             }
             b.vis=tot?static_cast<double>(seen)/tot:1;
         }
@@ -761,7 +767,8 @@ private:
         std::vector<double> mx(N);
         for(std::size_t i=0;i<N;++i){
             double m=0;const std::size_t lo=i>static_cast<std::size_t>(support)?i-static_cast<std::size_t>(support):0,hi=std::min(N-1,i+static_cast<std::size_t>(support));
-            for(std::size_t q=lo;q<=hi;++q)m=std::max(m,want[q]);mx[i]=m;
+            for(std::size_t q=lo;q<=hi;++q)m=std::max(m,want[q]);
+            mx[i]=m;
         }
         b.fov=smoothSeq(mx,fs,false);
         for(auto& f:b.fov)f=std::clamp(f,20.0,kFovMax);
