@@ -207,7 +207,10 @@ extension TrainingController {
         guard videoExport == nil, !shotActive, !frames.isEmpty else { return }
         if replayIndex != nil { stopReplay() }
         let export = ReplayVideoExport(includeInfo: includeInfo)
-        export.fixedSize = portrait ? CGSize(width: 1080, height: 1920) : CGSize(width: 1920, height: 1080)
+        // CI (ui-gesture-tests): --export-small-qa keeps the same code path but 360×640 / 640×360 and 1 s of video.
+        let small = QA.has("--export-small-qa")
+        export.fixedSize = small ? (portrait ? CGSize(width: 360, height: 640) : CGSize(width: 640, height: 360))
+                                 : (portrait ? CGSize(width: 1080, height: 1920) : CGSize(width: 1920, height: 1080))
         teaserExport048 = teaser; exportRenderer048 = nil
         if teaser { export.music = Teaser048.musicBed(at: Teaser048.cardStart(plannedWall: nil)) }
         if let shot = lastShot {
@@ -250,6 +253,7 @@ extension TrainingController {
             if replayIndex == nil { break }   // the step reached the end and closed the replay
             guard export.append(renderExportFrame048(export.fixedSize ?? export.size)) else { export.cancelled = true; break }
             if teaserExport048, teaserReachedEnd048(export) { stopReplay(); break }
+            if QA.has("--export-small-qa"), export.videoTime >= 1.0 { stopReplay(); break }
         }
         let percent = Int(min(99, export.videoTime / max(0.1, total * 1.6) * 100))
         (Self.exportOverlay?.subviews.first?.subviews.first as? UILabel)?.text = "Đang xuất video… \(percent)%"

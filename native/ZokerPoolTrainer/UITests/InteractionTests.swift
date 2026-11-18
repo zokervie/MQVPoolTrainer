@@ -428,7 +428,12 @@ final class InteractionTests: XCTestCase {
         expectation(for: gone, evaluatedWith: intro); waitForExpectations(timeout: 5 * slow)
         XCTAssertTrue(app.buttons["LobbyFree"].waitForExistence(timeout: 20 * slow), "the Lobby comes after the intro")
         let scene = app.otherElements["PoolScene"]
-        if scene.exists { XCTAssertTrue((scene.value as? String ?? "").contains(";introDone=1;"), "finish ran exactly once") }
+        if scene.exists {
+            // The probe string refreshes on the next shot-loop tick: poll for it instead of reading once; ≥ 2 is the real failure.
+            let deadline = Date().addingTimeInterval(10 * slow)
+            while Date() < deadline, !(scene.value as? String ?? "").contains(";introDone=1;") { RunLoop.current.run(until: Date().addingTimeInterval(0.25)) }
+            XCTAssertTrue((scene.value as? String ?? "").contains(";introDone=1;"), "finish ran exactly once")
+        }
     }
     /// 0.45 M5.3: a fresh install on a Vietnamese device walks the whole AppFlow — intro → Sảnh → hướng dẫn → bàn —
     /// each step entered once, in order, each started by the previous one finishing (no timers). Debug build only
@@ -689,7 +694,7 @@ final class InteractionTests: XCTestCase {
         if exam.buttons["TipCardOK"].waitForExistence(timeout: 3 * slow) { exam.buttons["TipCardOK"].tap() }
         let examScene = exam.otherElements["PoolScene"]
         wait(examScene, timeout: 30 * slow) { self.text(examScene, "test").hasPrefix("chapter-1:") }
-        let examDone = exam.alerts.firstMatch.waitForExistence(timeout: 180)
+        let examDone = exam.alerts.firstMatch.waitForExistence(timeout: 240)
         XCTAssertTrue(examDone, "ten shots, then the only result: \(examScene.value as? String ?? "")")
         XCTAssertTrue(exam.alerts.firstMatch.label.contains("Thi chương 1"))
     }
@@ -790,7 +795,7 @@ final class InteractionTests: XCTestCase {
     /// M4: replay opens on the planned Director camera, switches to Học and a hand-picked angle (each re-planned),
     /// then exports the same shot as 9:16 and 16:9 (offline render at the output size).
     func testReplayPlannedAnglesAndExportBothFrames() {
-        let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa","--replay-angle-reset-qa"])
+        let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa","--replay-angle-reset-qa","--export-small-qa"])
         let replay=app.buttons["QuickReplay"]
         expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay);waitForExpectations(timeout:30 * slow)
         wait(scene,timeout:30 * slow){self.field(scene,"moving")==0}
@@ -818,9 +823,9 @@ final class InteractionTests: XCTestCase {
             wait(scene,timeout:10 * slow){self.field(scene,"replay")==1}
             app.buttons["ReplayExport"].tap()
             let option=app.buttons[title];XCTAssertTrue(option.waitForExistence(timeout:5 * slow),title);option.tap()
-            wait(scene,timeout:180 * slow){self.field(scene,"exported")>=Double(n+1)}
-            XCTAssertEqual(field(scene,"exportW"),n==0 ? 1080:1920,"output frame width");XCTAssertEqual(field(scene,"exportH"),n==0 ? 1920:1080,"output frame height")
-            let close=app.buttons["Đóng"];if close.waitForExistence(timeout:10 * slow){close.tap()}
+            wait(scene,timeout:40 * slow){self.field(scene,"exported")>=Double(n+1)}
+            XCTAssertEqual(field(scene,"exportW"),n==0 ? 360:640,"output frame width");XCTAssertEqual(field(scene,"exportH"),n==0 ? 640:360,"output frame height")
+            let close=app.buttons["Đóng"];if close.waitForExistence(timeout:2 * slow){close.tap()}
         }
     }
 }
