@@ -27,3 +27,6 @@ Các bước khác PASS (gồm ảnh + đầu dò). Test giao diện mới viế
 - `testProgressScreenWithThirtyDemoDays`, `testArchivedReplayPreservesLiveTableAndRemembersItsCoachChoice`: XCTAssertTrue failed.
 - `testLiveShotKeepsAimViewAndManualZoomAfterBallsStop`: hết giờ 40 s (test cũ, đã PASS ở CI 158) → hồi quy do 0.45–0.47.
 Việc: khởi động lại Mac để Simulator chạy, chạy từng test trên Mac, sửa đến khi `ui-gesture-tests` PASS. Log: `gh api repos/zokervie/MQVPoolTrainer/actions/runs/44226195520/jobs`.
+
+## CI 160 (ci/native-0.48) — cổng Linux g++ đỏ
+- **LỖI CHẶN (đã vá trên ci/native-0.48 @ 0b7ae8f, cần áp lại vào cho/native-0.48):** `-Werror=misleading-indentation` ở `Core/CameraPlanner.hpp` (dòng ~294, ~611, ~744, ~764) và `Tests/CameraPlannerTests.cpp:37`: nhiều lệnh sau if/for/while trên một dòng. Tách thành dòng riêng. Luôn chạy thử `g++ -Wall -Wextra -Werror` trước khi đẩy (clang trên Mac không báo lỗi này).
