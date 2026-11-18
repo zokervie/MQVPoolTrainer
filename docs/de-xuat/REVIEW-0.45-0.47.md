@@ -30,3 +30,9 @@ Việc: khởi động lại Mac để Simulator chạy, chạy từng test trê
 
 ## CI 160 (ci/native-0.48) — cổng Linux g++ đỏ
 - **LỖI CHẶN (đã vá trên ci/native-0.48 @ 0b7ae8f, cần áp lại vào cho/native-0.48):** `-Werror=misleading-indentation` ở `Core/CameraPlanner.hpp` (dòng ~294, ~611, ~744, ~764) và `Tests/CameraPlannerTests.cpp:37`: nhiều lệnh sau if/for/while trên một dòng. Tách thành dòng riêng. Luôn chạy thử `g++ -Wall -Wextra -Werror` trước khi đẩy (clang trên Mac không báo lỗi này).
+
+## CI 161 (ci/native-0.48 @ 0b7ae8f) — cổng Linux PASS; ui-gesture-tests TIMEOUT (chỉ chạy được 5 test)
+- **LỖI CHẶN** `testReplayPlannedAnglesAndExportBothFrames` hết 720 s: xuất 2 video trên Simulator CI quá chậm và nuốt hết thời gian của cả nhóm test. Sửa: trong test chỉ xuất đoạn ≤ 1,5 s ở độ phân giải nhỏ (vd 360×640 / 640×360), kiểm kích thước + số khung; việc xuất đầy đủ để cờ QA riêng không chạy trong ui-gesture-tests. Mục tiêu test này ≤ 90 s.
+- **LỖI CHẶN** `testIntroPlaysBeforeLobbyAndTapSkips`: "finish ran exactly once" sai → intro gọi `finish` hai lần (chạm bỏ qua + hết giờ cùng chạy). Chặn bằng cờ `finished` một lần; test này PASS ở CI 158 nên là hồi quy 0.45–0.48.
+- **LỖI CHẶN** `testChapterOneLadderAndExam`: vẫn hỏng (không thấy alert kết quả sau 10 cú).
+- 2 test PASS trước khi hết giờ. Log: `gh api repos/zokervie/MQVPoolTrainer/actions/runs/44318975668/jobs`.
