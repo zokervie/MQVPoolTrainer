@@ -17,3 +17,13 @@ Phiên Mac: đầu mỗi mốc đọc file này. **LỖI CHẶN** sửa trước
 - PASS: assets, portable-regressions, replay-recording, lan-wire-protocol, simulator-build (Xcode 26.3), **screenshots-and-runtime-probes** (gồm đầu dò intro mới) → intro KHÔNG làm treo Simulator; Simulator treo trên Mac là chuyện riêng của máy.
 - **LỖI CHẶN** `ui-gesture-tests`: 22 test, 1 hỏng — `testFirstLaunchTutorialFromLobbyAimThenStroke` (`UITests/InteractionTests.swift:386-387`): sau khi ngắm trúng chấm vàng, hướng dẫn chuyển sang `hint-replay` thay vì nhịp 2 `stroke`; chờ cú 40 s hết giờ (`shots=0`). Test này PASS trên Mac sau M4 (21/21) và hỏng sau commit M6 `94f6f46` (các sửa review: "cú ở bất kỳ nhịp nào kết thúc nhịp", tự đóng "Thử lại nhé", …) → nhiều khả năng một sửa ở M6 cho gợi ý theo ngữ cảnh "Xem lại" chen vào giữa nhịp 1 và nhịp 2. Người chơi thật sẽ thấy gợi ý "Xem lại" thay vì "Giữ B, vuốt lùi rồi đẩy tới" ở lần chơi đầu.
   Sửa: gợi ý theo ngữ cảnh không được hiện khi hướng dẫn 2 nhịp chưa xong; nhịp 1 xong phải sang đúng nhịp 2. Sửa trên `cho/native-0.45` (mã hướng dẫn giống 0.44.1), chạy lại test này; phiên đám mây sẽ dựng IPA mới từ nhánh có bản sửa.
+
+## CI 159 (ci/native-0.47 @ 19984f9 + Xcode 26), 18/11 — FAILED: ui-gesture-tests TIMEOUT, 7 test hỏng
+Các bước khác PASS (gồm ảnh + đầu dò). Test giao diện mới viết khi Simulator Mac treo nên chưa từng chạy; giờ CI chạy thì hỏng:
+- **LỖI CHẶN** `testLobbyLanguageFollowsDevice`: máy tiếng Anh vẫn thấy "Tập tự do" trên Sảnh → Sảnh 0.46 chưa qua L10n.
+- **LỖI CHẶN** `testDailyCardOnTopOfLobbyStartsTodaysDrill`: "fresh player: no streak yet" sai + hết giờ 80 s → dữ liệu người chơi không được xoá giữa các test (cần cờ QA reset PlayerStore) hoặc thẻ Bài hôm nay không mở bài.
+- **LỖI CHẶN** `testChapterOneLadderAndExam`: 5 cú QA không đóng vòng; không thấy alert "Đóng".
+- `testChallengeCodeOpensTheSameDrillAndRejectsATypo`: không có nút "Chơi bài này".
+- `testProgressScreenWithThirtyDemoDays`, `testArchivedReplayPreservesLiveTableAndRemembersItsCoachChoice`: XCTAssertTrue failed.
+- `testLiveShotKeepsAimViewAndManualZoomAfterBallsStop`: hết giờ 40 s (test cũ, đã PASS ở CI 158) → hồi quy do 0.45–0.47.
+Việc: khởi động lại Mac để Simulator chạy, chạy từng test trên Mac, sửa đến khi `ui-gesture-tests` PASS. Log: `gh api repos/zokervie/MQVPoolTrainer/actions/runs/44226195520/jobs`.
