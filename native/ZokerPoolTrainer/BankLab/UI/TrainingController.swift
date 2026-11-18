@@ -359,6 +359,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         highGraphics=UserDefaults.standard.object(forKey:Prefs.highGraphics) as? Bool ?? false
         applyGraphics()
         table.camera.camera?.exposureOffset=CGFloat(UserDefaults.standard.object(forKey:Prefs.exposure) as? Double ?? -0.8)
+        qa047Launch()   // 0.47 QA flags (Practice047.swift) — ngoài khối --visual-qa: --keep-lobby-qa + --auto-shot-qa… không có --visual-qa
         if ProcessInfo.processInfo.arguments.contains("--visual-qa") {
             let startupCameraMode=table.cameraMode
             loadShowcase()
@@ -497,7 +498,6 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 }
             }
             if args.contains("--cue-contact-qa") {table.cameraMode=2}
-            qa047Launch()   // 0.47 QA flags (Practice047.swift)
             if args.contains("--observation-qa") {
                 DispatchQueue.main.asyncAfter(deadline:.now()+0.8){[weak self] in
                     guard let self=self else{return};self.loadDrill(Drill.rollTest);self.table.cameraMode=2;self.locked=true;self.shoot(1.8)

@@ -332,8 +332,8 @@ final class PoolAudio {
     private func start() {
         guard canPlay, !interrupted else { return }
         if engine.isRunning {
-            for voice in voices where !voice.node.isPlaying { voice.node.play() }
-            engineStarted = true
+            for voice in voices where !voice.node.isPlaying && engine.isRunning { voice.node.play() }   // 0.47: node.play() trên engine đã chết ném NSException (không bắt được trong Swift) → app chết khi coreaudiod hỏng
+            engineStarted = engine.isRunning
             return
         }
         do {
@@ -352,6 +352,7 @@ final class PoolAudio {
             try session.setActive(true)
             engine.prepare()
             try engine.start()
+            guard engine.isRunning else { engineStarted = false; NSLog("PoolAudio: engine not running after start"); return }
             for voice in voices { voice.node.play() }
             engineStarted = true
         } catch {

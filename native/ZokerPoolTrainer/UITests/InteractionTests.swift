@@ -676,7 +676,10 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(scene.waitForExistence(timeout: 30))
         wait(scene, timeout: 60 * slow) { self.text(scene, "drill") == "first-shot" && self.text(scene, "lesson") == "1" }
         XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 120 * slow), "five QA shots close the round")
-        app.alerts.firstMatch.buttons["Đóng"].tap()
+        // The result alert is checked, not dismissed: tapping its buttons made XCTest's interruption handler recurse for
+        // 15 min (the alert carries 4–5 actions; the next launch below replaces this app instance anyway).
+        XCTAssertTrue(app.alerts.firstMatch.label.contains("Qua bài"), "five on-aim QA shots clear the drill: \(app.alerts.firstMatch.label)")
+        app.terminate()
 
         let exam = XCUIApplication()
         exam.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--chapter-unlock-qa", "--auto-shot-qa"]
@@ -686,7 +689,8 @@ final class InteractionTests: XCTestCase {
         if exam.buttons["TipCardOK"].waitForExistence(timeout: 3 * slow) { exam.buttons["TipCardOK"].tap() }
         let examScene = exam.otherElements["PoolScene"]
         wait(examScene, timeout: 30 * slow) { self.text(examScene, "test").hasPrefix("chapter-1:") }
-        XCTAssertTrue(exam.alerts.firstMatch.waitForExistence(timeout: 240 * slow), "ten shots, then the only result")
+        let examDone = exam.alerts.firstMatch.waitForExistence(timeout: 180)
+        XCTAssertTrue(examDone, "ten shots, then the only result: \(examScene.value as? String ?? "")")
         XCTAssertTrue(exam.alerts.firstMatch.label.contains("Thi chương 1"))
     }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
@@ -722,14 +726,22 @@ final class InteractionTests: XCTestCase {
         card.tap()
         let scene = app.otherElements["PoolScene"]
         XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        // New player in a chapter: its tip card, then the lesson card's start button (same path as the ladder test).
+        if app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow) { app.buttons["TipCardOK"].tap() }
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
+        if start.waitForExistence(timeout: 5 * slow) { start.tap() }
         wait(scene, timeout: 20 * slow) { self.text(scene, "lesson") == "1" }
         XCTAssertTrue(["first-shot", "stop-hold", "follow-zone", "draw-zone"].contains(text(scene, "drill")),
                       "a new player only gets drills of open chapters (chapter 1)")
     }
     /// M3: màn Tiến bộ (Swift Charts) với 30 ngày dữ liệu giả — biểu đồ, chuỗi, nút bài kiểm tuần; ảnh cho nghiệm thu.
     func testProgressScreenWithThirtyDemoDays() {
-        let (app, _) = launch(["--progress-demo-qa"])
-        XCTAssertTrue(app.descendants(matching: .any)["ProgressChart"].waitForExistence(timeout: 20 * slow), "Tiến bộ opens with the chart")
+        // The screen opens by itself 2 s after launch and covers the table: do not wait for PoolScene (hidden behind it).
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--visual-qa", "--g1-default-qa", "--progress-demo-qa"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["ProgressChart"].waitForExistence(timeout: 60), "Tiến bộ opens with the chart")
         XCTAssertTrue(app.buttons["WeeklyTest"].exists, "weekly test entry")
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "progress-30-days"; shot.lifetime = .keepAlways; add(shot)
         app.buttons["ProgressDone"].tap()
