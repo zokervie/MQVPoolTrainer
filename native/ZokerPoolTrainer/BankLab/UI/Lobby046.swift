@@ -123,7 +123,7 @@ final class LobbyController: UIViewController {
     }
     private func makeContinue(_ r: Resume) -> UIButton {
         var cfg = UIButton.Configuration.filled()
-        cfg.title = r.title; cfg.subtitle = r.subtitle
+        cfg.title = L10n.tr(r.title); cfg.subtitle = L10n.tr(r.subtitle)
         cfg.image = UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 26, weight: .bold))
         cfg.imagePlacement = .leading; cfg.imagePadding = 16; cfg.titleAlignment = .leading
         cfg.baseBackgroundColor = ZDesign.Color.gold; cfg.baseForegroundColor = .black; cfg.cornerStyle = .large
@@ -171,7 +171,7 @@ final class LobbyController: UIViewController {
     private func makeTile(_ c: Card) -> UIView {
         if c.actions.count == 1, let a = c.actions.first {
             var cfg = UIButton.Configuration.filled()
-            cfg.title = c.title; cfg.subtitle = c.subtitle
+            cfg.title = L10n.tr(c.title); cfg.subtitle = L10n.tr(c.subtitle)
             cfg.image = UIImage(systemName: c.icon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 26, weight: .bold))
             cfg.imagePlacement = .top; cfg.imagePadding = 8; cfg.titleAlignment = .center
             cfg.baseBackgroundColor = UIColor.rgb(0x171B20).withAlphaComponent(0.86); cfg.baseForegroundColor = .white
@@ -195,7 +195,7 @@ final class LobbyController: UIViewController {
         return v
     }
     private func action(button a: Action, color: UIColor) -> UIButton {
-        var cfg = UIButton.Configuration.filled(); cfg.title = a.title; cfg.titleLineBreakMode = .byClipping
+        var cfg = UIButton.Configuration.filled(); cfg.title = L10n.tr(a.title); cfg.titleLineBreakMode = .byClipping
         cfg.baseBackgroundColor = color.withAlphaComponent(0.2); cfg.baseForegroundColor = .white; cfg.cornerStyle = .large
         cfg.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
         let b = UIButton(configuration: cfg); b.accessibilityIdentifier = a.id
@@ -205,7 +205,7 @@ final class LobbyController: UIViewController {
         return b
     }
     private func chip(_ a: Action) -> UIButton {
-        var cfg = UIButton.Configuration.gray(); cfg.title = a.title; cfg.image = UIImage(systemName: a.icon); cfg.imagePadding = 6
+        var cfg = UIButton.Configuration.gray(); cfg.title = L10n.tr(a.title); cfg.image = UIImage(systemName: a.icon); cfg.imagePadding = 6
         cfg.baseForegroundColor = UIColor(white: 0.9, alpha: 1); cfg.cornerStyle = .capsule
         cfg.background.backgroundColor = UIColor(white: 1, alpha: 0.1)
         let b = UIButton(configuration: cfg); b.accessibilityIdentifier = a.id

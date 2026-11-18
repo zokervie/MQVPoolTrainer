@@ -14,7 +14,7 @@ enum L10n {
     static let key = "appLanguage042"
     /// QA launches (UI tests, probes) always run in the source language so their text assertions stay valid.
     /// `--l10n-real` lets a QA launch use the real device language (first-launch language UI test).
-    static let qa = ProcessInfo.processInfo.arguments.contains("--visual-qa") && !ProcessInfo.processInfo.arguments.contains("--l10n-real")
+    static let qa = ProcessInfo.processInfo.arguments.contains { $0.hasSuffix("-qa") } && !ProcessInfo.processInfo.arguments.contains("--l10n-real")   // 0.47: mọi cờ *-qa (không chỉ --visual-qa) giữ tiếng nguồn
     /// 0.44.1 (owner): no saved choice → the device language if supported, else Vietnamese (was: English).
     static var code: String {
         qa ? "vi" : (UserDefaults.standard.string(forKey: key) ?? deviceDefault)

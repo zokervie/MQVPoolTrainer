@@ -321,7 +321,7 @@ extension TrainingController {
         }
         guard forced || (Prefs.flag(Prefs.tutorialEnabled, true) && !UserDefaults.standard.bool(forKey: Prefs.tutorialSeen)) else { return false }
         guard view.window != nil, presentedViewController == nil, !matchPlay.active, replayIndex == nil,
-              firstShotCoach?.firstShotRunning != true, firstShotCoach?.state != "shot", drillIndex == Drill.startup || forced else { return false }
+              firstShotCoach?.firstShotRunning != true, firstShotCoach?.state != "shot", (drillIndex == Drill.startup && !lessonActive) || forced else { return false }   // 0.47: bài chọn từ Sảnh (Bài hôm nay…) trùng bài khởi động thì không bị hướng dẫn chen vào
         return startTutorial()
     }
     /// Starts the two first-shot beats now (Menu → Hướng dẫn chơi → "Cú đầu tiên").
