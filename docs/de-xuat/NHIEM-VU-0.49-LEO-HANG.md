@@ -15,7 +15,7 @@ Kiến trúc và quy trình chung: `docs/de-xuat/KIEN-TRUC-VA-QUY-TRINH.md`. Quy
 | 1,4–2,2 s | Logo phanh lại **ở giữa**, nảy 1,15 → 1,0; bụi phấn vàng bung quanh; vệt ánh kim quét chéo qua logo | **Sonic logo** (Suno, xem B4) + sub-bass |
 | 2,2–3,0 s | Khẩu hiệu hiện dần dưới logo: "Luyện mắt · Tính đường · Ra cơ chuẩn" | Đuôi sonic logo |
 | 3,0–3,5 s | Logo thu nhỏ bay lên góc, mờ vào Sảnh | — |
-- Nền: cảnh bàn thật mờ sâu + hạt bụi trong luồng đèn (dùng lại `ShotFX`, không thêm engine). Logo là **ảnh PNG nền trong suốt** chủ dự án gửi (`BankLab/Assets.xcassets/BrandLogo.imageset`, ≥ 1024 px). Chưa có file: tạm dựng chữ "ZOKER" + chữ Z vector, ghi rõ trong nghiệm thu.
+- Nền: cảnh bàn thật mờ sâu + hạt bụi trong luồng đèn (dùng lại `ShotFX`, không thêm engine). Logo là **ảnh PNG nền trong suốt** chủ dự án gửi (`BankLab/Assets.xcassets/BrandLogo.imageset`, ≥ 1024 px). **Đã có (19/11):** `docs/de-xuat/assets/ZOKER_Pool_9-Ball_Emblem.png` trên nhánh plan — 1254×1254, RGBA nền trong suốt, có quầng tối mềm quanh logo (hợp nền tối). Chép vào `BrandLogo.imageset` (một ảnh universal), dùng cho intro, thẻ cuối video/teaser, thẻ chia sẻ, VFX "THẮNG".
 - Giữ dự phòng 2D nếu cảnh chưa sẵn trong 0,5 s, Reduce Motion, Nguồn điện thấp (như 0.44.1).
 - Kiểm: đầu dò độ sáng 5 thời điểm; logo ở giữa ±2 % lúc 2,0 s; tổng thời gian ±0,1 s; không khung nào > 33 ms.
 
