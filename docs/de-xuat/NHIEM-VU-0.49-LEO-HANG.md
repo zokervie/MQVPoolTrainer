@@ -28,6 +28,17 @@ Kiến trúc và quy trình chung: `docs/de-xuat/KIEN-TRUC-VA-QUY-TRINH.md`. Quy
 | Kỷ lục mới | Số cũ gạch, số mới đập vào | Tiếng "ting" ngắn |
 - Ngân sách: "Cảnh 3D" p95 tăng ≤ 0,5 ms; tắt rung/máy rung khi Reduce Motion.
 
+### B2b. Khói màu khi bi lọt lỗ (chủ dự án yêu cầu 19/11 16:00 — "mịn màng, hơi khói, màu màu")
+- Thay tia sáng hiện tại bằng **khói mềm theo màu bi**: `SCNParticleSystem` một lần bung ở miệng lỗ, ảnh hạt là chấm tròn mờ dần (gradient tròn, tự tạo bằng mã), không dùng ảnh ngoài.
+- Thông số khởi điểm (đã thử trên bản phác hoạ 19/11; chủ dự án chỉnh được trong Tuỳ chỉnh → Hiệu ứng): 30–50 hạt; sống 0,8–1,4 s (mặc định 1,1 s); cỡ 2 cm → 5–8 cm; bay lên 1–3 cm/s, toả ngang nhẹ, giảm tốc dần, xoay chậm; độ mờ 0 → 35 % → 0 theo đường sin; màu = màu bi pha 35–65 % trắng (bi đen: xám khói); trộn kiểu alpha (không cộng sáng), không chịu ánh sáng.
+- Thêm vòng sáng mảnh nở ra ở mép lỗ 0,45 s, màu kem nhạt.
+- Lực lọt mạnh → nhiều hạt hơn (tỉ lệ theo tốc độ bi lúc vào lỗ, kẹp 20–60).
+- Dùng chung một bộ hạt có sẵn (pool 6 hệ), không tạo mới mỗi lần; ngân sách "Cảnh 3D" p95 tăng ≤ 0,5 ms.
+
+### B2c. Nhoè chuyển động cho bi nhanh (giật cảm nhận ở 60 Hz)
+Số đo 19/11 (IPA 162, 60 Hz): 0/461 khung thiếu, khung đều 16,7 ms → máy không rơi khung; bi 4 m/s nhảy ~6–7 cm mỗi khung nên mắt thấy "bước". Vẽ 2–3 bóng mờ của bi tại các vị trí con giữa hai khung (lấy từ mẫu vật lý 960 Hz), độ mờ theo tốc độ, chỉ khi bi > 1,5 m/s. Không dùng motion blur hậu kỳ của SceneKit. Kiểm: ảnh chụp bi 4 m/s có vệt; "Cảnh 3D" p95 tăng ≤ 0,3 ms. Đồng thời đo lại 120 Hz (sau 0.45 M1) — nếu ≤ 2 % khung thiếu thì bật 120 Hz mặc định cho máy ProMotion.
+- Bỏ 10 lượt bố cục UIKit giữa cú (phải là 0).
+
 ### B3. Âm thanh: lớp và mức
 - Mỗi lớp một file trong `Resources/Brand/` (sonic-logo, win, lose, rank-up, record, lobby-loop). Mix −16 LUFS, đỉnh ≤ −1 dBFS (như 0.44.1).
 - Nhạc nền Sảnh mặc định **tắt**, bật trong Tuỳ chỉnh (người chơi bida hay nghe nhạc riêng).
