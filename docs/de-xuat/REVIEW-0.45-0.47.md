@@ -36,3 +36,6 @@ Việc: khởi động lại Mac để Simulator chạy, chạy từng test trê
 - **LỖI CHẶN** `testIntroPlaysBeforeLobbyAndTapSkips`: "finish ran exactly once" sai → intro gọi `finish` hai lần (chạm bỏ qua + hết giờ cùng chạy). Chặn bằng cờ `finished` một lần; test này PASS ở CI 158 nên là hồi quy 0.45–0.48.
 - **LỖI CHẶN** `testChapterOneLadderAndExam`: vẫn hỏng (không thấy alert kết quả sau 10 cú).
 - 2 test PASS trước khi hết giờ. Log: `gh api repos/zokervie/MQVPoolTrainer/actions/runs/44318975668/jobs`.
+
+## CI 162 (ci/native-0.48-r2 @ f596fbe + Xcode 26) — 31/32 test PASS
+- Mọi bước khác PASS. Còn **LỖI CHẶN** `testChapterOneLadderAndExam`: sau 10 cú QA không có alert kết quả ("ten shots, then the only result: … mode=2"). Kiểm luồng kết thúc bài thi chương 1 (đếm cú QA có cộng vào lượt thi không; alert có bị overlay khác che không). IPA 162 đã gửi chủ dự án thử kèm cảnh báo mục này.
