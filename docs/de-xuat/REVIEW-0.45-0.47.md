@@ -40,6 +40,6 @@ Việc: khởi động lại Mac để Simulator chạy, chạy từng test trê
 ## CI 162 (ci/native-0.48-r2 @ f596fbe + Xcode 26) — 31/32 test PASS
 - Mọi bước khác PASS. Còn **LỖI CHẶN** `testChapterOneLadderAndExam`: sau 10 cú QA không có alert kết quả ("ten shots, then the only result: … mode=2"). Kiểm luồng kết thúc bài thi chương 1 (đếm cú QA có cộng vào lượt thi không; alert có bị overlay khác che không). IPA 162 đã gửi chủ dự án thử kèm cảnh báo mục này.
 
-## Chữ Việt + Anh (19/11) — nhánh `cho/native-0.48-l10n` @ 1a70ec2
+## Chữ Việt + Anh (19/11) — nhánh `cho/native-0.48-l10n` (mới nhất: thêm "effect" → "ép phê")
 - Phiên đám mây đã sửa chuỗi và danh mục (13 file, chỉ chuỗi). **Gộp vào `cho/native-0.48` trước khi làm tiếp** (`git merge origin/cho/native-0.48-l10n`), build + chạy UI test (chưa build Swift ở đám mây).
-- Còn lại cho phiên Mac ở 0.49: tên 6 cấp máy sang tiếng Việt (Tập sự · Nghiệp dư · CLB · Phong trào · Chuyên nghiệp · Đỉnh cao; en giữ Beginner…); thống nhất "ép phê" (bỏ "effect" trong chuỗi Việt); bỏ số phiên bản trong chuỗi người dùng ("Cũ 0.17", "Điều khiển 0.18 & ghi công", "Bộ giải 0.9"); sửa số cũ "Thư viện 20 bàn · 12 cơ", "Cỡ 8 ft và 7 ft: bản sau"; test `check_resources.py` còn in "Z-Trainer master".
+- Còn lại cho phiên Mac ở 0.49: tên 6 cấp máy sang tiếng Việt (Tập sự · Nghiệp dư · CLB · Phong trào · Chuyên nghiệp · Đỉnh cao; en giữ Beginner…); bỏ số phiên bản trong chuỗi người dùng ("Cũ 0.17", "Điều khiển 0.18 & ghi công", "Bộ giải 0.9"); sửa số cũ "Thư viện 20 bàn · 12 cơ", "Cỡ 8 ft và 7 ft: bản sau"; test `check_resources.py` còn in "Z-Trainer master".
