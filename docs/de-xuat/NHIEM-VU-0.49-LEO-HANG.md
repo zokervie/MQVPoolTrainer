@@ -30,9 +30,9 @@ Kiến trúc và quy trình chung: `docs/de-xuat/KIEN-TRUC-VA-QUY-TRINH.md`. Quy
 
 ### B2b. Khói màu khi bi lọt lỗ (chủ dự án yêu cầu 19/11 16:00 — "mịn màng, hơi khói, màu màu")
 - Thay tia sáng hiện tại bằng **khói mềm theo màu bi**: `SCNParticleSystem` một lần bung ở miệng lỗ, ảnh hạt là chấm tròn mờ dần (gradient tròn, tự tạo bằng mã), không dùng ảnh ngoài.
-- Thông số khởi điểm (đã thử trên bản phác hoạ 19/11; chủ dự án chỉnh được trong Tuỳ chỉnh → Hiệu ứng): 30–50 hạt; sống 0,8–1,4 s (mặc định 1,1 s); cỡ 2 cm → 5–8 cm; bay lên 1–3 cm/s, toả ngang nhẹ, giảm tốc dần, xoay chậm; độ mờ 0 → 35 % → 0 theo đường sin; màu = màu bi pha 35–65 % trắng (bi đen: xám khói); trộn kiểu alpha (không cộng sáng), không chịu ánh sáng.
+- **Chủ dự án chọn 19/11 16:03 trên bản phác: 10 hạt · 1,0 s · độ đậm 11 % (rất nhẹ, tinh tế)** — dùng làm mặc định; Tuỳ chỉnh → Hiệu ứng cho phép tăng. Thông số khác: sống 0,8–1,2 s; cỡ 2 cm → 5–8 cm; bay lên 1–3 cm/s, toả ngang nhẹ, giảm tốc dần, xoay chậm; độ mờ 0 → 11 % → 0 theo đường sin (đậm hơn khi người chơi tăng); màu = màu bi pha 35–65 % trắng (bi đen: xám khói); trộn kiểu alpha (không cộng sáng), không chịu ánh sáng.
 - Thêm vòng sáng mảnh nở ra ở mép lỗ 0,45 s, màu kem nhạt.
-- Lực lọt mạnh → nhiều hạt hơn (tỉ lệ theo tốc độ bi lúc vào lỗ, kẹp 20–60).
+- Lực lọt mạnh → nhiều hạt hơn (tỉ lệ theo tốc độ bi lúc vào lỗ, kẹp 8–20).
 - Dùng chung một bộ hạt có sẵn (pool 6 hệ), không tạo mới mỗi lần; ngân sách "Cảnh 3D" p95 tăng ≤ 0,5 ms.
 
 ### B2c. Nhoè chuyển động cho bi nhanh (giật cảm nhận ở 60 Hz)
