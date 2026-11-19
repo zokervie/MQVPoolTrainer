@@ -8,7 +8,7 @@ import AVFoundation
 extension TrainingController {
     var presentationBusy:Bool{shotActive || replayIndex != nil || replayPreparing || BLShotCameraBusy(shotCameraState)}
     var strokeHint:String{
-        "Chọn gậy → ngắm → giữ bi effect (khóa hướng, chỉnh điểm chạm) → ngón khác kéo lùi rồi đẩy tới: nhanh hơn là mạnh hơn. Buông bi effect để ngắm lại."
+        "Chọn gậy → ngắm → giữ bi ép phê (khóa hướng, chỉnh điểm chạm) → ngón khác kéo lùi rồi đẩy tới: nhanh hơn là mạnh hơn. Buông bi ép phê để ngắm lại."
     }
 
     var strokeAllowed:Bool{

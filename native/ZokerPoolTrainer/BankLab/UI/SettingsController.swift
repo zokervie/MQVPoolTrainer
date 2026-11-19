@@ -83,7 +83,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         let squirtSwitch=UISwitch();squirtSwitch.isOn=UserDefaults.standard.bool(forKey:Prefs.squirtRealistic);squirtSwitch.accessibilityIdentifier=Prefs.squirtRealistic
         squirtSwitch.addAction(UIAction{[weak squirtSwitch]_ in UserDefaults.standard.set(squirtSwitch?.isOn ?? false,forKey:Prefs.squirtRealistic)},for:.valueChanged)
         let squirtLabel=UILabel();squirtLabel.numberOfLines=0;squirtLabel.textColor = .white;squirtLabel.font = .systemFont(ofSize:13,weight:.medium)
-        squirtLabel.text="Squirt thực tế — bi lệch khỏi đường ngắm khi đánh effect, cả khi cơ nằm ngang (TP A.31). Tắt: cơ ngang đi đúng đường ngắm"
+        squirtLabel.text="Squirt thực tế — bi lệch khỏi đường ngắm khi đánh ép phê, cả khi cơ nằm ngang (TP A.31). Tắt: cơ ngang đi đúng đường ngắm"
         let squirtRow=UIStackView(arrangedSubviews:[squirtLabel,squirtSwitch]);squirtRow.spacing=12;squirtRow.alignment = .center;body.addArrangedSubview(squirtRow)
         slider("Gậy phá · hệ số lực","breakSpeedGain",1,1.8,1.4)
         slider("Massé · hệ số lực (0.30: 1,2 = +20%)","masseSpeedGain",1,1.6,1.2)
@@ -132,7 +132,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
             lines.append("| \(key) | \(originalValues[key]?.stringValue ?? "—") | \(values[key]?.stringValue ?? "—") |")
         }
         lines.append("| swipeSensitivity | \(originalSensitivity) | \(sensitivity) |")
-        lines += ["", "## Nguồn hệ số (0.30)", "", "- railTangentialRestitution 0,30: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút.", "- railFriction 0,20: Mathavan 2010 / pooltool (ma sát bi–băng công bố 0,14–0,2). 0,45 = cảm nhận bàn thật (tuỳ chọn).", "- Đầu cơ tối đa 0,55R (cơ nâng 0,50R): giới hạn trượt cơ ~0,5R (Alciatore); 0.43: bi effect, cơ 3D và lõi dùng chung một giới hạn.", "- Độ sạch bi (0.43): Thường = TP A.14 (μ sàn 0,00995); Bẩn/dính phấn = sàn 0,05 (fit clip reverse zigzag, R·ω/v ≈ 0,13); Sạch = ×0,8 (TP A.17).", "- spinDecay 11: pooltool 5μ_sp·g/(2R); Dr. Dave đo ~10 rad/s² (TP B.2).", "- railRestitution 0,82: giữ nguyên.", "- Squirt: mặc định cơ ngang đi đúng đường ngắm (chốt 03/11), bật \"Squirt thực tế\" để có squirt theo TP A.31. breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
+        lines += ["", "## Nguồn hệ số (0.30)", "", "- railTangentialRestitution 0,30: fit clip *Reverse bank zigzag* (c-ZBSi9KBfc), 4 băng, sai lệch ≤ 0,3 nút.", "- railFriction 0,20: Mathavan 2010 / pooltool (ma sát bi–băng công bố 0,14–0,2). 0,45 = cảm nhận bàn thật (tuỳ chọn).", "- Đầu cơ tối đa 0,55R (cơ nâng 0,50R): giới hạn trượt cơ ~0,5R (Alciatore); 0.43: bi ép phê, cơ 3D và lõi dùng chung một giới hạn.", "- Độ sạch bi (0.43): Thường = TP A.14 (μ sàn 0,00995); Bẩn/dính phấn = sàn 0,05 (fit clip reverse zigzag, R·ω/v ≈ 0,13); Sạch = ×0,8 (TP A.17).", "- spinDecay 11: pooltool 5μ_sp·g/(2R); Dr. Dave đo ~10 rad/s² (TP B.2).", "- railRestitution 0,82: giữ nguyên.", "- Squirt: mặc định cơ ngang đi đúng đường ngắm (chốt 03/11), bật \"Squirt thực tế\" để có squirt theo TP A.31. breakSpeedGain 1,4, masseCueRestitution 0,35: giả định / thiết kế.", "- Đầu tẩy: trung tính = vật lý mặc định; mềm (Massé) chạm xa tâm hơn 0,08R; cứng (Jump/Phá) +6% năng lượng — giả định."]
         lines += ["", "## Ghi chú đo bàn thật", "", "- Loại bàn / nỉ / bi:", "- Cự ly và tốc độ đầu đo được:", "- Quãng đường dừng / góc bật đo được:", "- Sai lệch so với ứng dụng:", "", "Xuất file không tự áp dụng cấu hình; bấm Lưu để áp dụng."]
         let url=FileManager.default.temporaryDirectory.appendingPathComponent("ZTrainer-calibration-"+UUID().uuidString+".md")
         do{
@@ -305,7 +305,7 @@ final class CustomizeController:UIViewController {
         toggle("Hướng dẫn cú đầu tiên khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)",Prefs.tutorialEnabled,true)
         toggle("Gợi ý theo ngữ cảnh (mỗi gợi ý một lần, tự tắt sau 6 giây)",Prefs.tutorialHints,true)   // 0.44.1 M4
         header("Khoá hướng cơ")
-        toggle("Chạm bi effect cũng khoá hướng (mặc định chỉ phím B)",Prefs.tuneEffectLock,false)
+        toggle("Chạm bi ép phê cũng khoá hướng (mặc định chỉ phím B)",Prefs.tuneEffectLock,false)
         header("Luyện mắt")
         toggle("Dự đoán trước: đánh xong mới hiện đường đúng và báo lệch bao nhiêu độ",Prefs.tunePredictFirst,false)
         toggle("Nút số tự hiện khi đường ngắm chạm băng",Prefs.tuneAutoNumbers,true)
@@ -369,7 +369,7 @@ final class CustomizeController:UIViewController {
         target.addArrangedSubview(musicButton)
         segmented("Camera lượt đối thủ",["Truyền hình","Trên cao","Theo cơ"],UserDefaults.standard.object(forKey:Prefs.spectatorCam) as? Int ?? 0){UserDefaults.standard.set($0,forKey:Prefs.spectatorCam)}
         segmented("Thẻ cú đánh của đối thủ",["Hiện","Ẩn"],(UserDefaults.standard.object(forKey:Prefs.opponentShotCard) as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:Prefs.opponentShotCard)}
-        segmented("Phóng to bi effect / độ dốc",["Bật","Tắt"],(UserDefaults.standard.object(forKey:Prefs.loupes) as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:Prefs.loupes)}
+        segmented("Phóng to bi ép phê / độ dốc",["Bật","Tắt"],(UserDefaults.standard.object(forKey:Prefs.loupes) as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:Prefs.loupes)}
         segmented("Âm hiệu ứng tỉ số",["Bật","Tắt"],(UserDefaults.standard.object(forKey:Prefs.broadcastSound) as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:Prefs.broadcastSound)}
         // 0.46 M2 — Phòng thí nghiệm: one switch (default off) shows the engineer tools; off = hidden from every menu.
         header("Phòng thí nghiệm")

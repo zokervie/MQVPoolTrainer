@@ -59,7 +59,7 @@ extension TrainingController {
     }
     func setLeftHanded(_ on:Bool){
         UserDefaults.standard.set(on,forKey:Prefs.leftHanded);hudLayoutKey="";view.setNeedsLayout();view.layoutIfNeeded()
-        notifyStatus(on ? "Tay trái: phím và bi effect bên trái":"Tay phải: phím và bi effect bên phải")
+        notifyStatus(on ? "Tay trái: phím và bi ép phê bên trái":"Tay phải: phím và bi ép phê bên phải")
     }
 
     /// 0.44 (owner item 18): "Bao cơ" on the quick rail — the three slots of the active bag (tap = choose that slot's cue),

@@ -143,7 +143,7 @@ struct ShotCoachAnalysis {
         var parts:[String]=[]
         if abs(top)>=0.05 {parts.append((top>0 ? "trên ":"dưới ")+String(format:"%.0f%%",abs(top)*100))}
         if abs(side)>=0.05 {parts.append((side>0 ? "phải ":"trái ")+String(format:"%.0f%%",abs(side)*100))}
-        return " · effect "+parts.joined(separator:", ")
+        return " · ép phê "+parts.joined(separator:", ")
     }
     func report(drill d:Drill,events:[[String:NSNumber]],passed:Bool,scratch:Bool)->String{
         guard let shot=lastShot else{return passed ? "ĐẠT":"Chưa đạt"}
@@ -172,10 +172,10 @@ struct ShotCoachAnalysis {
                     }
                 }
                 if let ideal=ideal {
-                    lines.append("Vật lý app (cùng lực, cùng effect): băng 1 cần chạm \(railLabel(ideal.rail)) · nút \(n1(ideal.diamond)).")
+                    lines.append("Vật lý app (cùng lực, cùng ép phê): băng 1 cần chạm \(railLabel(ideal.rail)) · nút \(n1(ideal.diamond)).")
                     if let first=contacts.first,first.rail==ideal.rail {
                         let delta=ideal.diamond-first.diamond
-                        lines.append(abs(delta)<0.05 ? "Điểm va băng đã đúng; xem lại lực và effect.":"👉 Một thay đổi: dời điểm va băng thứ nhất \(n1(abs(delta))) nút về phía nút \(n1(ideal.diamond)). Giữ nguyên lực và effect.")
+                        lines.append(abs(delta)<0.05 ? "Điểm va băng đã đúng; xem lại lực và ép phê.":"👉 Một thay đổi: dời điểm va băng thứ nhất \(n1(abs(delta))) nút về phía nút \(n1(ideal.diamond)). Giữ nguyên lực và ép phê.")
                     } else {lines.append("👉 Một thay đổi: chọn đúng băng thứ nhất như trên.")}
                 } else {
                     var alternative:(level:Int,rail:BLRail,diamond:Double)?
@@ -189,8 +189,8 @@ struct ShotCoachAnalysis {
                         }
                     }
                     if let alt=alternative {
-                        lines.append("👉 Một thay đổi: \(levelChange(alt.level)), giữ effect. Khi đó băng 1 cần chạm \(railLabel(alt.rail)) · nút \(n1(alt.diamond)).")
-                    } else {lines.append("Với vài mức vận tốc gần cú vừa rồi, vật lý app không tìm được đường \(d.rails) băng — thử đổi effect.")}
+                        lines.append("👉 Một thay đổi: \(levelChange(alt.level)), giữ ép phê. Khi đó băng 1 cần chạm \(railLabel(alt.rail)) · nút \(n1(alt.diamond)).")
+                    } else {lines.append("Với vài mức vận tốc gần cú vừa rồi, vật lý app không tìm được đường \(d.rails) băng — thử đổi ép phê.")}
                 }
             }
         } else if let goal=d.goal {
@@ -202,7 +202,7 @@ struct ShotCoachAnalysis {
                     var candidates:[(String,Double,Double)]=[]
                     for delta in [-2,-1,1,2] {
                         let level=Int(BLPowerClampLevel(Int32(base+delta)))
-                        if level != base {candidates.append((levelChange(level)+", giữ effect",levelSpeed(level),0))}
+                        if level != base {candidates.append((levelChange(level)+", giữ ép phê",levelSpeed(level),0))}
                     }
                     candidates.append(("giữ nhịp đẩy, điểm chạm cao hơn 20% bán kính (gần tới vòng 25)",shot.speed,0.2))
                     candidates.append(("giữ nhịp đẩy, điểm chạm thấp hơn 20% bán kính (gần tới vòng 25)",shot.speed,-0.2))
@@ -242,7 +242,7 @@ struct ShotCoachAnalysis {
                         if ok && cueSafe {fix=(delta>0 ? "sang phải":"sang trái")+(abs(delta)<0.004 ? " rất ít (dưới nửa bề rộng đầu cơ)":(abs(delta)<0.007 ? " một chút":" rõ hơn"));break}
                     }
                 }
-                lines.append(fix.map{"👉 Một thay đổi: lệch hướng ngắm \($0); giữ nhịp đẩy và effect."} ?? "Lệch ngắm nhỏ không cứu được cú này — thử đổi lực hoặc effect.")
+                lines.append(fix.map{"👉 Một thay đổi: lệch hướng ngắm \($0); giữ nhịp đẩy và ép phê."} ?? "Lệch ngắm nhỏ không cứu được cú này — thử đổi lực hoặc ép phê.")
             }
         }
         lines.append("Dự báo theo vật lý của app, chưa đối chiếu bàn thật. Chạm để ẩn.")

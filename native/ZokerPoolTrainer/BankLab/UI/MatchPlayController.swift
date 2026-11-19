@@ -1278,12 +1278,12 @@ extension TrainingController {
 extension TrainingController {
     static let computerLevelTitles = ["Beginner", "Amateur", "Quarter Pro", "Semi Pro", "Pro", "AI"]
     static let computerLevelNotes = ["mới chơi, đánh theo cảm tính", "chơi vui, chỉ lo vào bi", "CLB: đi vị trí, thủ, kick, bi băng",
-                                     "phong trào: thêm combo, lực và effect đa dạng", "chuyên nghiệp: tính 2 bi, xoáy ngang, nhảy bi", "gần như không trượt, cả massé"]
+                                     "phong trào: thêm combo, lực và ép phê đa dạng", "chuyên nghiệp: tính 2 bi, xoáy ngang, nhảy bi", "gần như không trượt, cả massé"]
     /// Lobby → Thi đấu → Đấu với máy: level, then rule, then race.
     func openComputerMatch() {
         guard !shotActive, replayIndex == nil, !locked else { return }
         if matchPlay.active { openMatchActions(); return }
-        let sheet = UIAlertController(title: "Đấu với máy", message: "Máy tính bằng chính vật lý của bàn và tự thử cú theo tay của cấp đó. Cấp càng cao càng ít sai tay, điều bi xa hơn, dùng lực/effect, thủ, kick, nhảy, massé.", preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: "Đấu với máy", message: "Máy tính bằng chính vật lý của bàn và tự thử cú theo tay của cấp đó. Cấp càng cao càng ít sai tay, điều bi xa hơn, dùng lực/ép phê, thủ, kick, nhảy, massé.", preferredStyle: .actionSheet)
         for (level, title) in Self.computerLevelTitles.enumerated() {
             sheet.addAction(UIAlertAction(title: "\(title) · \(Self.computerLevelNotes[level])", style: .default) { [weak self] _ in self?.chooseComputerRule(level) })
         }

@@ -158,7 +158,7 @@ struct Drill {
     }
     var formula:String {
         if !system.isEmpty {return system}
-        if kick || rails>0 {return "Đường gương: phản chiếu bi đích qua băng, ngắm vào ảnh. Đây là mốc hình học; lực, effect và ma sát băng làm đường thật lệch đi."}
+        if kick || rails>0 {return "Đường gương: phản chiếu bi đích qua băng, ngắm vào ảnh. Đây là mốc hình học; lực, ép phê và ma sát băng làm đường thật lệch đi."}
         return "Giữ hướng và điểm chạm làm mốc; mỗi cú chỉ thay một biến (lực, điểm chạm hoặc góc)."
     }
     var coaching:String { "Một lượt = 5 cú cùng thế bi; sau mỗi cú app tự xếp lại bi. Qua bài khi đạt từ 3/5 cú. Sao = số cú đạt; 5 sao cần thêm điểm trung bình từ 85.\n\nĐiểm mỗi cú (0–100) app tự chấm: cú đạt được 100 (bài vùng dừng trừ theo khoảng cách tới tâm vòng); cú trượt được điểm theo độ gần: bi cái trượt bi 1 bao nhiêu cm, bi 1 dừng cách lỗ bao xa, sai số băng. Bi cái vào lỗ = 0. Bật Coach để xem điểm va băng và lời khuyên một thay đổi cho cú sau." }
@@ -177,8 +177,8 @@ struct Drill {
     }
     static func starText(_ n:Int)->String{String(repeating:"★",count:max(0,min(5,n)))+String(repeating:"☆",count:5-max(0,min(5,n)))}
 
-    private static let mirror="Hệ gương (kick 1 băng): đếm nút trên băng định đánh, lấy ảnh đối xứng của bi 1 qua băng; điểm ngắm là chỗ đường bi cái → ảnh cắt băng. Khi hai bi cách băng bằng nhau, điểm ngắm nằm giữa hai số nút của chúng (trung điểm). Bật Coach: app tính sẵn số nút gương cho thế bi này. Effect thuận mở góc ra, effect nghịch thu góc lại (Dr. Dave Alciatore, kick/bank FAQ)."
-    private static let corner5="Corner-5 (3 băng, Walter Harris / Robert Byrne): số bi cái (đếm theo đường cơ trên băng dài) − số đích ở băng thứ 3 = số ngắm ở băng thứ nhất. Ví dụ bi cái ở 5, muốn tới 2 thì ngắm 3. Đánh effect thuận vừa, lực vừa; bàn nhanh/chậm cần bù ½ nút. Kick 2 băng: dùng nút gương hai lần (phản chiếu qua băng thứ 2 rồi băng thứ 1)."
+    private static let mirror="Hệ gương (kick 1 băng): đếm nút trên băng định đánh, lấy ảnh đối xứng của bi 1 qua băng; điểm ngắm là chỗ đường bi cái → ảnh cắt băng. Khi hai bi cách băng bằng nhau, điểm ngắm nằm giữa hai số nút của chúng (trung điểm). Bật Coach: app tính sẵn số nút gương cho thế bi này. Ép phê thuận mở góc ra, ép phê nghịch thu góc lại (Dr. Dave Alciatore, kick/bank FAQ)."
+    private static let corner5="Corner-5 (3 băng, Walter Harris / Robert Byrne): số bi cái (đếm theo đường cơ trên băng dài) − số đích ở băng thứ 3 = số ngắm ở băng thứ nhất. Ví dụ bi cái ở 5, muốn tới 2 thì ngắm 3. Đánh ép phê thuận vừa, lực vừa; bàn nhanh/chậm cần bù ½ nút. Kick 2 băng: dùng nút gương hai lần (phản chiếu qua băng thứ 2 rồi băng thứ 1)."
     private static let plus="Hệ Plus (kick 2 băng qua băng ngắn rồi băng dài): số vị trí bi cái + số điểm đến = số ngắm trên băng dài đối diện. Bank 1 băng: phản chiếu lỗ qua băng (hệ gương); bi 1 nhận throw từ cắt mỏng nên ngắm sâu hơn một chút khi cắt mạnh."
 
     private static func kickLayout(rails:Int,variant:Int)->(cue:BallState,object:BallState,blockers:[BallState],angle:Double){
@@ -253,20 +253,20 @@ struct Drill {
         let pot=PracticeGoal(x:0,y:0,radius:0,potRequired:true,potOnly:true)
         r.append(Drill(title:"Trick · Combo dính",note:"Bi 2 dính sát bi 1 chĩa vào lỗ góc. Đánh bi 2, bi 1 vào lỗ.",rails:0,kick:false,
             balls:[BallState(id:0,x:0.10,y:0.40),BallState(id:2,x:0.50,y:1.10),BallState(id:1,x:0.5356,y:1.1447)],angle:atan2(0.70,0.40),goal:pot,level:5,
-            system:"Hai bi dính sát: bi trước đi theo đường nối hai tâm, cộng throw ~2–4° về phía bi cái đi. Đánh dày vừa, effect giữa."))
+            system:"Hai bi dính sát: bi trước đi theo đường nối hai tâm, cộng throw ~2–4° về phía bi cái đi. Đánh dày vừa, ép phê giữa."))
         r.append(Drill(title:"Trick · Jump qua bi cản",note:"Bi cản sát đường. Chọn gậy Jump (cơ ~45°), nhảy qua bi cản cắt bi 1 vào lỗ góc.",rails:0,kick:false,
             balls:[BallState(id:0,x:0.15,y:-0.20),BallState(id:2,x:0.201,y:-0.027),BallState(id:1,x:0.55,y:1.15)],angle:atan2(1.35,0.40),goal:pot,level:5,
             system:"Jump: cơ dốc 40–50°, đánh trên tâm một chút, ra cơ nhanh và ngắn. Bi bật lên khỏi mặt nỉ rồi rơi về; khoảng cách tới bi cản cần ≥ 1 gang tay (TP 7.x, Dr. Dave)."))
         r.append(Drill(title:"Trick · Massé vòng bi cản",note:"Bi cản che thẳng. Chọn Massé (cơ ≥ 60°), đánh lệch tâm để bi cái cong vòng qua.",rails:0,kick:false,
             balls:[BallState(id:0,x:-0.20,y:0.10),BallState(id:2,x:-0.12,y:0.32),BallState(id:1,x:0.05,y:0.85)],angle:atan2(0.75,0.25),goal:pot,level:5,
-            system:"Massé: hướng cuối của bi cái ≈ 5/7 hướng ra cơ + 2/7 do xoáy (Coriolis), cong về phía effect đặt. Cơ càng dốc, đường cong càng ngắn."))
+            system:"Massé: hướng cuối của bi cái ≈ 5/7 hướng ra cơ + 2/7 do xoáy (Coriolis), cong về phía ép phê đặt. Cơ càng dốc, đường cong càng ngắn."))
         r.append(Drill(title:"Trick · Kick 3 băng thoát cụm",note:"Bi 1 nằm sau cụm bi cản; kick 3 băng rồi đưa bi 1 vào lỗ.",rails:0,kick:false,
             balls:[BallState(id:0,x:-0.30,y:-0.70),BallState(id:2,x:0.05,y:0.10),BallState(id:3,x:0.25,y:0.25),BallState(id:1,x:0.52,y:1.10)],angle:0.36,goal:pot,level:5,system:corner5))
         // Thế bi theo clip "Reverse bank zigzag" (đo trong Tests/ReverseZigzagTests.cpp: bi đích ở nút dài 4,36 / ngắn 1,83,
         // đi tới băng tại nút 3,44, rồi zigzag đổi chiều sau băng 2).
-        r.append(Drill(title:"Trick · Reverse bank zigzag",note:"Như clip: bi 1 đập băng rồi zigzag ĐỔI CHIỀU về lỗ. Đánh effect ngược với hướng bi 1 văng ra (bánh răng), lực mạnh.",rails:0,kick:false,
+        r.append(Drill(title:"Trick · Reverse bank zigzag",note:"Như clip: bi 1 đập băng rồi zigzag ĐỔI CHIỀU về lỗ. Đánh ép phê ngược với hướng bi 1 văng ra (bánh răng), lực mạnh.",rails:0,kick:false,
             balls:[BallState(id:0,x:-0.511,y:0.316),BallState(id:1,x:-0.054,y:0.114)],angle:atan2(-0.404,0.914),goal:pot,level:5,
-            system:"Hiệu ứng bánh răng: effect bi cái ngược chiều văng của bi 1 truyền xoáy ngược sang bi 1 (≈ R·ω/v 0,13–0,14 ở effect tối đa). Chạm băng, xoáy ngược kéo bi 1 giật về, đường đi đổi chiều sau băng thứ 2. Effect thuận thì không giật mà mở góc."))
+            system:"Hiệu ứng bánh răng: ép phê bi cái ngược chiều văng của bi 1 truyền xoáy ngược sang bi 1 (≈ R·ω/v 0,13–0,14 ở ép phê tối đa). Chạm băng, xoáy ngược kéo bi 1 giật về, đường đi đổi chiều sau băng thứ 2. Ép phê thuận thì không giật mà mở góc."))
         let videos:[String:String]=[
             "Kick 1 băng · Gương A":"https://www.youtube.com/watch?v=rcWccgPnoso",
             "Kick 1 băng · Gương B":"https://drdavepoolinfo.com/faq/bank-kick/two-to-one/",
