@@ -23,7 +23,7 @@ final class NearbyLobbyController: UIViewController, UITableViewDataSource, UITa
         overrideUserInterfaceStyle = .dark
         view.backgroundColor = UIColor(white: 0.05, alpha: 1)
         view.accessibilityIdentifier = "NearbyLobby"
-        let title = UILabel(); title.text = "Chơi gần · Nearby"; title.font = .systemFont(ofSize: 22, weight: .bold); title.textColor = Self.gold
+        let title = UILabel(); title.text = "Chơi gần"; title.font = .systemFont(ofSize: 22, weight: .bold); title.textColor = Self.gold
         let note = UILabel(); note.numberOfLines = 0; note.font = .systemFont(ofSize: 12); note.textColor = UIColor(white: 0.7, alpha: 1)
         note.text = "Hai iPhone/iPad ở gần nhau, cùng Wi‑Fi hoặc không cần Internet (Apple tự chọn Wi‑Fi / Wi‑Fi trực tiếp / Bluetooth). Không cần IP, cổng hay máy chủ."
         tabs.selectedSegmentIndex = 0; tabs.addAction(UIAction { [weak self] _ in self?.tabChanged() }, for: .valueChanged)
@@ -190,8 +190,8 @@ extension TrainingController {
             reply(false, false); return   // cannot ask now: refuse this once, the guest may ask again
         }
         let alert = UIAlertController(title: "\(name) muốn vào phòng", message: "\(name) wants to join · Nhận để bắt đầu trận với máy này.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Từ chối · Decline", style: .cancel) { _ in reply(false, true) })
-        alert.addAction(UIAlertAction(title: "Nhận · Accept", style: .default) { _ in reply(true, true) })
+        alert.addAction(UIAlertAction(title: "Từ chối", style: .cancel) { _ in reply(false, true) })
+        alert.addAction(UIAlertAction(title: "Nhận", style: .default) { _ in reply(true, true) })
         alert.view.accessibilityIdentifier = "NearbyInvitation"
         top.present(alert, animated: true)
         // 0.44.1 review: the session gives up after 15 s; never leave a dead question on screen (it would also make

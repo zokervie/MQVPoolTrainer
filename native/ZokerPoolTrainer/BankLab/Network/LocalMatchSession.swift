@@ -112,7 +112,7 @@ final class LocalMatchSession: NSObject {
            let stored = try? NSKeyedUnarchiver.unarchivedObject(ofClass: MCPeerID.self, from: data) {
             peerID = stored
         } else {
-            let value = MCPeerID(displayName: "Z-Trainer " + String(UUID().uuidString.suffix(4)))
+            let value = MCPeerID(displayName: "Zoker Pool " + String(UUID().uuidString.suffix(4)))
             peerID = value
             if let data = try? NSKeyedArchiver.archivedData(withRootObject: value, requiringSecureCoding: true) {
                 defaults.set(data, forKey: "lanPeerIdentity018")
@@ -1045,7 +1045,7 @@ final class GameCenterHub: NSObject, GKMatchmakerViewControllerDelegate, GKLocal
         pendingRule = rule
         let request = GKMatchRequest(); request.minPlayers = 2; request.maxPlayers = 2
         request.playerGroup = Self.rules.firstIndex(of: rule) ?? 1
-        request.inviteMessage = "Mời bạn một ván bida trên Z-Trainer"
+        request.inviteMessage = "Mời bạn một ván bida trên Zoker Pool"
         guard let controller = GKMatchmakerViewController(matchRequest: request) else { onStatus?("Không mở được ghép trận Game Center"); return }
         controller.matchmakerDelegate = self
         presenter?.present(controller, animated: true)

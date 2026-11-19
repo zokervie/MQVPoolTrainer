@@ -68,7 +68,7 @@ enum Teaser048 {
                 (s as NSString).draw(in: CGRect(x: 0, y: y, width: size.width, height: pt * 1.5),
                                      withAttributes: [.font: UIFont.systemFont(ofSize: pt, weight: weight), .foregroundColor: colour, .paragraphStyle: p])
             }
-            line("ZokerPoolTrainer", size.height * 0.40 + 210 * u, 54 * u, .white, .heavy)
+            line("Zoker Pool", size.height * 0.40 + 210 * u, 54 * u, .white, .heavy)
             if let code = code {
                 line(L10n.tr("Thách bạn") + ": " + ChallengeCode.pretty(code), size.height * 0.40 + 300 * u, 60 * u, ZDesign.Color.gold, .black)
                 line(L10n.tr("Sảnh → Nhập mã thách đấu"), size.height * 0.40 + 390 * u, 32 * u, UIColor(white: 0.8, alpha: 1), .medium)

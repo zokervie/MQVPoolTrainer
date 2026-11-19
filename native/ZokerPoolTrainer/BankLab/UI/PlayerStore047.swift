@@ -295,7 +295,7 @@ final class PlayerStore {
     func usageReport(at now: Date = Date(), extra: [String] = []) -> String {
         let m = data.metrics, today = day(now)
         let f = ISO8601DateFormatter(); f.timeZone = timeZone; f.formatOptions = [.withFullDate]
-        var lines = ["ZokerPoolTrainer usage (local, never sent)",
+        var lines = ["Zoker Pool usage (local, never sent)",
                      "installed: " + f.string(from: m.installedAt) + " (day \(m.installDay))",
                      "days since install: \(today - m.installDay)",
                      "days opened: \(m.openDays.count)",

@@ -353,7 +353,7 @@ extension TrainingController {
     }
     func copySmoothnessReport(){
         UIPasteboard.general.string=smoothnessReport()
-        notifyStatus(displayDurations.isEmpty ? "Chưa có cú để đo · No shot measured yet":"Đã sao chép số đo cú vừa đánh · Copied")
+        notifyStatus(displayDurations.isEmpty ? "Chưa có cú để đo":"Đã sao chép số đo cú vừa đánh")
     }
     func graphics(){
         let a=UIAlertController(title:"Hình ảnh · Premium Classic",message:"Mặc định Cân bằng: giảm tải GPU; tự giảm chất lượng khi máy nóng. Chất lượng cao tăng độ nét và bóng. Thử trên máy thật để chọn phù hợp.",preferredStyle:.actionSheet)

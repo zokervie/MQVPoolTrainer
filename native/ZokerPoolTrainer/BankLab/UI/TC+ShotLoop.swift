@@ -41,7 +41,7 @@ extension TrainingController {
             deferredStroke=nil;locked=true;shoot(pending.speed);if locked{setHold(false)}
             return
         }
-        if ProcessInfo.processInfo.systemUptime>pending.until {deferredStroke=nil;notifyStatus("Chưa đồng bộ kịp với máy bạn — anh đánh lại cú này")}
+        if ProcessInfo.processInfo.systemUptime>pending.until {deferredStroke=nil;notifyStatus("Chưa đồng bộ kịp với máy bạn — hãy đánh lại cú này")}
         else{wakeRendering()}
     }
     var balls:[BallState]{matchDisplayedBalls ?? frameStateCache ?? engine.ballStates}

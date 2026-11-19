@@ -56,9 +56,9 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSGKFriendListUsageDescription</key>
-	<string>Hiển thị bạn bè Game Center để mời chơi bida online trên Z-Trainer.</string>
+	<string>Hiển thị bạn bè Game Center để mời chơi bida online trên Zoker Pool.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Kết nối hai người chơi Z-Trainer trên cùng Wi-Fi bằng mã phòng; không cần tài khoản hoặc máy chủ.</string>
+	<string>Kết nối hai người chơi Zoker Pool trên cùng Wi-Fi bằng mã phòng; không cần tài khoản hoặc máy chủ.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_zt-pool18._tcp</string>
