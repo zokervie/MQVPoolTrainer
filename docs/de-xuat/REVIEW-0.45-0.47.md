@@ -43,3 +43,8 @@ Việc: khởi động lại Mac để Simulator chạy, chạy từng test trê
 ## Chữ Việt + Anh (19/11) — nhánh `cho/native-0.48-l10n` (mới nhất: thêm "effect" → "ép phê")
 - Phiên đám mây đã sửa chuỗi và danh mục (13 file, chỉ chuỗi). **Gộp vào `cho/native-0.48` trước khi làm tiếp** (`git merge origin/cho/native-0.48-l10n`), build + chạy UI test (chưa build Swift ở đám mây).
 - Còn lại cho phiên Mac ở 0.49: tên 6 cấp máy sang tiếng Việt (Tập sự · Nghiệp dư · CLB · Phong trào · Chuyên nghiệp · Đỉnh cao; en giữ Beginner…); bỏ số phiên bản trong chuỗi người dùng ("Cũ 0.17", "Điều khiển 0.18 & ghi công", "Bộ giải 0.9"); sửa số cũ "Thư viện 20 bàn · 12 cơ", "Cỡ 8 ft và 7 ft: bản sau"; test `check_resources.py` còn in "Z-Trainer master".
+
+## 0.49b Xưởng bài (20/11) — nhánh `cho/native-0.49-xuong-bai` @ 17d173b
+- Phiên đám mây đã làm phần C/C++ (kho bài dữ liệu, luật chấm chung, máy chấm, 40 bài / 9 chương, test 811 kiểm PASS g++ + clang++). Nhánh đã gồm l10n.
+- **Phiên Mac làm tiếp trên nhánh này** theo `docs/de-xuat/NHIEM-VU-0.49b-XUONG-BAI.md` (X1–X8), sau khi sửa `testChapterOneLadderAndExam`.
+- CI: `ci/native-0.49-xuong-bai` (+ Xcode 26) để kiểm Swift nhập được header mới và dựng IPA có bản chữ mới.
