@@ -48,3 +48,9 @@ Việc: khởi động lại Mac để Simulator chạy, chạy từng test trê
 - Phiên đám mây đã làm phần C/C++ (kho bài dữ liệu, luật chấm chung, máy chấm, 40 bài / 9 chương, test 811 kiểm PASS g++ + clang++). Nhánh đã gồm l10n.
 - **Phiên Mac làm tiếp trên nhánh này** theo `docs/de-xuat/NHIEM-VU-0.49b-XUONG-BAI.md` (X1–X8), sau khi sửa `testChapterOneLadderAndExam`.
 - CI: `ci/native-0.49-xuong-bai` (+ Xcode 26) để kiểm Swift nhập được header mới và dựng IPA có bản chữ mới.
+
+## CI 163 + phản hồi máy thật IPA 163 (20/11 19:21)
+- CI 163: cổng Linux g++/clang++ PASS (có DrillCatalog 811 kiểm). UI 30/32: `testChapterOneLadderAndExam` (đã biết) và **mới** `testFreshInstallLaunchFlowIntroLobbyTutorialTable` (`"launching"` ≠ `"intro"`, dòng 453). Lần 162 test này PASS; nhánh này chỉ thêm C header + chữ → nghi chậm runner (INFERRED). Kiểm: test phải chờ trạng thái `intro` có hạn giờ, không đọc một lần.
+- **Chói (chủ dự án):** bàn màu sáng (thân + mặt băng trắng) cháy sáng. Việc: giảm specular/roughness vật liệu sơn bóng màu sáng, đặt trần độ sáng (tone mapping, exposure) cho họ bàn sáng; ảnh phòng chuẩn trước/sau, đo % điểm ảnh cháy (≥ 250) trên bàn ≤ 2 %.
+- **Nút đặt bi ("B"):** chủ dự án muốn đưa ra ngoài cụm điều khiển để bấm nhanh. Đề xuất: nút riêng "Đặt bi" 64 pt ở mép trái, ngay trên hàng Đánh/Jump/Massé/Break; chỉ sáng khi được đặt bi; một chạm vào chế độ kéo bi, chạm lại để xong. UI test: chạm được khi bi tự do, ẩn/mờ khi không.
+- **Hơi giật ở 60 Hz** (số đo sạch: 0/286 khung thiếu, mọi khung 16,68 ms). Hai việc: (1) vẫn còn **2 lượt bố cục UIKit giữa cú** và một tick 29,7 ms — phải về 0 (quy tắc: relayout hoãn tới khi bi dừng); (2) làm B2c (vệt chuyển động bi) vì bi nhanh nhảy ~4 cm/khung ở 60 Hz. Đang hỏi chủ dự án giật lúc bi chạy hay lúc vuốt xoay camera.
