@@ -24,7 +24,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var locked=false,isPlacingBalls=false,guideOn=false,shotActive=false
     var drillIndex=Drill.startup,attempts=0,successes=0
     var roundResults:[Bool]=[],roundSmallMade=0,roundCoachUsed=false   // 0.49b X8: this round so far
-    var puzzleFailedInRow=0,restNudgeArmed=false,puzzleGhostUntil=0.0;var puzzleReturn:PuzzleSession?;var puzzleIcon:UIImageView?;var puzzleBookButton:UIButton?   // 0.50 T4/T6/T7
+    var dailyShareShown="",dailyShareTaps=0;var puzzleFailedInRow=0,restNudgeArmed=false,puzzleGhostUntil=0.0;var puzzleReturn:PuzzleSession?;var puzzleIcon:UIImageView?;var puzzleBookButton:UIButton?   // 0.50 T4/T6/T7
     var puzzleSession:PuzzleSession?;var puzzleBar:UIView?;var puzzleTaskLabel:UILabel?;var puzzleHintButton:UIButton?;var puzzleRetryMs=0.0,puzzleRetries=0   // 0.50 Thế bí
     var glareSummary=""   // 0.49c G5 probe result for XCTest: "<PASS|FAIL|NOT_RUN>:<worst %>"
     var strikeSettled=false,midShotLayoutPasses=0,midShotLayoutTotal=0   // 0.49c G7

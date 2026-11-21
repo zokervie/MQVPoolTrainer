@@ -158,6 +158,17 @@ import Foundation
         h.markPuzzleWatched(key: "p-2-01", at: 123.5); h.notePracticeTrip(); h.notePracticeTrip(returnedAndSolved: true)
         let h5 = PlayerStore(directory: dirH, now: t0, timeZone: hanoi)
         try check(h5.data.puzzleWatched["p-2-01"] == 123.5 && h5.data.practiceTrips == 1 && h5.data.practiceReturnSolved == 1 && h5.data.puzzleBook.count == 1, "0.50 book / watch / trips survive a reload")
+        // 10 · 0.51 N1: the daily puzzle locks after a solve or 6 tries and stays per day
+        for g in [0, 1, 0] { h.recordDailyTry(day: 20800, grade: g) }
+        try check(!h.dailyState(20800).locked && h.dailyState(20800).grades == [0, 1, 0], "tries so far, still open")
+        h.recordDailyTry(day: 20800, grade: 2)
+        try check(h.dailyState(20800).solved && h.dailyState(20800).locked && h.dailyState(20800).grades.count == 4, "a solve locks the day")
+        h.recordDailyTry(day: 20800, grade: 0)
+        try check(h.dailyState(20800).grades.count == 4, "a locked day takes no more tries")
+        for _ in 0..<7 { h.recordDailyTry(day: 20801, grade: 0) }
+        try check(h.dailyState(20801).grades.count == 6 && h.dailyState(20801).locked && !h.dailyState(20801).solved && !h.dailyState(20802).locked, "6 tries lock, the next day is open")
+        let h6 = PlayerStore(directory: dirH, now: t0, timeZone: hanoi)
+        try check(h6.dailyState(20801).grades.count == 6 && h6.dailyState(20800).solved, "daily state survives a reload")
         let old = PlayerData(now: t0, day: 0), oldJSON = try JSONEncoder().encode(old)
         var dict = try JSONSerialization.jsonObject(with: oldJSON) as! [String: Any]; dict.removeValue(forKey: "realTable"); dict.removeValue(forKey: "examKeysMigrated")
         let decoded = try JSONDecoder().decode(PlayerData.self, from: JSONSerialization.data(withJSONObject: dict))

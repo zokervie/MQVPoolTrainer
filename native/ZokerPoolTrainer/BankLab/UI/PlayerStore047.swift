@@ -77,6 +77,14 @@ enum DrillBadge: String, CaseIterable { case streak3, small, noCoach
 /// 0.50 T5: the stroke that solved a puzzle (Sổ lời giải) — shown next to the listed reference stroke once the puzzle is solved.
 struct PuzzleRecord: Codable, Equatable { var angle: Double; var speed: Double; var top: Double; var signature: Int; var day: Int64; var tries: Int }
 
+/// 0.51 N1: one day of "Thế bí của ngày": the grades of the tries so far (0 far · 1 near · 2 solved), at most 6; solved or 6 tries = locked until tomorrow.
+struct DailyPuzzleState: Codable, Equatable {
+    var grades: [Int] = []
+    var solved: Bool { grades.last == 2 }
+    static let maxTries = 6
+    var locked: Bool { solved || grades.count >= Self.maxTries }
+}
+
 struct PlayerData: Codable, Equatable {
     static let currentSchema = 1
     var schemaVersion = PlayerData.currentSchema
@@ -100,6 +108,7 @@ struct PlayerData: Codable, Equatable {
     var hintJarCount = -1                           // hint jar (BLHintJar): -1 = never opened (starts full)
     var hintJarRefillFrom = 0.0                     // seconds since 1970 of the last refill tick
     var hintsEmptied = 0                            // times the jar ran dry (T8, never sent anywhere)
+    var dailyPuzzle: [String: DailyPuzzleState] = [:]   // 0.51 N1, keyed by the local day index
     var puzzleBook: [String: PuzzleRecord] = [:]    // T5 Sổ lời giải: the player's own solving stroke per puzzle
     var puzzleWatched: [String: Double] = [:]       // T4 level 3: when the route was last watched (seconds since 1970)
     var puzzleSolvedDay: [String: Int64] = [:]      // T6: day of the first solve (reviews come back after 1 / 3 / 7 days)
@@ -133,6 +142,7 @@ struct PlayerData: Codable, Equatable {
         hintJarRefillFrom = try c.decodeIfPresent(Double.self, forKey: .hintJarRefillFrom) ?? 0
         hintsEmptied = try c.decodeIfPresent(Int.self, forKey: .hintsEmptied) ?? 0
         puzzleBook = try c.decodeIfPresent([String: PuzzleRecord].self, forKey: .puzzleBook) ?? [:]
+        dailyPuzzle = try c.decodeIfPresent([String: DailyPuzzleState].self, forKey: .dailyPuzzle) ?? [:]
         puzzleWatched = try c.decodeIfPresent([String: Double].self, forKey: .puzzleWatched) ?? [:]
         puzzleSolvedDay = try c.decodeIfPresent([String: Int64].self, forKey: .puzzleSolvedDay) ?? [:]
         puzzleReviewDone = try c.decodeIfPresent([String: [Int]].self, forKey: .puzzleReviewDone) ?? [:]
@@ -307,6 +317,12 @@ final class PlayerStore {
         let better = stars > (data.puzzleStars[key] ?? 0)
         if better { data.puzzleStars[key] = min(3, stars) }
         save(); return better
+    }
+    /// 0.51 N1: the day's state, and one more try on it. A locked day takes no more tries.
+    func dailyState(_ day: Int64) -> DailyPuzzleState { data.dailyPuzzle[String(day)] ?? DailyPuzzleState() }
+    @discardableResult func recordDailyTry(day: Int64, grade: Int) -> DailyPuzzleState {
+        var s = dailyState(day); guard !s.locked else { return s }
+        s.grades.append(max(0, min(2, grade))); data.dailyPuzzle[String(day)] = s; save(); return s
     }
     /// T5/T6: remember how the puzzle was solved; the first solve schedules its reviews.
     func recordPuzzleSolve(key: String, record: PuzzleRecord, at now: Date = Date()) {

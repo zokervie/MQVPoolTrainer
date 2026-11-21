@@ -29,6 +29,7 @@ struct PuzzleSession {
     var mirrored = false      // a review: the left–right twin of the puzzle (T6), no stars
     var viaPractice = false   // came back from "Ra bàn tập" (T8)
     var reviewStep = 0
+    var dailyDay: Int64?      // 0.51 N1: today's daily puzzle (6 tries, no hints, no stars)
 }
 
 enum PuzzleRooms {
@@ -196,7 +197,7 @@ extension TrainingController {
     }
     /// T2: load the puzzle as the table: its layout, nothing drawn (no aim help in the main mode), one line of task.
     /// T6: `mirrored` = the left–right twin used by the reviews (no stars).
-    func beginPuzzle(_ i: Int, mirrored: Bool = false, carry: PuzzleSession? = nil, reviewStep: Int = 0) {
+    func beginPuzzle(_ i: Int, mirrored: Bool = false, carry: PuzzleSession? = nil, reviewStep: Int = 0, daily: Int64? = nil) {
         guard let p = BLPuzzleAt(Int32(i))?.pointee else { return }
         let key = String(cString: p.spec.key)
         guard let drillIndex = Drill.all.firstIndex(where: { $0.id == (mirrored ? "m-" : "") + key }) else { return }
@@ -219,7 +220,8 @@ extension TrainingController {
             }
             lessonActive = false
             var session = carry ?? PuzzleSession(index: i, drillIndex: drillIndex)
-            session.index = i; session.drillIndex = drillIndex; session.mirrored = mirrored; session.reviewStep = reviewStep; session.solved = false
+            session.index = i; session.drillIndex = drillIndex; session.mirrored = mirrored; session.reviewStep = reviewStep; session.solved = false; session.dailyDay = daily
+            if let day = daily { session.tries = PlayerStore.shared.dailyState(day).grades.count }
             if QA.has("--puzzle-hint3-qa") { session.hintLevel = 2 }   // QA: the jar holds 3 and level 3 costs 2 after two earlier hints, so a test starts at level 2
             puzzleSession = session
             buildPuzzleBarIfNeeded(); syncPuzzleBar(); startRestNudge()
@@ -289,12 +291,15 @@ extension TrainingController {
         bar.isHidden = puzzleSession == nil || menuOpen || replayIndex != nil
         guard let s = puzzleSession, let p = puzzleSpec(s) else { return }
         let found = "\(L10n.tr("Đã tìm")) \(s.found.count)/\(p.solutionCount)"
-        puzzleTaskLabel?.text = (s.mirrored ? L10n.tr("Ôn lại (lật gương)") + ": " : "") + L10n.tr(PuzzleText.task(style: Int32(p.style))) + "\n" + L10n.tr(PuzzleText.skill(p.spec.skill)) + " · " + found
+        if let day = s.dailyDay {
+            let st = PlayerStore.shared.dailyState(day)
+            puzzleTaskLabel?.text = L10n.tr("Thế bí của ngày") + " #\(BLDailyNumber(day)) · \(st.grades.count)/\(DailyPuzzleState.maxTries) " + DailyPuzzle.dots(st.grades) + "\n" + L10n.tr(PuzzleText.task(style: Int32(p.style)))
+        } else { puzzleTaskLabel?.text = (s.mirrored ? L10n.tr("Ôn lại (lật gương)") + ": " : "") + L10n.tr(PuzzleText.task(style: Int32(p.style))) + "\n" + L10n.tr(PuzzleText.skill(p.spec.skill)) + " · " + found }
         puzzleIcon?.image = UIImage(systemName: PuzzleText.symbol(p.spec.skill))
         let jar = currentHintJar()
         puzzleHintButton?.configuration?.title = "\(jar.count)"
         puzzleHintButton?.isEnabled = !shotActive && !s.mirrored
-        puzzleHintButton?.isHidden = s.mirrored   // a review is played without hints
+        puzzleHintButton?.isHidden = s.mirrored || s.dailyDay != nil   // a review and the daily puzzle are played without hints
         puzzleBookButton?.isHidden = !s.solved
     }
     // MARK: T3 retry
@@ -321,7 +326,7 @@ extension TrainingController {
     }
     var puzzleGhostActive: Bool { Date().timeIntervalSince1970 < puzzleGhostUntil }
     func puzzleHint() {
-        guard var session = puzzleSession, !session.mirrored, !shotActive, !puzzleGhostActive, let p = puzzleSpec(session) else { return }
+        guard var session = puzzleSession, !session.mirrored, session.dailyDay == nil, !shotActive, !puzzleGhostActive, let p = puzzleSpec(session) else { return }
         let level = min(3, session.hintLevel + 1)
         let now = Date().timeIntervalSince1970
         var jar = currentHintJar(now: now)
@@ -387,6 +392,7 @@ extension TrainingController {
     func puzzleShotFinished(_ d: Drill, passed: Bool, scratch: Bool, timedOut: Bool, railCount: Int, events: [[String: NSNumber]]) {
         guard var s = puzzleSession, s.drillIndex == drillIndex, var p = puzzleSpec(s) else { return }
         s.tries += 1
+        if let day = s.dailyDay { puzzleSession = s; dailyShotFinished(s, day: day, d: d, passed: passed, events: events); return }
         if passed {
             let kinds = events.map { Int32($0["kind"]?.intValue ?? 0) }, a = events.map { Int32($0["a"]?.intValue ?? 0) }, b = events.map { Int32($0["b"]?.intValue ?? 0) }
             let sig = BLDrillSignature(Int32(events.count), kinds, a, b)

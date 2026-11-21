@@ -1017,6 +1017,40 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(app.tables["PuzzleStats"].waitForExistence(timeout: 10 * slow))
         XCTAssertTrue(app.staticTexts["Thế đã giải"].exists)
     }
+    /// 0.51 N1: the daily puzzle gives 6 tries, then locks with the share line; a new (QA-set) date opens a new one; today's stays locked on relaunch.
+    func testDailyPuzzleLocksAfterSixTriesAndReopensTomorrow() {
+        func launchDaily(day: Int, fresh: Bool) -> (XCUIApplication, XCUIElement) {
+            let app = XCUIApplication()
+            app.launchArguments = ["--keep-lobby-qa"] + (fresh ? ["--fresh-player-qa"] : []) + ["--auto-shot-qa", "--puzzle-miss-qa", "--daily-autoretry-qa", "--daily-day-qa=\(day)"]
+            app.launch()
+            XCTAssertTrue(app.buttons["LobbyDailyPuzzle"].waitForExistence(timeout: 60)); app.buttons["LobbyDailyPuzzle"].tap()
+            return (app, app.otherElements["PoolScene"])
+        }
+        // day +40: number > 0 whatever the release epoch is
+        let (app, scene) = launchDaily(day: 40, fresh: true)
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 400 * slow) { self.text(scene, "dailyLocked") == "1" }
+        XCTAssertEqual(text(scene, "dailyTries"), "6", "six tries, then locked")
+        XCTAssertTrue(app.alerts["DailyResult"].waitForExistence(timeout: 20 * slow) || app.alerts.firstMatch.waitForExistence(timeout: 5), "the result card")
+        let share = text(scene, "dailyShare")
+        XCTAssertTrue(share.hasPrefix("Zoker #") && share.contains("· X/6|"), "share line (no spoiler, unsolved shows X/6): \(share)")
+        XCTAssertEqual(share.components(separatedBy: "|")[1].count, 6, "six dots, one per try: \(share)")
+        app.alerts.firstMatch.buttons["Khoe"].tap()
+        wait(scene, timeout: 10 * slow) { self.text(scene, "dailyShares") == "1" }
+        XCTAssertEqual(text(scene, "dailyShares"), "1", "Khoe counted (local measure)")
+        app.terminate()
+        // same day again: still locked, the result card shows instead of a puzzle
+        let (app2, scene2) = launchDaily(day: 40, fresh: false)
+        XCTAssertTrue(app2.alerts.firstMatch.waitForExistence(timeout: 30 * slow), "today is locked: the result card, not a puzzle")
+        XCTAssertEqual(text(scene2, "puzzle"), "")
+        app2.terminate()
+        // tomorrow: a new puzzle, open
+        let (app3, scene3) = launchDaily(day: 41, fresh: false)
+        wait(scene3, timeout: 60 * slow) { self.text(scene3, "puzzle") != "" }
+        XCTAssertNotEqual(text(scene3, "puzzle"), "", "a new daily puzzle")
+        XCTAssertEqual(text(scene3, "dailyLocked"), "0")
+        app3.terminate()
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])
