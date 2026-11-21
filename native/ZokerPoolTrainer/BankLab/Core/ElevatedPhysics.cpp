@@ -195,7 +195,10 @@ void World::stepElevated(double dt){
                 const double vn=contact.dot(normal);if(vn>=0)continue;
                 const double e=std::clamp(config.bounce(s.rail)-config.railSpeedSensitivity*std::abs(vn),.4,.98);
                 const double jn=-(1+e)*vn;const Vec slip=contact-normal*vn;
-                if(config.coupledCushions){
+                const double flat=std::hypot(normal.x,normal.y);
+                if(config.cushionModel==1&&b.height<=1e-8&&std::abs(b.vertical)<=1e-6&&flat>1e-9){
+                    World::mathavanCushion(b,config,V2{normal.x/flat,normal.y/flat});b.vertical=0;
+                }else if(config.coupledCushions){
                     auto out=contact3d::solve({b.v.x,b.v.y,b.vertical},{b.w.x,b.w.y,b.spin},{normal.x,normal.y,normal.z},r,e,config.grip(s.rail),config.slateFriction,b.height<=1e-8&&b.vertical<=1e-6,config.railTangentialRestitution);
                     setVelocity(b,{out.velocity.x,out.velocity.y,out.velocity.z});setOmega(b,{out.omega.x,out.omega.y,out.omega.z});
                 }else impulse(b,arm,normal*jn+cap(slip*(-1/3.5),config.grip(s.rail)*jn),r);
