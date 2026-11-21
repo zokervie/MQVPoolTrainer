@@ -352,7 +352,7 @@ extension TrainingController {
         spinCenter.isHidden=true;spin.isHidden=open;lockButton.isHidden=open;coachButton.isHidden=open
         quickScroll.isHidden=open;elevationPad.isHidden=open;for icon in cueIcons{icon.isHidden=open}
         coachCard.isHidden=open || !coachOn || !cardOn || coachCard.alpha==0
-        updateControls()
+        syncPuzzleBar();updateControls()
     }
     func buildQuickRail(){
         quickRail.axis = .vertical;quickRail.spacing=2;quickRail.distribution = .fillEqually

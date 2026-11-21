@@ -141,6 +141,12 @@ import Foundation
         try check(h.badges("stop-hold") == [.streak3, .small] && h.badges("bank1").isEmpty, "badges per drill")
         let h3 = PlayerStore(directory: dirH, now: t0, timeZone: hanoi)
         try check(h3.badges("stop-hold") == [.streak3, .small], "badges survive a reload")
+        // 8 · 0.50: puzzle stars never go down, tries add up, hint jar state round-trips
+        try check(h.recordPuzzle(key: "p-1-01", stars: 2, tries: 3) && !h.recordPuzzle(key: "p-1-01", stars: 1, tries: 2) && h.puzzleStars("p-1-01") == 2, "puzzle best stars only rise")
+        try check(h.data.puzzleTries["p-1-01"] == 5 && h.puzzleStars("p-9-99") == 0, "puzzle tries add up")
+        h.saveHintJar(count: 2, refillFrom: 1_000.5, emptied: true)
+        let h4 = PlayerStore(directory: dirH, now: t0, timeZone: hanoi)
+        try check(h4.data.hintJarCount == 2 && h4.data.hintJarRefillFrom == 1_000.5 && h4.data.hintsEmptied == 1 && h4.puzzleStars("p-1-01") == 2, "0.50 fields survive a reload")
         let old = PlayerData(now: t0, day: 0), oldJSON = try JSONEncoder().encode(old)
         var dict = try JSONSerialization.jsonObject(with: oldJSON) as! [String: Any]; dict.removeValue(forKey: "realTable"); dict.removeValue(forKey: "examKeysMigrated")
         let decoded = try JSONDecoder().decode(PlayerData.self, from: JSONSerialization.data(withJSONObject: dict))

@@ -20,6 +20,7 @@ extension TrainingController {
                 A(title:"Tập tự do",icon:"circle.dashed",id:"LobbyFree",run:{[weak self] in RecentPlay.saveFree();self?.setMenu(false)})]),
             .init(title:"Bài tập",subtitle:"Bài chấm sao, tìm góc kick",icon:"star.circle",color:LobbyController.practice,actions:[
                 A(title:FeatureFlags.chapters ? "Bài tập · 6 chương":"Bài tập · 5 cấp",icon:"star.circle",id:"LobbyDrills",run:{[weak self] in self?.chooseDrill()}),
+                A(title:"Thế bí · 9 phòng",icon:"puzzlepiece",id:"LobbyPuzzles",run:{[weak self] in self?.openPuzzles()}),
                 A(title:"Thử thách kick 1–3 băng",icon:"arrow.triangle.turn.up.right.diamond",id:"LobbyKick",run:{[weak self] in self?.chooseKick()})]),
             .init(title:"Đấu",subtitle:"8 · 9 · 10 Ball luật WPA, 15 Ball Rotation",icon:"trophy",color:LobbyController.match,actions:[
                 A(title:"Đấu với máy · 6 cấp",icon:"cpu",id:"LobbyComputer",run:{[weak self] in self?.openComputerMatch()}),

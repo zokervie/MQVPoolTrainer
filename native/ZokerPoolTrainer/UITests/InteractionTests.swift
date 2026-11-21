@@ -874,6 +874,46 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(app.textViews["LegalLicenseText"].waitForExistence(timeout: 10 * slow))
         XCTAssertTrue((app.textViews["LegalLicenseText"].value as? String ?? "").contains("SIL OPEN FONT LICENSE Version 1.1"), "the original OFL.txt")
     }
+    // MARK: 0.50 Thế bí
+    private func openFirstPuzzle(_ app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["LobbyPuzzles"].waitForExistence(timeout: 60)); app.buttons["LobbyPuzzles"].tap()
+        XCTAssertTrue(app.tables["Puzzles"].waitForExistence(timeout: 10 * slow))
+        XCTAssertTrue(app.cells["Puzzle-p-1-01"].waitForExistence(timeout: 5 * slow), "first puzzle of room 1 is open"); app.cells["Puzzle-p-1-01"].tap()
+    }
+    /// T1: the map shows rooms; room 1 is open, a later room is locked with "Còn N sao nữa…".
+    func testPuzzleMapRoomOneOpenAndLaterRoomLocked() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyPuzzles"].waitForExistence(timeout: 60)); app.buttons["LobbyPuzzles"].tap()
+        XCTAssertTrue(app.tables["Puzzles"].waitForExistence(timeout: 10 * slow))
+        XCTAssertTrue(app.otherElements["PuzzleRoom-1"].waitForExistence(timeout: 5 * slow) || app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Phòng 1")).firstMatch.exists, "room 1 on the map")
+        XCTAssertTrue(app.cells["Puzzle-p-1-01"].exists, "room 1 puzzle listed and open")
+        let locked = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "Còn", "sao nữa là mở phòng")).firstMatch
+        for _ in 0..<6 where !locked.exists { app.tables["Puzzles"].swipeUp() }
+        XCTAssertTrue(locked.exists, "a locked room says how many stars are missing")
+    }
+    /// T2/T3/T4: the task line, a miss shows a real measurement, retry is instant and keeps the session, a hint takes one from the jar.
+    func testPuzzleMissThenInstantRetryAndHintFromTheJar() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--puzzle-miss-qa"]; app.launch()
+        openFirstPuzzle(app)
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == "p-1-01" }
+        XCTAssertTrue(app.staticTexts["PuzzleTask"].waitForExistence(timeout: 10 * slow), "one line of task")
+        XCTAssertEqual(text(scene, "hintJar"), "3", "a fresh player's jar is full")
+        wait(scene, timeout: 90 * slow) { (Int(self.text(scene, "puzzleTries")) ?? 0) >= 1 }
+        XCTAssertEqual(text(scene, "puzzleStarsNow"), "0", "the QA shot was a miss")
+        let status = text(scene, "status")
+        XCTAssertFalse(status.isEmpty || status.contains("Giải được"), "a miss states what really happened: \(status)")
+        let before = XCTAttachment(screenshot: app.screenshot()); before.name = "puzzle-after-miss"; before.lifetime = .keepAlways; add(before)
+        XCTAssertTrue(app.buttons["PuzzleHint"].isHittable, "hint button is on top and tappable: \(app.buttons["PuzzleHint"].frame)")
+        // hint first: after a retry the QA shooter fires again and a hint is refused while a shot runs
+        app.buttons["PuzzleHint"].tap()
+        wait(scene, timeout: 10 * slow) { self.text(scene, "hintJar") == "2" }
+        XCTAssertEqual(text(scene, "hintJar"), "2", "a hint costs one")
+        app.buttons["PuzzleRetry"].tap()
+        wait(scene, timeout: 20 * slow) { self.text(scene, "puzzleRetries") != "0" }
+        XCTAssertLessThan(Double(text(scene, "puzzleRetryMs")) ?? 9999, 1000, "retry in under a second: \(text(scene, "puzzleRetryMs")) ms")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

@@ -72,7 +72,7 @@ enum DrillCatalog {
     }
 
     /// The `Drill` of a catalogue spec; `old` is the ≤ 0.48 drill with the same id (its title, note, formula and video stay).
-    static func make(_ s: BLDrillSpec, old: Drill?) -> Drill {
+    static func make(_ s: BLDrillSpec, old: Drill?, title overrideTitle: String? = nil) -> Drill {
         let key = String(cString: s.key)
         let balls = withUnsafePointer(to: s.balls) { p in
             p.withMemoryRebound(to: BLDrillBall.self, capacity: Int(BL_DRILL_MAX_BALLS)) { b in
@@ -91,7 +91,7 @@ enum DrillCatalog {
             }
         }()
         let text = newText[key]
-        var d = Drill(title: old?.title ?? text?.title ?? key, note: old?.note ?? text?.note ?? "", rails: kind == Int(BL_DRILL_GOAL) || kind == Int(BL_DRILL_SAFETY) ? 0 : Int(s.rails),
+        var d = Drill(title: overrideTitle ?? old?.title ?? text?.title ?? key, note: old?.note ?? text?.note ?? "", rails: kind == Int(BL_DRILL_GOAL) || kind == Int(BL_DRILL_SAFETY) ? 0 : Int(s.rails),
                       kick: kind == Int(BL_DRILL_KICK), balls: balls, angle: s.angle, goal: goal, level: level,
                       system: old?.system ?? newSystem[key] ?? "")
         d.id = key; d.video = old?.video; d.tipTop = s.tipTop; d.spec = s; d.safety = kind == Int(BL_DRILL_SAFETY)
@@ -109,6 +109,12 @@ enum DrillCatalog {
         for i in 0..<count {
             let k = key(at: i)
             if !used.contains(k), let s = spec(k) { out.append(make(s, old: nil)) }
+        }
+        // 0.50: the puzzles' drills (own table BLPuzzleTable, keys "p-<room>-<nn>") sit after the catalogue so loadDrill/finishShot work on them unchanged.
+        for i in 0..<Int(BLPuzzleCount()) {
+            guard let p = BLPuzzleAt(Int32(i))?.pointee else { continue }
+            var d = make(p.spec, old: nil, title: "Thế bí " + String(cString: p.spec.key)); d.level = 0
+            out.append(d)
         }
         return out
     }

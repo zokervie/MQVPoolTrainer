@@ -104,13 +104,20 @@ extension TrainingController {
         if QA.has("--auto-shot-qa") {
             Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] t in
                 guard let self = self else { t.invalidate(); return }
-                guard self.lessonActive || self.testRun != nil, !self.shotActive, self.replayIndex == nil, self.presentedViewController == nil,
+                guard self.lessonActive || self.testRun != nil || self.puzzleSession != nil, !self.shotActive, self.replayIndex == nil, self.presentedViewController == nil,
                       !self.engine.moving, self.cue?.sunk == false, self.strokeAllowed else { return }
                 if self.lessonActive && self.lessonScores.count >= 5 { return }
                 let d = Drill.all[self.drillIndex]
                 // Same aim the drill suggests; the round needs a shot, not a pass.
                 if self.balls.first(where: { $0.id == 0 }).map({ abs($0.x - (self.initial.first { $0.id == 0 }?.x ?? 0)) < 0.002 }) != true { return }
                 if self.drillVariant == 0 { self.angle = d.angle }
+                if QA.has("--puzzle-solve-qa"), let s = self.puzzleSession, !s.solved, let p = BLPuzzleAt(Int32(s.index))?.pointee, p.solutionCount > 0 {   // 0.50: play the best listed route
+                    let r = p.solutions.0
+                    self.angle = r.angle; self.spin.select(side: 0, top: r.top); self.setHold(true); guard self.locked else { return }
+                    self.shoot(r.speed); self.qaShots += 1; self.spin.collapse(); self.setHold(false); return
+                }
+                if self.puzzleSession?.solved == true { return }
+                if QA.has("--puzzle-miss-qa"), self.puzzleSession != nil { self.angle += 0.5 }   // a certain miss, for the retry / measurement test
                 self.setHold(true); guard self.locked else { return }
                 self.shoot(2.0); self.qaShots += 1; self.spin.collapse(); self.setHold(false)
             }
@@ -120,7 +127,7 @@ extension TrainingController {
     /// QA (scene accessibility value): 0.47 state for XCTest.
     var qa047: String {
         let d = Drill.all[drillIndex]
-        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;petemoss=\(Wood.fontAvailable ? 1 : 0);glare=\(glareSummary);midShotLayout=%lld;barZoom=%.2f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, midShotLayoutTotal, Double(powerBar?.peakZoom ?? 1), powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + String(format: ";layoutX=%.5f;layoutY=%.5f", initial.first { $0.id == 0 }?.x ?? 0, initial.first { $0.id == 0 }?.y ?? 0) + ";variant=\(drillVariant);spectrum=\(UserDefaults.standard.bool(forKey: Prefs.diagPowerSpectrum) ? 1 : 0);threeBallPref=\(UserDefaults.standard.bool(forKey: Prefs.threeBallBreak) ? 1 : 0);catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
+        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;puzzle=\(puzzleSession.map { PuzzleRooms.key($0.index) } ?? "");puzzleStarsNow=\(puzzleSession.map { PlayerStore.shared.puzzleStars(PuzzleRooms.key($0.index)) } ?? -1);puzzleTries=\(puzzleSession?.tries ?? 0);puzzleRetryMs=\(String(format: "%.2f", puzzleRetryMs));puzzleRetries=\(puzzleRetries);hintJar=\(currentHintJar().count);petemoss=\(Wood.fontAvailable ? 1 : 0);glare=\(glareSummary);midShotLayout=%lld;barZoom=%.2f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, midShotLayoutTotal, Double(powerBar?.peakZoom ?? 1), powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + String(format: ";layoutX=%.5f;layoutY=%.5f", initial.first { $0.id == 0 }?.x ?? 0, initial.first { $0.id == 0 }?.y ?? 0) + ";variant=\(drillVariant);spectrum=\(UserDefaults.standard.bool(forKey: Prefs.diagPowerSpectrum) ? 1 : 0);threeBallPref=\(UserDefaults.standard.bool(forKey: Prefs.threeBallBreak) ? 1 : 0);catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
     }
 }
 

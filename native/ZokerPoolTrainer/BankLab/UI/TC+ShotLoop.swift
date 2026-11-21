@@ -49,6 +49,7 @@ extension TrainingController {
     func loadDrill(_ index:Int){
         guard matchAllowsEditing else{return}
         guard !presentationBusy,localTurn else{return}
+        if puzzleSession != nil && !Drill.all[index].id.hasPrefix("p-"){puzzleSession=nil;syncPuzzleBar()}   // 0.50: leaving a puzzle ends its session
         drillIndex=index;drillVariant=0;roundResults=[];roundSmallMade=0;roundCoachUsed=false;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
         PlayerStore.shared.noteDrillOpened(drill.id)   // 0.45 M5: attempt time starts when the drill is on the table
         table.target(coachOn ? drill.goal:nil)
@@ -508,6 +509,7 @@ extension TrainingController {
             requestCoachReport(drill:d,events:events,passed:passed,scratch:scratch)
         }
         if lessonActive && (d.level>0 || d.judged) {scoreLesson(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount,events:events)}
+        if puzzleSession != nil {puzzleShotFinished(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount,events:events)}   // 0.50 T3/T5
         if testRun != nil {testRunShotFinished(passed:passed)}   // 0.47 M0/M5: no feedback until the 10th shot
     }
     /// ≤ 0.48 judging (goal zone / kick / bank), kept for drills outside the catalogue; returns the rail count of the shot too.

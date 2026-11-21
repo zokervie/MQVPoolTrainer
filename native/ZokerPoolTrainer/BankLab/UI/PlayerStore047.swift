@@ -91,6 +91,12 @@ struct PlayerData: Codable, Equatable {
     var tipsSeen: [Int] = []            // chapters whose tip card was shown once
     // 0.49b
     var examKeysMigrated = false        // "chapter-<n>" exam keys moved to BLDrillChapterKey names (X1)
+    // 0.50 "Thế bí" (T1/T4/T5)
+    var puzzleStars: [String: Int] = [:]            // puzzle key "p-<room>-<nn>" → best stars 0…3
+    var puzzleTries: [String: Int] = [:]            // puzzle key → shots spent in all sessions (local measure T8)
+    var hintJarCount = -1                           // hint jar (BLHintJar): -1 = never opened (starts full)
+    var hintJarRefillFrom = 0.0                     // seconds since 1970 of the last refill tick
+    var hintsEmptied = 0                            // times the jar ran dry (T8, never sent anywhere)
     var badges: [String: [String]] = [:]            // drill id → DrillBadge raw values earned (X8)
     var realTable: [String: [RealTableLog]] = [:]   // drill id → tries on a real table (X7), oldest first
 
@@ -113,6 +119,11 @@ struct PlayerData: Codable, Equatable {
         examKeysMigrated = try c.decodeIfPresent(Bool.self, forKey: .examKeysMigrated) ?? false
         realTable = try c.decodeIfPresent([String: [RealTableLog]].self, forKey: .realTable) ?? [:]
         badges = try c.decodeIfPresent([String: [String]].self, forKey: .badges) ?? [:]
+        puzzleStars = try c.decodeIfPresent([String: Int].self, forKey: .puzzleStars) ?? [:]
+        puzzleTries = try c.decodeIfPresent([String: Int].self, forKey: .puzzleTries) ?? [:]
+        hintJarCount = try c.decodeIfPresent(Int.self, forKey: .hintJarCount) ?? -1
+        hintJarRefillFrom = try c.decodeIfPresent(Double.self, forKey: .hintJarRefillFrom) ?? 0
+        hintsEmptied = try c.decodeIfPresent(Int.self, forKey: .hintsEmptied) ?? 0
     }
 }
 
@@ -276,6 +287,18 @@ final class PlayerStore {
         return true
     }
     func badges(_ drill: String) -> [DrillBadge] { (data.badges[drill] ?? []).compactMap { DrillBadge(rawValue: $0) } }
+    /// 0.50 T5: best stars of a puzzle (never lowered).
+    @discardableResult func recordPuzzle(key: String, stars: Int, tries: Int) -> Bool {
+        data.puzzleTries[key, default: 0] += max(0, tries)
+        let better = stars > (data.puzzleStars[key] ?? 0)
+        if better { data.puzzleStars[key] = min(3, stars) }
+        save(); return better
+    }
+    func puzzleStars(_ key: String) -> Int { data.puzzleStars[key] ?? 0 }
+    /// 0.50 T4: hint jar state as it is stored (the rules live in Puzzle.h; the UI converts).
+    func saveHintJar(count: Int, refillFrom: Double, emptied: Bool = false) {
+        data.hintJarCount = count; data.hintJarRefillFrom = refillFrom; if emptied { data.hintsEmptied += 1 }; save()
+    }
     static let maxRealTable = 50
     /// 0.49b X7: tries on a real table for one drill (made out of 10), the last `maxRealTable` kept.
     func recordRealTable(drill: String, made: Int, at now: Date = Date()) {
