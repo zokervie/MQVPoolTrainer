@@ -91,6 +91,7 @@ extension TrainingController {
         if QA.has("--chapter-unlock-qa"), let c = Chapters.chapter(1) {
             for id in c.drills where PlayerStore.shared.stars(id) < 3 { PlayerStore.shared.recordRound(drill: id, stars: 3, average: 70, made: 3) }
         }
+        if QA.has("--open-puzzle-qa") { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.beginPuzzle(0) } }   // 0.50 QA: start puzzle #0 without the Lobby
         if QA.has("--wood-picker-qa") { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.openComputerMatch() } }   // photo of the wood picker
         if QA.has("--legal-qa") {   // 0.49c G2: opens Pháp lý for the UI test / photo
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
@@ -124,10 +125,17 @@ extension TrainingController {
         }
         #endif
     }
+    /// QA: the engine settings that differ from a fresh BLWorld (= Config::app, what the drill checker simulates), "key=app/fresh,…".
+    func settingsDiffVsConfigApp() -> String {
+        let fresh = BLWorld().settings
+        return engine.settings.compactMap { k, v in
+            let f = fresh[k]?.doubleValue; return f == v.doubleValue ? nil : "\(k)=\(v.doubleValue)/\(f.map { String($0) } ?? "nil")"
+        }.sorted().joined(separator: ",")
+    }
     /// QA (scene accessibility value): 0.47 state for XCTest.
     var qa047: String {
         let d = Drill.all[drillIndex]
-        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;puzzle=\(puzzleSession.map { PuzzleRooms.key($0.index) } ?? "");puzzleStarsNow=\(puzzleSession.map { PlayerStore.shared.puzzleStars(PuzzleRooms.key($0.index)) } ?? -1);puzzleTries=\(puzzleSession?.tries ?? 0);puzzleRetryMs=\(String(format: "%.2f", puzzleRetryMs));puzzleRetries=\(puzzleRetries);hintJar=\(currentHintJar().count);petemoss=\(Wood.fontAvailable ? 1 : 0);glare=\(glareSummary);midShotLayout=%lld;barZoom=%.2f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, midShotLayoutTotal, Double(powerBar?.peakZoom ?? 1), powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + String(format: ";layoutX=%.5f;layoutY=%.5f", initial.first { $0.id == 0 }?.x ?? 0, initial.first { $0.id == 0 }?.y ?? 0) + ";variant=\(drillVariant);spectrum=\(UserDefaults.standard.bool(forKey: Prefs.diagPowerSpectrum) ? 1 : 0);threeBallPref=\(UserDefaults.standard.bool(forKey: Prefs.threeBallBreak) ? 1 : 0);catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
+        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;sdiff=\(QA.has("--settings-diff-qa") ? settingsDiffVsConfigApp() : "");puzzle=\(puzzleSession.map { PuzzleRooms.key($0.index) } ?? "");puzzleStarsNow=\(puzzleSession.map { PlayerStore.shared.puzzleStars(PuzzleRooms.key($0.index)) } ?? -1);puzzleTries=\(puzzleSession?.tries ?? 0);puzzleRetryMs=\(String(format: "%.2f", puzzleRetryMs));puzzleRetries=\(puzzleRetries);hintJar=\(currentHintJar().count);petemoss=\(Wood.fontAvailable ? 1 : 0);glare=\(glareSummary);midShotLayout=%lld;barZoom=%.2f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, midShotLayoutTotal, Double(powerBar?.peakZoom ?? 1), powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + String(format: ";layoutX=%.5f;layoutY=%.5f", initial.first { $0.id == 0 }?.x ?? 0, initial.first { $0.id == 0 }?.y ?? 0) + ";variant=\(drillVariant);spectrum=\(UserDefaults.standard.bool(forKey: Prefs.diagPowerSpectrum) ? 1 : 0);threeBallPref=\(UserDefaults.standard.bool(forKey: Prefs.threeBallBreak) ? 1 : 0);catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
     }
 }
 

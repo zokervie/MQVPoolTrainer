@@ -111,11 +111,25 @@ extension TrainingController {
         if testRun != nil { endTestRun(cancelled: true) }
         if let previous = guidedCoachBefore { coaching = previous; guidedCoachBefore = nil }
         coaching = false; applyCoachVisibility()
-        setMenu(false); loadDrill(drillIndex)
-        lessonActive = false
-        puzzleSession = PuzzleSession(index: i, drillIndex: drillIndex)
-        buildPuzzleBarIfNeeded(); syncPuzzleBar()
-        statusLabel.text = L10n.tr(PuzzleText.task(style: Int32(p.style)))
+        setMenu(false)
+        // ROOT CAUSE of "the listed route misses in the app" (0.50): `loadDrill` silently refuses while the shot camera is returning or a
+        // sheet is still dismissing, so the puzzle's session started on the PREVIOUS layout and the reference stroke missed it by 10 cm.
+        // Wait until the table really holds this puzzle's drill, then start the session.
+        func attempt(_ left: Int) {
+            guard testRun == nil else { return }
+            // SECOND ROOT CAUSE (found by comparing engine.settings with Config::app): the player's last stroke kind (Jump: cue 45°, 3D on) is
+            // saved between launches and made the same reference stroke miss by 9–10 cm. A puzzle is always played with the normal cue.
+            if !shotActive && !presentationBusy && localTurn { if shotKind != 0 { chooseShotKind(0) }; loadDrill(drillIndex) }
+            guard self.drillIndex == drillIndex, !shotActive, shotKind == 0 else {
+                if left > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { attempt(left - 1) } }
+                return
+            }
+            lessonActive = false
+            puzzleSession = PuzzleSession(index: i, drillIndex: drillIndex)
+            buildPuzzleBarIfNeeded(); syncPuzzleBar()
+            statusLabel.text = L10n.tr(PuzzleText.task(style: Int32(p.style)))
+        }
+        attempt(100)
     }
     func endPuzzle() { puzzleSession = nil; table.target(nil); syncPuzzleBar() }
     private func buildPuzzleBarIfNeeded() {
@@ -220,3 +234,4 @@ extension TrainingController {
         puzzleSession = s; syncPuzzleBar()
     }
 }
+

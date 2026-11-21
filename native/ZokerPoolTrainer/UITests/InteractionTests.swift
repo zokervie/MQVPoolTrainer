@@ -905,7 +905,9 @@ final class InteractionTests: XCTestCase {
         let status = text(scene, "status")
         XCTAssertFalse(status.isEmpty || status.contains("Giải được"), "a miss states what really happened: \(status)")
         let before = XCTAttachment(screenshot: app.screenshot()); before.name = "puzzle-after-miss"; before.lifetime = .keepAlways; add(before)
-        XCTAssertTrue(app.buttons["PuzzleHint"].isHittable, "hint button is on top and tappable: \(app.buttons["PuzzleHint"].frame)")
+        let hintButton = app.buttons["PuzzleHint"]
+        expectation(for: NSPredicate(format: "exists == true AND hittable == true AND enabled == true"), evaluatedWith: hintButton)
+        waitForExpectations(timeout: 15 * slow)   // ready, with a deadline: no sleeping
         // hint first: after a retry the QA shooter fires again and a hint is refused while a shot runs
         app.buttons["PuzzleHint"].tap()
         wait(scene, timeout: 10 * slow) { self.text(scene, "hintJar") == "2" }
@@ -913,6 +915,14 @@ final class InteractionTests: XCTestCase {
         app.buttons["PuzzleRetry"].tap()
         wait(scene, timeout: 20 * slow) { self.text(scene, "puzzleRetries") != "0" }
         XCTAssertLessThan(Double(text(scene, "puzzleRetryMs")) ?? 9999, 1000, "retry in under a second: \(text(scene, "puzzleRetryMs")) ms")
+    }
+    func testPuzzleSolvedWithItsListedRouteEarnsStars() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--puzzle-solve-qa", "-shotKind017", "1"]; app.launch()
+        openFirstPuzzle(app)
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 60 * slow) { (Int(self.text(scene, "puzzleStarsNow")) ?? 0) >= 1 || (Int(self.text(scene, "puzzleTries")) ?? 0) >= 1 }
+        XCTAssertGreaterThanOrEqual(Int(text(scene, "puzzleStarsNow")) ?? 0, 1, "the listed route solved it: status=\(text(scene, "status")) tries=\(text(scene, "puzzleTries")) layout=\(text(scene, "layoutX")),\(text(scene, "layoutY"))")
     }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
