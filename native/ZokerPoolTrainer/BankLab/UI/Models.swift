@@ -375,12 +375,20 @@ private final class DrillPreviewView:UIView {
     let drill:Drill
     /// X4: the pocket the reference stroke sends ball 1 into (computed once on a private world; nil when it pockets nothing).
     private var pocket:Int?
+    /// X4: the reference stroke's paths, faint — only after the player has played this drill at least once (never on the table in the main mode).
+    private var solution:[Int:[(Double,Double)]]=[:]
     init(drill:Drill){
         self.drill=drill;super.init(frame:.zero);backgroundColor=UIColor(red:0.07,green:0.045,blue:0.03,alpha:1);layer.cornerRadius=12;clipsToBounds=true
         if let spec=drill.spec,spec.kind != Int32(BL_DRILL_SAFETY) && spec.scanDegrees > 0 {
             let world=BLWorld();world.loadLayout(drill.balls.map{$0.dictionary})
             let out=world.simulate(angle:spec.solveAngle,speed:spec.solveSpeed,side:0,top:spec.solveTop)
             let events=out["events"] as? [[String:NSNumber]] ?? []
+            if PlayerStore.shared.data.rounds.contains(where:{$0.drill==drill.id}) {
+                for p in world.prediction(angle:spec.solveAngle,speed:spec.solveSpeed,side:0,top:spec.solveTop) {
+                    guard let id=p["id"]?.intValue,id<=1,let x=p["x"]?.doubleValue,let y=p["y"]?.doubleValue else{continue}
+                    solution[id,default:[]].append((x,y))
+                }
+            }
             pocket=events.first{$0["kind"]?.intValue==2 && $0["a"]?.intValue==1 && ($0["b"]?.intValue ?? -1)>=0}?["b"]?.intValue
         }
     }
@@ -437,6 +445,10 @@ private final class DrillPreviewView:UIView {
             let q=point(g.x,g.y),gr=CGFloat(g.radius)*scale
             c.setStrokeColor(UIColor(red:1,green:0.85,blue:0.3,alpha:0.95).cgColor);c.setLineWidth(1.8);c.setLineDash(phase:0,lengths:[5,4])
             c.strokeEllipse(in:CGRect(x:q.x-gr,y:q.y-gr,width:2*gr,height:2*gr));c.setLineDash(phase:0,lengths:[])
+        }
+        for (id,pts) in solution where pts.count>1 {
+            c.setStrokeColor((id==0 ? UIColor.white:UIColor(red:1,green:0.63,blue:0.1,alpha:1)).withAlphaComponent(0.4).cgColor);c.setLineWidth(1.5);c.setLineDash(phase:0,lengths:[2,3])
+            let first=point(pts[0].0,pts[0].1);c.move(to:first);for p in pts.dropFirst(){c.addLine(to:point(p.0,p.1))};c.strokePath();c.setLineDash(phase:0,lengths:[])
         }
         // Mũi tên hướng ngắm bắt đầu từ bi cái (trước đây chỉ có chữ, không có hình).
         if let cue=drill.balls.first(where:{$0.id==0}) {

@@ -113,7 +113,7 @@ extension TrainingController {
     /// QA (scene accessibility value): 0.47 state for XCTest.
     var qa047: String {
         let d = Drill.all[drillIndex]
-        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;midShotLayout=%lld;barZoom=%.2f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, midShotLayoutTotal, Double(powerBar?.peakZoom ?? 1), powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + String(format: ";layoutX=%.5f;layoutY=%.5f", initial.first { $0.id == 0 }?.x ?? 0, initial.first { $0.id == 0 }?.y ?? 0) + ";variant=\(drillVariant);catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
+        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;midShotLayout=%lld;barZoom=%.2f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, midShotLayoutTotal, Double(powerBar?.peakZoom ?? 1), powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + String(format: ";layoutX=%.5f;layoutY=%.5f", initial.first { $0.id == 0 }?.x ?? 0, initial.first { $0.id == 0 }?.y ?? 0) + ";variant=\(drillVariant);spectrum=\(UserDefaults.standard.bool(forKey: Prefs.diagPowerSpectrum) ? 1 : 0);threeBallPref=\(UserDefaults.standard.bool(forKey: Prefs.threeBallBreak) ? 1 : 0);catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
     }
 }
 
@@ -182,6 +182,7 @@ extension TrainingController {
         try? FileManager.default.removeItem(at: dir); try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let keys = ["stop-hold", "cut-side-30", "kick3-corner5", "pos-follow"]
         var timings: [String: Any] = [:]
+        if QA.has("--diagram-solution-qa") { for k in keys { PlayerStore.shared.recordRound(drill: k, stars: 3, average: 70, made: 3) } }   // "played ≥ 1 round": the faint solution path shows
         func step(_ i: Int) {
             guard i < keys.count else {
                 timings["pictureFirstMs"] = DrillTableImage.firstMs; timings["pictureLastMs"] = DrillTableImage.lastMs

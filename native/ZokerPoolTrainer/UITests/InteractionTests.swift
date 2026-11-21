@@ -805,6 +805,40 @@ final class InteractionTests: XCTestCase {
         wait(scene, timeout: 60 * slow) { (scene.value as? String ?? "").contains("status=Quãng đường bi cái") }   // the QA shot has finished
         XCTAssertEqual(field(scene, "midShotLayout"), 0, "layout passes between frames of the shot: \(scene.value as? String ?? "")")
     }
+    /// 0.49b X7: the Tiến bộ screen lists the app's and the real-table results side by side ("Trong app / Bàn thật").
+    func testProgressShowsRealTableColumn() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--visual-qa", "--g1-default-qa", "--progress-demo-qa"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["ProgressChart"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.staticTexts["Trong app / Bàn thật"].waitForExistence(timeout: 10 * slow) || app.descendants(matching: .any)["ProgressRealTable"].exists, "the real-table section")
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "progress-real-table"; shot.lifetime = .keepAlways; add(shot)
+    }
+    /// 0.49c G4 + G8: defaults — no spectrum strip while swiping, 3-ball break rule off (the switches live in Tuỳ chỉnh).
+    func testSpectrumStripAndThreeBallBreakAreOffByDefault() {
+        let (_, scene) = launch([])
+        XCTAssertEqual(text(scene, "spectrum"), "0", "no colour strip while swiping by default")
+        XCTAssertEqual(text(scene, "threeBallPref"), "0", "3-ball break rule is a tournament option, off")
+    }
+    func testSpectrumStripCanBeBroughtBackForDiagnostics() {
+        let (_, scene) = launch(["-diagPowerSpectrum049", "YES", "-threeBallBreak049", "YES"])
+        XCTAssertEqual(text(scene, "spectrum"), "1")
+        XCTAssertEqual(text(scene, "threeBallPref"), "1")
+    }
+    /// 0.49b X8: a round passed without Coach earns the "Không Coach" badge (named in the result).
+    func testRoundWithoutCoachEarnsABadge() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa"]
+        app.launch()
+        XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
+        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].waitForExistence(timeout: 10 * slow)); app.cells["ChapterDrill-first-shot"].tap()
+        if app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow) { app.buttons["TipCardOK"].tap() }
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 5 * slow)); start.tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 180 * slow), "five QA shots close the round")
+        XCTAssertTrue(app.alerts.firstMatch.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Huy hiệu mới")).firstMatch.exists, "the round message names the new badge")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

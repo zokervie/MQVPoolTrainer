@@ -317,6 +317,7 @@ final class PlayerStore {
             _ = BLStreakComplete(&st, d)
             if back % 7 == 0 { demo.tests.append(TestLog(kind: "weekly", day: d, made: Int((skill * 10).rounded()), shots: 10)) }
         }
+        if let first = drills.first { demo.realTable[first] = [RealTableLog(day: today - 6, made: 4), RealTableLog(day: today - 3, made: 6), RealTableLog(day: today, made: 7)] }   // 0.49b X7 photo
         demo.streak = StreakRecord(st); demo.level = 3; demo.legacyStarsMigrated = true
         demo.metrics.sessions = 41; demo.metrics.shots = demo.attempts.count; demo.metrics.drillsCompleted = demo.rounds.count
         data = demo; save()
