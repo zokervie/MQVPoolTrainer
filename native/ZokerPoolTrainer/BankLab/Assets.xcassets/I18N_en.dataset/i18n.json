@@ -948,5 +948,11 @@
 "Hết cơ hôm nay": "Out of tries today",
 "Mai có thế mới.": "A new puzzle tomorrow.",
 "Khoe": "Share",
-"Luyện thế này": "Practise this one"
+"Luyện thế này": "Practise this one",
+"Thế của ngày: đã chơi / giải được": "Daily puzzle: played / solved",
+"Thế của ngày: số cơ trung bình": "Daily puzzle: average tries",
+"Lần bấm Khoe": "Times Share was tapped",
+"In tờ thế bí": "Print the puzzle flyer",
+"Quét mã để chơi thế bí hôm nay": "Scan to play today's puzzle",
+"Hiện đường bi của lần thử trước khi thử lại thế bí": "Show the previous try's ball path when retrying a puzzle"
 }

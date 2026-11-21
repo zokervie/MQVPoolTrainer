@@ -302,6 +302,7 @@ final class CustomizeController:UIViewController {
         // 0.41 (owner): 7-colour power scale (tím = nhẹ … đỏ = mạnh), misty swipe trail, speed shown where the swipe ends.
         toggle("Thang lực 7 màu · vệt vuốt · số lực cuối cú",Prefs.tunePowerFX,true)
         target.addArrangedSubview(UIButton.lab("Pháp lý · giấy phép"){[weak self] in guard let self=self else{return};let nav=UINavigationController(rootViewController:LegalController());nav.overrideUserInterfaceStyle = .dark;self.present(nav,animated:true)})   // 0.49c G2
+        toggle("Hiện đường bi của lần thử trước khi thử lại thế bí",Prefs.puzzleGhostPath,true)   // 0.51 N4
         toggle("Luật phá 3 bi (giải đấu)",Prefs.threeBallBreak,false)   // 0.49c G8: off = a break that pots a ball keeps the turn
         toggle("Intro thương hiệu khi mở app (lần đầu đủ 5,6 s, sau đó 1 s)",Prefs.introEnabled,true)
         toggle("Hướng dẫn cú đầu tiên khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)",Prefs.tutorialEnabled,true)

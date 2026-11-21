@@ -85,6 +85,24 @@ struct DailyPuzzleState: Codable, Equatable {
     var locked: Bool { solved || grades.count >= Self.maxTries }
 }
 
+/// 0.50 T7: the "rest your eyes" reminder after 45 minutes of puzzles in one go. A gap of 5 minutes or more without a puzzle action starts a
+/// new stretch. Pure functions of two timestamps, so tests drive them with a fake clock.
+struct RestNudge: Equatable {
+    static let stretchSeconds = 45.0 * 60, gapSeconds = 5.0 * 60
+    var threshold = RestNudge.stretchSeconds   // QA shortens it
+    var gap = RestNudge.gapSeconds
+    private(set) var stretchStart: Double?
+    private(set) var lastAction = 0.0
+    private(set) var nudged = false
+    /// A puzzle action (open, shot, retry) at `now`. Returns true exactly once per stretch, when it has lasted 45 minutes.
+    mutating func action(at now: Double) -> Bool {
+        if stretchStart == nil || now - lastAction >= gap { stretchStart = now; nudged = false }
+        lastAction = now
+        if !nudged, let start = stretchStart, now - start >= threshold { nudged = true; return true }
+        return false
+    }
+}
+
 struct PlayerData: Codable, Equatable {
     static let currentSchema = 1
     var schemaVersion = PlayerData.currentSchema
@@ -108,6 +126,7 @@ struct PlayerData: Codable, Equatable {
     var hintJarCount = -1                           // hint jar (BLHintJar): -1 = never opened (starts full)
     var hintJarRefillFrom = 0.0                     // seconds since 1970 of the last refill tick
     var hintsEmptied = 0                            // times the jar ran dry (T8, never sent anywhere)
+    var dailyShares = 0                                  // 0.51 N1 local measure: how often "Khoe" was tapped
     var dailyPuzzle: [String: DailyPuzzleState] = [:]   // 0.51 N1, keyed by the local day index
     var puzzleBook: [String: PuzzleRecord] = [:]    // T5 Sổ lời giải: the player's own solving stroke per puzzle
     var puzzleWatched: [String: Double] = [:]       // T4 level 3: when the route was last watched (seconds since 1970)
@@ -143,6 +162,7 @@ struct PlayerData: Codable, Equatable {
         hintsEmptied = try c.decodeIfPresent(Int.self, forKey: .hintsEmptied) ?? 0
         puzzleBook = try c.decodeIfPresent([String: PuzzleRecord].self, forKey: .puzzleBook) ?? [:]
         dailyPuzzle = try c.decodeIfPresent([String: DailyPuzzleState].self, forKey: .dailyPuzzle) ?? [:]
+        dailyShares = try c.decodeIfPresent(Int.self, forKey: .dailyShares) ?? 0
         puzzleWatched = try c.decodeIfPresent([String: Double].self, forKey: .puzzleWatched) ?? [:]
         puzzleSolvedDay = try c.decodeIfPresent([String: Int64].self, forKey: .puzzleSolvedDay) ?? [:]
         puzzleReviewDone = try c.decodeIfPresent([String: [Int]].self, forKey: .puzzleReviewDone) ?? [:]
@@ -322,7 +342,17 @@ final class PlayerStore {
     func dailyState(_ day: Int64) -> DailyPuzzleState { data.dailyPuzzle[String(day)] ?? DailyPuzzleState() }
     @discardableResult func recordDailyTry(day: Int64, grade: Int) -> DailyPuzzleState {
         var s = dailyState(day); guard !s.locked else { return s }
-        s.grades.append(max(0, min(2, grade))); data.dailyPuzzle[String(day)] = s; save(); return s
+        s.grades.append(max(0, min(2, grade))); data.dailyPuzzle[String(day)] = s
+        // the day counts for the streak when the puzzle is solved (BLStreak, same rule as a finished round)
+        if s.solved { var st = data.streak.c; _ = BLStreakComplete(&st, day); data.streak = StreakRecord(st) }
+        save(); return s
+    }
+    func noteDailyShare() { data.dailyShares += 1; save() }
+    /// 0.51 N1 local measures: (days played, days solved, average tries of the solved days).
+    func dailyStats() -> (played: Int, solved: Int, averageTries: Double) {
+        let days = data.dailyPuzzle.values.filter { !$0.grades.isEmpty }
+        let solved = days.filter { $0.solved }
+        return (days.count, solved.count, solved.isEmpty ? 0 : Double(solved.reduce(0) { $0 + $1.grades.count }) / Double(solved.count))
     }
     /// T5/T6: remember how the puzzle was solved; the first solve schedules its reviews.
     func recordPuzzleSolve(key: String, record: PuzzleRecord, at now: Date = Date()) {

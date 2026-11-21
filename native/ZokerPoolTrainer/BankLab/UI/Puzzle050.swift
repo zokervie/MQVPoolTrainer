@@ -143,7 +143,11 @@ final class PuzzleStatsController: UITableViewController {
         let solved = d.puzzleStars.filter { $0.value > 0 }.count
         let trips = d.practiceTrips, back = d.practiceReturnSolved
         let worst = d.puzzleTries.filter { (d.puzzleStars[$0.key] ?? 0) == 0 }.max { $0.value < $1.value }
+        let daily = PlayerStore.shared.dailyStats()
         lines = [(L10n.tr("Thế đã giải"), "\(solved)"),
+                 (L10n.tr("Thế của ngày: đã chơi / giải được"), "\(daily.played) / \(daily.solved)"),
+                 (L10n.tr("Thế của ngày: số cơ trung bình"), daily.solved > 0 ? String(format: "%.1f", daily.averageTries) : "–"),
+                 (L10n.tr("Lần bấm Khoe"), "\(d.dailyShares)"),
                  (L10n.tr("Lần cạn bình gợi ý"), "\(d.hintsEmptied)"),
                  (L10n.tr("Ra bàn tập rồi quay lại giải được"), trips > 0 ? "\(back)/\(trips) (\(back * 100 / trips) %)" : "–"),
                  (L10n.tr("Thế bị bỏ nhiều nhất"), worst.map { "\($0.key) · \($0.value) " + L10n.tr("cú") } ?? "–")]
@@ -224,7 +228,7 @@ extension TrainingController {
             if let day = daily { session.tries = PlayerStore.shared.dailyState(day).grades.count }
             if QA.has("--puzzle-hint3-qa") { session.hintLevel = 2 }   // QA: the jar holds 3 and level 3 costs 2 after two earlier hints, so a test starts at level 2
             puzzleSession = session
-            buildPuzzleBarIfNeeded(); syncPuzzleBar(); startRestNudge()
+            buildPuzzleBarIfNeeded(); syncPuzzleBar(); puzzleAction()
             statusLabel.text = L10n.tr(PuzzleText.task(style: Int32(p.style)))
             if BLPuzzleOfferEasier(Int32(puzzleFailedInRow)) != 0 { offerEasierPuzzle() }
         }
@@ -247,16 +251,13 @@ extension TrainingController {
         alert.view.accessibilityIdentifier = "PuzzleEasier"
         topPresenter.present(alert, animated: true)
     }
-    /// T7: a rest reminder after 45 minutes of puzzles in one go (once per launch).
-    func startRestNudge() {
-        guard !restNudgeArmed else { return }
-        restNudgeArmed = true
-        let delay = QA.has("--rest-nudge-qa") ? 4.0 : 45 * 60
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self = self, self.puzzleSession != nil else { self?.restNudgeArmed = false; return }
-            self.notifyStatus(L10n.tr("Bạn chơi đã 45 phút. Nghỉ mắt một chút nhé."))
-            self.statusLabel.text = L10n.tr("Bạn chơi đã 45 phút. Nghỉ mắt một chút nhé.")
-        }
+    /// T7: a rest reminder after 45 minutes of puzzles in one go (`RestNudge`, logic tested with a fake clock). Every puzzle action calls this.
+    func puzzleAction() {
+        if QA.has("--rest-nudge-qa") && restNudge.threshold > 10 { restNudge.threshold = 3; restNudge.gap = 60 }
+        guard restNudge.action(at: Date().timeIntervalSince1970) else { return }
+        restNudges += 1
+        notifyStatus(L10n.tr("Bạn chơi đã 45 phút. Nghỉ mắt một chút nhé."))
+        statusLabel.text = L10n.tr("Bạn chơi đã 45 phút. Nghỉ mắt một chút nhé.")
     }
     private func buildPuzzleBarIfNeeded() {
         guard puzzleBar == nil else { return }
@@ -306,11 +307,17 @@ extension TrainingController {
     /// One tap: the balls go back, no dialog. Waits (0.1 s steps) while the shot camera is still returning — the same silent-refusal trap as the exam.
     func retryPuzzle() {
         guard puzzleSession != nil else { return }
+        puzzleAction()
         let t0 = CACurrentMediaTime()
         func go() {
             guard let s = puzzleSession else { return }
             if shotActive || presentationBusy || !localTurn { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { go() }; return }
+            let previous = paths[0]   // the path of the try just played (N4 "bóng của chính mình")
             loadDrill(s.drillIndex); table.target(nil); table.trails([:])
+            ghostPathShown = false
+            if let prev = previous, prev.count > 1, UserDefaults.standard.object(forKey: Prefs.puzzleGhostPath) as? Bool ?? true, puzzleSession?.dailyDay == nil || true {
+                table.trails([0: prev]); ghostPathShown = true; ghostPathCount += 1; wakeRendering()   // cleared when the next stroke starts (shoot → table.trails([:]))
+            }
             puzzleSession?.solved = false
             puzzleRetryMs = (CACurrentMediaTime() - t0) * 1000; puzzleRetries += 1
             if let p = puzzleSpec(s) { statusLabel.text = L10n.tr(PuzzleText.task(style: Int32(p.style))) }
@@ -391,7 +398,7 @@ extension TrainingController {
     /// Called from finishShot after the drill judging (`passed`) for a puzzle drill.
     func puzzleShotFinished(_ d: Drill, passed: Bool, scratch: Bool, timedOut: Bool, railCount: Int, events: [[String: NSNumber]]) {
         guard var s = puzzleSession, s.drillIndex == drillIndex, var p = puzzleSpec(s) else { return }
-        s.tries += 1
+        s.tries += 1; puzzleAction()
         if let day = s.dailyDay { puzzleSession = s; dailyShotFinished(s, day: day, d: d, passed: passed, events: events); return }
         if passed {
             let kinds = events.map { Int32($0["kind"]?.intValue ?? 0) }, a = events.map { Int32($0["a"]?.intValue ?? 0) }, b = events.map { Int32($0["b"]?.intValue ?? 0) }

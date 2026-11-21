@@ -1061,6 +1061,40 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(text(scene3, "dailyLocked"), "0")
         app3.terminate()
     }
+    /// 0.51 N4: the flyer PDF is a real A5 PDF; the QR URL scheme opens the puzzle of the day; a retry shows the previous try's path faintly;
+    /// the 45-minute reminder fires once (QA shortens the stretch; the clock logic itself is tested with a fake clock in PlayerStoreTests).
+    func testFlyerUrlSchemeGhostPathAndRestNudge() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--daily-flyer-qa", "--daily-day-qa=40"]
+        app.launch()
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 60))
+        wait(scene, timeout: 20 * slow) { (Int(self.text(scene, "flyerBytes")) ?? 0) != 0 }
+        XCTAssertGreaterThan(Int(text(scene, "flyerBytes")) ?? 0, 2000, "a real %PDF document")
+        app.terminate()
+        let app2 = XCUIApplication()
+        app2.launchArguments = ["--fresh-player-qa", "--daily-day-qa=40", "--visual-qa", "--g1-default-qa"]
+        app2.launch()
+        let scene2 = app2.otherElements["PoolScene"]; XCTAssertTrue(scene2.waitForExistence(timeout: 60))
+        if #available(iOS 16.4, *) { app2.open(URL(string: "zokerpool://daily")!) } else { XCTFail("needs iOS 16.4 to open a URL from XCUITest"); return }
+        wait(scene2, timeout: 30 * slow) { self.text(scene2, "puzzle") != "" }
+        XCTAssertNotEqual(text(scene2, "puzzle"), "", "zokerpool://daily opened the puzzle of the day")
+        app2.terminate()
+        let app3 = XCUIApplication()
+        app3.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--puzzle-miss-qa", "--rest-nudge-qa"]
+        app3.launch()
+        XCTAssertTrue(app3.buttons["LobbyPuzzles"].waitForExistence(timeout: 60)); app3.buttons["LobbyPuzzles"].tap()
+        XCTAssertTrue(app3.cells["Puzzle-p-1-01"].waitForExistence(timeout: 10 * slow)); app3.cells["Puzzle-p-1-01"].tap()
+        let scene3 = app3.otherElements["PoolScene"]
+        wait(scene3, timeout: 90 * slow) { (Int(self.text(scene3, "puzzleTries")) ?? 0) >= 1 }
+        XCTAssertEqual(text(scene3, "ghostPath"), "0", "no ghost before the first retry")
+        let retry = app3.buttons["PuzzleRetry"]
+        expectation(for: NSPredicate(format: "exists == true AND hittable == true"), evaluatedWith: retry); waitForExpectations(timeout: 15 * slow)
+        retry.tap()
+        wait(scene3, timeout: 20 * slow) { (Int(self.text(scene3, "ghostPath")) ?? 0) >= 1 }
+        XCTAssertGreaterThanOrEqual(Int(text(scene3, "ghostPath")) ?? 0, 1, "the previous try's path was shown on the retry")
+        XCTAssertEqual(text(scene3, "restNudges"), "1", "one reminder after the (shortened) stretch")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

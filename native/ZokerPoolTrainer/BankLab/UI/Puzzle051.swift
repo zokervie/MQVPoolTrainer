@@ -25,6 +25,32 @@ enum DailyPuzzle {
         let n = BLDailyShareText(&buf, 256, BLDailyNumber(day), grades, Int32(grades.count), Int32(streak))
         return n > 0 ? String(cString: buf) : ""
     }
+    /// "In tờ thế bí": an A5 PDF for a pool hall wall — logo word, "Thế bí của ngày", the number, a QR code that opens the app on today's puzzle
+    /// (`zokerpool://daily`). The layout is not drawn.
+    static func flyerPDF(day: Int64) -> Data {
+        let page = CGRect(x: 0, y: 0, width: 419.5, height: 595.3)
+        return UIGraphicsPDFRenderer(bounds: page).pdfData { ctx in
+            ctx.beginPage()
+            UIColor(red: 0.06, green: 0.04, blue: 0.03, alpha: 1).setFill(); ctx.fill(page)
+            func draw(_ text: String, _ font: UIFont, _ color: UIColor, y: CGFloat) {
+                let a: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]; let w = (text as NSString).size(withAttributes: a).width
+                (text as NSString).draw(at: CGPoint(x: (page.width - w) / 2, y: y), withAttributes: a)
+            }
+            draw("ZOKER POOL", Wood.titleFont(46), ZDesign.Color.gold, y: 40)
+            draw(L10n.tr("Thế bí của ngày"), .systemFont(ofSize: 26, weight: .bold), .white, y: 130)
+            draw("#\(BLDailyNumber(day))", .systemFont(ofSize: 44, weight: .heavy), ZDesign.Color.gold, y: 175)
+            let filter = CIFilter(name: "CIQRCodeGenerator"); filter?.setValue(Data("zokerpool://daily".utf8), forKey: "inputMessage"); filter?.setValue("M", forKey: "inputCorrectionLevel")
+            if let out = filter?.outputImage {
+                let scaled = out.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+                let ci = CIContext(); if let cg = ci.createCGImage(scaled, from: scaled.extent) {
+                    let size: CGFloat = 220, rect = CGRect(x: (page.width - size) / 2, y: 260, width: size, height: size)
+                    UIColor.white.setFill(); ctx.fill(rect.insetBy(dx: -12, dy: -12))
+                    UIImage(cgImage: cg).draw(in: rect)
+                }
+            }
+            draw(L10n.tr("Quét mã để chơi thế bí hôm nay"), .systemFont(ofSize: 15, weight: .medium), UIColor(white: 0.85, alpha: 1), y: 520)
+        }
+    }
     /// The share picture, 1080 × 1350: logo word, number, the dots as coloured circles, the streak. The layout is NOT drawn.
     static func cardImage(day: Int64, state: DailyPuzzleState, streak: Int) -> UIImage {
         let size = CGSize(width: 1080, height: 1350)
@@ -96,7 +122,7 @@ extension TrainingController {
         alert.view.accessibilityIdentifier = "DailyResult"
         alert.addAction(UIAlertAction(title: L10n.tr("Khoe"), style: .default) { [weak self] _ in
             guard let self = self else { return }
-            self.dailyShareTaps += 1
+            self.dailyShareTaps += 1; PlayerStore.shared.noteDailyShare()
             let image = DailyPuzzle.cardImage(day: day, state: state, streak: streak)
             let share = UIActivityViewController(activityItems: [text, image], applicationActivities: nil)
             share.popoverPresentationController?.sourceView = self.view
@@ -106,6 +132,16 @@ extension TrainingController {
         if let p = DailyPuzzle.puzzle(day: day) {
             alert.addAction(UIAlertAction(title: L10n.tr("Luyện thế này"), style: .default) { [weak self] _ in self?.beginPuzzle(p.index, mirrored: p.mirrored) })
         }
+        alert.addAction(UIAlertAction(title: L10n.tr("In tờ thế bí"), style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let data = DailyPuzzle.flyerPDF(day: day)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("zoker-the-bi-\(BLDailyNumber(day)).pdf")
+            try? data.write(to: url); self.flyerBytes = data.count
+            let share = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+            share.popoverPresentationController?.sourceView = self.view
+            share.popoverPresentationController?.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+            self.topPresenter.present(share, animated: true)
+        })
         alert.addAction(UIAlertAction(title: L10n.tr("Đóng"), style: .cancel))
         topPresenter.present(alert, animated: true)
     }

@@ -122,7 +122,7 @@ extension TrainingController {
         lastShot=SavedShot(name:"",date:Date(),balls:balls,aimAngle:angle,speed:speed,side:side,top:top,
                            elevation:strikeElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle,shotKind:shotKind,variant:drillVariant,physicsSettings:engine.settings.mapValues{$0.doubleValue})
         mark("squirt+record");hideCoach();mark("hideCoach")
-        publishShotStart(strikeAngle:strikeAngle,speed:speed)   // 0.44 lockstep: the guest runs the same solver
+        ghostPathShown=false;publishShotStart(strikeAngle:strikeAngle,speed:speed)   // 0.44 lockstep: the guest runs the same solver
         engine.strike(angle:strikeAngle,speed:speed,side:side,top:top);mark("strike")
         if UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
         mark("cueSound")

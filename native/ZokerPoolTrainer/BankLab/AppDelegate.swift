@@ -3,6 +3,15 @@ import UIKit
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
+    /// 0.51 N4: `zokerpool://daily` (the QR code on the flyer) opens the puzzle of the day.
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        guard url.scheme == "zokerpool", url.host == "daily" else { return false }
+        func go(_ left: Int) {
+            if let tc = window?.rootViewController as? TrainingController, tc.presentedViewController == nil { tc.openDailyPuzzle() }
+            else if left > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { go(left - 1) } }
+        }
+        go(20); return true
+    }
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // QA: simulate a fresh install's language (no saved choice) for the first-launch language UI test.
         if ProcessInfo.processInfo.arguments.contains("--fresh-language") { UserDefaults.standard.removeObject(forKey: L10n.key) }

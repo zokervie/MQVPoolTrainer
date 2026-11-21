@@ -72,6 +72,7 @@ enum Prefs {
     static let lanPeerIdentity = "lanPeerIdentity018", onlineRelayURL = "onlineRelayURL019"
     // Diagnostics / A-B (Phòng thí nghiệm)
     /// 0.49c G8 / G4 (frozen): Luật phá 3 bi (giải đấu), dải quang phổ lực khi vuốt (chẩn đoán).
+    static let puzzleGhostPath = "puzzleGhostPath051"
     static let threeBallBreak = "threeBallBreak049", diagPowerSpectrum = "diagPowerSpectrum049"
     static let diagLegacyStatus = "diagLegacyStatus039", diagReplayNoSlow = "diagReplayNoSlow039"
     // QA only (set by launch arguments -key value in CI; never by the player)

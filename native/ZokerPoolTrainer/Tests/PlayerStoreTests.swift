@@ -169,6 +169,24 @@ import Foundation
         try check(h.dailyState(20801).grades.count == 6 && h.dailyState(20801).locked && !h.dailyState(20801).solved && !h.dailyState(20802).locked, "6 tries lock, the next day is open")
         let h6 = PlayerStore(directory: dirH, now: t0, timeZone: hanoi)
         try check(h6.dailyState(20801).grades.count == 6 && h6.dailyState(20800).solved, "daily state survives a reload")
+        // 11 · 0.51: solving the daily puzzle counts for the streak; local measures
+        let h7 = PlayerStore(directory: root.appendingPathComponent("h7"), now: t0, timeZone: hanoi)
+        let streakBefore = h7.data.streak.best
+        h7.recordDailyTry(day: h7.day(dayStart(0)), grade: 0); h7.recordDailyTry(day: h7.day(dayStart(0)), grade: 2)
+        h7.recordDailyTry(day: h7.day(dayStart(1)), grade: 2)
+        let st = h7.dailyStats()
+        try check(st.played == 2 && st.solved == 2 && st.averageTries == 1.5, "daily local measures: played, solved, average tries")
+        try check(h7.data.streak.best >= max(streakBefore, 2), "two solved days in a row make a streak of 2")
+        h7.noteDailyShare(); h7.noteDailyShare()
+        try check(PlayerStore(directory: root.appendingPathComponent("h7"), now: t0, timeZone: hanoi).data.dailyShares == 2, "Khoe taps are kept")
+        // 12 · 0.50 T7: the 45-minute reminder with a fake clock
+        var rest = RestNudge()
+        try check(!rest.action(at: 0) && !rest.action(at: 600) && !rest.action(at: 1800), "no reminder in the first 45 minutes")
+        var rest2 = RestNudge(); var t = 0.0, fired = 0
+        while t <= 50 * 60 { if rest2.action(at: t) { fired += 1 }; t += 120 }   // an action every 2 minutes
+        try check(fired == 1, "exactly one reminder per stretch, at 45 minutes (got \(fired))")
+        var rest3 = RestNudge(); _ = rest3.action(at: 0); _ = rest3.action(at: 40 * 60)
+        try check(!rest3.action(at: 40 * 60 + 400) && !rest3.action(at: 40 * 60 + 400 + 2400), "a break of 5+ minutes starts a new stretch")
         let old = PlayerData(now: t0, day: 0), oldJSON = try JSONEncoder().encode(old)
         var dict = try JSONSerialization.jsonObject(with: oldJSON) as! [String: Any]; dict.removeValue(forKey: "realTable"); dict.removeValue(forKey: "examKeysMigrated")
         let decoded = try JSONDecoder().decode(PlayerData.self, from: JSONSerialization.data(withJSONObject: dict))
