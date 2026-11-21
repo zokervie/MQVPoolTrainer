@@ -6,7 +6,7 @@ Nhánh lõi: `cho/native-0.50-the-bi-core` (phiên đám mây). Gộp vào nhán
 ## Lõi đã có (C, bridging header thêm `#import "UI/Puzzle.h"`)
 - `DrillCatalog.h`: thêm `skill` (12 công cụ `BL_SKILL_*`), `flags` (`BL_DRILL_LEGAL_FIRST`, `BL_DRILL_CLEAN`), loại `BL_DRILL_REACH`, `BLDrillSignature` (đường đi của cú vừa đánh), `BLSkillLesson(skill)` (bài Học cho nút "Ra bàn tập"). Bài 0.49 có `flags = 0` nên luật cũ không đổi.
 - `Puzzle.h` + `PuzzleCatalogData.h` (sinh từ `Tools/drills/puzzles.json`): `BLPuzzleSpec` = một `BLDrillSpec` + 1–4 lời giải (`signature`, cú mẫu, `percent`, điểm gợi ý `hintX/Y`). `BLPuzzleIndex/At/Count`, `BLPuzzleRoomCount`, `BLPuzzleSolutionIndex`, `BLPuzzleMirror` (ôn lại = lật gương), `BLPuzzleSameRoute`.
-- Bình gợi ý `BLHintJar*` (3 lượt, hồi 1/20 phút, +1 khi đạt bài Học liên quan; giá bậc 1/2/3 = 1/1/2), sao `BLPuzzleStars`, mở phòng `BLRoomOpen` (60 % sao phòng trước, phòng 7 Bank không chặn), `BLPuzzleOfferEasier`.
+- Bình gợi ý `BLHintJar*` (3 lượt, hồi 1/20 phút, +1 khi đạt bài Học liên quan; giá bậc 1/2/3 = 1/1/2), sao `BLPuzzleSessionStars`, mở phòng `BLRoomOpen` (60 % sao phòng trước, phòng 7 Bank không chặn), `BLPuzzleOfferEasier`.
 - Chấm cú thế bí: GỌI `BLDrillJudge(&puzzle.spec, …)` như bài thường, rồi `BLDrillSignature(…)` → `BLPuzzleSolutionIndex` để biết người chơi tìm ra lời giải nào.
 
 ## Việc
@@ -23,7 +23,7 @@ Biểu tượng công cụ cần dùng (`spec.skill`); "Đã tìm k/n lời gi�
 - Bậc 2: chấm điểm `hintX/Y` của lời giải tốt nhất trên bàn (điểm chạm băng đầu hoặc vị trí bi ma) + số nút (`BLDrillDiamonds`).
 - Bậc 3: chạy đường bi mẫu một lần (cú `solutions[0]`), mờ, không cho đánh trong lúc chạy.
 Ghi `hintLevel`, `hintAt` vào `BLPuzzleProgress`.
-**T5. Sao + Sổ lời giải.** `BLPuzzleStars` sau mỗi lần giải; vùng nhỏ = chấm lại với `goalR × 0,6`. Sổ lời giải: mỗi thế bí lưu đường bi của chính người chơi (mẫu xem lại đã có), so cạnh lời giải mẫu (chỉ mở sau khi đã giải).
+**T5. Sao + Sổ lời giải.** Mỗi phiên giải (từ lúc mở thế tới lúc giải được) gọi `BLPuzzleSessionStars(p, tries, hintLevel, watchedAt, now, routesFound, smallTarget)`, lưu `BLPuzzleBestStars`. Nhiệm vụ sao 3 hiện trên màn theo `BLPuzzleThirdStarTask`: "Tìm lời giải thứ hai" / "Dừng trong vùng nhỏ" (chấm lại với `goalR × 0,6`) / "Giải ngay lần đầu". Lưu `watchedAt` khi dùng gợi ý bậc 3. Thế lật gương: dùng `BLPuzzleMirror` rồi mọi hàm như thường (chữ ký đã đổi lỗ). Đọc lời giải bằng `BLPuzzleSolutionAt`. Sổ lời giải: mỗi thế bí lưu đường bi của chính người chơi (mẫu xem lại đã có), so cạnh lời giải mẫu (chỉ mở sau khi đã giải).
 **T6. Ôn có hẹn**: thế bí đã giải quay lại sau 1/3/7 ngày dưới dạng `BLPuzzleMirror`; nằm trong "Thế bí hôm nay" (thay "Bài hôm nay").
 **T7. Kết thúc đẹp**: trượt 2 thế liên tiếp (`BLPuzzleOfferEasier`) → gợi ý một thế vừa sức đang mở. Nhắc nghỉ sau 45 phút chơi liền.
 **T8. Đo cục bộ** (không gửi đi): số lần cạn bình gợi ý, tỉ lệ "Ra bàn tập" rồi quay lại giải được, số thế giải mỗi phiên, thế bị bỏ nhiều nhất.
