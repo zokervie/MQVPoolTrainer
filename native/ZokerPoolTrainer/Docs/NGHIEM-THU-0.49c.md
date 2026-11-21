@@ -1,17 +1,22 @@
 # NGHIỆM THU 0.49c "Giao diện bàn chơi" — nhánh `cho/native-0.49-xuong-bai`
 
-Thứ tự giao: G8 → G7 → G4 → G3 → G6 → G5 → G2 → G1. Làm được G8, G4, G6; còn lại CHƯA LÀM (hết sức trong phiên). Chưa xác minh trên thiết bị.
+Thứ tự giao: G8 → G7 → G4 → G3 → G6 → G5 → G2 → G1. Cập nhật lượt 2: thêm G3, G7 (phần Simulator), G1; G5 và G2 vẫn chặn. Chưa xác minh trên thiết bị.
 
 | Mục | Kết quả | Ghi chú |
 |---|---|---|
-| G8 luật phá 3 bi | PASS (công tắc) / NOT RUN (UI ván 9 Ball) | Công tắc "Luật phá 3 bi (giải đấu)" trong Tuỳ chỉnh, mặc định tắt, gán vào `BLMatch` mỗi ván (`Prefs.threeBallBreak`, khoá cố định, PrefsTests). Dòng giải thích đúng câu của đặc tả. Lõi C++ đã có test (c41bf0d). Test UI "phá có bi vào vẫn lượt người phá" chưa viết: cần cờ QA ép cú phá có bi vào. Khi hai máy chơi qua mạng, công tắc của máy chủ phòng quyết định luật (chưa kiểm). |
-| G7 giật 60 Hz | CHƯA LÀM | |
-| G4 ẩn dải quang phổ | PASS (xây + không hồi quy) / NOT RUN (kiểm bằng mắt) | Dải màu, vệt sương và vòng quang phổ chỉ hiện khi bật "Hiện dải quang phổ lực khi vuốt (chẩn đoán)"; số lực cuối vuốt giữ nguyên. Chưa có test UI/ảnh kiểm "không còn dải". |
-| G3 thanh lực nhỏ + bật/tắt | CHƯA LÀM | |
-| G6 nút Đặt bi 64 pt | PASS | UI test: nút ngoài menu, ≥ 64 pt, chạm vào/ra chế độ kéo bi. Mờ khi luật không cho đặt bi (logic, chưa test UI). Vị trí "mép trái, trên hàng loại cơ" theo `f.cues`, chưa xem ảnh. |
-| G5 giảm chói | CHƯA LÀM | |
-| G2 khung gỗ + chữ bút lông | CHƯA LÀM | cần font Petemoss (OFL) + OFL.txt + màn Pháp lý |
-| G1 sơ đồ = ảnh bàn 3D | CHƯA LÀM | |
+| G8 luật phá 3 bi | PASS (công tắc, mặc định) / NOT RUN (kết quả ván) | Công tắc mặc định tắt, gán vào `BLMatch` mỗi ván; UI test đọc mặc định 0 và `-threeBallBreak049 YES` → 1. Test ván 9 Ball "phá có bi vào vẫn lượt người phá" chưa viết (cần cờ QA ép cú phá). Lõi C++ có test (c41bf0d). Mạng 2 máy: luật theo máy chủ phòng, chưa kiểm. |
+| G7 giật 60 Hz | PASS (Simulator, đếm lượt bố cục) / NOT RUN (thiết bị) | Bố cục do cú ra cơ gây ra được gom vào lúc ra cơ; UI test đếm lượt bố cục sau khung đầu của cú: 0 (PASS 3/3 chạy lẻ + 4/4 qua simctl). Trong bộ đầy đủ 1 lần FAIL (1 lượt) khi Simulator đang tải: KHÔNG ổn định 100 %, nguyên nhân chưa tìm ra. Chưa đo 60/120 Hz trên iPad; B2c (vệt chuyển động bi nhanh) CHƯA LÀM. |
+| G4 ẩn dải quang phổ | PASS (mặc định tắt, bật lại ở Chẩn đoán) / NOT RUN (xem bằng mắt) | UI test đọc `spectrum=0/1`. Chưa có ảnh vuốt thật. |
+| G3 thanh lực | PASS | 28×180 pt (iPad), giữ = phóng ×2,5 quanh ngón tay, nút bật/tắt cạnh Đặt bi; UI test: kích thước, zoom 2,5, bật/tắt, tốc độ bắn khớp ánh xạ lõi ±1 % theo % hiển thị. Lưu ý: test cũ "nửa hành trình = 50 %" đã đổi vì zoom làm hành trình màn hình không còn tuyến tính (đã giải thích trong test). |
+| G6 nút Đặt bi 64 pt | PASS | UI test; nhãn trợ năng "Nút đặt bi" (tránh trùng mục menu). |
+| G5 giảm chói | CHẶN (cần máy thật) | `scn.snapshot()` đen trên Simulator; chụp XCUITest ra độ sáng như nhau cho 3 bàn (cờ chọn bàn bằng tham số không có hiệu lực) nên không đo được. Không sửa vật liệu khi chưa đo được. Đầu dò `family-qa` đã sửa: ảnh đen ⇒ NOT_RUN, không còn PASS giả. |
+| G2 khung gỗ + chữ bút lông | CHẶN | Repo không có font Petemoss, OFL.txt, màn Pháp lý; không tự tải. |
+| G1 sơ đồ = ảnh bàn game | PASS (hình, cache) / FAIL (lần dựng đầu) | `SCNRenderer` + Metal offscreen dựng được ảnh bàn từ trên (không bi/cơ), cache theo bàn + nỉ; ảnh `build/diag*/` cho thấy 6 miệng lỗ + băng + số nút + vòng đích/lỗ đích + bi kế tiếp + đường lời giải mờ (chỉ sau ≥ 1 lượt). Đo Simulator: lần dựng đầu 190–200 ms (đích 150 ms: CHƯA ĐẠT; lần cold start sau build có thể > 1 s), từ cache 0,015 ms. Nay dựng sẵn khi rảnh 6 s sau khi mở app. Chỉ bàn 9 ft; bàn khác dùng hình phẳng cũ. Chưa có ảnh trước/sau (không còn bản "trước"), chưa chạy trên iPhone SE. |
+| X4 đường lời giải "Xem lời giải" trong Coach | CHƯA LÀM | Mới có "sau ≥ 1 lượt". |
+| Đầu dò ảnh drill-list | CHƯA LÀM | |
+| Huy hiệu | PASS (một huy hiệu) | UI test: vòng không Coach → "Huy hiệu mới" trong kết quả. 3 cú liên tiếp / Vùng nhỏ chỉ có test logic. |
+| Cột Bàn thật ở Tiến bộ | PASS (tồn tại) | UI test + ảnh đính kèm; chưa xem ảnh bằng mắt. |
+| Bài An toàn (app) | NOT RUN | Máy chấm C++ có test; luồng trong app chưa có test UI (chương 8 khoá). |
 
-## Kết quả accept_local (@a29cbed)
-7/8 bước PASS; `ui-gesture-tests` 35/36: `testPlaceCueBallAtCentreAndCancelRestoresLayout` FAIL vì nút "Đặt bi" mới trùng nhãn với mục menu (test chọn theo nhãn). Đã sửa (nhãn trợ năng "Nút đặt bi") và chạy lại riêng test đó + test nút mới: PASS. Chưa chạy lại toàn bộ accept_local sau sửa (NOT RUN, đã chạy lẻ 2 test). Bước IPA không ký chưa chạy ở lượt này (accept dừng sau bước UI).
+## Kết quả accept_local đầy đủ (lượt 2, @d1 + docs)
+`bash Tools/accept_local.sh`: **PASSED_SIMULATOR_UNSIGNED**, 8/8 bước PASS gồm `unsigned-iphone-build` (IPA không ký); 42 UI test, 0 lỗi. Lần chạy trước cùng mã: 41/42, `testNoUIKitLayoutPassWhileTheBallsRoll` FAIL một lần khi máy tải (1 lượt bố cục giữa khung), không tái hiện lại (lẻ 3/3 + simctl 4/4, rồi bộ đầy đủ PASS): coi là KHÔNG ỔN ĐỊNH, chưa tìm ra nguyên nhân. Chưa xác minh trên thiết bị.
