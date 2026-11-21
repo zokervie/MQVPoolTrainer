@@ -1006,7 +1006,12 @@ final class InteractionTests: XCTestCase {
         }
         XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 30 * slow), "after two unsolved puzzles an easier one is offered: fails=\(text(scene, "puzzleFails")) puzzle=\(text(scene, "puzzle")) tries=\(text(scene, "puzzleTries"))")
         app.alerts.firstMatch.buttons["Đóng"].tap()
-        let more = app.buttons["PuzzleListButton"]; more.tap()
+        expectation(for: NSPredicate(format: "count == 0"), evaluatedWith: app.alerts); waitForExpectations(timeout: 10 * slow)   // the alert is gone
+        // the QA shooter plays p-1-03 as soon as the alert is gone; the list refuses to open during a shot — wait for that shot to end
+        wait(scene, timeout: 90 * slow) { (Int(self.text(scene, "puzzleTries")) ?? 0) >= 1 }
+        let more = app.buttons["PuzzleListButton"]
+        expectation(for: NSPredicate(format: "exists == true AND hittable == true"), evaluatedWith: more); waitForExpectations(timeout: 15 * slow)
+        more.tap()
         XCTAssertTrue(app.tables["Puzzles"].waitForExistence(timeout: 10 * slow))
         app.buttons["PuzzleStatsOpen"].tap()
         XCTAssertTrue(app.tables["PuzzleStats"].waitForExistence(timeout: 10 * slow))
