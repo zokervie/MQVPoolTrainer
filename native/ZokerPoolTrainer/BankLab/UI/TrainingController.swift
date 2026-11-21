@@ -24,6 +24,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var locked=false,isPlacingBalls=false,guideOn=false,shotActive=false
     var drillIndex=Drill.startup,attempts=0,successes=0
     var roundResults:[Bool]=[],roundSmallMade=0,roundCoachUsed=false   // 0.49b X8: this round so far
+    var glareSummary=""   // 0.49c G5 probe result for XCTest: "<PASS|FAIL|NOT_RUN>:<worst %>"
     var strikeSettled=false,midShotLayoutPasses=0,midShotLayoutTotal=0   // 0.49c G7
     var powerBarSwitch:UIButton?;var powerBarUserOn:Bool?   // 0.49c G3
     var placeBallButton:UIButton!   // 0.49c G6: stand-alone "Đặt bi" (64 pt) above the Đánh/Jump/Massé/Break row
@@ -401,6 +402,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 guard let self=self else{return};self.coaching=true;self.cardOn=true;self.loadDrill(Drill.startup);self.showCoach(self.drillBrief(Drill.all[Drill.startup]))}}
             if args.contains("--cue-look-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startCueLookQA()}}   // 0.44.1 M3 stills
             if args.contains("--wall-photo-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startWallPhotoQA()}}   // 0.44.1 M2
+            if args.contains("--table-glare-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startTableGlareQA()}}   // 0.49c G5
             if args.contains("--table-family-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startTableFamilyQA()}}   // 0.46 M3
             if args.contains("--nearby-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+(args.contains("--lan-host-qa") ? 6:2)){[weak self] in self?.openNearbyLobby(tab:args.contains("--lan-host-qa") ? 0:1)}}   // 0.44-mm Nearby Play screen (QA guest opens Tìm phòng)
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}

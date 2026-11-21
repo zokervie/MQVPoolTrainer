@@ -508,19 +508,27 @@ final class TableScene {
         ctx.interpolationQuality = .medium;ctx.draw(cg,in:CGRect(x:0,y:0,width:1,height:1))
         return (0.2126*CGFloat(px[0])+0.7152*CGFloat(px[1])+0.0722*CGFloat(px[2]))/255
     }
+    /// Luminance 0…1 of a colour (the sRGB weights of `luminance(_:image)`).
+    static func luminance(_ c:UIColor)->CGFloat{var r:CGFloat=0,g:CGFloat=0,b:CGFloat=0,a:CGFloat=0;c.getRed(&r,green:&g,blue:&b,alpha:&a);return 0.2126*r+0.7152*g+0.0722*b}
+    static func scaled(_ c:UIColor,_ k:CGFloat)->UIColor{var r:CGFloat=0,g:CGFloat=0,b:CGFloat=0,a:CGFloat=0;c.getRed(&r,green:&g,blue:&b,alpha:&a);return UIColor(red:r*k,green:g*k,blue:b*k,alpha:a)}
     private func buildTable(_ rails:[[String:NSNumber]]){
         // 0.46 M3: the cabinet finish follows the FAMILY (TableFamily.finish): Arena flat matte powder-coat, Heritage /
         // Loft satin wood, Club deep lacquered wood. Dark woods keep the walnut maps tinted to the cabinet colour; the
         // light Loft woods (multiply can only darken walnut) use their own colour with the walnut grain relief.
         let fam=look.family
         let lightWood=look.wood && fam == .loft
-        let graphite=look.wood && !lightWood ? premiumMaterial("WalnutDark"):mat(.rgb(look.cabinet),roughness:fam == .arena ? 0.78:0.5,metal:fam == .arena ? 0.06:0)
+        // 0.49c G5 (IPA 163: light tables glare): a light cabinet (luma > 0.55: Arena Ice, the Loft woods) is damped — its albedo is scaled to
+        // luma 0.55, it is rougher and has no metal or lacquer — so the table lights cannot push it past white. Dark tables are untouched.
+        let cabinetColor=UIColor.rgb(look.cabinet),cabinetLuma=Self.luminance(cabinetColor)
+        let lightCabinet=cabinetLuma>0.55
+        let cabinetDamp=lightCabinet ? 0.55/cabinetLuma:1
+        let graphite=look.wood && !lightWood ? premiumMaterial("WalnutDark"):mat(lightCabinet ? Self.scaled(cabinetColor,cabinetDamp):cabinetColor,roughness:lightCabinet ? 0.9:(fam == .arena ? 0.78:0.5),metal:fam == .arena && !lightCabinet ? 0.06:0)
         if look.wood {
             if !lightWood {graphite.multiply.contents=UIColor.rgb(look.cabinet).blended(0.55)}   // 0.35: wood tone per look
             graphite.normal.contents=materialMap("PC_WalnutDark_normal"){self.clothNormal()};graphite.normal.intensity=0.08
             graphite.roughness.contents=materialMap("PC_WalnutDark_roughness"){self.clothNormal()}
             for channel in [graphite.diffuse,graphite.normal,graphite.roughness]{channel.minificationFilter = .linear;channel.mipFilter = .linear;channel.maxAnisotropy=16}
-            graphite.clearCoat.contents=fam == .club ? 0.8:0.6;graphite.clearCoatRoughness.contents=fam == .club ? 0.07:0.12
+            graphite.clearCoat.contents=lightCabinet ? 0.1:(fam == .club ? 0.8:0.6);graphite.clearCoatRoughness.contents=lightCabinet ? 0.4:(fam == .club ? 0.07:0.12)
         }
         // 0.39 (owner: the metal band around the table looks alien — real tables do not have it). The deck-edge band and
         // every base accent now use the cabinet finish itself, a touch darker and satin: the shape stays (shadow line,
@@ -2316,6 +2324,29 @@ extension TableScene {
     private static var topDownCache: [String: UIImage] = [:]
     /// World span of the picture: 2 × 0.82 m high (the short side + rails), twice that wide. Pixel p ↔ metre via `TableScene.topDownMetres`.
     static let topDownHalfHeight = 0.82
+    /// 0.49c G5 probe image: the table without balls / cue / guides, uncached, rendered offscreen from straight above or obliquely (the
+    /// overview angle that shows the rails). nil on a blank frame.
+    func probeImage(size: CGSize, oblique: Bool) -> UIImage? {
+        guard let device = MTLCreateSystemDefaultDevice() else { return nil }
+        let hidden = [ballRoot, guideRoot, trailRoot, cueRoot, numberRoot, cueShadow, targetRoot]
+        let before = hidden.map { $0.isHidden }
+        hidden.forEach { $0.isHidden = true }
+        defer { for (n, h) in zip(hidden, before) { n.isHidden = h } }
+        let renderer = SCNRenderer(device: device, options: nil); renderer.scene = scene
+        let cam = SCNNode(); cam.camera = SCNCamera(); cam.camera?.zNear = 0.1; cam.camera?.zFar = 30
+        if oblique {
+            cam.camera?.fieldOfView = 46; cam.position = SCNVector3(0, 1.75, 2.35)
+            scene.rootNode.addChildNode(cam); cam.look(at: SCNVector3(0, 0, 0.05), up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
+        } else {
+            cam.camera?.usesOrthographicProjection = true; cam.camera?.orthographicScale = Self.topDownHalfHeight; cam.position = SCNVector3(0, 1.8, 0)
+            scene.rootNode.addChildNode(cam); cam.look(at: SCNVector3(0, 0, 0), up: SCNVector3(1, 0, 0), localFront: SCNVector3(0, 0, -1))
+        }
+        defer { cam.removeFromParentNode() }
+        renderer.pointOfView = cam; renderer.autoenablesDefaultLighting = false
+        let image = renderer.snapshot(atTime: 0, with: size, antialiasingMode: .multisampling2X)
+        guard image.cgImage != nil else { return nil }
+        return image
+    }
     func topDownImage(size: CGSize) -> UIImage? {
         let key = "\(look.id)|\(clothTintIndex.map(String.init) ?? "-")|\(Int(size.width))x\(Int(size.height))"
         if let hit = Self.topDownCache[key] { return hit }

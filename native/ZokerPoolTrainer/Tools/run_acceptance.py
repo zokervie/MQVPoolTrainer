@@ -44,6 +44,7 @@ def run(portable=False):
                        ('lan-wire-protocol',['bash','Tools/run_lan_checks.sh']),
                        ('simulator-build',['bash','Verify-on-Mac.command']),
                        ('screenshots-and-runtime-probes',['bash','Tools/ci_screenshots.sh']),
+                       ('table-glare',['bash','Tools/run_table_glare_qa.sh','build/glare-accept']),   # 0.49c G5: offscreen render, ≤ 2 % near-white on every look
                        ('ui-gesture-tests',['bash','Tools/run_ui_tests.sh']),
                        ('unsigned-iphone-build',['bash','Build-Unsigned-IPA.command'])]
         for name,command in stages:
