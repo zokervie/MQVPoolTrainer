@@ -462,7 +462,7 @@ extension TrainingController {
         let b=UIButton(type:.system);var c=UIButton.Configuration.filled()
         c.image=UIImage(systemName:"hand.draw");c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:22,weight:.semibold)
         c.baseBackgroundColor=UIColor(white:0.03,alpha:0.55);c.baseForegroundColor = .white;c.cornerStyle = .capsule;c.contentInsets = .zero
-        b.configuration=c;b.accessibilityIdentifier="PlaceBallButton";b.accessibilityLabel="Đặt bi"
+        b.configuration=c;b.accessibilityIdentifier="PlaceBallButton";b.accessibilityLabel="Nút đặt bi"
         b.addAction(UIAction{[weak self]_ in self?.toggleEdit()},for:.touchUpInside)
         view.addSubview(b);placeBallButton=b
     }
@@ -473,7 +473,7 @@ extension TrainingController {
         b.isEnabled=on;b.alpha=on ? 1:0.35
         b.configuration?.baseBackgroundColor=isPlacingBalls ? ZDesign.Color.gold:UIColor(white:0.03,alpha:0.55)
         b.configuration?.baseForegroundColor=isPlacingBalls ? .black:.white
-        b.accessibilityLabel=isPlacingBalls ? "Xong đặt bi":"Đặt bi"
+        b.accessibilityLabel=isPlacingBalls ? "Nút xong đặt bi":"Nút đặt bi"
     }
     func buildCueIcons(){
         let names=["Đánh","Jump","Massé","Break"],ids=["CueIconPlay","CueIconJump","CueIconMasse","CueIconBreak"]
