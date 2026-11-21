@@ -9,6 +9,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         L10n.install()   // 0.42: seven languages; 0.44.1: device language, else Vietnamese (UI/L10n042.swift)
         // 0.45 M5: player progress (player.json). One-time move of the ≤ 0.46 title-keyed stars, then count this session.
         Drill.migrateLegacyStars()
+        if FeatureFlags.drillCatalog { PlayerStore.shared.migrateLegacyExamKeys() }   // 0.49b X1: "chapter-<n>" → chapter keys, once
         PlayerStore.shared.noteSession()
         let window = UIWindow(frame: UIScreen.main.bounds)
         let tokens=NSDataAsset(name:"PC_Tokens").flatMap{try? JSONSerialization.jsonObject(with:$0.data) as? [String:Any]}

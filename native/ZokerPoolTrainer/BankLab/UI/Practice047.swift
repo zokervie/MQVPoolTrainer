@@ -109,7 +109,7 @@ extension TrainingController {
     /// QA (scene accessibility value): 0.47 state for XCTest.
     var qa047: String {
         let d = Drill.all[drillIndex]
-        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none")
+        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + ";catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
     }
 }
 
@@ -127,7 +127,7 @@ extension TrainingController {
     /// drill: full; level 3–5 on a 1–3-star drill: made/missed only, summary after 5 shots).
     func feedbackMode047(_ d: Drill) -> Int32 {
         guard FeatureFlags.fadingFeedback else { return Int32(BL_FEEDBACK_FULL) }
-        return BLFeedbackLevel(PlayerStore.shared.data.level, Chapters.difficulty[d.id] ?? 3, 0)
+        return BLFeedbackLevel(PlayerStore.shared.data.level, Chapters.stars(d.id) > 0 ? Chapters.stars(d.id) : 3, 0)
     }
     func showFeedbackDetails() {
         let a = UIAlertController(title: "Chi tiết từng cú", message: feedbackDetails.joined(separator: "\n"), preferredStyle: .alert)
@@ -138,7 +138,7 @@ extension TrainingController {
         if FeatureFlags.progress {   // M3: result = stars, time, made rate; difficulty of the drill
             let last = PlayerStore.shared.data.attempts.filter { $0.drill == d.id }.suffix(5)
             let seconds = Int(last.reduce(0) { $0 + $1.seconds }.rounded()), made = last.filter { $0.made }.count
-            let level = Int(Chapters.difficulty[d.id] ?? 0)
+            let level = Int(Chapters.stars(d.id))
             alert.message = (alert.message ?? "") + "\n" + L10n.tr("Vào") + " \(made)/\(last.count) · " + L10n.tr("thời gian") + String(format: " %lld:%02lld", seconds / 60, seconds % 60)
                 + (level > 0 ? " · " + L10n.tr("độ khó") + " " + Drill.starText(level) : "")
         }

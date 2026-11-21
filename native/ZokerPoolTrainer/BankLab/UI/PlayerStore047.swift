@@ -58,6 +58,9 @@ struct TestLog: Codable, Equatable {
     var shots: Int
 }
 
+/// 0.49b X7: one set of 10 shots on a real table, typed in by the player ("Ra bàn thật").
+struct RealTableLog: Codable, Equatable { var day: Int64; var made: Int }
+
 struct PlayerData: Codable, Equatable {
     static let currentSchema = 1
     var schemaVersion = PlayerData.currentSchema
@@ -73,6 +76,9 @@ struct PlayerData: Codable, Equatable {
     var tests: [TestLog] = []
     var examBest: [String: Int] = [:]   // "chapter-<n>" → best made out of 10 (a full exam only)
     var tipsSeen: [Int] = []            // chapters whose tip card was shown once
+    // 0.49b
+    var examKeysMigrated = false        // "chapter-<n>" exam keys moved to BLDrillChapterKey names (X1)
+    var realTable: [String: [RealTableLog]] = [:]   // drill id → tries on a real table (X7), oldest first
 
     init(now: Date, day: Int64) { metrics = UsageMetrics(installedAt: now, installDay: day) }
     // Missing fields (older / newer files) fall back to defaults instead of failing the whole file.
@@ -90,6 +96,8 @@ struct PlayerData: Codable, Equatable {
         tests = try c.decodeIfPresent([TestLog].self, forKey: .tests) ?? []
         examBest = try c.decodeIfPresent([String: Int].self, forKey: .examBest) ?? [:]
         tipsSeen = try c.decodeIfPresent([Int].self, forKey: .tipsSeen) ?? []
+        examKeysMigrated = try c.decodeIfPresent(Bool.self, forKey: .examKeysMigrated) ?? false
+        realTable = try c.decodeIfPresent([String: [RealTableLog]].self, forKey: .realTable) ?? [:]
     }
 }
 
@@ -236,6 +244,24 @@ final class PlayerStore {
         save()
         return improved
     }
+    /// 0.49b X1: once per install, exam bests saved under "chapter-<n>" move to the catalogue's chapter keys (max of the sources).
+    func migrateLegacyExamKeys() {
+        guard !data.examKeysMigrated else { return }
+        for (old, new) in DrillIDs.legacyExamKeys {
+            guard let best = data.examBest.removeValue(forKey: old) else { continue }
+            for key in new { data.examBest[key] = max(data.examBest[key] ?? 0, best) }
+        }
+        data.examKeysMigrated = true; save()
+    }
+    static let maxRealTable = 50
+    /// 0.49b X7: tries on a real table for one drill (made out of 10), the last `maxRealTable` kept.
+    func recordRealTable(drill: String, made: Int, at now: Date = Date()) {
+        var list = data.realTable[drill] ?? []
+        list.append(RealTableLog(day: day(now), made: max(0, min(10, made))))
+        if list.count > Self.maxRealTable { list.removeFirst(list.count - Self.maxRealTable) }
+        data.realTable[drill] = list; save()
+    }
+    func realTable(_ drill: String) -> [RealTableLog] { data.realTable[drill] ?? [] }
     /// 0.47 M0: the chapter's tip card has been shown (it then lives in "Sổ mẹo").
     func markTipSeen(_ chapter: Int) {
         guard !data.tipsSeen.contains(chapter) else { return }

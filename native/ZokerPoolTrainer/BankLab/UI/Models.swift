@@ -146,6 +146,12 @@ struct Drill {
     var video:String? = nil
     /// 0.44.1: default vertical tip (fraction of R, negative = below centre) set when the drill loads and after each shot.
     var tipTop:Double = 0
+    /// 0.49b X1: the catalogue entry this drill was built from (nil for the tools and when FeatureFlags.drillCatalog is off).
+    var spec:BLDrillSpec? = nil
+    /// 0.49b: a safety drill (judged by BLDrillJudge: legal hit, nothing pocketed, ball 1 hidden).
+    var safety:Bool = false
+    /// Counts as a scored drill: has a goal, a rail count, or is a safety drill.
+    var judged:Bool { goal != nil || rails>0 || safety }
     static let levelNames=["Công cụ","Cấp 1 · Nền tảng: lực và vị trí bi cái","Cấp 2 · Nút số: kick 1 băng (hệ gương)","Cấp 3 · Nút số: kick 2–3 băng (Corner-5)","Cấp 4 · Bank và hệ Plus","Cấp 5 · Trick shot"]
     static let levelIcons=["wrench","target","1.circle","3.circle","arrow.triangle.branch","sparkles"]
     var levelName:String { Drill.levelNames[max(0,min(5,level))] }
@@ -165,7 +171,7 @@ struct Drill {
     // Công cụ và bài khởi động: chỉ số cố định, mã QA và màn mở đầu dùng chúng.
     static let free=0, rollTest=1
     /// 0.44.1 M1.2: the app opens on "Cú đầu tiên" (straight, forgiving; Tests/FirstShotTests.cpp), not the 1-rail kick.
-    static let startup:Int = all.firstIndex{$0.title==firstShotTitle} ?? 3
+    static let startup:Int = all.firstIndex{$0.id=="first-shot"} ?? 3
     static let firstShotTitle="Cú đầu tiên"
     static var lessonCount:Int { all.filter{$0.level>0}.count }
     /// Best stars by drill id (PlayerStore, player.json). Read-only here: rounds are written by PlayerStore.recordRound.
@@ -202,7 +208,9 @@ struct Drill {
             goal:PracticeGoal(x:0,y:0,radius:0,potRequired:true,potOnly:true),level:level,
             system:"Bi ma: điểm ngắm = tâm bi 1 lùi 2R (57 mm) theo hướng ngược đường bi 1 → lỗ. Cắt \(Int(degrees))°: bi 1 đi lệch \(Int(degrees))° so với đường cơ; cắt càng mỏng throw càng làm bi 1 lệch theo hướng bi cái đi (bù ngắm dày hơn ~1–2°).")
     }
-    static let all:[Drill] = {
+    /// 0.49b X1: the catalogue (C table) when the flag is on — tools and legacy drills keep their indices — else the ≤ 0.48 list.
+    static let all:[Drill] = FeatureFlags.drillCatalog ? DrillCatalog.all(legacy:legacyAll):legacyAll
+    static let legacyAll:[Drill] = {
         let stopBalls=[BallState(id:0,x:0.02,y:0.01),BallState(id:1,x:0.33,y:0.63)],stopAngle=atan2(0.62,0.31)
         var r:[Drill]=[
             // 0–2: công cụ (ẩn khỏi danh sách)

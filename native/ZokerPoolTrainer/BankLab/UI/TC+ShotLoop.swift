@@ -466,6 +466,42 @@ extension TrainingController {
         if finishedMatch{PlayerStore.shared.recordShot(drill:nil,made:false);refresh();updateControls();return}   // 0.45 M5: usage counter
         table.trails(coachOn && trailsOn ? paths:[:])
         let scratch=events.contains{$0["kind"]?.intValue==2 && $0["a"]?.intValue==0}
+        // 0.49b X2: ONE judging rule for the app and the drill checker — BLDrillJudge (DrillCatalog.h). Drills without a catalogue
+        // entry (the tools, or FeatureFlags.drillCatalog off) keep the ≤ 0.48 rule (`legacyJudge`), which also counts the rails.
+        let legacy=legacyJudge(d,events:events,scratch:scratch);var passed=legacy.0;let railCount=legacy.1
+        if !timedOut,let made=catalogJudge(d,events:events){passed=made}
+        passed=passed && !scratch && !timedOut
+        lastPassed=passed;lastScratch=scratch
+        if passed{successes+=1}
+        // 0.45 M5: one attempt per drill shot (stable id) + the usage shot counter. Free table: counter only.
+        PlayerStore.shared.recordShot(drill:d.judged && !matchPlay.active ? d.id:nil,made:passed)
+        if d.judged {
+            var history=practiceRecords()
+            history.append(PracticeRecord(date:Date(),drill:d.title,passed:passed,speed:lastShotSpeed,side:lastShot?.side ?? 0,top:lastShot?.top ?? 0))
+            if let data=try? JSONEncoder().encode(Array(history.suffix(200))){UserDefaults.standard.set(data,forKey:Prefs.practiceHistory)}
+        }
+        let distance:Double = paths[0].map {p in zip(p,p.dropFirst()).reduce(0.0){$0+Double(simd_distance($1.0,$1.1))}} ?? 0
+        if timedOut {statusLabel.text="Dừng sau 60 giây · cú không tính đạt"}
+        else if scratch {statusLabel.text="Lỗi: bi cái vào lỗ"}
+        else if d.goal != nil {statusLabel.text=passed ? "ĐẠT · đúng vùng / điều kiện":"Chưa đạt · xem vùng dừng và bi 1"}
+        else if d.safety {statusLabel.text=passed ? "ĐẠT · bi 1 đã bị che":"Chưa đạt · chạm bi 1 trước, để bi 2 chắn giữa"}
+        else if d.rails==0 {statusLabel.text=String(format:"Quãng đường bi cái ≈ %.2f m",distance)}
+        else {statusLabel.text="\(passed ? "ĐẠT":"Chưa đạt") · \(railCount) băng / yêu cầu \(d.rails)"}
+        hintLabel.text="Tập lại: trở về trước cú · Xem lại: phân tích đường bi"
+        refresh();updateControls()
+        if testRun != nil {}   // 0.47: a test without help shows nothing between shots
+        else if Tuning.predictFirst && !timedOut {revealPrediction(events)}
+        else if !timedOut && !scratch {scoreConsistency()}
+        if coachOn && !timedOut && (d.goal != nil || d.rails>0) {
+            let tracked=d.kick || d.goal != nil ? 0:1
+            table.showRailContacts(railContacts(events,ball:tracked,untilFirstHit:d.kick).map{($0.x,$0.y)})
+            requestCoachReport(drill:d,events:events,passed:passed,scratch:scratch)
+        }
+        if lessonActive && (d.level>0 || d.judged) {scoreLesson(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount,events:events)}
+        if testRun != nil {testRunShotFinished(passed:passed)}   // 0.47 M0/M5: no feedback until the 10th shot
+    }
+    /// ≤ 0.48 judging (goal zone / kick / bank), kept for drills outside the catalogue; returns the rail count of the shot too.
+    func legacyJudge(_ d:Drill,events:[[String:NSNumber]],scratch:Bool)->(Bool,Int){
         var passed=false,railCount=0
         if let goal=d.goal {
             let potted=events.contains{$0["kind"]?.intValue==2 && $0["a"]?.intValue==1 && ($0["b"]?.intValue ?? -1)>=0}
@@ -486,34 +522,16 @@ extension TrainingController {
                 if e["kind"]?.intValue==2 && e["a"]?.intValue==1 {passed=railCount==d.rails && (e["b"]?.intValue ?? -1)>=0;break}
             }
         }
-        passed=passed && !scratch && !timedOut
-        lastPassed=passed;lastScratch=scratch
-        if passed{successes+=1}
-        // 0.45 M5: one attempt per drill shot (stable id) + the usage shot counter. Free table: counter only.
-        PlayerStore.shared.recordShot(drill:(d.goal != nil || d.rails>0) && !matchPlay.active ? d.id:nil,made:passed)
-        if d.goal != nil || d.rails>0 {
-            var history=practiceRecords()
-            history.append(PracticeRecord(date:Date(),drill:d.title,passed:passed,speed:lastShotSpeed,side:lastShot?.side ?? 0,top:lastShot?.top ?? 0))
-            if let data=try? JSONEncoder().encode(Array(history.suffix(200))){UserDefaults.standard.set(data,forKey:Prefs.practiceHistory)}
-        }
-        let distance:Double = paths[0].map {p in zip(p,p.dropFirst()).reduce(0.0){$0+Double(simd_distance($1.0,$1.1))}} ?? 0
-        if timedOut {statusLabel.text="Dừng sau 60 giây · cú không tính đạt"}
-        else if scratch {statusLabel.text="Lỗi: bi cái vào lỗ"}
-        else if d.goal != nil {statusLabel.text=passed ? "ĐẠT · đúng vùng / điều kiện":"Chưa đạt · xem vùng dừng và bi 1"}
-        else if d.rails==0 {statusLabel.text=String(format:"Quãng đường bi cái ≈ %.2f m",distance)}
-        else {statusLabel.text="\(passed ? "ĐẠT":"Chưa đạt") · \(railCount) băng / yêu cầu \(d.rails)"}
-        hintLabel.text="Tập lại: trở về trước cú · Xem lại: phân tích đường bi"
-        refresh();updateControls()
-        if testRun != nil {}   // 0.47: a test without help shows nothing between shots
-        else if Tuning.predictFirst && !timedOut {revealPrediction(events)}
-        else if !timedOut && !scratch {scoreConsistency()}
-        if coachOn && !timedOut && (d.goal != nil || d.rails>0) {
-            let tracked=d.kick || d.goal != nil ? 0:1
-            table.showRailContacts(railContacts(events,ball:tracked,untilFirstHit:d.kick).map{($0.x,$0.y)})
-            requestCoachReport(drill:d,events:events,passed:passed,scratch:scratch)
-        }
-        if lessonActive && (d.level>0 || d.goal != nil || d.rails>0) {scoreLesson(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount,events:events)}
-        if testRun != nil {testRunShotFinished(passed:passed)}   // 0.47 M0/M5: no feedback until the 10th shot
+        return (passed && !scratch,railCount)
+    }
+    /// 0.49b X2: judge the finished shot with BLDrillJudge (events and final balls as C arrays); nil when the drill has no catalogue entry.
+    func catalogJudge(_ d:Drill,events:[[String:NSNumber]]) -> Bool? {
+        guard var spec=d.spec else{return nil}
+        let kinds=events.map{Int32($0["kind"]?.intValue ?? 0)},a=events.map{Int32($0["a"]?.intValue ?? 0)},b=events.map{Int32($0["b"]?.intValue ?? 0)}
+        let state=balls
+        let ids=state.map{Int32($0.id)},xs=state.map{$0.x},ys=state.map{$0.y},sunk=state.map{Int32($0.sunk ? 1:0)}
+        var layout=BLDrillLayout()
+        return BLDrillJudge(&spec,&layout,Int32(events.count),kinds,a,b,Int32(state.count),ids,xs,ys,sunk) != 0
     }
     /// 0.25 highlight score: object balls potted, kick cushions before contact, banked pots.
     func recordSessionShot(_ events:[[String:NSNumber]]){

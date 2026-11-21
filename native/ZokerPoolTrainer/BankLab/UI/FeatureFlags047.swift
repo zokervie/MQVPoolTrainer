@@ -13,6 +13,7 @@ enum FeatureFlags {
         case playFX            // M4 Hiệu ứng khi chơi
         case fadingFeedback    // M5 Phản hồi giảm dần + bài kiểm tuần
         case challenge         // M6 Thách bạn bằng mã
+        case drillCatalog      // 0.49b X1 Xưởng bài: kho bài đọc từ bảng C (tắt = danh sách Swift cũ)
     }
     static func isOn(_ f: Flag, _ d: UserDefaults = .standard) -> Bool {
         if QA.has("--ff-off-" + f.rawValue) { return false }
@@ -25,6 +26,7 @@ enum FeatureFlags {
     static var playFX: Bool { isOn(.playFX) }
     static var fadingFeedback: Bool { isOn(.fadingFeedback) }
     static var challenge: Bool { isOn(.challenge) }
+    static var drillCatalog: Bool { isOn(.drillCatalog) }
 
     /// M1: the power bar is the stroke input? Saved choice (Tuỳ chỉnh) wins; otherwise new players (< 50 shots) get
     /// the bar and players who already stroke with B keep the swipe (brief, "Mặc định khi không ai trả lời").

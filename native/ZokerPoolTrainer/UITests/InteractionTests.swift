@@ -699,10 +699,28 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(exam.cells["ChapterExam-1"].waitForExistence(timeout: 10 * slow)); exam.cells["ChapterExam-1"].tap()
         if exam.buttons["TipCardOK"].waitForExistence(timeout: 3 * slow) { exam.buttons["TipCardOK"].tap() }
         let examScene = exam.otherElements["PoolScene"]
-        wait(examScene, timeout: 30 * slow) { self.text(examScene, "test").hasPrefix("chapter-1:") }
+        wait(examScene, timeout: 30 * slow) { self.text(examScene, "test").hasPrefix("straight-speed:") }
         let examDone = exam.alerts.firstMatch.waitForExistence(timeout: 240)
         XCTAssertTrue(examDone, "ten shots, then the only result: \(examScene.value as? String ?? "")")
         XCTAssertTrue(exam.alerts.firstMatch.label.contains("Thi chương 1"))
+    }
+    /// 0.49b X1: the drill catalogue comes from the C table — nine chapters, each with at least two drills, flag on by default;
+    /// a player's saved stars keep their keys (drill id never changes).
+    func testCatalogGivesNineChaptersEachWithTwoDrills() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]
+        app.launch()
+        XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60))
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 20 * slow) { self.text(scene, "chapters") != "" }
+        XCTAssertEqual(text(scene, "catalog"), "1", "FeatureFlags.drillCatalog is on by default")
+        let counts = text(scene, "chapters").components(separatedBy: ",").compactMap { Int($0) }
+        XCTAssertEqual(counts.count, 9, "nine chapters: \(counts)")
+        XCTAssertTrue(counts.allSatisfy { $0 >= 2 }, "every chapter has at least two drills: \(counts)")
+        app.buttons["LobbyDrills"].tap()
+        XCTAssertTrue(app.tables["Chapters"].waitForExistence(timeout: 10 * slow))
+        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].exists, "the first rung of chapter 1 is open")
     }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
@@ -742,7 +760,7 @@ final class InteractionTests: XCTestCase {
         let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
         if start.waitForExistence(timeout: 5 * slow) { start.tap() }
         wait(scene, timeout: 20 * slow) { self.text(scene, "lesson") == "1" }
-        XCTAssertTrue(["first-shot", "stop-hold", "follow-zone", "draw-zone"].contains(text(scene, "drill")),
+        XCTAssertTrue(["first-shot", "speed-1", "speed-2", "speed-3"].contains(text(scene, "drill")),
                       "a new player only gets drills of open chapters (chapter 1)")
     }
     /// M3: màn Tiến bộ (Swift Charts) với 30 ngày dữ liệu giả — biểu đồ, chuỗi, nút bài kiểm tuần; ảnh cho nghiệm thu.

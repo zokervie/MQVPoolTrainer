@@ -10,13 +10,16 @@ struct Chapter {
     let tipMore: String        // one extra line (chapter 3: throw correction measured on the app's physics)
     let source: String
     let drills: [String]       // stable ids, ladder order (rung 1 first)
+    var key: String = ""       // 0.49b: BLDrillChapterKey (exam progress is saved under it); "" = ≤ 0.48 list
+    var blocking: Bool = true  // false: the chapters after it open without passing its exam (0.49b D2: Bank)
 }
 
 enum Chapters {
     /// Kinds for BLDailyPickMixed (any distinct integers; same kind = blocked practice).
     enum Kind: Int32 { case straight = 0, speed, cut, cueBallPath, kick, bank, special }
 
-    static let all: [Chapter] = [
+    static let all: [Chapter] = FeatureFlags.drillCatalog ? DrillCatalog.chapters() : legacyAll
+    static let legacyAll: [Chapter] = [
         Chapter(number: 1, title: "Cú thẳng", tip: "Thẳng – dừng – theo – lùi", tipMore: "",
                 source: "Bài stop / theo / lùi của Kinister và Dr. Dave Alciatore",
                 drills: ["first-shot", "stop-hold", "follow-zone", "draw-zone"]),
@@ -40,6 +43,11 @@ enum Chapters {
 
     /// M3: difficulty 1–5 per drill. GIẢ ĐỊNH (design): the brief wants it from the aim-window margin of the computer
     /// opponent's sweep (BLStarsFromMargin); until that sweep is run per drill in C++, this table orders the ladder.
+    /// 0.49b X1: stars 1–5 of a drill — MEASURED (BLDrillStars) with the catalogue, the table below otherwise.
+    static func stars(_ id: String) -> Int32 {
+        if FeatureFlags.drillCatalog, let s = DrillCatalog.spec(id) { var spec = s; return BLDrillStars(&spec) }
+        return difficulty[id] ?? 0
+    }
     static let difficulty: [String: Int32] = [
         "first-shot": 1, "stop-hold": 2, "follow-zone": 2, "draw-zone": 3, "speed-1": 1, "speed-2": 2, "speed-3": 2,
         "cut-30-r": 2, "cut-45-l": 3, "kick1-mirror-a": 2, "kick1-mirror-b": 2, "kick1-blocker": 3, "kick1-blocker-far": 3,
@@ -61,14 +69,15 @@ enum Chapters {
         return nil
     }
     static func chapter(_ n: Int) -> Chapter? { all.first { $0.number == n } }
-    static func examKind(_ n: Int) -> String { "chapter-\(n)" }
+    /// Exam progress key: the catalogue's stable chapter key (0.49b), "chapter-<n>" for the ≤ 0.48 list.
+    static func examKind(_ n: Int) -> String { chapter(n).map { $0.key.isEmpty ? "chapter-\(n)" : $0.key } ?? "chapter-\(n)" }
 
     // MARK: unlock state (Chapters.h)
     static func examPassed(_ n: Int, _ s: PlayerStore = .shared) -> Bool {
         BLExamPassed(Int32(s.data.examBest[examKind(n)] ?? 0), Int32(BL_EXAM_SHOTS)) != 0
     }
     static func openChapters(_ s: PlayerStore = .shared) -> [Bool] {
-        let counts = all.map { Int32($0.drills.count) }
+        let counts = all.map { Int32($0.blocking ? $0.drills.count : 0) }
         let exams = all.map { Int32(examPassed($0.number, s) ? 1 : 0) }
         let best = all.map { c in Int32(c.drills.map { s.stars($0) }.max() ?? 0) }
         var open = [Int32](repeating: 0, count: all.count)
@@ -169,7 +178,7 @@ final class ChaptersController: UITableViewController {
         let id = c.drills[indexPath.row], rungOpen = chapterOpen && Chapters.rungOpen(c, indexPath.row)
         let drill = Chapters.index(of: id).map { Drill.all[$0] }, best = PlayerStore.shared.stars(id)
         cell.textLabel?.text = "\(indexPath.row + 1). " + (drill?.title ?? id) + "   " + Drill.starText(best)
-        let level = Int(Chapters.difficulty[id] ?? 0)
+        let level = Int(Chapters.stars(id))
         cell.detailTextLabel?.text = (FeatureFlags.progress && level > 0 ? "Độ khó " + Drill.starText(level) + " · " : "") + (rungOpen ? (drill?.note ?? "") : "Đạt 3/5 ở bài trước để mở")
         cell.imageView?.image = UIImage(systemName: best >= Int(BL_RUNG_PASS_STARS) ? "checkmark.seal.fill" : (rungOpen ? "circle" : "lock.fill"))
         cell.imageView?.tintColor = best >= Int(BL_RUNG_PASS_STARS) ? .systemGreen : (rungOpen ? ZDesign.Color.gold : .gray)

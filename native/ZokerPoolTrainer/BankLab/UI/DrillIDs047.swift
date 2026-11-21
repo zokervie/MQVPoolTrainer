@@ -40,6 +40,17 @@ enum DrillIDs {
         ("Trick · Reverse bank zigzag", "trick-reverse-zigzag"),
         ("Cú đầu tiên", "first-shot"),
     ]
+    /// 0.49b: drills that came with the catalogue (BLDrillTable), appended after `byTitle` — challenge codes number a drill
+    /// by its position in `challengeIDs`, so this list is append-only too.
+    static let catalogExtra: [String] = ["cut-side-30", "cut-15-r", "cut-60-r", "cue-path-30", "cue-path-90", "cue-path-2rail",
+                                         "pos-stop", "pos-follow", "pos-draw", "bank-cross-side", "safe-behind", "safe-tuck"]
+    static let challengeIDs: [String] = byTitle.map { $0.id } + catalogExtra
+    /// 0.49b X1: chapter exams used to be saved as "chapter-<n>" (0.47 chapter numbers); the catalogue's chapters have stable
+    /// keys (BLDrillChapterKey). Old best score moves to the new key(s) of the same material, once (PlayerStore.migrateLegacyExamKeys).
+    /// "chapter-4" (Đường bi cái, never had drills) is dropped.
+    static let legacyExamKeys: [(old: String, new: [String])] = [
+        ("chapter-1", ["straight-speed", "stop-follow-draw"]), ("chapter-2", ["straight-speed"]), ("chapter-3", ["cut"]),
+        ("chapter-4", []), ("chapter-5", ["kick", "bank"]), ("chapter-6", ["special"])]
     static let idForTitle: [String: String] = Dictionary(uniqueKeysWithValues: byTitle.map { ($0.title, $0.id) })
     /// Id for a drill title. A title missing from the table (a drill added later without an id) gets a derived id so
     /// nothing crashes; DEBUG builds assert so the table is kept complete.

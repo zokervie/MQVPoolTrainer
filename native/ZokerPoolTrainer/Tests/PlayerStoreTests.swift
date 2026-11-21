@@ -118,6 +118,28 @@ import Foundation
         try check(daily.count == 2 && daily[0].rounds == 1 && daily[1].rounds == 0, "daily series oldest first")
         let g2 = PlayerStore(directory: dirG, now: t0, timeZone: hanoi)
         try check(g2.data.rounds.count == 1 && g2.data.tests.count == 4 && g2.data.tipsSeen == [1, 3], "0.47 fields survive a reload")
+        // 7 · 0.49b: exam keys move to the catalogue's chapter keys once; real-table log
+        let dirH = root.appendingPathComponent("h")
+        let h = PlayerStore(directory: dirH, now: t0, timeZone: hanoi)
+        h.recordTest(kind: "chapter-1", made: 8, shots: 10, at: dayStart(0)); h.recordTest(kind: "chapter-2", made: 9, shots: 10, at: dayStart(0))
+        h.recordTest(kind: "chapter-3", made: 7, shots: 10, at: dayStart(0)); h.recordTest(kind: "chapter-4", made: 10, shots: 10, at: dayStart(0))
+        h.recordTest(kind: "chapter-5", made: 7, shots: 10, at: dayStart(0)); h.recordTest(kind: "chapter-6", made: 8, shots: 10, at: dayStart(0))
+        h.migrateLegacyExamKeys()
+        try check(h.data.examBest["straight-speed"] == 9 && h.data.examBest["stop-follow-draw"] == 8, "chapter-1 → both, chapter-2 → straight-speed (best of both)")
+        try check(h.data.examBest["cut"] == 7 && h.data.examBest["kick"] == 7 && h.data.examBest["bank"] == 7 && h.data.examBest["special"] == 8, "chapters 3, 5, 6 moved")
+        try check(h.data.examBest.keys.allSatisfy { !$0.hasPrefix("chapter-") } && h.data.examBest.count == 6, "old keys gone, chapter-4 dropped")
+        h.recordTest(kind: "cut", made: 9, shots: 10, at: dayStart(1)); h.migrateLegacyExamKeys()
+        try check(h.data.examBest["cut"] == 9, "migration runs once")
+        h.recordRealTable(drill: "stop-hold", made: 6, at: dayStart(0)); h.recordRealTable(drill: "stop-hold", made: 14, at: dayStart(1))
+        try check(h.realTable("stop-hold").map { $0.made } == [6, 10] && h.realTable("bank1").isEmpty, "real-table log keeps order and clamps to 0…10")
+        for i in 0..<60 { h.recordRealTable(drill: "x", made: i % 11, at: dayStart(2)) }
+        try check(h.realTable("x").count == PlayerStore.maxRealTable, "real-table log is bounded")
+        let h2 = PlayerStore(directory: dirH, now: t0, timeZone: hanoi)
+        try check(h2.data.examKeysMigrated && h2.realTable("stop-hold").count == 2, "0.49b fields survive a reload")
+        let old = PlayerData(now: t0, day: 0), oldJSON = try JSONEncoder().encode(old)
+        var dict = try JSONSerialization.jsonObject(with: oldJSON) as! [String: Any]; dict.removeValue(forKey: "realTable"); dict.removeValue(forKey: "examKeysMigrated")
+        let decoded = try JSONDecoder().decode(PlayerData.self, from: JSONSerialization.data(withJSONObject: dict))
+        try check(decoded.realTable.isEmpty && !decoded.examKeysMigrated, "files from ≤ 0.49 decode with the new fields empty")
         print("PASS PlayerStore: \(checks) checks (round trip, .bak recovery, legacy stars → ids, streak/level/record, usage, 0.47 rounds/tests/tips)")
     }
 }

@@ -264,6 +264,7 @@ extension TrainingController {
             return (paths[id] ?? []).reduce(Double.infinity){best,p in
                 min(best,pockets.map{hypot(Double(p.x)-$0.0,Double(p.z)-$0.1)}.min() ?? best)}
         }
+        if d.safety {return passed ? (100,"chạm bi 1 trước, bi 2 chắn đường") : (30,"chưa giấu được bi 1")}
         if let g=d.goal {
             if g.potOnly {
                 if passed {return (100,"bi 1 vào lỗ")}
