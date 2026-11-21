@@ -233,8 +233,8 @@ inline double drillRouteRate(const BLDrillSpec& d, const BLDrillLayout& L, const
 /// Scan `half` degrees around `around` (0.5° steps when > 90, else 0.2°) for every stroke; group made shots by route.
 inline std::vector<DrillFamily> drillFamilies(const BLDrillSpec& d, const BLDrillLayout& L, double around, double half,
                                              const std::vector<DrillStroke>& strokes, int samples, long& shots,
-                                             int keepPercent = 10, size_t maxFamilies = 4) {
-    const double step = half > 90 ? 0.5 : 0.2;
+                                             int keepPercent = 10, size_t maxFamilies = 4, double stepDegrees = 0) {
+    const double step = stepDegrees > 0 ? stepDegrees : (half > 90 ? 0.5 : 0.2);
     const int n = int(std::lround(2 * half / step));
     std::map<int32_t, DrillFamily> best;
     for (DrillStroke s : strokes) {
@@ -266,6 +266,19 @@ inline std::vector<DrillFamily> drillFamilies(const BLDrillSpec& d, const BLDril
     }
     std::sort(out.begin(), out.end(), [](const DrillFamily& x, const DrillFamily& y) { return x.percent > y.percent; });
     if (out.size() > maxFamilies) out.resize(maxFamilies);
+    return out;
+}
+
+/// 0.51 "Đặt thế bí cho bạn": on-device check of a player-made layout. Every direction in 1° steps at three paces
+/// (1 080 shots) then 40 rated shots per route: a few seconds on a phone, run it off the main thread. An empty
+/// result = "no route found, move a ball". Narrow routes (< 1° wide) can be missed: that only makes the check strict.
+inline std::vector<DrillFamily> drillQuickFamilies(const BLDrillSpec& d, long* shotsOut = nullptr) {
+    BLDrillLayout L; BLDrillLayoutFor(&d, 0, &L);
+    static const std::vector<DrillStroke> strokes{{1.4, 0}, {2.4, 0}, {3.4, 0}};
+    static const std::vector<DrillStroke> soft{{.5, 0}, {.8, 0}, {1.2, 0}};
+    long shots = 0;
+    auto out = drillFamilies(d, L, L.angle, 180, d.kind == BL_DRILL_SAFETY ? soft : strokes, 40, shots, 10, 4, 1.0);
+    if (shotsOut) *shotsOut = shots;
     return out;
 }
 
