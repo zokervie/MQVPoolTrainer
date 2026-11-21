@@ -49,6 +49,13 @@ int main(){
      check(a.state.winner==0&&!spotted(a,9),"legal three-point 9-ball break may win");}
     {Rules r;auto e=shot({0,1,2,9},{contact(1),pot(1)});e.headCrossed={1,2};auto a=r.complete(e);
      check(a.state.pendingChoice=="nine_illegal_break","a pocketed ball crossing the line is only one object for three-ball break");}
+    // Casual play (app default since 0.49c, owner report 21/11): WPA general rule — hit the 1 first and pocket a ball
+    // = legal break, the breaker keeps the table. Regulation 16 (three-ball break) is an event option, off here.
+    {Rules r;r.threeBallBreak=false;auto e=shot({0,1,2,3,9},{contact(1),pot(3)});auto a=r.complete(e);
+     check(!a.foul&&a.state.pendingChoice.empty()&&a.state.currentPlayer==0&&a.state.pushOutAvailable,
+           "without the three-ball option a break that pots a ball keeps the turn");}
+    {Rules r;r.threeBallBreak=false;auto e=shot({0,1,2,3,9},{contact(1)});auto a=r.complete(e);
+     check(a.foul&&a.reason=="illegal_break_four_rails"&&a.state.currentPlayer==1,"no pot and under four rails stays a foul break");}
     {auto r=playing(Discipline::NineBall);r.state.pushOutAvailable=true;Call c;c.pushOut=true;
      auto a=r.complete(shot({0,1,9},{pot(9)},c));check(!a.foul&&spotted(a,9)&&a.state.pendingChoice=="push_out","push-out suspends contact/rail requirements but spots nine");
      a=r.resolve("pass");check(a.state.currentPlayer==0&&!a.state.pushOutAvailable,"push-out may be handed back only once");}

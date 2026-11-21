@@ -3,6 +3,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Host-authoritative virtual WPA 8/9/10-ball adjudication. Rotation15 is a named practice variant.
 @interface BLMatch : NSObject
 - (instancetype)initWithRule:(NSString *)rule NS_SWIFT_NAME(init(rule:));
+/// 9-ball WPA Regulation 16 (three-ball break: 3 balls pocketed or past the head string, else the opponent chooses).
+/// Off by default in the app since 0.49c: casual play follows the general rule (1 hit first + a pot = breaker continues).
+@property(nonatomic) BOOL threeBallBreak;
 @property(nonatomic,readonly) NSDictionary<NSString *,id> *state;
 - (void)resetWithBreaker:(NSInteger)breaker NS_SWIFT_NAME(reset(breaker:));
 - (NSArray<NSDictionary<NSString *,NSNumber *> *> *)rackWithSeed:(uint64_t)seed NS_SWIFT_NAME(rack(seed:));
