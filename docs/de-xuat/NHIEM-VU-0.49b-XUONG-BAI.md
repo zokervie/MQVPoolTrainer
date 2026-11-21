@@ -24,7 +24,7 @@ Chủ dự án chấp thuận 20/11 11:35: Xưởng bài + 6 mục (thế bi xê
 
 **X3. Thế bi xê dịch.** Cú thứ k trong lượt (k = 0…) dùng `BLDrillLayoutFor(spec, k, &L)`: cú đầu đúng bố cục gốc; thi chương, mã thách bạn, Bài hôm nay cú đầu dùng biến thể 0; bài có `jitter = 0` không đổi. Góc ngắm mặc định = `L.angle`. Replay phải lưu biến thể.
 
-**X4. Sơ đồ bài (`DrillPreviewView`) và bàn 3D lúc tải bài.**
+**X4. Sơ đồ bài (`DrillPreviewView`) và bàn 3D lúc tải bài.** Nền sơ đồ: xem G1 trong `NHIEM-VU-0.49c-GIAO-DIEN.md` (ảnh từ trên cao của chính bàn trong game).
 - Vòng đích nét đứt vàng (`goalR > 0`).
 - Lỗ đích: vòng sáng quanh lỗ mà lời giải mẫu đưa bi 1 vào (tính một lần bằng `predict` với `solveAngle/Speed/Top`).
 - Số nút trên băng: dài 0…8, ngắn 0…4 (cỡ chữ 10, mờ 70 %).
@@ -47,7 +47,7 @@ Chủ dự án chấp thuận 20/11 11:35: Xưởng bài + 6 mục (thế bi xê
 - "Vùng nhỏ" (bài có vòng đích: chấm với `goalR × 0,6`; làm bản sao spec rồi gọi `BLDrillJudge`).
 - "Không Coach" (đạt lượt không bật Coach).
 
-## Quyết định cần chủ dự án (phiên đám mây đã chọn mặc định)
+## Quyết định của chủ dự án (đã chấp thuận 21/11 09:39)
 - **D1 · Mức Đạt theo độ khó:** `BLDrillPassPercent` = tỉ lệ đo − 15 điểm, trong khoảng 20–70 %. Thay luật phẳng 70/80/90 của 0.49 L1 cho mức Đạt (Giỏi/Xuất sắc vẫn +10/+20 điểm). Mặc định: dùng.
 - **D2 · Chương Bank không chặn chương sau** cho tới khi kiểm lại vật lý băng (xem "Phát hiện"). Mặc định: không chặn.
 
