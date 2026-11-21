@@ -1,6 +1,7 @@
 import UIKit
 import SceneKit
 import simd
+import Metal
 
 // Metres throughout. Physics rail endpoints are the visible cushion nose.
 final class TableScene {
@@ -2306,5 +2307,40 @@ private extension UIColor {
     func blended(_ amount:CGFloat)->UIColor{
         var r:CGFloat=0,g:CGFloat=0,b:CGFloat=0,a:CGFloat=0;getRed(&r,green:&g,blue:&b,alpha:&a)
         return UIColor(red:1-(1-r)*amount,green:1-(1-g)*amount,blue:1-(1-b)*amount,alpha:1)
+    }
+}
+
+// 0.49c G1 — the table as the drill diagram's background: the game's own table seen from straight above, rendered OFFSCREEN
+// (SCNRenderer + the Metal device; the SCNView snapshot reads black on some Simulators), no balls / cue / guides, cached per look.
+extension TableScene {
+    private static var topDownCache: [String: UIImage] = [:]
+    /// World span of the picture: 2 × 0.82 m high (the short side + rails), twice that wide. Pixel p ↔ metre via `TableScene.topDownMetres`.
+    static let topDownHalfHeight = 0.82
+    func topDownImage(size: CGSize) -> UIImage? {
+        let key = "\(look.id)|\(clothTintIndex.map(String.init) ?? "-")|\(Int(size.width))x\(Int(size.height))"
+        if let hit = Self.topDownCache[key] { return hit }
+        guard let device = MTLCreateSystemDefaultDevice() else { return nil }
+        let hidden = [ballRoot, guideRoot, trailRoot, cueRoot, numberRoot, cueShadow, targetRoot]
+        let before = hidden.map { $0.isHidden }
+        hidden.forEach { $0.isHidden = true }
+        defer { for (n, h) in zip(hidden, before) { n.isHidden = h } }
+        let renderer = SCNRenderer(device: device, options: nil)
+        renderer.scene = scene
+        let cam = SCNNode(); cam.camera = SCNCamera(); cam.camera?.usesOrthographicProjection = true
+        cam.camera?.orthographicScale = Self.topDownHalfHeight; cam.camera?.zNear = 0.1; cam.camera?.zFar = 20
+        cam.position = SCNVector3(0, 1.8, 0)   // below the ceiling fixture (y 2.43), like the play camera's top view
+        scene.rootNode.addChildNode(cam); defer { cam.removeFromParentNode() }
+        cam.look(at: SCNVector3(0, 0, 0), up: SCNVector3(1, 0, 0), localFront: SCNVector3(0, 0, -1))
+        renderer.pointOfView = cam; renderer.autoenablesDefaultLighting = false
+        let image = renderer.snapshot(atTime: 0, with: size, antialiasingMode: .multisampling2X)
+        // a blank frame (no GPU) is not a picture: the diagram falls back to the flat drawing
+        guard let cg = image.cgImage, cg.width > 0 else { return nil }
+        var sum = 0, n = 0
+        if let data = cg.dataProvider?.data as Data?, data.count > 4 {
+            for i in stride(from: 0, to: data.count - 3, by: max(4, (data.count / 4096) / 4 * 4)) { sum += Int(data[i]) + Int(data[i + 1]) + Int(data[i + 2]); n += 3 }
+        }
+        guard n > 0, sum / n > 12 else { return nil }
+        Self.topDownCache[key] = image
+        return image
     }
 }

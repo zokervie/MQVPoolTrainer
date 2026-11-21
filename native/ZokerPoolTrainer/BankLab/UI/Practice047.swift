@@ -91,6 +91,9 @@ extension TrainingController {
         if QA.has("--chapter-unlock-qa"), let c = Chapters.chapter(1) {
             for id in c.drills where PlayerStore.shared.stars(id) < 3 { PlayerStore.shared.recordRound(drill: id, stars: 3, average: 70, made: 3) }
         }
+        if QA.has("--drill-diagrams-qa") {   // 0.49c: the drill card of four drills as pictures (+ the diagram timing) in Documents/diagram-qa
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.writeDrillDiagramQA() }
+        }
         if QA.has("--auto-shot-qa") {
             Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] t in
                 guard let self = self else { t.invalidate(); return }
@@ -169,3 +172,36 @@ extension TrainingController {
         }
     }
 }
+
+#if DEBUG
+extension TrainingController {
+    /// `--drill-diagrams-qa`: opens the drill card of stop-hold, cut-side-30, kick3-corner5 and pos-follow one after the other, writes
+    /// each as a PNG and a summary.json with the time the table picture took (first call = render, second = cache).
+    func writeDrillDiagramQA() {
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("diagram-qa")
+        try? FileManager.default.removeItem(at: dir); try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let keys = ["stop-hold", "cut-side-30", "kick3-corner5", "pos-follow"]
+        var timings: [String: Any] = [:]
+        func step(_ i: Int) {
+            guard i < keys.count else {
+                timings["pictureFirstMs"] = DrillTableImage.firstMs; timings["pictureLastMs"] = DrillTableImage.lastMs
+                timings["picture"] = DrillTableImage.image() != nil
+                if let d = try? JSONSerialization.data(withJSONObject: timings, options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: dir.appendingPathComponent("summary.json")) }
+                return
+            }
+            guard let index = Chapters.index(of: keys[i]) else { step(i + 1); return }
+            let card = DrillLessonController(drill: Drill.all[index])
+            let nav = UINavigationController(rootViewController: card); nav.modalPresentationStyle = .fullScreen
+            topPresenter.present(nav, animated: false) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    let image = UIGraphicsImageRenderer(bounds: nav.view.bounds).image { _ in nav.view.drawHierarchy(in: nav.view.bounds, afterScreenUpdates: true) }
+                    try? image.pngData()?.write(to: dir.appendingPathComponent(keys[i] + ".png"))
+                    timings[keys[i] + "Ms"] = DrillTableImage.lastMs
+                    nav.dismiss(animated: false) { step(i + 1) }
+                }
+            }
+        }
+        step(0)
+    }
+}
+#endif

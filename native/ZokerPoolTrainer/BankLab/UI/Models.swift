@@ -359,6 +359,18 @@ final class DrillLessonController:UIViewController {
         NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:20),scroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-20),scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:12),scroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12),stack.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor),stack.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor),stack.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor),stack.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor),stack.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor)])
     }
 }
+/// 0.49c G1: the table picture behind the drill diagram. TrainingController installs the provider (it owns the TableScene); the first
+/// call renders (≤ 150 ms target), later calls hit the cache (≤ 30 ms). nil → the flat drawing of ≤ 0.49b.
+enum DrillTableImage {
+    static var provider:((CGSize)->UIImage?)?
+    static let size=CGSize(width:960,height:480)
+    /// Last measured time of `image()` in milliseconds (QA probe).
+    static var lastMs=0.0,firstMs=0.0
+    static func image()->UIImage?{
+        let t=CACurrentMediaTime();defer{lastMs=(CACurrentMediaTime()-t)*1000;if firstMs==0{firstMs=lastMs}}
+        return provider?(size)
+    }
+}
 private final class DrillPreviewView:UIView {
     let drill:Drill
     /// X4: the pocket the reference stroke sends ball 1 into (computed once on a private world; nil when it pockets nothing).
@@ -379,7 +391,9 @@ private final class DrillPreviewView:UIView {
         let bounds=self.bounds.insetBy(dx:18,dy:22)
         let landscape=bounds.width>=bounds.height
         let long=2.54,short=1.27
-        let scale=landscape ? min(bounds.width/long,bounds.height/short):min(bounds.width/short,bounds.height/long)
+        let picture=landscape ? DrillTableImage.image():nil
+        // With the table picture the whole picture (rails and pockets included, 3.28 × 1.64 m) fits; without it the cloth fits.
+        let scale=picture != nil ? min((self.bounds.width-6)/3.28,(self.bounds.height-22)/1.64) : (landscape ? min(bounds.width/long,bounds.height/short):min(bounds.width/short,bounds.height/long))
         let w=CGFloat(landscape ? long:short)*scale,h=CGFloat(landscape ? short:long)*scale
         let table=CGRect(x:bounds.midX-w/2,y:bounds.midY-h/2,width:w,height:h)
         // Toạ độ bàn: x theo cạnh ngắn, y theo cạnh dài (đầu bàn y dương).
@@ -387,12 +401,18 @@ private final class DrillPreviewView:UIView {
             landscape ? CGPoint(x:table.midX+CGFloat(y)*scale,y:table.midY+CGFloat(x)*scale)
                       : CGPoint(x:table.midX+CGFloat(x)*scale,y:table.midY-CGFloat(y)*scale)
         }
-        c.setFillColor(UIColor(red:0.06,green:0.38,blue:0.34,alpha:1).cgColor);c.fill(table)
-        c.setStrokeColor(UIColor(white:0.88,alpha:0.8).cgColor);c.setLineWidth(1.5);c.stroke(table)
-        // Nút kim cương: 8 khoảng trên cạnh dài, 4 trên cạnh ngắn.
+        if let picture=picture {
+            // The picture has +x pointing up, the diagram +x pointing down: mirror it about the horizontal axis through the table centre.
+            c.saveGState();c.translateBy(x:table.midX,y:table.midY);c.scaleBy(x:1,y:-1)
+            picture.draw(in:CGRect(x:-1.64*scale,y:-0.82*scale,width:3.28*scale,height:1.64*scale));c.restoreGState()
+        }else{
+            c.setFillColor(UIColor(red:0.06,green:0.38,blue:0.34,alpha:1).cgColor);c.fill(table)
+            c.setStrokeColor(UIColor(white:0.88,alpha:0.8).cgColor);c.setLineWidth(1.5);c.stroke(table)
+        }
+        // Nút kim cương: 8 khoảng trên cạnh dài, 4 trên cạnh ngắn (the table picture already carries them).
         c.setFillColor(UIColor(white:0.92,alpha:0.55).cgColor)
-        for i in 1..<8 where i != 4 {let y = -long/2+Double(i)*long/8;for x in [-short/2,short/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
-        for i in 1..<4 {let x = -short/2+Double(i)*short/4;for y in [-long/2,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
+        for i in 1..<8 where i != 4 && picture == nil {let y = -long/2+Double(i)*long/8;for x in [-short/2,short/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
+        for i in 1..<4 where picture == nil {let x = -short/2+Double(i)*short/4;for y in [-long/2,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
         // X4: diamond numbers on one long and one short rail — long 0…8 (from the foot), short 0…4 (from the left); 10 pt, 70 %.
         let numberAttrs:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:10,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.7)]
         func number(_ n:Int,at q:CGPoint,out:CGVector){
@@ -402,9 +422,11 @@ private final class DrillPreviewView:UIView {
         for i in 0...8 {number(i,at:point(-short/2,-long/2+Double(i)*long/8),out:landscape ? CGVector(dx:0,dy:-1):CGVector(dx:-1,dy:0))}
         for i in 0...4 {number(i,at:point(-short/2+Double(i)*short/4,-long/2),out:landscape ? CGVector(dx:-1,dy:0):CGVector(dx:0,dy:1))}
         let pocketR=max(6,min(11,CGFloat(0.06)*scale))
-        c.setFillColor(UIColor(white:0.02,alpha:1).cgColor)
-        for x in [-short/2,short/2]{for y in [-long/2,0.0,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-pocketR,y:q.y-pocketR,width:2*pocketR,height:2*pocketR))}}
-        let r=max(6,min(10,CGFloat(0.0286)*scale*1.6))
+        if picture == nil {
+            c.setFillColor(UIColor(white:0.02,alpha:1).cgColor)
+            for x in [-short/2,short/2]{for y in [-long/2,0.0,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-pocketR,y:q.y-pocketR,width:2*pocketR,height:2*pocketR))}}
+        }
+        let r=picture != nil ? max(5,CGFloat(0.0286)*scale*1.25):max(6,min(10,CGFloat(0.0286)*scale*1.6))
         // X4: the target pocket glows (the one the reference stroke uses), the goal zone is a dashed gold ring.
         if let k=pocket,(0..<6).contains(k) {
             let px=k%2==0 ? -short/2:short/2,py=k<2 ? -long/2:(k<4 ? 0.0:long/2),q=point(px,py)

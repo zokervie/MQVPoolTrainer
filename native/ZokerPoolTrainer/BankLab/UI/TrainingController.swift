@@ -332,6 +332,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if let old=UserDefaults.standard.object(forKey:Prefs.clothTintIndex) as? Int {UserDefaults.standard.set(old+4,forKey:Prefs.clothTintIndex)}
             UserDefaults.standard.set(true,forKey:Prefs.clothTintMigrated)}
         if let color=UserDefaults.standard.object(forKey:Prefs.clothTintIndex) as? Int {table.setClothColor(color)}
+        DrillTableImage.provider={[weak self] size in guard let self=self,abs(self.geometry.length-2.54)<0.01 else{return nil};return self.table.topDownImage(size:size)}   // 0.49c G1: 9 ft only (drill coordinates are 9 ft)
         scn=SCNView(frame:.zero);scn.scene=table.scene;scn.pointOfView=table.camera;scn.delegate=table.pacer
         scn.backgroundColor = .black;scn.antialiasingMode = .multisampling2X;scn.preferredFramesPerSecond=60;scn.contentScaleFactor=UIScreen.main.scale*CGFloat(Tuning.renderScale)
         scn.isPlaying=false;scn.rendersContinuously=false;scn.translatesAutoresizingMaskIntoConstraints=false
@@ -574,6 +575,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     override func viewDidAppear(_ animated:Bool){
         super.viewDidAppear(animated)
         if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders()}
+        DispatchQueue.main.asyncAfter(deadline:.now()+6){[weak self] in if let self=self,!self.shotActive,!self.introRunning{_=DrillTableImage.image()}}   // 0.49c G1: the drill diagram's table picture is rendered once while idle (≈ 0,2 s), not when a card opens
         table.pacingOwner={[weak self] in
             guard let self=self else{return false}
             return self.shotActive || self.replayIndex != nil || (self.matchPlay.session.latestSnapshot?.isMoving==true && self.matchPlay.session.role == .guest)
