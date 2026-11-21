@@ -70,6 +70,14 @@ final class InteractionTests: XCTestCase {
     /// 0.46 M2: Đặt bi · Thêm bi · Bao cơ · Camera are items of the single "Bàn" menu. Opens it (retrying a dropped tap) and
     /// taps the item whose label starts with `title` (path = submenu titles first, then the item).
     @discardableResult
+    /// Root cause of the sideways pictures (0.49c): `XCUIApplication.screenshot()` of this landscape-only app is a PORTRAIT image of the rotated
+    /// app, and the exported PNG of a window/screen shot keeps portrait pixels with an orientation flag. Re-draw the screen shot upright
+    /// (landscape pixels) before attaching, so exported pictures are readable. (Element frames of such an app are in portrait coordinates too.)
+    private func attachUpright(_ name: String) {
+        let image = XCUIScreen.main.screenshot().image
+        let upright = UIGraphicsImageRenderer(size: image.size).image { _ in image.draw(in: CGRect(origin: .zero, size: image.size)) }
+        let att = XCTAttachment(image: upright); att.name = name; att.lifetime = .keepAlways; add(att)
+    }
     private func tableMenu(_ app: XCUIApplication, _ path: String...) -> Bool {
         for _ in 0..<3 {
             quick(app, "QuickTable").tap()
@@ -813,7 +821,7 @@ final class InteractionTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["ProgressChart"].waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Trong app / Bàn thật"].waitForExistence(timeout: 10 * slow) || app.descendants(matching: .any)["ProgressRealTable"].exists, "the real-table section")
-        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "progress-real-table"; shot.lifetime = .keepAlways; add(shot)
+        attachUpright("progress-real-table")
     }
     /// 0.49c G4 + G8: defaults — no spectrum strip while swiping, 3-ball break rule off (the switches live in Tuỳ chỉnh).
     func testSpectrumStripAndThreeBallBreakAreOffByDefault() {
@@ -861,7 +869,7 @@ final class InteractionTests: XCTestCase {
             heights.insert(Int(card.frame.height.rounded()))
         }
         XCTAssertEqual(heights.count, 1, "all level cards are the same size: \(heights)")
-        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "wood-picker"; shot.lifetime = .keepAlways; add(shot)
+        attachUpright("wood-picker")
     }
     /// 0.49c G2: largest accessibility text size — the wood picker keeps every card inside its panel and the content wraps (scrolls), no clipping.
     func testWoodPickerFitsAtTheLargestTextSize() {
@@ -876,7 +884,9 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 5 * slow))
         XCTAssertLessThanOrEqual(card.frame.maxX, panel.frame.maxX + 1, "the card does not run out of the panel on the right")
         XCTAssertGreaterThanOrEqual(card.frame.minX, panel.frame.minX - 1)
-        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "wood-picker-xxxl"; shot.lifetime = .keepAlways; add(shot)
+        // element frames of this landscape-only app are in portrait coordinates: the card's landscape HEIGHT is frame.width here
+        XCTAssertGreaterThan(card.frame.width, 90, "at the largest text size the text wraps and the card grows with it: \(card.frame)")
+        attachUpright("wood-picker-xxxl")
     }
     func testLegalScreenCreditsPetemoss() {
         let app = XCUIApplication()

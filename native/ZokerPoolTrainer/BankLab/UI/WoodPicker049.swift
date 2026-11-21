@@ -86,7 +86,8 @@ final class WoodPickerController: UIViewController {
             cards.append(card)
             card.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) { item.run() } }, for: .touchUpInside)
             list.addArrangedSubview(card)
-            if cards.count > 1 { card.heightAnchor.constraint(equalTo: cards[0].heightAnchor).isActive = true }   // every card the same size (after it is in the stack)
+            // every card the same size = the tallest one (≥ both ways, so a card with more text never gets squeezed to the first card's height)
+            for other in cards.dropLast() { card.heightAnchor.constraint(greaterThanOrEqualTo: other.heightAnchor).isActive = true; other.heightAnchor.constraint(greaterThanOrEqualTo: card.heightAnchor).isActive = true }
         }
         let close = WoodCard(title: L10n.tr("Đóng"), sub: nil); close.accessibilityIdentifier = "WoodClose"
         close.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) }, for: .touchUpInside); list.addArrangedSubview(close)
