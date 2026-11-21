@@ -450,8 +450,14 @@ final class InteractionTests: XCTestCase {
         let intro = app.descendants(matching: .any)["IntroOverlay"].firstMatch
         XCTAssertTrue(intro.waitForExistence(timeout: 60), "fresh install: the intro is shown first")
         XCTAssertFalse(app.buttons["LobbyFree"].exists, "no Lobby on top of the intro")
-        if scene.exists { XCTAssertEqual(part("flow"), "intro") }
-        intro.tap()
+        // 0.49b: the probe string is refreshed by the shot-loop tick: on a slow runner (CI 163) it still read "launching" when the
+        // intro overlay was already up, and on a fast one the intro may already be over by the time it is read. Poll with a
+        // deadline until the flow has logged anything, then check that "intro" came FIRST (flowLog), alone, before the Lobby.
+        if scene.exists {
+            wait(scene, timeout: 20 * slow) { !part("flowLog").isEmpty }
+            XCTAssertTrue(part("flowLog").hasPrefix("intro"), "the intro is the first flow step: \(part("flowLog"))")
+        }
+        if intro.exists { intro.tap() }
         // 2 · Lobby only after the intro finished (Vietnamese device → Vietnamese Lobby)
         let free = app.buttons["LobbyFree"]
         XCTAssertTrue(free.waitForExistence(timeout: 20 * slow), "the Lobby comes after the intro")

@@ -34,16 +34,26 @@ extension TrainingController {
         statusLabel.text = r.title + " · đã đánh \(r.shot)/10"
         notifyStatus(statusLabel.text ?? "")
         if r.shot < Int(BL_EXAM_SHOTS) {
-            let next = r.drills[r.shot % r.drills.count], kind = r.kind
+            let next = r.drills[r.shot % r.drills.count], kind = r.kind, done = r.shot
             // Same pause as the 5-shot round: the player sees where the balls stopped, then the next layout.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
-                guard let self = self, self.testRun?.kind == kind, !self.shotActive, self.replayIndex == nil else { return }
-                self.loadDrill(next)
-                self.statusLabel.text = r.title + " · cú \(r.shot + 1)/10"
-            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in self?.loadNextTestShot(next, kind: kind, done: done, title: r.title) }
             return
         }
         endTestRun(cancelled: false)
+    }
+    /// 0.49b ROOT CAUSE of testChapterOneLadderAndExam (CI 159–163, and a real bug): the next layout was loaded once, 1.6 s after the
+    /// shot, and `loadDrill` silently refuses while the shot camera is still returning (presentationBusy). The label said
+    /// "cú 2/10" but the table kept the last layout (cue ball gone), nothing could be played and no result ever came. A slow
+    /// runner (camera clock advances ≤ 0.1 s per frame) hits it every time; a phone hits it when the camera return is slow.
+    /// Now it waits for the table to be free (every 0.25 s) instead of giving up; a cancelled / restarted run stops the wait.
+    func loadNextTestShot(_ next: Int, kind: String, done: Int, title: String) {
+        guard let run = testRun, run.kind == kind, run.shot == done, replayIndex == nil else { return }
+        if shotActive || presentationBusy || !localTurn {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.loadNextTestShot(next, kind: kind, done: done, title: title) }
+            return
+        }
+        loadDrill(next)
+        statusLabel.text = title + " · cú \(done + 1)/10"
     }
     func endTestRun(cancelled: Bool) {
         guard let r = testRun else { return }
