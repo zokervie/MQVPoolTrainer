@@ -51,6 +51,17 @@ static inline int32_t BLPuzzleRoomCount(int32_t room, int32_t *out, int32_t max)
     return n;
 }
 
+/* Pockets (Physics.cpp holes): 0 foot-left, 1 foot-right, 2 side-left, 3 side-right, 4 head-left, 5 head-right.
+   A left–right mirror swaps each pair; the signature stores pocket + 1 in its last digit (0 = no pot). */
+static inline int32_t BLPuzzleMirrorSignature(int32_t signature) {
+    const int32_t pocket = signature % 10;
+    return pocket == 0 ? signature : signature - pocket + (((pocket - 1) ^ 1) + 1);
+}
+/* Swift cannot index a C array member: accessor (NULL when out of range). */
+static inline const BLPuzzleSolution *BLPuzzleSolutionAt(const BLPuzzleSpec *p, int32_t i) {
+    return p && i >= 0 && i < p->solutionCount ? &p->solutions[i] : 0;
+}
+
 /* ── Review: left–right mirror (spaced review shows the same problem, not the same picture) ───────────────────
    The table is symmetric about x = 0, so the mirrored puzzle has the same routes, mirrored. */
 static inline void BLPuzzleMirror(const BLPuzzleSpec *in, BLPuzzleSpec *out) {
@@ -64,8 +75,7 @@ static inline void BLPuzzleMirror(const BLPuzzleSpec *in, BLPuzzleSpec *out) {
     for (int32_t i = 0; i < out->solutionCount; ++i) {
         out->solutions[i].angle = PI - out->solutions[i].angle;
         out->solutions[i].hintX = -out->solutions[i].hintX;
-        /* pockets: 0..5 as in Physics.cpp holes; a mirrored route drops in the mirrored pocket (signature kept:
-           the app compares routes by rails, see BLPuzzleSameRoute) */
+        out->solutions[i].signature = BLPuzzleMirrorSignature(out->solutions[i].signature);
     }
 }
 /* Two signatures describe the same route up to the pocket (mirror review compares this way). */
@@ -115,23 +125,36 @@ static inline void BLHintJarEarn(BLHintJar *j, double now) {
 }
 
 /* ── Stars of one puzzle ────────────────────────────────────────────────────────────────────────────────────────
-   ① solved · ② solved within 3 tries without the level-3 hint · ③ a second listed route, or the small target
-   (goal radius × 0.6) on a position puzzle. Highest hint level used caps it: level 2 → 2 stars, level 3 → 1 star.
-   A level-3 cap is lifted 24 h after the hint was taken (solve it again then for full stars). */
-typedef struct {
-    int32_t solved, triesToFirstSolve, routesFound, smallTarget, hintLevel;
-    double hintAt;            /* when the highest hint was taken (seconds) */
-} BLPuzzleProgress;
-static inline int32_t BLPuzzleStars(const BLPuzzleProgress *p, double now) {
-    if (!p || !p->solved) return 0;
-    int32_t stars = 1;
-    if (p->triesToFirstSolve > 0 && p->triesToFirstSolve <= 3) stars = 2;
-    if (stars == 2 && (p->routesFound >= 2 || p->smallTarget)) stars = 3;
-    int32_t cap = 3;
-    if (p->hintLevel == 2) cap = 2;
-    if (p->hintLevel >= 3 && now - p->hintAt < 86400.0) cap = 1;
-    return stars < cap ? stars : cap;
+   Stars are earned per solving session (from loading the puzzle to solving it) and the best session is kept.
+   ① solved, any way.
+   ② solved within 3 tries, without watching the route (level-3 hint) in this session or in the last 24 h.
+   ③ ② without the aim-point hint (level 2) in this session, plus the puzzle's third-star task:
+      - a second listed route found (ever), when the puzzle lists two or more;
+      - else the small target (goal radius × 0.6), when it has a cue-ball zone;
+      - else solved at the first try.
+   Every puzzle can reach 3 stars (review 21/11: single-route puzzles without a zone could not before). */
+enum { BL_PUZZLE_THIRD_SECOND_ROUTE = 0, BL_PUZZLE_THIRD_SMALL_TARGET = 1, BL_PUZZLE_THIRD_FIRST_TRY = 2 };
+static inline int32_t BLPuzzleThirdStarTask(const BLPuzzleSpec *p) {
+    if (p && p->solutionCount >= 2) return BL_PUZZLE_THIRD_SECOND_ROUTE;
+    if (p && p->spec.goalR > 0) return BL_PUZZLE_THIRD_SMALL_TARGET;
+    return BL_PUZZLE_THIRD_FIRST_TRY;
 }
+/* tries: shots in this session up to and including the solving one (≥ 1). hintLevel: highest level used in this
+   session (0–3). watchedAt: when the route of this puzzle was last watched (≤ 0 = never). routesFound: distinct
+   listed routes found so far, this session included. smallTarget: the solving shot also stopped in the small zone. */
+static inline int32_t BLPuzzleSessionStars(const BLPuzzleSpec *p, int32_t tries, int32_t hintLevel, double watchedAt,
+                                           double now, int32_t routesFound, int smallTarget) {
+    if (!p || tries < 1) return 0;
+    if (hintLevel >= 3 || (watchedAt > 0 && now - watchedAt < 86400.0)) return 1;
+    if (tries > 3) return 1;
+    if (hintLevel >= 2) return 2;
+    switch (BLPuzzleThirdStarTask(p)) {
+    case BL_PUZZLE_THIRD_SECOND_ROUTE: return routesFound >= 2 ? 3 : 2;
+    case BL_PUZZLE_THIRD_SMALL_TARGET: return smallTarget ? 3 : 2;
+    default: return tries == 1 ? 3 : 2;
+    }
+}
+static inline int32_t BLPuzzleBestStars(int32_t stored, int32_t session) { return session > stored ? session : stored; }
 
 /* ── Rooms ──────────────────────────────────────────────────────────────────────────────────────────────────────
    Room 1 is open. Room n opens when the previous non-blocking room holds ≥ 60 % of its stars (3 per puzzle).

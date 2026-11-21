@@ -61,13 +61,23 @@ static void jarAndStars() {
     BLHintJarSpend(&j, 1, 30000); BLHintJarSpend(&j, 1, 30000); BLHintJarEarn(&j, 30000);
     check(j.count == 2, "learning earns a hint");
     BLHintJarUpdate(&j, 100); check(j.count == 2 && BLHintJarNextIn(&j, 100) == 1200, "clock moved back: nothing gained, timer restarts");
-    BLPuzzleProgress p{}; check(BLPuzzleStars(&p, 0) == 0, "unsolved = 0 stars");
-    p.solved = 1; p.triesToFirstSolve = 7; check(BLPuzzleStars(&p, 0) == 1, "solved late = 1");
-    p.triesToFirstSolve = 3; check(BLPuzzleStars(&p, 0) == 2, "≤ 3 tries = 2");
-    p.routesFound = 2; check(BLPuzzleStars(&p, 0) == 3, "second route = 3");
-    p.hintLevel = 2; check(BLPuzzleStars(&p, 0) == 2, "aim-point hint caps at 2");
-    p.hintLevel = 3; p.hintAt = 0; check(BLPuzzleStars(&p, 3600) == 1, "watched route caps at 1");
-    check(BLPuzzleStars(&p, 90000) == 3, "cap lifted after 24 h");
+    BLPuzzleSpec two{}, zone{}, one{};
+    two.solutionCount = 2; zone.solutionCount = 1; zone.spec.goalR = 0.13; one.solutionCount = 1;
+    check(BLPuzzleThirdStarTask(&two) == BL_PUZZLE_THIRD_SECOND_ROUTE && BLPuzzleThirdStarTask(&zone) == BL_PUZZLE_THIRD_SMALL_TARGET &&
+          BLPuzzleThirdStarTask(&one) == BL_PUZZLE_THIRD_FIRST_TRY, "third-star task by puzzle shape");
+    check(BLPuzzleSessionStars(&two, 0, 0, 0, 0, 0, 0) == 0, "no solve = 0 stars");
+    check(BLPuzzleSessionStars(&two, 7, 0, 0, 0, 1, 0) == 1, "solved late = 1");
+    check(BLPuzzleSessionStars(&two, 3, 0, 0, 0, 1, 0) == 2, "≤ 3 tries = 2");
+    check(BLPuzzleSessionStars(&two, 3, 0, 0, 0, 2, 0) == 3, "second route = 3");
+    check(BLPuzzleSessionStars(&two, 1, 2, 0, 0, 2, 0) == 2, "aim-point hint caps the session at 2");
+    check(BLPuzzleSessionStars(&two, 1, 3, 0, 0, 2, 0) == 1, "watched route caps the session at 1");
+    check(BLPuzzleSessionStars(&two, 1, 0, 1000, 1000 + 3600, 2, 0) == 1, "still capped an hour after watching");
+    check(BLPuzzleSessionStars(&two, 1, 0, 1000, 1000 + 90000, 2, 0) == 3, "a new solve 24 h later earns full stars");
+    check(BLPuzzleSessionStars(&zone, 2, 0, 0, 0, 1, 1) == 3 && BLPuzzleSessionStars(&zone, 2, 0, 0, 0, 1, 0) == 2, "zone puzzle: small target");
+    check(BLPuzzleSessionStars(&one, 1, 0, 0, 0, 1, 0) == 3 && BLPuzzleSessionStars(&one, 2, 0, 0, 0, 1, 0) == 2, "single route: first try");
+    check(BLPuzzleBestStars(2, 1) == 2 && BLPuzzleBestStars(1, 3) == 3, "best session is kept");
+    check(BLPuzzleMirrorSignature(5) == 6 && BLPuzzleMirrorSignature(116) == 115 && BLPuzzleMirrorSignature(200) == 200 &&
+          BLPuzzleMirrorSignature(BLPuzzleMirrorSignature(213)) == 213, "mirror swaps pocket pairs");
     check(!BLPuzzleOfferEasier(1) && BLPuzzleOfferEasier(2), "easier puzzle after 2 failures in a row");
 }
 
@@ -80,6 +90,7 @@ static void catalogue() {
         ++listed;
         const BLDrillSpec& d = p.spec;
         check(keys.insert(d.key).second, std::string("unique key ") + d.key);
+        check(BLPuzzleSolutionAt(&p, 0) == &p.solutions[0] && !BLPuzzleSolutionAt(&p, p.solutionCount), std::string("accessor ") + d.key);
         check(p.solutionCount >= 1 && p.solutionCount <= BL_PUZZLE_MAX_SOLUTIONS, std::string("routes listed ") + d.key);
         check(d.skill >= 0 && d.skill < BL_SKILL_COUNT && BLSkillLesson(d.skill) >= 0, std::string("needs a taught skill ") + d.key);
         check(p.solutions[0].percent >= 30 && p.solutions[0].percent <= 90, std::string("fair: best route 30–90 % ") + d.key);
@@ -106,7 +117,7 @@ static void catalogue() {
             const double deg = (t % 2 ? 1 : -1) * ((t + 1) / 2) * 0.1;
             DrillShotInfo info;
             ok = drillShot(m.spec, ML, m.solutions[0].angle + deg * pi / 180, m.solutions[0].speed, 0, m.solutions[0].top, 14, &info) &&
-                 BLPuzzleSameRoute(BLPuzzleRoute(&m.spec, info.signature), p.solutions[0].signature);
+                 BLPuzzleSolutionIndex(&m, info.signature) == 0;   // the mirrored table names the mirrored pocket
         }
         check(ok, std::string("mirrored review is solvable ") + d.key);
     }
