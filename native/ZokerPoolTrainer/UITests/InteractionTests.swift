@@ -1095,6 +1095,33 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(Int(text(scene3, "ghostPath")) ?? 0, 1, "the previous try's path was shown on the retry")
         XCTAssertEqual(text(scene3, "restNudges"), "1", "one reminder after the (shortened) stretch")
     }
+    /// 0.51 N2: mark where the cue ball stops, lock in → the real solver's point, "Lệch N cm · k điểm", the Eye moves; only 5 rounds a day count.
+    func testPredictThePathScoresAndMovesTheEye() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--daily-day-qa=40"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyPredict"].waitForExistence(timeout: 60)); app.buttons["LobbyPredict"].tap()
+        let board = app.otherElements["PredictBoard"]
+        XCTAssertTrue(board.waitForExistence(timeout: 15 * slow))
+        let eye = app.staticTexts["PredictEye"]
+        XCTAssertTrue(eye.waitForExistence(timeout: 5 * slow))
+        XCTAssertTrue(eye.label.contains("1000"), "the Eye starts at 1000: \(eye.label)")
+        var scores: [Int] = []
+        for round in 1...6 {
+            let lock = app.buttons["PredictLock"]
+            XCTAssertFalse(lock.isEnabled, "nothing marked yet")
+            board.coordinate(withNormalizedOffset: CGVector(dx: 0.30 + 0.07 * Double(round), dy: 0.5)).tap()
+            expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: lock); waitForExpectations(timeout: 10 * slow)
+            lock.tap()
+            let result = app.staticTexts["PredictResult"]
+            expectation(for: NSPredicate(format: "label CONTAINS %@", "điểm"), evaluatedWith: result); waitForExpectations(timeout: 10 * slow)
+            let digits = result.label.components(separatedBy: CharacterSet.decimalDigits.inverted).filter { !$0.isEmpty }
+            scores.append(Int(digits.last ?? "-1") ?? -1)
+            if round <= 5 { XCTAssertTrue(eye.label.contains("(") && !eye.label.contains("không tính điểm"), "scored round \(round): \(eye.label)") }
+            else { XCTAssertTrue(eye.label.contains("không tính điểm"), "the sixth round is practice only: \(eye.label)") }
+            if round < 6 { app.buttons["PredictNext"].tap() }
+        }
+        XCTAssertTrue(scores.allSatisfy { (0...100).contains($0) }, "scores 0…100: \(scores)")
+        attachUpright("predict-the-path")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

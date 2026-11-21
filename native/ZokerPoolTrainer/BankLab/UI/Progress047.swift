@@ -39,6 +39,7 @@ struct ProgressView047: View {
                         stat(attempts > 0 ? "\(made * 100 / attempts)%" : "–", "tỉ lệ vào", "scope", .green)
                         stat("\(rounds)", "lượt bài", "checklist", .blue)
                         stat("\(store.data.level)", "cấp độ", "chart.bar.fill", .purple)
+                        stat("\(Int(store.data.eye.rounded()))", "Chỉ số Mắt", "eye.fill", .cyan)
                     }
                     Text(L10n.tr("Tỉ lệ vào theo ngày")).font(.headline).foregroundColor(.white)
                     Chart {

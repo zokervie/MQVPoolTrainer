@@ -179,6 +179,14 @@ import Foundation
         try check(h7.data.streak.best >= max(streakBefore, 2), "two solved days in a row make a streak of 2")
         h7.noteDailyShare(); h7.noteDailyShare()
         try check(PlayerStore(directory: root.appendingPathComponent("h7"), now: t0, timeZone: hanoi).data.dailyShares == 2, "Khoe taps are kept")
+        // 13 · 0.51 N2: only the first 5 predictions of a day change the Eye
+        let h8 = PlayerStore(directory: root.appendingPathComponent("h8"), now: t0, timeZone: hanoi)
+        try check(h8.data.eye == 1000, "the Eye starts at 1000")
+        var counted = 0; for _ in 0..<8 { if h8.notePrediction(day: 21000) { counted += 1 } }
+        try check(counted == 5, "5 scored predictions a day, the rest is practice (got \(counted))")
+        try check(h8.notePrediction(day: 21001), "a new day counts again")
+        h8.setEye(1042.5); h8.setEye(50)
+        try check(PlayerStore(directory: root.appendingPathComponent("h8"), now: t0, timeZone: hanoi).data.eye == 100, "the Eye is kept and never drops under 100")
         // 12 · 0.50 T7: the 45-minute reminder with a fake clock
         var rest = RestNudge()
         try check(!rest.action(at: 0) && !rest.action(at: 600) && !rest.action(at: 1800), "no reminder in the first 45 minutes")

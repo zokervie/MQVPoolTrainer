@@ -126,6 +126,8 @@ struct PlayerData: Codable, Equatable {
     var hintJarCount = -1                           // hint jar (BLHintJar): -1 = never opened (starts full)
     var hintJarRefillFrom = 0.0                     // seconds since 1970 of the last refill tick
     var hintsEmptied = 0                            // times the jar ran dry (T8, never sent anywhere)
+    var eye = 1000.0                                     // 0.51 N2 "Chỉ số Mắt" (Elo, BL_EYE_START)
+    var predictDay: Int64 = -1, predictCount = 0         // 0.51 N2: scored predictions today (the first 5 count)
     var dailyShares = 0                                  // 0.51 N1 local measure: how often "Khoe" was tapped
     var dailyPuzzle: [String: DailyPuzzleState] = [:]   // 0.51 N1, keyed by the local day index
     var puzzleBook: [String: PuzzleRecord] = [:]    // T5 Sổ lời giải: the player's own solving stroke per puzzle
@@ -163,6 +165,9 @@ struct PlayerData: Codable, Equatable {
         puzzleBook = try c.decodeIfPresent([String: PuzzleRecord].self, forKey: .puzzleBook) ?? [:]
         dailyPuzzle = try c.decodeIfPresent([String: DailyPuzzleState].self, forKey: .dailyPuzzle) ?? [:]
         dailyShares = try c.decodeIfPresent(Int.self, forKey: .dailyShares) ?? 0
+        eye = try c.decodeIfPresent(Double.self, forKey: .eye) ?? 1000
+        predictDay = try c.decodeIfPresent(Int64.self, forKey: .predictDay) ?? -1
+        predictCount = try c.decodeIfPresent(Int.self, forKey: .predictCount) ?? 0
         puzzleWatched = try c.decodeIfPresent([String: Double].self, forKey: .puzzleWatched) ?? [:]
         puzzleSolvedDay = try c.decodeIfPresent([String: Int64].self, forKey: .puzzleSolvedDay) ?? [:]
         puzzleReviewDone = try c.decodeIfPresent([String: [Int]].self, forKey: .puzzleReviewDone) ?? [:]
@@ -347,6 +352,14 @@ final class PlayerStore {
         if s.solved { var st = data.streak.c; _ = BLStreakComplete(&st, day); data.streak = StreakRecord(st) }
         save(); return s
     }
+    static let scoredPredictionsPerDay = 5
+    /// 0.51 N2: one more prediction today; true while it still counts for the Eye (the first 5 of the day, more are practice).
+    func notePrediction(day theDay: Int64) -> Bool {
+        if data.predictDay != theDay { data.predictDay = theDay; data.predictCount = 0 }
+        data.predictCount += 1; save()
+        return data.predictCount <= Self.scoredPredictionsPerDay
+    }
+    func setEye(_ value: Double) { data.eye = max(100, value); save() }
     func noteDailyShare() { data.dailyShares += 1; save() }
     /// 0.51 N1 local measures: (days played, days solved, average tries of the solved days).
     func dailyStats() -> (played: Int, solved: Int, averageTries: Double) {

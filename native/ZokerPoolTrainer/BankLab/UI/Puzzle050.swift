@@ -415,6 +415,8 @@ extension TrainingController {
                 let now = Date().timeIntervalSince1970
                 let stars = Int(BLPuzzleSessionStars(&p, Int32(s.tries), Int32(s.hintLevel), PlayerStore.shared.data.puzzleWatched[key] ?? 0, now, Int32(s.found.count), small ? 1 : 0))
                 PlayerStore.shared.recordPuzzle(key: key, stars: stars, tries: s.tries)
+                // "Chỉ số Mắt": a puzzle solved within three tries counts 1, otherwise 0, against the puzzle's measured rating
+                PlayerStore.shared.setEye(BLEyeUpdate(PlayerStore.shared.data.eye, BLPuzzleTaskRating(p.solutions.0.percent), s.tries <= 3 ? 1 : 0))
                 let shot = lastShot
                 PlayerStore.shared.recordPuzzleSolve(key: key, record: PuzzleRecord(angle: shot?.strikeAngle ?? shot?.aimAngle ?? angle, speed: shot?.speed ?? 0, top: shot?.top ?? 0, signature: Int(sig), day: PlayerStore.shared.day(Date()), tries: s.tries))
                 if s.viaPractice { PlayerStore.shared.notePracticeTrip(returnedAndSolved: true); s.viaPractice = false }

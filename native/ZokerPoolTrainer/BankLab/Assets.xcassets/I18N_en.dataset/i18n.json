@@ -954,5 +954,15 @@
 "Lần bấm Khoe": "Times Share was tapped",
 "In tờ thế bí": "Print the puzzle flyer",
 "Quét mã để chơi thế bí hôm nay": "Scan to play today's puzzle",
-"Hiện đường bi của lần thử trước khi thử lại thế bí": "Show the previous try's ball path when retrying a puzzle"
+"Hiện đường bi của lần thử trước khi thử lại thế bí": "Show the previous try's ball path when retrying a puzzle",
+"Đoán đường bi": "Predict the path",
+"Chỉ số Mắt": "Eye rating",
+"Chốt": "Lock in",
+"Lượt tiếp theo": "Next round",
+"Chạm chỗ bạn nghĩ bi cái sẽ dừng, rồi bấm Chốt.": "Tap where you think the cue ball will stop, then press Lock in.",
+"Lực %.1f m/s": "Pace %.1f m/s",
+"điểm chạm": "tip",
+"Còn %d lượt tính điểm hôm nay": "%d scored rounds left today",
+"Lệch %.0f cm · %d điểm": "Off by %.0f cm · %d points",
+"luyện thêm, không tính điểm": "extra practice, not scored"
 }
