@@ -39,6 +39,7 @@ extension TrainingController {
         place(menuButton,f.menu);place(coachButton,f.coach);place(panel,f.panel);spin.setNeedsDisplay()
         place(lockButton,f.lock);lockButton.isHidden=menuOpen || spinExpanded;lockButton.setNeedsDisplay()   // 0.36: B is back (hold = lock aim), square, left of the effect ball
         for (k,icon) in cueIcons.enumerated(){place(icon,BLHUDCueIcon(f,Int32(k)))}
+        if let b=placeBallButton{place(b,BLRectMake(f.cues.x,f.cues.y-8-64,64,64));syncPlaceBallButton()}   // 0.49c G6
         elevationPad.leftHanded=leftHanded
         let small=BLRectMake(0,f.coach.y+4,pad ? 76:62,36),guideW=pad ? 92:80
         var n=small,g=small,c=small;g.w=Double(guideW);c.w=pad ? 72:60   // 0.44.1: "Chấm cú" fits on one line
@@ -427,7 +428,7 @@ extension TrainingController {
             fineWheel.centerXAnchor.constraint(equalTo:spin.centerXAnchor),fineWheel.bottomAnchor.constraint(equalTo:spin.topAnchor,constant:-8),fineWheel.widthAnchor.constraint(equalToConstant:44),fineWheel.heightAnchor.constraint(equalToConstant:100),
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
         elevationPad.changed={[weak self] value in self?.setElevation(value);self?.updateElevationLoupe()}
-        buildCueIcons()
+        buildCueIcons();buildPlaceBallButton()
         for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Chấm cú","CoachCardToggle")] {
             var c=UIButton.Configuration.plain();c.title=title;c.background.backgroundColor=UIColor(white:0.03,alpha:0.42);c.background.cornerRadius=10
             c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:12,weight:.semibold);return a}
@@ -454,6 +455,25 @@ extension TrainingController {
             UserDefaults.standard.set(self.guideMode,forKey:Prefs.guideMode);self.guideDirty=true;self.guideButton?.configuration?.title=self.guideOn ? "Dự báo: bật":"Dự báo: tắt"
             self.wakeRendering();self.syncOverlayButtons()},for:.touchUpInside)
         buildReplayBar();syncQuickRail();applyCoachVisibility()
+    }
+    /// 0.49c G6 (IPA 163): "Đặt bi" out of the "Bàn" menu — 64 pt, left edge, right above the cue-kind row; lit only when the rules let
+    /// the player place balls; one tap = drag the cue ball, tap again = done (same action as the old shortcut).
+    func buildPlaceBallButton(){
+        let b=UIButton(type:.system);var c=UIButton.Configuration.filled()
+        c.image=UIImage(systemName:"hand.draw");c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:22,weight:.semibold)
+        c.baseBackgroundColor=UIColor(white:0.03,alpha:0.55);c.baseForegroundColor = .white;c.cornerStyle = .capsule;c.contentInsets = .zero
+        b.configuration=c;b.accessibilityIdentifier="PlaceBallButton";b.accessibilityLabel="Đặt bi"
+        b.addAction(UIAction{[weak self]_ in self?.toggleEdit()},for:.touchUpInside)
+        view.addSubview(b);placeBallButton=b
+    }
+    func syncPlaceBallButton(){
+        guard let b=placeBallButton else{return}
+        let on=quickPlace?.isEnabled ?? false
+        b.isHidden=menuOpen || spinExpanded || replayIndex != nil
+        b.isEnabled=on;b.alpha=on ? 1:0.35
+        b.configuration?.baseBackgroundColor=isPlacingBalls ? ZDesign.Color.gold:UIColor(white:0.03,alpha:0.55)
+        b.configuration?.baseForegroundColor=isPlacingBalls ? .black:.white
+        b.accessibilityLabel=isPlacingBalls ? "Xong đặt bi":"Đặt bi"
     }
     func buildCueIcons(){
         let names=["Đánh","Jump","Massé","Break"],ids=["CueIconPlay","CueIconJump","CueIconMasse","CueIconBreak"]
@@ -526,6 +546,7 @@ extension TrainingController {
         quickRole.menu=nil
         quickPlace.configuration?.title=isPlacingBalls ? "Xong":"Đặt bi"
         quickPlace.showsMenuAsPrimaryAction=false
+        syncPlaceBallButton()
         quickAdd.configuration?.title=isPlacingBalls ? "Hủy":"Thêm bi"
         quickAdd.showsMenuAsPrimaryAction = !isPlacingBalls
         quickAdd.menu=isPlacingBalls ? nil:UIMenu(title:"Thêm bi",children:addBallMenuChildren())
@@ -602,7 +623,7 @@ extension TrainingController {
         elevationPad.isEnabled = !busy && localTurn && !isPlacingBalls && !spinExpanded
         quickTools?.isEnabled = !busy && localTurn && !spinExpanded
         quickRole?.isEnabled = !busy && localTurn && !spinExpanded && !isPlacingBalls
-        quickPlace?.isEnabled = !busy && localTurn && !spinExpanded
+        quickPlace?.isEnabled = !busy && localTurn && !spinExpanded;syncPlaceBallButton()
         quickAdd?.isEnabled = !busy && localTurn && !spinExpanded
         quickReplay?.isEnabled = !shotActive && !frames.isEmpty && !isPlacingBalls
         coachButton.isEnabled = !locked && !spinExpanded

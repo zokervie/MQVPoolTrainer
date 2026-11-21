@@ -767,6 +767,18 @@ final class InteractionTests: XCTestCase {
         app.buttons["DrillRealTable"].tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Các lần trước: 7")).firstMatch.waitForExistence(timeout: 5 * slow), "the try was saved")
     }
+    /// 0.49c G6: stand-alone "Đặt bi" button (64 pt): one tap = place mode, tap again = done.
+    func testPlaceBallButtonIsOutsideTheMenuAndToggles() {
+        let (app, scene) = launch([])
+        let b = app.buttons["PlaceBallButton"]
+        XCTAssertTrue(b.waitForExistence(timeout: 20 * slow), "the button is on the table, not in a menu")
+        XCTAssertGreaterThanOrEqual(b.frame.width, 63.5, "64 pt")
+        XCTAssertTrue(b.isEnabled, "free table: placing is allowed")
+        b.tap()
+        wait(scene, timeout: 10 * slow) { self.field(scene, "editing") == 1 }
+        b.tap()
+        wait(scene, timeout: 10 * slow) { self.field(scene, "editing") == 0 }
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])
