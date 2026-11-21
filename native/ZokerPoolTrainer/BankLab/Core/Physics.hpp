@@ -82,6 +82,17 @@ struct Config {
     // Optional research response; zero preserves v0.9 behaviour.
     double railSpeedSensitivity=0;
     bool coupledCushions=false; // Native app enables A1; legacy regressions remain selectable.
+    // 0.52 — cushion model switch. 0 = the model above (A1, default everywhere). 1 = Mathavan–Jackson–Parkin 2010:
+    // impulse integration with sliding friction at the rail contact and at the table contact (grounded balls only;
+    // airborne contacts keep model 0). OFF by default: not enabled for players until checked on a device.
+    //  - cushionE .89, cushionFriction .17   [suy ra — chỉnh theo số đo: tốc độ bật thẳng của Mathavan 2009 Fig. 9
+    //    (B23, B24; B25 giữ riêng) và hệ kick K1. Giá trị của bài báo 2010 (.98 / .14, bàn snooker) cho bi bật nhanh
+    //    hơn số đo đó 6–18 % và trượt 6 benchmark; .89 / .17 qua 28/28 + 42/43 (còn K4b: tốc độ giữ sau 4 băng .43 < .45)]
+    //  - table friction = `sliding`, contact height = `railHeight` (.27 → mũi băng 63,5 % đường kính bi, WPA)  [đã công bố]
+    //  - cushionSteps 400: tích phân Euler; khớp bản cài độc lập 5 000 bước trong 0,1° [Tests/CushionReferenceTests]  [suy ra]
+    int cushionModel=0;
+    double cushionE=.89,cushionFriction=.17;
+    int cushionSteps=400;
     bool experimental3D=false;
     double cueElevationDegrees=0;
     int cueType=0; // 0 playing, 1 jump, 2 break; illustrative Zoker profiles.
@@ -140,6 +151,8 @@ public:
     std::vector<PredictionSample> predict(double angle,double speed,double side,double top,double seconds=12)const;
     Outcome simulate(double angle,double speed,double side,double top,double seconds=60)const;
     static void cushionResponse(Ball& b,const Config& config,V2 n,int rail);
+    /// Mathavan 2010 cushion impact for a ball on the cloth; `n` = horizontal unit normal from the rail to the ball.
+    static void mathavanCushion(Ball& b,const Config& config,V2 n);
     std::vector<Ball> presentation()const;
     static double energy(const Ball& b,const Config& c);
     /// Góc squirt (rad, ≥ 0) theo TP A.31; side = độ lệch ngang / R.

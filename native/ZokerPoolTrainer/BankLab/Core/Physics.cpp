@@ -141,8 +141,48 @@ void World::railCollision(Ball&b,const Segment&s){
     cushionResponse(b,config,n,s.rail);
     b.rails++;events.push_back({0,b.id,s.rail,time,q,impact});
 }
+// Mathavan, Jackson, Parkin (2010), "A theoretical analysis of billiard ball dynamics under cushion impacts",
+// Proc. IMechE C 224(9): rail contact I at height R(1+sinθ), table contact C, Coulomb sliding at both, compression
+// until the normal speed is zero, restitution until e² of the compression work is returned. Frame: x along the
+// rail, y into the rail, z up; unit mass (the result does not depend on it).
+void World::mathavanCushion(Ball&b,const Config&config,V2 n){
+    const double R=config.radius,sn=std::clamp(config.railHeight,0.0,.9),cs=std::sqrt(1-sn*sn);
+    const double muW=config.cushionFriction,muS=config.sliding,f=2.5/R;
+    const V2 ey{-n.x,-n.y},ex{ey.y,-ey.x};
+    double vx=b.v.dot(ex),vy=b.v.dot(ey),wx=b.w.dot(ex),wy=b.w.dot(ey),wz=b.spin;
+    if(vy<=0)return;
+    const double e=std::clamp(config.cushionE-config.railSpeedSensitivity*vy,.4,.98);
+    auto advance=[&](double dp){
+        const double xi=vx+wy*R*sn-wz*R*cs,yi=-vy*sn+wx*R,xc=vx-wy*R,yc=vy+wx*R;
+        const double li=std::hypot(xi,yi),lc=std::hypot(xc,yc);
+        const double cp=li>1e-12?xi/li:0,sp=li>1e-12?yi/li:0,cq=lc>1e-12?xc/lc:0,sq=lc>1e-12?yc/lc:0;
+        const double k=sn+muW*sp*cs;
+        vx-=(muW*cp+muS*cq*k)*dp;vy-=(cs-muW*sn*sp+muS*sq*k)*dp;
+        wx-=f*(muW*sp+muS*sq*k)*dp;wy-=f*(muW*cp*sn-muS*cq*k)*dp;wz+=f*(muW*cp*cs)*dp;
+    };
+    const int steps=std::max(50,config.cushionSteps);const double dp=vy/steps;double work=0;
+    for(int i=0;i<steps*4&&vy>0;++i){
+        const double s0[5]={vx,vy,wx,wy,wz};
+        advance(dp);
+        if(vy<=0){   // crossed zero inside this step: redo it with the proportional part
+            const double part=dp*s0[1]/(s0[1]-vy);
+            vx=s0[0];vy=s0[1];wx=s0[2];wy=s0[3];wz=s0[4];
+            work+=part*s0[1]*cs;advance(part);break;
+        }
+        work+=dp*s0[1]*cs;
+    }
+    const double target=e*e*work;double back=0;
+    for(int i=0;i<steps*40&&back<target;++i){
+        const double speed=std::abs(vy),dW=dp*speed*cs;
+        if(back+dW>=target&&speed>1e-12){advance((target-back)/(speed*cs));break;}
+        back+=dW;advance(dp);
+    }
+    if(vy>0)vy=-1e-9;    // never leave the ball moving into the rail
+    b.v=ex*vx+ey*vy;b.w=ex*wx+ey*wy;b.spin=wz;
+}
 void World::cushionResponse(Ball&b,const Config&config,V2 n,int rail){
     const double r=config.radius;
+    if(config.cushionModel==1&&b.height<=1e-8&&std::abs(b.vertical)<=1e-6){mathavanCushion(b,config,n);b.vertical=0;return;}
     if(config.coupledCushions){
         const double h=std::clamp((config.railNoseHeightMeters()-r-b.height)/r,-.999,.999),c=std::sqrt(1-h*h);
         contact3d::Vec normal{n.x*c,n.y*c,-h};
