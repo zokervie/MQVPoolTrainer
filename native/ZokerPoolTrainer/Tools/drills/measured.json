@@ -8,28 +8,28 @@
   "window": 0.35
  },
  "bank1": {
-  "angle": 1.13764,
-  "percent": 3,
-  "shots": 11393,
-  "speed": 4.2,
-  "top": -0.2,
-  "window": 0.05
+  "angle": 0.211184,
+  "percent": 31,
+  "shots": 4389,
+  "speed": 2.8,
+  "top": 0.0,
+  "window": 0.55
  },
  "bank2": {
-  "angle": 1.18,
-  "percent": 2,
-  "shots": 11141,
-  "speed": 4.2,
-  "top": -0.2,
-  "window": 0.05
+  "angle": 3.007202,
+  "percent": 18,
+  "shots": 4369,
+  "speed": 3.4,
+  "top": 0.0,
+  "window": 0.15
  },
  "bank3": {
-  "angle": 1.857453,
-  "percent": 2,
-  "shots": 11204,
-  "speed": 2.8,
-  "top": -0.2,
-  "window": 0.05
+  "angle": 5.979498,
+  "percent": 17,
+  "shots": 4366,
+  "speed": 4.2,
+  "top": 0.0,
+  "window": 0.3
  },
  "cue-path-2rail": {
   "angle": 1.293059,
@@ -96,12 +96,12 @@
   "window": 0.35
  },
  "draw-zone": {
-  "angle": 1.103658,
-  "percent": 24,
-  "shots": 3559,
-  "speed": 3.5,
-  "top": -0.3,
-  "window": 0.15
+  "angle": 1.098422,
+  "percent": 40,
+  "shots": 3627,
+  "speed": 2.8,
+  "top": -0.55,
+  "window": 0.4
  },
  "first-shot": {
   "angle": 0.785398,
@@ -208,12 +208,12 @@
   "window": 0.45
  },
  "pos-draw": {
-  "angle": 2.037935,
-  "percent": 20,
-  "shots": 3559,
-  "speed": 3.5,
-  "top": -0.3,
-  "window": 0.15
+  "angle": 2.043171,
+  "percent": 41,
+  "shots": 3627,
+  "speed": 2.8,
+  "top": -0.55,
+  "window": 0.4
  },
  "pos-follow": {
   "angle": 2.03968,

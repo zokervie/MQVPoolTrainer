@@ -69,6 +69,10 @@ _stop = [(0, 0.02, 0.01), (1, 0.33, 0.63)]
 _stopA = atan2(0.62, 0.31)
 _stopL = [(0, -0.02, 0.01), (1, -0.33, 0.63)]             # mirrored for chapter 5 (new look, same skill + a purpose)
 _stopLA = atan2(0.62, -0.31)
+# 0.52 draw layouts: same object ball and line, cue ball 0.42 m from contact (was 0.69 m). From 0.69 m back-spin is
+# gone before contact below ~2.6 m/s (Tests/DrawIdentityTests.cpp); 0.42 m measured 52 % with the zone 0.30 m back.
+_draw = [(0, 0.1166, 0.2032), (1, 0.33, 0.63)]
+_drawL = [(0, -0.1166, 0.2032), (1, -0.33, 0.63)]
 _c30 = old_cut(30, 1); _c45 = old_cut(45, -1)
 _c15 = cut_layout(15, 1, 0.65, (0.25, 0.55), CORNER_TR)
 _c60 = cut_layout(60, 1, 0.50, (0.25, 0.55), CORNER_TR)
@@ -102,9 +106,8 @@ DRILLS = [
     # ── 2 · Dừng – theo – lùi
     D("stop-hold", 2, "goal", _stop, _stopA, goal=(0.3044, 0.5789, 0.10), pot_required=True),
     D("follow-zone", 2, "goal", _stop, _stopA, goal=(0.50, 0.97, 0.12), pot_required=True),
-    # draw-zone: zone moved from (0.17, 0.31) to 16 cm behind the contact — measured 8 % at the old spot (draw dies over
-    # 0.69 m in Config::app; see report: physics check of draw range).
-    D("draw-zone", 2, "goal", _stop, _stopA, goal=(0.24, 0.45, 0.12), pot_required=True),
+    # draw-zone (0.52): cue ball moved in to 0.42 m, zone back at the original spot 0.30 m behind contact
+    D("draw-zone", 2, "goal", _draw, _stopA, goal=(0.1703, 0.3106, 0.14), pot_required=True),
     # ── 3 · Ngắm cắt ── thick → thin, corner and side
     D("cut-side-30", 3, "goal", [(0, *_cside[0]), (1, 0.42, 0.22)], _cside[1], pot_only=True, jitter=0.04),
     D("cut-30-r", 3, "goal", [(0, *_c30[0]), (1, *_c30[1])], _c30[2], pot_only=True, jitter=0.04),
@@ -118,7 +121,7 @@ DRILLS = [
     # ── 5 · Đi bi ── pot ball 1 AND land where ball 2 (next ball) is an easy cut
     D("pos-stop", 5, "goal", _stopL + [(2, -0.52, 0.12)], _stopLA, goal=(-0.3044, 0.5789, 0.10), pot_required=True),
     D("pos-follow", 5, "goal", _stopL + [(2, 0.15, 1.00)], _stopLA, goal=(-0.50, 0.97, 0.12), pot_required=True),
-    D("pos-draw", 5, "goal", _stopL + [(2, -0.45, -0.20)], _stopLA, goal=(-0.24, 0.45, 0.12), pot_required=True),
+    D("pos-draw", 5, "goal", _drawL + [(2, -0.45, -0.20)], _stopLA, goal=(-0.1703, 0.3106, 0.14), pot_required=True),
     # ── 6 · Kick băng (Models.swift ≤ 0.48 layouts)
     D("kick1-mirror-a", 6, "kick", [(0, -0.25, -0.72), (1, -0.23, 0.56)], 0.91, rails=1, scan=180),
     D("kick1-blocker", 6, "kick", *old_kick(1, 1), rails=1, scan=180),
@@ -132,12 +135,15 @@ DRILLS = [
     D("kick3-blocker-mid", 6, "kick", *old_kick(3, 1), rails=3, scan=180),
     D("kick4", 6, "kick", [(0, -0.25, -0.60), (1, 0.15, 0.38)], 0.29, rails=4, scan=180),
     # ── 7 · Bank
-    # bank1–3: fixed layouts (their windows are ≈ 0.1° wide on Config::app; a moved cue ball loses them — see report)
+    # bank1–3 (0.52): layouts found by backward search (object ball banked alone first, cue ball put straight behind it,
+    # 28–48 cm away), kept only when every rail contact is ≥ 20 cm from the pocket (no jaw bounces). The ≤ 0.48 layouts
+    # had the balls 0.6–0.9 m apart: windows ≈ 0.05°, 2–3 %. No true three-rail bank ≥ 5 % was found in 59 candidates,
+    # so bank3 is a long two-rail bank (rails = 2) until the owner decides otherwise.
     # cross-side bank: straight in off the right rail into the left side pocket (first, easiest rung)
     D("bank-cross-side", 7, "bank", [(0, *_xs[0]), (1, 0.50, 0.10)], _xs[1], rails=1, scan=180),
-    D("bank1", 7, "bank", [(0, -0.28, -0.65), (1, 0.06, 0.20)], 1.19, rails=1, jitter=0.0, scan=180),
-    D("bank2", 7, "bank", [(0, -0.30, -0.70), (1, -0.08, -0.13)], 1.18, rails=2, jitter=0.0, scan=180),
-    D("bank3", 7, "bank", [(0, 0.22, -0.72), (1, 0.06, -0.15)], 1.84, rails=3, jitter=0.0, scan=180),
+    D("bank1", 7, "bank", [(0, -0.0468, -0.4810), (1, 0.2291, -0.4148)], 0.235619, rails=1, jitter=0.0, scan=25),
+    D("bank2", 7, "bank", [(0, 0.0029, -0.3909), (1, -0.3519, -0.3347)], 2.984513, rails=2, jitter=0.0, scan=25),
+    D("bank3", 7, "bank", [(0, -0.0468, 0.7576), (1, 0.2493, 0.6556)], 5.951573, rails=2, jitter=0.0, scan=25),
     # ── 8 · An toàn ── touch ball 1, pocket nothing, leave ball 1 hidden behind ball 2. Blocker spots: grid search of
     #    Physics.cpp (best share of random soft strokes that hide), then measured like every drill.
     D("safe-behind", 8, "safety", [(0, 0.0, -0.5), (1, 0.0, 0.30), (2, 0.0, 0.40)], 1.5707963267949, scan=14),
