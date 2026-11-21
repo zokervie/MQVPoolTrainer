@@ -10,6 +10,7 @@
 #include "../UI/DrillCatalog.h"
 #include "../UI/DailyLoop.h"
 #include <algorithm>
+#include <map>
 #include <cmath>
 #include <vector>
 
@@ -27,6 +28,16 @@ inline bool drillHopeless(const BLDrillSpec& d, const std::vector<Event>& ev, si
     for (size_t i = from; i < ev.size(); ++i) {
         const Event& e = ev[i];
         if (e.kind == 2 && e.a == 0) return true;   // scratch
+        if ((d.flags & (BL_DRILL_LEGAL_FIRST | BL_DRILL_CLEAN)) && e.kind == 1 && (e.a == 0 || e.b == 0) &&
+            (e.a == 0 ? e.b : e.a) != 1 && (!contact || (d.flags & BL_DRILL_CLEAN))) return true;
+        if (d.kind == BL_DRILL_REACH) {
+            if (e.kind == 0 && e.a == 0 && !contact) ++cueRails;
+            if (e.kind == 1 && (e.a == 0 || e.b == 0) && !contact) {
+                contact = true;
+                if ((e.a == 0 ? e.b : e.a) != 1 || cueRails < d.rails) return true;
+            }
+            continue;
+        }
         if (d.kind == BL_DRILL_KICK) {
             if (e.kind == 0 && e.a == 0 && !contact && ++cueRails > d.rails) return true;
             if (e.kind == 1 && (e.a == 0 || e.b == 0) && !contact) {
@@ -38,17 +49,24 @@ inline bool drillHopeless(const BLDrillSpec& d, const std::vector<Event>& ev, si
             if (e.kind == 2 && e.a == 1 && (objRails != d.rails || e.b < 0)) return true;
         } else if (d.kind == BL_DRILL_SAFETY) {
             if (e.kind == 2) return true;
+            if (e.kind == 1 && (e.a == 0 || e.b == 0) && contact) continue;
             if (e.kind == 1 && (e.a == 0 || e.b == 0) && !contact) { contact = true; if ((e.a == 0 ? e.b : e.a) != 1) return true; }
-        } else if (e.kind == 2 && e.a == 1 && e.b < 0) {
-            return true;
+        } else {
+            if (e.kind == 1 && (e.a == 0 || e.b == 0)) contact = true;
+            if (e.kind == 2 && e.a == 1 && e.b < 0) return true;
         }
     }
     return false;
 }
 
+/// What a made shot did (0.50 Thế bí): its route signature (BLDrillSignature), the hint point for that route (first
+/// cushion contact of the ball that banks/kicks, else the ghost-ball centre at first contact) and where the cue ball
+/// stopped.
+struct DrillShotInfo { int32_t signature = 0; V2 hint{}; V2 cueRest{}; };
+
 /// Plays one shot and judges it exactly like the app (BLDrillJudge).
 inline bool drillShot(const BLDrillSpec& d, const BLDrillLayout& L, double angle, double speed, double side, double top,
-                      double seconds = 14) {
+                      double seconds = 14, DrillShotInfo* info = nullptr) {
     World w(Config::app());
     w.reset(drillBalls(d, L));
     w.strike(angle, speed, side, top);
@@ -62,8 +80,22 @@ inline bool drillShot(const BLDrillSpec& d, const BLDrillLayout& L, double angle
     for (const auto& e : w.events) { kind.push_back(e.kind); a.push_back(e.a); b.push_back(e.b); }
     std::vector<int32_t> ids, sunk; std::vector<double> xs, ys;
     for (const auto& ball : w.balls) { ids.push_back(ball.id); xs.push_back(ball.p.x); ys.push_back(ball.p.y); sunk.push_back(ball.sunk); }
-    return BLDrillJudge(&d, &L, int32_t(kind.size()), kind.data(), a.data(), b.data(),
-                        int32_t(ids.size()), ids.data(), xs.data(), ys.data(), sunk.data()) != 0;
+    const bool made = BLDrillJudge(&d, &L, int32_t(kind.size()), kind.data(), a.data(), b.data(),
+                                   int32_t(ids.size()), ids.data(), xs.data(), ys.data(), sunk.data()) != 0;
+    if (made && info) {
+        info->signature = BLDrillSignature(int32_t(kind.size()), kind.data(), a.data(), b.data());
+        V2 obj{}; for (int k = 0; k < d.ballCount; ++k) if (d.balls[k].id == 1) obj = {L.x[k], L.y[k]};
+        bool contact = false; V2 ghost{}, kick{}, bank{}; bool haveKick = false, haveBank = false;
+        for (const auto& e : w.events) {
+            if (!contact && e.kind == 0 && e.a == 0 && !haveKick) { kick = e.p; haveKick = true; }   // kick: first cue rail
+            if (e.kind == 1 && (e.a == 0 || e.b == 0) && !contact) { ghost = e.p * 2.0 - obj; contact = true; }
+            if (contact && e.kind == 0 && e.a == 1 && !haveBank) { bank = e.p; haveBank = true; }      // bank: first ball-1 rail
+        }
+        const int32_t s = info->signature;
+        info->hint = s / 100 > 0 ? kick : ((s / 10) % 10 > 0 && s % 10 > 0 ? bank : ghost);
+        for (const auto& ball : w.balls) if (ball.id == 0) info->cueRest = ball.p;
+    }
+    return made;
 }
 
 struct DrillStroke { double speed, top; };
@@ -173,6 +205,80 @@ inline DrillSweep sweepDrill(const BLDrillSpec& d, const BLDrillLayout& L) {
     out.makeRate = drillMakeRate(d, L, out.angle, out.speed, out.top, 200);
     out.shots += 200;
     out.stars = BLDrillStarsFromMakeRate(int32_t(std::lround(out.makeRate * 100)));
+    return out;
+}
+
+// ── 0.50 Thế bí: every route that solves a layout ────────────────────────────────────────────────────────────
+// One family = one signature (route). For each we keep the centre of its widest made run, then rate it with a
+// player's error whose aim σ depends on that route: 0.3° straight at a ball, 0.6° + 0.3° per cushion otherwise.
+struct DrillFamily {
+    int32_t signature = 0; double angle = 0, speed = 0, top = 0; int percent = 0; V2 hint{}; int run = 0;
+};
+inline int drillRouteRails(int32_t sig) { return sig / 100 + (sig / 10) % 10; }
+inline double drillRouteRate(const BLDrillSpec& d, const BLDrillLayout& L, const DrillFamily& f, int samples, uint64_t seed) {
+    (void)d;
+    DrillRng rng(seed * 2654435761ULL + 7);   // independent of the key: a candidate and its catalogue entry rate alike
+    const int rails = drillRouteRails(f.signature);
+    const double aimSigma = rails == 0 ? 0.3 : 0.6 + 0.3 * rails;
+    int made = 0;
+    for (int i = 0; i < samples; ++i) {
+        const double a = f.angle + rng.normal() * aimSigma * pi / 180;
+        const double v = std::max(0.2, f.speed * (1 + rng.normal() * 0.06));
+        const double t = std::clamp(f.top + rng.normal() * 0.06, -0.6, 0.6);
+        const double sd = std::clamp(rng.normal() * 0.03, -0.3, 0.3);
+        if (drillShot(d, L, a, v, sd, t)) ++made;
+    }
+    return double(made) / samples;
+}
+/// Scan `half` degrees around `around` (0.5° steps when > 90, else 0.2°) for every stroke; group made shots by route.
+inline std::vector<DrillFamily> drillFamilies(const BLDrillSpec& d, const BLDrillLayout& L, double around, double half,
+                                             const std::vector<DrillStroke>& strokes, int samples, long& shots,
+                                             int keepPercent = 10, size_t maxFamilies = 4, double stepDegrees = 0) {
+    const double step = stepDegrees > 0 ? stepDegrees : (half > 90 ? 0.5 : 0.2);
+    const int n = int(std::lround(2 * half / step));
+    std::map<int32_t, DrillFamily> best;
+    for (DrillStroke s : strokes) {
+        int32_t runSig = -1; int length = 0; double first = 0;
+        auto close = [&]() {
+            if (length && (!best.count(runSig) || length > best[runSig].run)) {
+                DrillFamily f; f.signature = runSig; f.run = length; f.speed = s.speed; f.top = s.top;
+                f.angle = around + (first + (length - 1) * step / 2) * pi / 180; best[runSig] = f;
+            }
+            length = 0; runSig = -1;
+        };
+        for (int i = 0; i <= n; ++i) {
+            const double deg = -half + i * step;
+            DrillShotInfo info; ++shots;
+            const bool made = drillShot(d, L, around + deg * pi / 180, s.speed, 0, s.top, 14, &info);
+            if (made && info.signature == runSig) { ++length; continue; }
+            close();
+            if (made) { runSig = info.signature; length = 1; first = deg; }
+        }
+        close();
+    }
+    std::vector<DrillFamily> out;
+    for (auto& [sig, f] : best) {
+        DrillShotInfo info;
+        if (!drillShot(d, L, f.angle, f.speed, 0, f.top, 14, &info) || info.signature != sig) continue;   // run centre must hold
+        f.hint = info.hint;
+        f.percent = int(std::lround(drillRouteRate(d, L, f, samples, 1) * 100)); shots += samples;
+        if (f.percent >= keepPercent) out.push_back(f);
+    }
+    std::sort(out.begin(), out.end(), [](const DrillFamily& x, const DrillFamily& y) { return x.percent > y.percent; });
+    if (out.size() > maxFamilies) out.resize(maxFamilies);
+    return out;
+}
+
+/// 0.51 "Đặt thế bí cho bạn": on-device check of a player-made layout. Every direction in 1° steps at three paces
+/// (1 080 shots) then 40 rated shots per route: a few seconds on a phone, run it off the main thread. An empty
+/// result = "no route found, move a ball". Narrow routes (< 1° wide) can be missed: that only makes the check strict.
+inline std::vector<DrillFamily> drillQuickFamilies(const BLDrillSpec& d, long* shotsOut = nullptr) {
+    BLDrillLayout L; BLDrillLayoutFor(&d, 0, &L);
+    static const std::vector<DrillStroke> strokes{{1.4, 0}, {2.4, 0}, {3.4, 0}};
+    static const std::vector<DrillStroke> soft{{.5, 0}, {.8, 0}, {1.2, 0}};
+    long shots = 0;
+    auto out = drillFamilies(d, L, L.angle, 180, d.kind == BL_DRILL_SAFETY ? soft : strokes, 40, shots, 10, 4, 1.0);
+    if (shotsOut) *shotsOut = shots;
     return out;
 }
 

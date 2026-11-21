@@ -22,7 +22,15 @@
    Drills with `scanDegrees == 0` are not swept (jump / massé / side-spin trick shots need an elevated cue the sweep
    does not model): their makePercent is GIẢ ĐỊNH (catalog.py: assumed_pct). */
 
-enum { BL_DRILL_GOAL = 0, BL_DRILL_KICK = 1, BL_DRILL_BANK = 2, BL_DRILL_SAFETY = 3 };
+enum { BL_DRILL_GOAL = 0, BL_DRILL_KICK = 1, BL_DRILL_BANK = 2, BL_DRILL_SAFETY = 3,
+       BL_DRILL_REACH = 4 /* 0.50 Thế bí: cue ball's first contact is ball 1 after at least `rails` cushions */ };
+/* 0.50 judge flags (0 for every 0.49 drill, so their rules are unchanged) */
+enum { BL_DRILL_LEGAL_FIRST = 1 /* cue ball must touch ball 1 before any other ball */,
+       BL_DRILL_CLEAN = 2 /* cue ball may touch no ball but ball 1 */ };
+/* 0.50 skills ("công cụ"): what a drill teaches and what a puzzle needs. Order = order they are taught. */
+enum { BL_SKILL_NONE = -1, BL_SKILL_STRAIGHT = 0, BL_SKILL_SPEED = 1, BL_SKILL_SPIN = 2, BL_SKILL_GHOST = 3,
+       BL_SKILL_RULE30 = 4, BL_SKILL_RULE90 = 5, BL_SKILL_POSITION = 6, BL_SKILL_MIRROR = 7, BL_SKILL_PLUS = 8,
+       BL_SKILL_CORNER5 = 9, BL_SKILL_BANK = 10, BL_SKILL_HIDE = 11, BL_SKILL_COUNT = 12 };
 #define BL_DRILL_MAX_BALLS 6
 #define BL_DRILL_RADIUS 0.028575
 
@@ -42,6 +50,8 @@ typedef struct {
     double scanDegrees;       /* aim scan half-width for the checker; 0 = not swept; 180 = all directions */
     double solveAngle, solveSpeed, solveTop;   /* reference stroke found by Tools/drills/drill_sweep (the "lời giải mẫu") */
     int32_t makePercent;      /* % made with that stroke under the checker's player error (DrillCheck.hpp) */
+    int32_t skill;            /* 0.50: BL_SKILL_* taught (drills) or needed (puzzles) */
+    int32_t flags;            /* 0.50: BL_DRILL_LEGAL_FIRST | BL_DRILL_CLEAN */
 } BLDrillSpec;
 
 /* Difficulty 1–5 from the measured make rate (bands GIẢ ĐỊNH; ≥ 70 % made is "Đạt" in the 0.49 mastery rule). */
@@ -160,6 +170,15 @@ static inline int BLDrillJudge(const BLDrillSpec *d, const BLDrillLayout *L, int
     if (cue < 0 || sunk[cue]) return 0;
     int made = 0;
     for (int32_t e = 0; e < eventCount; ++e) if (kind[e] == 2 && a[e] == 1 && b[e] >= 0) made = 1;
+    if (d->flags & (BL_DRILL_LEGAL_FIRST | BL_DRILL_CLEAN)) {
+        int first = 1;
+        for (int32_t e = 0; e < eventCount; ++e) {
+            if (kind[e] != 1 || (a[e] != 0 && b[e] != 0)) continue;
+            const int32_t other = a[e] == 0 ? b[e] : a[e];
+            if (other != 1 && (first || (d->flags & BL_DRILL_CLEAN))) return 0;
+            first = 0;
+        }
+    }
     switch (d->kind) {
     case BL_DRILL_GOAL:
         if (d->potOnly) return made;
@@ -170,6 +189,14 @@ static inline int BLDrillJudge(const BLDrillSpec *d, const BLDrillLayout *L, int
         for (int32_t e = 0; e < eventCount; ++e) {
             if (kind[e] == 0 && a[e] == 0) ++rails;
             if (kind[e] == 1 && (a[e] == 0 || b[e] == 0)) return (a[e] == 0 ? b[e] : a[e]) == 1 && rails == d->rails;
+        }
+        return 0;
+    }
+    case BL_DRILL_REACH: {
+        int32_t rails = 0;
+        for (int32_t e = 0; e < eventCount; ++e) {
+            if (kind[e] == 0 && a[e] == 0) ++rails;
+            if (kind[e] == 1 && (a[e] == 0 || b[e] == 0)) return (a[e] == 0 ? b[e] : a[e]) == 1 && rails >= d->rails;
         }
         return 0;
     }
@@ -204,5 +231,27 @@ static inline int BLDrillJudge(const BLDrillSpec *d, const BLDrillLayout *L, int
     }
     default: return 0;
     }
+}
+/* ── 0.50: which route a made shot took ──────────────────────────────────────────────────────────────────
+   signature = cue-ball cushions before its first ball contact × 100 + ball-1 cushions before it drops × 10
+               + (pocket index + 1 when ball 1 is pocketed, else 0). Two shots with the same signature took the same
+   route; the puzzle table lists the routes the checker found (BLPuzzleSolution.signature). */
+static inline int32_t BLDrillSignature(int32_t eventCount, const int32_t *kind, const int32_t *a, const int32_t *b) {
+    int32_t cueRails = 0, objRails = 0, pocket = 0, contact = 0;
+    for (int32_t e = 0; e < eventCount; ++e) {
+        if (kind[e] == 0 && a[e] == 0 && !contact) ++cueRails;
+        if (kind[e] == 1 && (a[e] == 0 || b[e] == 0)) contact = 1;
+        if (kind[e] == 0 && a[e] == 1 && !pocket) ++objRails;
+        if (kind[e] == 2 && a[e] == 1 && b[e] >= 0 && !pocket) pocket = b[e] + 1;
+    }
+    if (cueRails > 9) cueRails = 9;
+    if (objRails > 9) objRails = 9;
+    return cueRails * 100 + (pocket ? objRails : 0) * 10 + pocket;
+}
+
+/* First drill of the catalogue that teaches `skill` (the "Ra bàn tập" target), or -1. */
+static inline int32_t BLSkillLesson(int32_t skill) {
+    for (int32_t i = 0; i < BLDrillCount(); ++i) if (BLDrillTable[i].skill == skill) return i;
+    return -1;
 }
 #endif

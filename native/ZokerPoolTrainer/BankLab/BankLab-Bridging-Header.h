@@ -10,6 +10,8 @@
 #import "UI/Challenge.h"
 #import "UI/Chapters.h"
 #import "UI/DrillCatalog.h"   // 0.49b Xưởng bài (data + judge; Swift wiring: docs/de-xuat/NHIEM-VU-0.49b-XUONG-BAI.md)
+#import "UI/Puzzle.h"        // 0.50 Thế bí (puzzles + hint jar; UI: docs/de-xuat/NHIEM-VU-0.50-THE-BI-GIAO-DIEN.md)
+#import "UI/PuzzleDaily.h"   // 0.51 thế bí của ngày, đoán đường bi, mã thế bí cho bạn (NHIEM-VU-0.51-NGAY-DOAN-BAN.md)
 #import "UI/StrokeResponse.h"
 #import "UI/ShotKindPolicy.h"
 #import "Core/BLMatch.h"
