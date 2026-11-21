@@ -115,6 +115,10 @@ enum DrillCatalog {
             guard let p = BLPuzzleAt(Int32(i))?.pointee else { continue }
             var d = make(p.spec, old: nil, title: "Thế bí " + String(cString: p.spec.key)); d.level = 0
             out.append(d)
+            // T6: the mirrored twin (left–right) played in the reviews: same key behind "m-", BLPuzzleMirror's layout / goal / pockets.
+            var mirrored = BLPuzzleSpec(); var src = p; BLPuzzleMirror(&src, &mirrored)
+            var m = make(mirrored.spec, old: nil, title: "Thế bí lật gương " + String(cString: p.spec.key)); m.level = 0
+            m.id = "m-" + String(cString: p.spec.key); out.append(m)
         }
         return out
     }

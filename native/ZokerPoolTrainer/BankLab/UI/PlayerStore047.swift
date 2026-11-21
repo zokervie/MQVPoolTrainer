@@ -74,6 +74,9 @@ enum DrillBadge: String, CaseIterable { case streak3, small, noCoach
     }
 }
 
+/// 0.50 T5: the stroke that solved a puzzle (Sổ lời giải) — shown next to the listed reference stroke once the puzzle is solved.
+struct PuzzleRecord: Codable, Equatable { var angle: Double; var speed: Double; var top: Double; var signature: Int; var day: Int64; var tries: Int }
+
 struct PlayerData: Codable, Equatable {
     static let currentSchema = 1
     var schemaVersion = PlayerData.currentSchema
@@ -97,6 +100,11 @@ struct PlayerData: Codable, Equatable {
     var hintJarCount = -1                           // hint jar (BLHintJar): -1 = never opened (starts full)
     var hintJarRefillFrom = 0.0                     // seconds since 1970 of the last refill tick
     var hintsEmptied = 0                            // times the jar ran dry (T8, never sent anywhere)
+    var puzzleBook: [String: PuzzleRecord] = [:]    // T5 Sổ lời giải: the player's own solving stroke per puzzle
+    var puzzleWatched: [String: Double] = [:]       // T4 level 3: when the route was last watched (seconds since 1970)
+    var puzzleSolvedDay: [String: Int64] = [:]      // T6: day of the first solve (reviews come back after 1 / 3 / 7 days)
+    var puzzleReviewDone: [String: [Int]] = [:]     // T6: review steps (1, 3, 7) already played
+    var practiceTrips = 0, practiceReturnSolved = 0 // T8: "Ra bàn tập" trips, and trips after which the puzzle was solved
     var badges: [String: [String]] = [:]            // drill id → DrillBadge raw values earned (X8)
     var realTable: [String: [RealTableLog]] = [:]   // drill id → tries on a real table (X7), oldest first
 
@@ -124,6 +132,12 @@ struct PlayerData: Codable, Equatable {
         hintJarCount = try c.decodeIfPresent(Int.self, forKey: .hintJarCount) ?? -1
         hintJarRefillFrom = try c.decodeIfPresent(Double.self, forKey: .hintJarRefillFrom) ?? 0
         hintsEmptied = try c.decodeIfPresent(Int.self, forKey: .hintsEmptied) ?? 0
+        puzzleBook = try c.decodeIfPresent([String: PuzzleRecord].self, forKey: .puzzleBook) ?? [:]
+        puzzleWatched = try c.decodeIfPresent([String: Double].self, forKey: .puzzleWatched) ?? [:]
+        puzzleSolvedDay = try c.decodeIfPresent([String: Int64].self, forKey: .puzzleSolvedDay) ?? [:]
+        puzzleReviewDone = try c.decodeIfPresent([String: [Int]].self, forKey: .puzzleReviewDone) ?? [:]
+        practiceTrips = try c.decodeIfPresent(Int.self, forKey: .practiceTrips) ?? 0
+        practiceReturnSolved = try c.decodeIfPresent(Int.self, forKey: .practiceReturnSolved) ?? 0
     }
 }
 
@@ -293,6 +307,30 @@ final class PlayerStore {
         let better = stars > (data.puzzleStars[key] ?? 0)
         if better { data.puzzleStars[key] = min(3, stars) }
         save(); return better
+    }
+    /// T5/T6: remember how the puzzle was solved; the first solve schedules its reviews.
+    func recordPuzzleSolve(key: String, record: PuzzleRecord, at now: Date = Date()) {
+        data.puzzleBook[key] = record
+        if data.puzzleSolvedDay[key] == nil { data.puzzleSolvedDay[key] = day(now) }
+        save()
+    }
+    func markPuzzleWatched(key: String, at seconds: Double) { data.puzzleWatched[key] = seconds; save() }
+    static let reviewSteps = [1, 3, 7]
+    /// T6: puzzles whose next review (1, 3 or 7 days after the first solve) is due today, with the step that is due. Oldest first.
+    func puzzleReviewsDue(at now: Date = Date()) -> [(key: String, step: Int)] {
+        let today = day(now)
+        return data.puzzleSolvedDay.compactMap { key, solved -> (String, Int, Int64)? in
+            let done = data.puzzleReviewDone[key] ?? []
+            guard let step = Self.reviewSteps.first(where: { !done.contains($0) && today - solved >= Int64($0) }) else { return nil }
+            return (key, step, solved)
+        }.sorted { ($0.2, $0.0) < ($1.2, $1.0) }.map { ($0.0, $0.1) }
+    }
+    func markPuzzleReviewDone(key: String, step: Int) {
+        var done = data.puzzleReviewDone[key] ?? []; if !done.contains(step) { done.append(step) }
+        data.puzzleReviewDone[key] = done.sorted(); save()
+    }
+    func notePracticeTrip(returnedAndSolved: Bool = false) {
+        if returnedAndSolved { data.practiceReturnSolved += 1 } else { data.practiceTrips += 1 }; save()
     }
     func puzzleStars(_ key: String) -> Int { data.puzzleStars[key] ?? 0 }
     /// 0.50 T4: hint jar state as it is stored (the rules live in Puzzle.h; the UI converts).

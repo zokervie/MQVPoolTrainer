@@ -333,6 +333,7 @@ extension TrainingController {
             message:"\(d.title)\nĐiểm trung bình \(average)/100.\n"+(cleared ? "Bài đã được đánh dấu hoàn thành.":String(format:L10n.tr("Cần đạt ít nhất %d/5 cú. Gợi ý: bật Coach để xem điểm va băng và một thay đổi cho cú sau."),passMade))+(newBadges.isEmpty ? "":"\n"+L10n.tr("Huy hiệu mới")+": "+newBadges.map{L10n.tr($0.title)}.joined(separator:" · ")),preferredStyle:.alert)
         alert.addAction(UIAlertAction(title:"Tập lại lượt mới",style:.default){[weak self]_ in self?.beginDrill(index,guided:false)})
         if let next=next {alert.addAction(UIAlertAction(title:"Bài tiếp theo",style:.default){[weak self]_ in self?.beginDrill(next,guided:false)})}
+        if cleared{puzzleRoundClearedFromHint(alert)}   // 0.50 T4: a lesson started from a puzzle hint refills the jar and offers "Quay lại thế bí"
         roundAlertExtras047(alert,drill:d,round:round,index:index)   // 0.47: Bài hôm nay tiếp theo · chuỗi ngày · Xem chi tiết · Thách bạn
         alert.addAction(UIAlertAction(title:"Đóng",style:.cancel){[weak self]_ in self?.lessonActive=false})
         DispatchQueue.main.asyncAfter(deadline:.now()+(round.newRecord && FeatureFlags.progress ? 1.7:1.2)){[weak self] in self?.present(alert,animated:true)}   // 0.47 M3: "Kỷ lục mới" (≤ 1,5 s) first

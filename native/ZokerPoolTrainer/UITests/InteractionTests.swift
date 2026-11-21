@@ -923,6 +923,78 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(scene.waitForExistence(timeout: 30))
         wait(scene, timeout: 60 * slow) { (Int(self.text(scene, "puzzleStarsNow")) ?? 0) >= 1 || (Int(self.text(scene, "puzzleTries")) ?? 0) >= 1 }
         XCTAssertGreaterThanOrEqual(Int(text(scene, "puzzleStarsNow")) ?? 0, 1, "the listed route solved it: status=\(text(scene, "status")) tries=\(text(scene, "puzzleTries")) layout=\(text(scene, "layoutX")),\(text(scene, "layoutY"))")
+        // T5 Sổ lời giải: opens once solved and shows the player's stroke next to the reference
+        let bookButton = app.buttons["PuzzleBookButton"]
+        expectation(for: NSPredicate(format: "exists == true AND hittable == true"), evaluatedWith: bookButton); waitForExpectations(timeout: 15 * slow)
+        bookButton.tap()
+        XCTAssertTrue(app.cells["PuzzleBookEntry-p-1-01"].waitForExistence(timeout: 10 * slow), "the solved puzzle is in the book")
+    }
+    /// 0.50 T4 + T8: hint level 1 → "Ra bàn tập" opens the tool's lesson; a cleared round refills one hint and "Quay lại thế bí" returns to the puzzle.
+    func testPuzzleHintLevelOnePracticeAndBack() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--puzzle-miss-qa"]; app.launch()
+        openFirstPuzzle(app)
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 90 * slow) { (Int(self.text(scene, "puzzleTries")) ?? 0) >= 1 }
+        XCTAssertTrue(app.descendants(matching: .any)["PuzzleSkillIcon"].exists, "the tool's symbol is on the puzzle bar")
+        let hint = app.buttons["PuzzleHint"]
+        expectation(for: NSPredicate(format: "exists == true AND hittable == true AND enabled == true"), evaluatedWith: hint); waitForExpectations(timeout: 15 * slow)
+        hint.tap()
+        XCTAssertTrue(app.alerts["PuzzleHint1"].waitForExistence(timeout: 10 * slow) || app.alerts.firstMatch.waitForExistence(timeout: 5), "level 1 names the tool")
+        app.alerts.firstMatch.buttons["Ra bàn tập"].tap()
+        wait(scene, timeout: 30 * slow) { self.text(scene, "lesson") == "1" }
+        XCTAssertEqual(text(scene, "hintJar"), "2", "the hint cost one")
+        let back = app.alerts.firstMatch.buttons["Quay lại thế bí"]
+        XCTAssertTrue(back.waitForExistence(timeout: 180 * slow), "a cleared round offers the way back")
+        back.tap()
+        wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == "p-1-01" }
+        XCTAssertEqual(text(scene, "hintJar"), "3", "the cleared lesson gave the hint back")
+    }
+    /// 0.50 T4 level 3: the reference route plays once and the stroke is blocked while it runs.
+    func testPuzzleHintLevelThreePlaysTheRouteOnce() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--puzzle-hint3-qa"]; app.launch()
+        openFirstPuzzle(app)
+        let scene = app.otherElements["PoolScene"]
+        wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == "p-1-01" }
+        let hint = app.buttons["PuzzleHint"]
+        expectation(for: NSPredicate(format: "exists == true AND hittable == true AND enabled == true"), evaluatedWith: hint); waitForExpectations(timeout: 15 * slow)
+        hint.tap()
+        wait(scene, timeout: 10 * slow) { self.text(scene, "puzzleGhost") == "1" }
+        XCTAssertEqual(text(scene, "puzzleGhost"), "1", "the route is playing, no stroke allowed")
+        XCTAssertEqual(text(scene, "hintJar"), "1", "level 3 costs two")
+        wait(scene, timeout: 12 * slow) { self.text(scene, "puzzleGhost") == "0" }
+        XCTAssertEqual(text(scene, "puzzleGhost"), "0", "it plays once")
+    }
+    /// 0.50 T6: a puzzle solved yesterday comes back today as its left–right twin under "Thế bí hôm nay".
+    func testPuzzleReviewComesBackMirrored() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--puzzle-review-qa"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyPuzzles"].waitForExistence(timeout: 60)); app.buttons["LobbyPuzzles"].tap()
+        XCTAssertTrue(app.cells["PuzzleReview-p-1-01"].waitForExistence(timeout: 10 * slow), "review due after one day")
+        app.cells["PuzzleReview-p-1-01"].tap()
+        let scene = app.otherElements["PoolScene"]
+        wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == "p-1-01" }
+        XCTAssertEqual(text(scene, "puzzleMirrored"), "1", "the twin, left–right")
+    }
+    /// 0.50 T7 + T8: two puzzles left unsolved in a row → an easier one is offered; the local stats screen opens.
+    func testPuzzleTwoFailsOfferAnEasierOneAndStatsOpen() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--puzzle-miss-qa"]; app.launch()
+        openFirstPuzzle(app)
+        let scene = app.otherElements["PoolScene"]
+        for key in ["p-1-02", "p-1-03"] {
+            wait(scene, timeout: 90 * slow) { (Int(self.text(scene, "puzzleTries")) ?? 0) >= 1 }
+            let more = app.buttons["PuzzleListButton"]
+            expectation(for: NSPredicate(format: "exists == true AND hittable == true"), evaluatedWith: more); waitForExpectations(timeout: 15 * slow)
+            more.tap()
+            XCTAssertTrue(app.cells["Puzzle-" + key].waitForExistence(timeout: 10 * slow)); app.cells["Puzzle-" + key].tap()
+            wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == key }
+        }
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 30 * slow), "after two unsolved puzzles an easier one is offered: fails=\(text(scene, "puzzleFails")) puzzle=\(text(scene, "puzzle")) tries=\(text(scene, "puzzleTries"))")
+        app.alerts.firstMatch.buttons["Đóng"].tap()
+        let more = app.buttons["PuzzleListButton"]; more.tap()
+        XCTAssertTrue(app.tables["Puzzles"].waitForExistence(timeout: 10 * slow))
+        app.buttons["PuzzleStatsOpen"].tap()
+        XCTAssertTrue(app.tables["PuzzleStats"].waitForExistence(timeout: 10 * slow))
+        XCTAssertTrue(app.staticTexts["Thế đã giải"].exists)
     }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {

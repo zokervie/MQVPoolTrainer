@@ -12,7 +12,7 @@ extension TrainingController {
     }
 
     var strokeAllowed:Bool{
-        BLStrokeAllowed(localTurn && matchCanStroke,presentationBusy,menuOpen,spinExpanded,isPlacingBalls,cue?.sunk==false)
+        BLStrokeAllowed(localTurn && matchCanStroke && !puzzleGhostActive,presentationBusy,menuOpen,spinExpanded,isPlacingBalls,cue?.sunk==false)
     }
     // ---- 0.44 (owner item 2: "đã hiển thị mức lực mà không ra cơ", Wi‑Fi / cùng máy) ----------------------------------
     // ROOT CAUSE: permission was re-evaluated on every control sync (a network snapshot, the 0.5 s turn check, the camera
