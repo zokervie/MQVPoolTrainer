@@ -1042,8 +1042,11 @@ final class InteractionTests: XCTestCase {
         wait(scene, timeout: 400 * slow) { self.text(scene, "dailyLocked") == "1" }
         XCTAssertEqual(text(scene, "dailyTries"), "6", "six tries, then locked")
         XCTAssertTrue(app.alerts["DailyResult"].waitForExistence(timeout: 20 * slow) || app.alerts.firstMatch.waitForExistence(timeout: 5), "the result card")
-        let share = text(scene, "dailyShare")
+        var share = text(scene, "dailyShare")   // the probe refreshes a little after the card shows: poll
+        let deadline = Date().addingTimeInterval(20 * slow)
+        while share.isEmpty && Date() < deadline { Thread.sleep(forTimeInterval: 0.5); share = text(scene, "dailyShare") }
         XCTAssertTrue(share.hasPrefix("Zoker #") && share.contains("· X/6|"), "share line (no spoiler, unsolved shows X/6): \(share)")
+        guard share.components(separatedBy: "|").count > 1 else { return }
         XCTAssertEqual(share.components(separatedBy: "|")[1].count, 6, "six dots, one per try: \(share)")
         app.alerts.firstMatch.buttons["Khoe"].tap()
         wait(scene, timeout: 10 * slow) { self.text(scene, "dailyShares") == "1" }
