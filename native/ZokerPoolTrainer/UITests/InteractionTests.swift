@@ -798,6 +798,13 @@ final class InteractionTests: XCTestCase {
         sw.tap(); wait(scene, timeout: 5 * slow) { self.field(scene, "bar") == 0 }
         sw.tap(); wait(scene, timeout: 5 * slow) { self.field(scene, "bar") == 1 }
     }
+    /// 0.49c G7: no UIKit layout pass lands between the frames of a rolling shot (everything the strike invalidated is laid out in the
+    /// strike call). Counted by the app from the end of the strike to the end of the shot; Simulator only — device frame timing NOT RUN.
+    func testNoUIKitLayoutPassWhileTheBallsRoll() {
+        let (_, scene) = launch(["--ux017-shot-qa"])
+        wait(scene, timeout: 60 * slow) { (scene.value as? String ?? "").contains("status=Quãng đường bi cái") }   // the QA shot has finished
+        XCTAssertEqual(field(scene, "midShotLayout"), 0, "layout passes between frames of the shot: \(scene.value as? String ?? "")")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

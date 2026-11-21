@@ -24,6 +24,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var locked=false,isPlacingBalls=false,guideOn=false,shotActive=false
     var drillIndex=Drill.startup,attempts=0,successes=0
     var roundResults:[Bool]=[],roundSmallMade=0,roundCoachUsed=false   // 0.49b X8: this round so far
+    var strikeSettled=false,midShotLayoutPasses=0,midShotLayoutTotal=0   // 0.49c G7
     var powerBarSwitch:UIButton?;var powerBarUserOn:Bool?   // 0.49c G3
     var placeBallButton:UIButton!   // 0.49c G6: stand-alone "Đặt bi" (64 pt) above the Đánh/Jump/Massé/Break row
     var drillVariant=0   // 0.49b X3: layout variant of the shot about to be played (0 = catalogue layout)
@@ -551,7 +552,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     override func viewDidLayoutSubviews(){
         let layoutStart=CACurrentMediaTime();defer{if let perf=Self.perfSegment {perf.layoutTime+=CACurrentMediaTime()-layoutStart}}
         super.viewDidLayoutSubviews()
-        if shotActive {shotProfile.layoutPasses+=1}
+        if shotActive && strikeSettled {shotProfile.layoutPasses+=1;midShotLayoutPasses+=1;midShotLayoutTotal+=1}
+        else if shotActive {shotProfile.layoutPasses+=1}
         Self.perfSegment?.layoutPasses+=1
         let safe=hudSafeFrame
         let key="\(view.bounds.size)|\(safe)|\(leftHanded)|\(spinExpanded)|\(UserDefaults.standard.object(forKey:Prefs.loupes) as? Bool ?? true)|\(menuOpen)|\(matchIsCompetitive)|\(matchIsCompetitive && matchBool("requiresCall"))|\(Tuning.hudScale)|\(replayIndex != nil)"

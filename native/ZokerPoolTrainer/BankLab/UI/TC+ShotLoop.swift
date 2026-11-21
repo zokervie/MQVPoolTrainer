@@ -126,7 +126,11 @@ extension TrainingController {
         if UserDefaults.standard.object(forKey:Prefs.audioEnabled) as? Bool ?? true {poolAudio.play(kind:3,impact:speed,pan:audioPan(cue?.x ?? 0,cue?.y ?? 0))}
         mark("cueSound")
         shotActive=true;didStartMatchShot();mark("matchStart");attempts+=1;statusLabel.text=String(format:"Đang chạy · tốc độ đầu %.2f m/s",speed)
-        strikeFX047(speed);mark("haptic");guideDirty=true;table.trails([:]);mark("trails");setMenu(false);mark("menu");updateControls();mark("controls")   // 0.47 M4: haptic by power, light shake on a hard break (review 0.47: the old statements had slipped into this comment)
+        strikeFX047(speed);mark("haptic");guideDirty=true;table.trails([:]);mark("trails");setMenu(false);mark("menu");updateControls();mark("controls")
+        // 0.49c G7: everything the strike invalidated (menu, controls, score, haptic) is laid out NOW, inside the strike call, so no layout pass
+        // lands in a rolling frame; passes counted from here on are the ones BETWEEN frames (target 0).
+        view.layoutIfNeeded();strikeSettled=false;midShotLayoutPasses=0   // counting starts after the first live frame (the caller of shoot may still touch the HUD)
+        // 0.47 M4: haptic by power, light shake on a hard break (review 0.47: the old statements had slipped into this comment)
     }
     @objc func tick(_ link:CADisplayLink){
         frameStep(targetTimestamp:link.targetTimestamp,linkStamp:link.timestamp)
@@ -255,6 +259,7 @@ extension TrainingController {
             // 0.37 (owner replay: object ball moving before the cue ball arrives): frames were sampled at 30 Hz, so a
             // 6 m/s jump shot moved 20 cm between samples and slow-motion interpolation started the object ball early.
             // Advance in 1/240 s chunks and sample by speed: 240 Hz while anything is fast, 60 Hz medium, 30 Hz slow.
+            if !strikeSettled {view.layoutIfNeeded();strikeSettled=true;midShotLayoutPasses=0}   // 0.49c G7: the strike's own passes end here
             var remaining=liveStartPending ? min(dt,1.0/Double(Tuning.frameRate)):dt
             liveStartPending=false
             perf?.physicsDt.append(remaining)
@@ -443,6 +448,7 @@ extension TrainingController {
         return samples.filter{s in let t=s["time"]?.doubleValue ?? 0;return (s["id"]?.intValue ?? 0)==0 ? t<=contact:t<=contact+0.25}
     }
     func finishShot(timedOut:Bool){
+        strikeSettled=false
         table.pacer.endDiagnostics()
         // 0.44.1 (owner device: 120 Hz → 202/557 late frames, 60 Hz → 0): a 120 Hz shot with > 10 % late frames
         // switches the app to 60 Hz for good (saved; Tuỳ chỉnh → Độ mượt can set 120 again). PresentationPolicy.h.
