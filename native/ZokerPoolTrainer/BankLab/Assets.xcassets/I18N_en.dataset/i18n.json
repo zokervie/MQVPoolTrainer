@@ -875,5 +875,8 @@
 "Trắng: bi cái · Cam: bi 1 · Vàng nhạt: bi kế tiếp · Nét đứt: hướng ngắm gợi ý ban đầu": "White: cue ball · Orange: ball 1 · Light yellow: next ball · Dashed: suggested starting aim",
 "Một lượt = 5 cú; thế bi xê dịch nhẹ sau mỗi cú. Qua bài khi đạt từ %d/5 cú (mức đạt tính theo độ khó đo được của bài). Sao = số cú đạt; 5 sao cần thêm điểm trung bình từ 85.": "A round is 5 shots; the balls shift slightly after each one. You pass with %d/5 (the pass mark follows the drill's measured difficulty). Stars = shots made; 5 stars also need an average score of 85.",
 "Điểm mỗi cú (0–100) app tự chấm: cú đạt được 100 (bài vùng dừng trừ theo khoảng cách tới tâm vòng); cú trượt được điểm theo độ gần: bi cái trượt bi 1 bao nhiêu cm, bi 1 dừng cách lỗ bao xa, sai số băng. Bi cái vào lỗ = 0. Bật Coach để xem điểm va băng và lời khuyên một thay đổi cho cú sau.": "The app scores each shot 0–100: a made shot gets 100 (stop-zone drills lose points by distance from the circle's centre); a miss is scored by how close it was: how far the cue ball missed ball 1, how far ball 1 stopped from the pocket, the cushion error. Cue ball in a pocket = 0. Turn Coach on to see the cushion contacts and one change for the next shot.",
-"Xem thêm": "See more"
+"Xem thêm": "See more",
+"Luật phá 3 bi (giải đấu)": "3-ball break rule (tournament)",
+"Hiện dải quang phổ lực khi vuốt (chẩn đoán)": "Show the power spectrum strip while swiping (diagnostics)",
+"Phá chưa đạt luật 3 bi: cần 3 bi vào lỗ hoặc qua vạch đầu bàn — đối thủ được chọn": "The break did not meet the 3-ball rule: 3 balls must be pocketed or cross the head string — the opponent chooses"
 }

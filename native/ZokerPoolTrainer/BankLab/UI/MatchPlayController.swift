@@ -285,6 +285,7 @@ extension TrainingController {
         clearShot()
         matchPlay.active = true
         matchPlay.rules = BLMatch(rule: rule)
+        matchPlay.rules?.threeBallBreak = UserDefaults.standard.bool(forKey: Prefs.threeBallBreak)   // 0.49c G8: tournament option, off by default
         matchPlay.rules?.reset(breaker: 0)
         matchPlay.forfeitWinner = nil
         matchPlay.shotID = 0; matchPlay.elapsed = 0
@@ -1263,7 +1264,7 @@ extension TrainingController {
          "points_scored":"Đã cộng điểm", "turn_passed":"Hết lượt", "scratch":"Lỗi bi cái vào lỗ",
          "ball_off_table":"Lỗi bi ra khỏi bàn", "wrong_ball_first":"Lỗi chạm sai bi đầu tiên",
          "no_rail_after_contact":"Lỗi không chạm băng / vào bi sau tiếp xúc", "bad_cue_ball_placement":"Lỗi vị trí bi cái",
-         "illegal_break_four_rails":"Phá chưa đủ bốn bi chạm băng", "three_ball_break_not_met":"Phá 9 Ball chưa đạt điều kiện ba bi",
+         "illegal_break_four_rails":"Phá chưa đủ bốn bi chạm băng", "three_ball_break_not_met":"Phá chưa đạt luật 3 bi: cần 3 bi vào lỗ hoặc qua vạch đầu bàn — đối thủ được chọn",
          "eight_on_legal_break":"Bi 8 vào khi phá · chọn xử lý", "eight_on_foul_break":"Bi 8 vào khi phá lỗi",
          "push_out_choice":"Push-out · người kế chọn nhận / trả", "uncalled_ball_choice":"Vào bi không gọi · chọn nhận / trả",
          "nine_ball_win":"Vào bi 9 hợp lệ", "ten_ball_win":"Vào bi 10 cuối cùng hợp lệ", "eight_ball_win":"Vào bi 8 hợp lệ",

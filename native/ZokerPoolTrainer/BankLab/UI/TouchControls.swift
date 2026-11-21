@@ -421,6 +421,9 @@ final class PowerFX:UIView {
     }
     var maxSpeed=8.0
     var enabled:Bool{UserDefaults.standard.object(forKey:"tunePowerFX041") as? Bool ?? true}
+    /// 0.49c G4: the coloured strip, the misty trail and the spectrum ring are hidden while swiping (only the number at the end of the
+    /// swipe stays); Tuỳ chỉnh › Chẩn đoán can bring them back for testing.
+    var spectrum:Bool{UserDefaults.standard.bool(forKey:Prefs.diagPowerSpectrum)}
     private let bar=CAGradientLayer(),well=CALayer(),marker=CALayer(),readout=UILabel(),caption=UILabel()
     private var dots:[UIImage]=[]
     private var lastDot:CGPoint?
@@ -464,7 +467,7 @@ final class PowerFX:UIView {
     }
     /// B held: show the scale; released: hide it.
     func showMeter(_ on:Bool){
-        guard on != meterOn else{return};meterOn=on && enabled
+        guard on != meterOn else{return};meterOn=on && enabled && spectrum
         let o:Float=meterOn ? 1:0
         for l in [well,bar,marker]{l.opacity=o}
         UIView.animate(withDuration:0.18){self.caption.alpha=self.meterOn ? 1:0;if !self.meterOn{self.readout.alpha=0}}
@@ -472,7 +475,7 @@ final class PowerFX:UIView {
     }
     /// Live finger sample: speed in m/s (0 while drawing back).
     func track(_ p:CGPoint,speed:Double,forward:Bool){
-        guard enabled else{return}
+        guard enabled,spectrum else{return}
         let t=max(0,min(1,speed/max(0.1,maxSpeed)))
         let f=meterFrame
         CATransaction.begin();CATransaction.setDisableActions(true)
@@ -494,12 +497,14 @@ final class PowerFX:UIView {
     func fire(_ p:CGPoint,speed:Double){
         guard enabled else{return}
         let t=max(0,min(1,speed/max(0.1,maxSpeed)))
-        let ring=CAGradientLayer();ring.type = .conic;ring.colors=(Self.stops+[Self.stops[0]]).map{$0.cgColor}
-        ring.startPoint=CGPoint(x:0.5,y:0.5);ring.endPoint=CGPoint(x:0.5,y:0)
-        let size:CGFloat=110;ring.frame=CGRect(x:p.x-size/2,y:p.y-size/2,width:size,height:size);ring.cornerRadius=size/2
-        let mask=CALayer();mask.frame=ring.bounds;mask.contents=dots[0].cgImage   // soft radial mask: misty, no hard edge
-        ring.mask=mask;ring.opacity=0;layer.addSublayer(ring)
-        fade(ring,from:0.85,scale:1.5,duration:0.95)
+        if spectrum {
+            let ring=CAGradientLayer();ring.type = .conic;ring.colors=(Self.stops+[Self.stops[0]]).map{$0.cgColor}
+            ring.startPoint=CGPoint(x:0.5,y:0.5);ring.endPoint=CGPoint(x:0.5,y:0)
+            let size:CGFloat=110;ring.frame=CGRect(x:p.x-size/2,y:p.y-size/2,width:size,height:size);ring.cornerRadius=size/2
+            let mask=CALayer();mask.frame=ring.bounds;mask.contents=dots[0].cgImage   // soft radial mask: misty, no hard edge
+            ring.mask=mask;ring.opacity=0;layer.addSublayer(ring)
+            fade(ring,from:0.85,scale:1.5,duration:0.95)
+        }
         let label=UILabel();label.text=String(format:"%.1f m/s",speed);label.font = .monospacedDigitSystemFont(ofSize:22,weight:.heavy)
         label.textColor=Self.color(t);label.sizeToFit();label.center=CGPoint(x:p.x,y:p.y-46)
         label.layer.shadowColor=UIColor.black.cgColor;label.layer.shadowOpacity=0.9;label.layer.shadowRadius=4;label.layer.shadowOffset = .zero

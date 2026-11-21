@@ -11,7 +11,7 @@ import Foundation
             (Prefs.tutorialSeen, "tutorial044Seen"), (Prefs.tutorialEnabled, "tutorialEnabled044"), (Prefs.tutorialHints, "tutorialHints0441"),
             (Prefs.tutorialHintSeen("spin"), "tutorialHint0441.spin"), (Prefs.recentPlay, "recentPlay046"), (Prefs.legacyLessonStars, "lessonStars035"),
             (Prefs.tuneFPS, "tuneFPS036"), (Prefs.audioEnabled, "poolAudioEnabled"), (Prefs.soundPack, "soundPack041"),
-            (Prefs.diagLegacyStatus, "diagLegacyStatus039"), (Prefs.diagReplayNoSlow, "diagReplayNoSlow039"),
+            (Prefs.threeBallBreak, "threeBallBreak049"), (Prefs.diagPowerSpectrum, "diagPowerSpectrum049"), (Prefs.diagLegacyStatus, "diagLegacyStatus039"), (Prefs.diagReplayNoSlow, "diagReplayNoSlow039"),
             (Prefs.hudOffset(left: true, "Menu"), "hudOffset036-L-Menu"), (Prefs.hudSlot(2, "hudOffset036-R-B"), "hudSlot038-2-hudOffset036-R-B"),
             (Prefs.cueBag(1, "jump"), "cueBag015.1.jump"), (Prefs.cuePreset(2), "cuePreset017-2"), (Prefs.labEnabled, "labEnabled047")]
         for (key, expected) in frozen { try check(key == expected, "frozen key \(expected) (got \(key))") }

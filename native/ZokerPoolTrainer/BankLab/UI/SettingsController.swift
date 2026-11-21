@@ -301,6 +301,7 @@ final class CustomizeController:UIViewController {
         slider("Độ rõ của gậy khi mờ",Prefs.tuneCueGhost,0.2,0.8,fallback:0.42,format:{String(format:"%.0f%%",$0*100)})
         // 0.41 (owner): 7-colour power scale (tím = nhẹ … đỏ = mạnh), misty swipe trail, speed shown where the swipe ends.
         toggle("Thang lực 7 màu · vệt vuốt · số lực cuối cú",Prefs.tunePowerFX,true)
+        toggle("Luật phá 3 bi (giải đấu)",Prefs.threeBallBreak,false)   // 0.49c G8: off = a break that pots a ball keeps the turn
         toggle("Intro thương hiệu khi mở app (lần đầu đủ 5,6 s, sau đó 1 s)",Prefs.introEnabled,true)
         toggle("Hướng dẫn cú đầu tiên khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)",Prefs.tutorialEnabled,true)
         toggle("Gợi ý theo ngữ cảnh (mỗi gợi ý một lần, tự tắt sau 6 giây)",Prefs.tutorialHints,true)   // 0.44.1 M4
@@ -378,6 +379,7 @@ final class CustomizeController:UIViewController {
         labLabel.textColor = .white;labLabel.font = .systemFont(ofSize:13,weight:.medium);labLabel.numberOfLines=0
         let labRow=UIStackView(arrangedSubviews:[labLabel,labSwitch]);labRow.spacing=12;labRow.alignment = .center;target.addArrangedSubview(labRow)
         let labStart=target.arrangedSubviews.count
+        toggle("Hiện dải quang phổ lực khi vuốt (chẩn đoán)",Prefs.diagPowerSpectrum,false)   // 0.49c G4
         target.addArrangedSubview(UIButton.lab("Chẩn đoán độ mượt · số đo cú vừa đánh · A/B"){[weak self] in
             guard let self=self else{return};self.dismiss(animated:true){self.openDiagnostics?()}})
         let zupe=UIButton.lab("ZUPE Lab · nghiên cứu"){[weak self] in guard let self=self else{return};self.dismiss(animated:true){self.openZupeLab?()}}
