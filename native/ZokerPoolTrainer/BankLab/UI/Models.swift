@@ -63,6 +63,8 @@ struct SavedShot: Codable {
     /// Recorded snapshots live on disk; legacy input-only entries remain readable.
     var recordingID: String? = nil
     var coachVisible: Bool? = nil
+    /// 0.49b X3: drill layout variant this shot was played on (the balls above already hold the layout; kept for the record).
+    var variant: Int? = nil
     var physicsSettings: [String:Double]? = nil
     static let key=Prefs.savedShots
     static func all()->[SavedShot]{

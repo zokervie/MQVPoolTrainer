@@ -303,8 +303,11 @@ extension TrainingController {
             // Re-rack the lesson for the next shot once the player has seen where the balls stopped.
             DispatchQueue.main.asyncAfter(deadline:.now()+2.2){[weak self] in
                 guard let self=self,self.lessonActive,self.drillIndex==index,!self.shotActive,self.replayIndex==nil,!self.isPlacingBalls else{return}
-                if self.shotBack.isEmpty{self.undo()}else{self.stepShot(-1)}
-                self.statusLabel.text="Cú \(n+1)/5 · thế bi đã xếp lại"
+                if self.drillHasVariants(){self.relayDrill(variant:n)}   // 0.49b X3: the cue ball moves a little each shot
+                else{
+                    if self.shotBack.isEmpty{self.undo()}else{self.stepShot(-1)}
+                    self.statusLabel.text="Cú \(n+1)/5 · thế bi đã xếp lại"
+                }
             }
             return
         }

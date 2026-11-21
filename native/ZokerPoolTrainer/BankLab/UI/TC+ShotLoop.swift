@@ -49,7 +49,7 @@ extension TrainingController {
     func loadDrill(_ index:Int){
         guard matchAllowsEditing else{return}
         guard !presentationBusy,localTurn else{return}
-        drillIndex=index;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
+        drillIndex=index;drillVariant=0;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
         PlayerStore.shared.noteDrillOpened(drill.id)   // 0.45 M5: attempt time starts when the drill is on the table
         table.target(coachOn ? drill.goal:nil)
         initial=drill.balls;before=initial;angle=drill.angle
@@ -119,7 +119,7 @@ extension TrainingController {
         }
         let strikeAngle=table.shotAngle(cue,angle:angle,side:side,top:top)
         lastShot=SavedShot(name:"",date:Date(),balls:balls,aimAngle:angle,speed:speed,side:side,top:top,
-                           elevation:strikeElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle,shotKind:shotKind,physicsSettings:engine.settings.mapValues{$0.doubleValue})
+                           elevation:strikeElevation,cueType:engine.settings["cueType"]?.intValue ?? 0,strikeAngle:strikeAngle,shotKind:shotKind,variant:drillVariant,physicsSettings:engine.settings.mapValues{$0.doubleValue})
         mark("squirt+record");hideCoach();mark("hideCoach")
         publishShotStart(strikeAngle:strikeAngle,speed:speed)   // 0.44 lockstep: the guest runs the same solver
         engine.strike(angle:strikeAngle,speed:speed,side:side,top:top);mark("strike")

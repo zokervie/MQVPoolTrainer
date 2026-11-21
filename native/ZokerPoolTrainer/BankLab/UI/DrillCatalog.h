@@ -132,6 +132,10 @@ static inline void BLDrillLayoutFor(const BLDrillSpec *d, int32_t variant, BLDri
     }
 }
 
+/* Swift cannot index a C array member: element accessors (0 when out of range). */
+static inline double BLDrillLayoutX(const BLDrillLayout *L, int32_t i) { return L && i >= 0 && i < BL_DRILL_MAX_BALLS ? L->x[i] : 0; }
+static inline double BLDrillLayoutY(const BLDrillLayout *L, int32_t i) { return L && i >= 0 && i < BL_DRILL_MAX_BALLS ? L->y[i] : 0; }
+
 /* ── Real-table card: a spot in diamonds, the way it is set up on a real table ─────────────────────────────────
    Long rail 0…8 from the foot (y = −1.27) to the head, short rail 0…4 from the left (x = −0.635), one diamond =
    0.3175 m on a 9 ft table. Rounded to 0.1 diamond (≈ 3 cm) for the card. */

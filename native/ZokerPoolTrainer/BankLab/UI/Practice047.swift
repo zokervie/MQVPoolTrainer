@@ -53,6 +53,7 @@ extension TrainingController {
             return
         }
         loadDrill(next)
+        applyDrillVariant(run.drills.prefix(done).filter { $0 == next }.count)   // 0.49b X3: first time a drill comes up = catalogue layout
         statusLabel.text = title + " · cú \(done + 1)/10"
     }
     func endTestRun(cancelled: Bool) {
@@ -98,8 +99,8 @@ extension TrainingController {
                 if self.lessonActive && self.lessonScores.count >= 5 { return }
                 let d = Drill.all[self.drillIndex]
                 // Same aim the drill suggests; the round needs a shot, not a pass.
-                if self.balls.first(where: { $0.id == 0 }).map({ abs($0.x - (d.balls.first { $0.id == 0 }?.x ?? 0)) < 0.002 }) != true { return }
-                self.angle = d.angle
+                if self.balls.first(where: { $0.id == 0 }).map({ abs($0.x - (self.initial.first { $0.id == 0 }?.x ?? 0)) < 0.002 }) != true { return }
+                if self.drillVariant == 0 { self.angle = d.angle }
                 self.setHold(true); guard self.locked else { return }
                 self.shoot(2.0); self.qaShots += 1; self.spin.collapse(); self.setHold(false)
             }
@@ -109,7 +110,7 @@ extension TrainingController {
     /// QA (scene accessibility value): 0.47 state for XCTest.
     var qa047: String {
         let d = Drill.all[drillIndex]
-        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + ";catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
+        return String(format: ";shotSpeed=%.4f;barFrac=%.4f;barMax=%.4f;bar=%lld", lastShotSpeed, powerBar?.firedFraction ?? 0, powerBarMaxSpeed, powerBar?.isHidden == false ? 1 : 0) + ";drill=" + d.id + ";lesson=\(lessonActive ? 1 : 0);lessonShots=\(lessonScores.count);test=" + (testRun.map { "\($0.kind):\($0.shot)" } ?? "none") + String(format: ";layoutX=%.5f;layoutY=%.5f", initial.first { $0.id == 0 }?.x ?? 0, initial.first { $0.id == 0 }?.y ?? 0) + ";variant=\(drillVariant);catalog=\(FeatureFlags.drillCatalog ? 1 : 0);chapters=" + Chapters.all.map { String($0.drills.count) }.joined(separator: ",")
     }
 }
 

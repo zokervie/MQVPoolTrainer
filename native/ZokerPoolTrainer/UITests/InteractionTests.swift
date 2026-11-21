@@ -722,6 +722,26 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(app.tables["Chapters"].waitForExistence(timeout: 10 * slow))
         XCTAssertTrue(app.cells["ChapterDrill-first-shot"].exists, "the first rung of chapter 1 is open")
     }
+    /// 0.49b X3: shot 0 of a round is the catalogue layout; from shot 1 the cue ball sits a little elsewhere (≤ the drill's jitter).
+    func testRoundMovesTheCueBallBetweenShots() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa"]
+        app.launch()
+        XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
+        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].waitForExistence(timeout: 10 * slow)); app.cells["ChapterDrill-first-shot"].tap()
+        if app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow) { app.buttons["TipCardOK"].tap() }
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 5 * slow)); start.tap()
+        let scene = app.otherElements["PoolScene"]
+        wait(scene, timeout: 60 * slow) { self.text(scene, "drill") == "first-shot" && self.text(scene, "lesson") == "1" }
+        let x0 = 0.23159, y0 = 0.86659   // first-shot catalogue cue ball (DrillCatalogData.h); read from the table it may already be on its way
+        XCTAssertEqual(text(scene, "variant"), "0", "first shot: catalogue layout")
+        wait(scene, timeout: 120 * slow) { self.text(scene, "variant") == "1" }
+        // layoutX/Y = the cue ball of the layout the shot starts from (the next auto shot moves the real ball right after)
+        let moved = hypot(field(scene, "layoutX") - x0, field(scene, "layoutY") - y0)
+        XCTAssertGreaterThan(moved, 0.002, "shot 2 starts with the cue ball somewhere else")
+        XCTAssertLessThanOrEqual(moved, 0.0301, "…but never farther than the drill's jitter (0.03 m)")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])
