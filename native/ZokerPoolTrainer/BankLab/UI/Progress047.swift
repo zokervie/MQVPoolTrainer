@@ -70,6 +70,7 @@ struct ProgressView047: View {
                         .buttonStyle(.borderedProminent).tint(Color(ZDesign.Color.gold)).foregroundColor(.black)
                         .disabled(done).accessibilityIdentifier("WeeklyTest")
                     }
+                    realTableSection
                     let distinct = Set(store.data.rounds.filter { $0.day > store.day(Date()) - Int64(span) }.map { $0.drill }).count
                     Text(L10n.tr("Số bài khác nhau đã tập") + ": \(distinct) · " + L10n.tr("đóng băng chuỗi đã dùng") + ": \(store.data.streak.freezesUsed)")
                         .font(.footnote).foregroundColor(.gray)
@@ -84,6 +85,24 @@ struct ProgressView047: View {
         .navigationViewStyle(.stack)
         .preferredColorScheme(.dark)
         .accessibilityIdentifier("Progress")
+    }
+    /// 0.49b X7: per drill, the app's last 10 shots next to the last 10 real-table tries (only drills with a real-table entry).
+    @ViewBuilder private var realTableSection: some View {
+        let ids = store.data.realTable.filter { !$0.value.isEmpty }.keys.sorted()
+        if !ids.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.tr("Trong app / Bàn thật")).font(.headline).foregroundColor(.white)
+                ForEach(ids, id: \.self) { id in
+                    let app = store.data.attempts.filter { $0.drill == id }.suffix(10)
+                    let real = (store.data.realTable[id] ?? []).suffix(10)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(verbatim: L10n.tr(Drill.all.first { $0.id == id }?.title ?? id)).font(.footnote).foregroundColor(.white).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(verbatim: app.isEmpty ? "–" : "\(app.filter { $0.made }.count)/\(app.count)").font(.footnote.monospacedDigit()).foregroundColor(.green).frame(width: 64)
+                        Text(verbatim: real.map { "\($0.made)" }.joined(separator: " ")).font(.footnote.monospacedDigit()).foregroundColor(Color(ZDesign.Color.gold)).frame(width: 130, alignment: .trailing)
+                    }
+                }
+            }.accessibilityIdentifier("ProgressRealTable")
+        }
     }
     private func stat(_ value: String, _ label: String, _ icon: String, _ color: Color) -> some View {
         VStack(spacing: 2) {

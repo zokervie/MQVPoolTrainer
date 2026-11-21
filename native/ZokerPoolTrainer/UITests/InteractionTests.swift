@@ -742,6 +742,31 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThan(moved, 0.002, "shot 2 starts with the cue ball somewhere else")
         XCTAssertLessThanOrEqual(moved, 0.0301, "…but never farther than the drill's jitter (0.03 m)")
     }
+    /// 0.49b X5 + X7: the drill card shows ONE tip line; the long text is under "Xem thêm". "Ra bàn thật" lists every ball in
+    /// diamonds, takes the number made out of 10 and remembers it.
+    func testDrillCardOneTipLineAndRealTableCard() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]
+        app.launch()
+        XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
+        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].waitForExistence(timeout: 10 * slow)); app.cells["ChapterDrill-first-shot"].tap()
+        if app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow) { app.buttons["TipCardOK"].tap() }
+        XCTAssertTrue(app.staticTexts["DrillTip"].waitForExistence(timeout: 5 * slow), "one tip line of the chapter")
+        XCTAssertFalse(app.staticTexts["Cách chấm điểm"].exists, "the scoring text is folded away")
+        app.buttons["DrillMore"].tap()
+        XCTAssertTrue(app.staticTexts["Cách chấm điểm"].waitForExistence(timeout: 5 * slow), "Xem thêm opens it")
+        app.buttons["DrillMore"].tap()
+        app.buttons["DrillRealTable"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Bi cái: nút dài", "nút ngắn")).firstMatch.waitForExistence(timeout: 5 * slow), "cue ball in diamonds")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Bi 1: nút dài")).firstMatch.exists, "ball 1 in diamonds")
+        XCTAssertEqual(app.staticTexts["RealTableValue"].label, "5/10")
+        app.buttons["RealTablePlus"].tap(); app.buttons["RealTablePlus"].tap()
+        XCTAssertEqual(app.staticTexts["RealTableValue"].label, "7/10")
+        app.buttons["RealTableSave"].tap()
+        XCTAssertTrue(app.buttons["DrillRealTable"].waitForExistence(timeout: 5 * slow))
+        app.buttons["DrillRealTable"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Các lần trước: 7")).firstMatch.waitForExistence(timeout: 5 * slow), "the try was saved")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

@@ -49,7 +49,7 @@ extension TrainingController {
     func loadDrill(_ index:Int){
         guard matchAllowsEditing else{return}
         guard !presentationBusy,localTurn else{return}
-        drillIndex=index;drillVariant=0;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
+        drillIndex=index;drillVariant=0;roundResults=[];roundSmallMade=0;roundCoachUsed=false;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
         PlayerStore.shared.noteDrillOpened(drill.id)   // 0.45 M5: attempt time starts when the drill is on the table
         table.target(coachOn ? drill.goal:nil)
         initial=drill.balls;before=initial;angle=drill.angle
@@ -473,6 +473,10 @@ extension TrainingController {
         passed=passed && !scratch && !timedOut
         lastPassed=passed;lastScratch=scratch
         if passed{successes+=1}
+        if lessonActive {   // 0.49b X8: what the side challenges need from this round
+            roundResults.append(passed);if coaching{roundCoachUsed=true}
+            if let spec=d.spec,spec.goalR>0,!timedOut,catalogJudge(d,events:events,goalScale:0.6) == true{roundSmallMade+=1}
+        }
         // 0.45 M5: one attempt per drill shot (stable id) + the usage shot counter. Free table: counter only.
         PlayerStore.shared.recordShot(drill:d.judged && !matchPlay.active ? d.id:nil,made:passed)
         if d.judged {
@@ -525,8 +529,9 @@ extension TrainingController {
         return (passed && !scratch,railCount)
     }
     /// 0.49b X2: judge the finished shot with BLDrillJudge (events and final balls as C arrays); nil when the drill has no catalogue entry.
-    func catalogJudge(_ d:Drill,events:[[String:NSNumber]]) -> Bool? {
+    func catalogJudge(_ d:Drill,events:[[String:NSNumber]],goalScale:Double=1) -> Bool? {
         guard var spec=d.spec else{return nil}
+        spec.goalR*=goalScale   // X8 "Vùng nhỏ": the same rule on a smaller target (copy of the spec)
         let kinds=events.map{Int32($0["kind"]?.intValue ?? 0)},a=events.map{Int32($0["a"]?.intValue ?? 0)},b=events.map{Int32($0["b"]?.intValue ?? 0)}
         let state=balls
         let ids=state.map{Int32($0.id)},xs=state.map{$0.x},ys=state.map{$0.y},sunk=state.map{Int32($0.sunk ? 1:0)}

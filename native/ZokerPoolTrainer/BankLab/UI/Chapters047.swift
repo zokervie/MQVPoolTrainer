@@ -177,7 +177,7 @@ final class ChaptersController: UITableViewController {
         }
         let id = c.drills[indexPath.row], rungOpen = chapterOpen && Chapters.rungOpen(c, indexPath.row)
         let drill = Chapters.index(of: id).map { Drill.all[$0] }, best = PlayerStore.shared.stars(id)
-        cell.textLabel?.text = "\(indexPath.row + 1). " + (drill?.title ?? id) + "   " + Drill.starText(best)
+        cell.textLabel?.text = "\(indexPath.row + 1). " + (drill?.title ?? id) + "   " + Drill.starText(best) + PlayerStore.shared.badges(id).map { "  " + $0.symbol }.joined()   // 0.49b X8: small badges
         let level = Int(Chapters.stars(id))
         cell.detailTextLabel?.text = (FeatureFlags.progress && level > 0 ? "Độ khó " + Drill.starText(level) + " · " : "") + (rungOpen ? (drill?.note ?? "") : "Đạt 3/5 ở bài trước để mở")
         cell.imageView?.image = UIImage(systemName: best >= Int(BL_RUNG_PASS_STARS) ? "checkmark.seal.fill" : (rungOpen ? "circle" : "lock.fill"))

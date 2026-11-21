@@ -23,6 +23,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var angle=Double.pi/2,side=0.0,top=0.0,pull=0.0
     var locked=false,isPlacingBalls=false,guideOn=false,shotActive=false
     var drillIndex=Drill.startup,attempts=0,successes=0
+    var roundResults:[Bool]=[],roundSmallMade=0,roundCoachUsed=false   // 0.49b X8: this round so far
     var drillVariant=0   // 0.49b X3: layout variant of the shot about to be played (0 = catalogue layout)
     /// 0.44.1 M4: the new tutorial (Tutorial044.swift).
     var firstShotCoach:FirstShotCoach?

@@ -152,6 +152,8 @@ struct Drill {
     var spec:BLDrillSpec? = nil
     /// 0.49b: a safety drill (judged by BLDrillJudge: legal hit, nothing pocketed, ball 1 hidden).
     var safety:Bool = false
+    /// Shots out of 5 that pass the round (D1: scaled to the measured difficulty; 3 without a catalogue entry).
+    var passMade:Int { spec.map { var s = $0; return Int(BLDrillPassMade(&s, 5)) } ?? 3 }
     /// Counts as a scored drill: has a goal, a rail count, or is a safety drill.
     var judged:Bool { goal != nil || rails>0 || safety }
     static let levelNames=["Công cụ","Cấp 1 · Nền tảng: lực và vị trí bi cái","Cấp 2 · Nút số: kick 1 băng (hệ gương)","Cấp 3 · Nút số: kick 2–3 băng (Corner-5)","Cấp 4 · Bank và hệ Plus","Cấp 5 · Trick shot"]
@@ -169,6 +171,7 @@ struct Drill {
         if kick || rails>0 {return "Đường gương: phản chiếu bi đích qua băng, ngắm vào ảnh. Đây là mốc hình học; lực, ép phê và ma sát băng làm đường thật lệch đi."}
         return "Giữ hướng và điểm chạm làm mốc; mỗi cú chỉ thay một biến (lực, điểm chạm hoặc góc)."
     }
+    static let scoringNote="Điểm mỗi cú (0–100) app tự chấm: cú đạt được 100 (bài vùng dừng trừ theo khoảng cách tới tâm vòng); cú trượt được điểm theo độ gần: bi cái trượt bi 1 bao nhiêu cm, bi 1 dừng cách lỗ bao xa, sai số băng. Bi cái vào lỗ = 0. Bật Coach để xem điểm va băng và lời khuyên một thay đổi cho cú sau."
     var coaching:String { "Một lượt = 5 cú cùng thế bi; sau mỗi cú app tự xếp lại bi. Qua bài khi đạt từ 3/5 cú. Sao = số cú đạt; 5 sao cần thêm điểm trung bình từ 85.\n\nĐiểm mỗi cú (0–100) app tự chấm: cú đạt được 100 (bài vùng dừng trừ theo khoảng cách tới tâm vòng); cú trượt được điểm theo độ gần: bi cái trượt bi 1 bao nhiêu cm, bi 1 dừng cách lỗ bao xa, sai số băng. Bi cái vào lỗ = 0. Bật Coach để xem điểm va băng và lời khuyên một thay đổi cho cú sau." }
     // Công cụ và bài khởi động: chỉ số cố định, mã QA và màn mở đầu dùng chúng.
     static let free=0, rollTest=1
@@ -306,35 +309,69 @@ struct Drill {
     }()
 }
 
+/// 0.49b X5/X7/X8 — the drill card: title, goal, diagram, ONE tip line (the chapter's), the start button. Everything longer
+/// (formula, how it is scored, Coach start, author's video, side challenges) is under "Xem thêm".
 final class DrillLessonController:UIViewController {
     let drill:Drill
     var start:(()->Void)?
     var guidedStart:(()->Void)?
+    private let more=UIStackView()
     init(drill:Drill){self.drill=drill;super.init(nibName:nil,bundle:nil)}
     required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
+    private func label(_ text:String,_ size:CGFloat,_ color:UIColor,_ weight:UIFont.Weight = .regular)->UILabel{let v=UILabel();v.text=text;v.textColor=color;v.font = .systemFont(ofSize:size,weight:weight);v.numberOfLines=0;return v}
     override func viewDidLoad(){
         super.viewDidLoad();title="Bài tập";view.backgroundColor=UIColor(red:0.07,green:0.07,blue:0.08,alpha:1)
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
         let stack=UIStackView();stack.axis = .vertical;stack.spacing=14;stack.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(stack)
-        func label(_ text:String,_ size:CGFloat,_ color:UIColor,_ weight:UIFont.Weight = .regular)->UILabel{let v=UILabel();v.text=text;v.textColor=color;v.font = .systemFont(ofSize:size,weight:weight);v.numberOfLines=0;return v}
         stack.addArrangedSubview(label(drill.title,22,MenuSkin.gold,.bold))
         stack.addArrangedSubview(label(drill.levelName+"\nMục tiêu: "+drill.goalText,15,.white,.semibold))
         let diagram=DrillPreviewView(drill:drill);diagram.heightAnchor.constraint(equalToConstant:236).isActive=true;diagram.contentMode = .redraw;stack.addArrangedSubview(diagram)
-        stack.addArrangedSubview(label("Hệ nút số / công thức",16,MenuSkin.gold,.bold));stack.addArrangedSubview(label(drill.formula,14,.white))
-        stack.addArrangedSubview(label("Cách chấm điểm",16,MenuSkin.gold,.bold));stack.addArrangedSubview(label(drill.coaching,14,.white))
+        if let at=Chapters.locate(drill.id),let chapter=Chapters.chapter(at.chapter),!chapter.tip.isEmpty {   // X5: one line
+            let tip=label("Mẹo: "+chapter.tip,16,.white,.semibold);tip.accessibilityIdentifier="DrillTip";stack.addArrangedSubview(tip)
+        }
         let button=UIButton(type:.system);var config=UIButton.Configuration.filled();config.title="Bắt đầu · 5 cú";config.baseBackgroundColor=MenuSkin.gold;config.baseForegroundColor = .black;button.configuration=config;button.addAction(UIAction{[weak self]_ in self?.start?()},for:.touchUpInside);stack.addArrangedSubview(button)
-        let guided=UIButton(type:.system);guided.setTitle("Bắt đầu có Coach (xem điểm va băng, lời khuyên)",for:.normal);guided.heightAnchor.constraint(greaterThanOrEqualToConstant:44).isActive=true;guided.addAction(UIAction{[weak self]_ in self?.guidedStart?()},for:.touchUpInside);stack.addArrangedSubview(guided)
+        if drill.spec != nil {   // X7
+            let real=UIButton(type:.system);real.setTitle("Ra bàn thật",for:.normal);real.heightAnchor.constraint(greaterThanOrEqualToConstant:44).isActive=true;real.accessibilityIdentifier="DrillRealTable"
+            real.addAction(UIAction{[weak self] _ in guard let self=self else{return};self.navigationController?.pushViewController(RealTableCardController(drill:self.drill),animated:true)},for:.touchUpInside);stack.addArrangedSubview(real)
+        }
+        let toggle=UIButton(type:.system);toggle.setTitle("Xem thêm",for:.normal);toggle.heightAnchor.constraint(greaterThanOrEqualToConstant:44).isActive=true;toggle.accessibilityIdentifier="DrillMore"
+        toggle.addAction(UIAction{[weak self,weak toggle] _ in
+            guard let self=self else{return};self.more.isHidden.toggle();toggle?.setTitle(self.more.isHidden ? "Xem thêm":"Ẩn bớt",for:.normal)},for:.touchUpInside)
+        stack.addArrangedSubview(toggle)
+        more.axis = .vertical;more.spacing=14;more.isHidden=true;stack.addArrangedSubview(more)
+        more.addArrangedSubview(label("Hệ nút số / công thức",16,MenuSkin.gold,.bold));more.addArrangedSubview(label(drill.formula,14,.white))
+        more.addArrangedSubview(label("Cách chấm điểm",16,MenuSkin.gold,.bold))
+        more.addArrangedSubview(label(String(format:L10n.tr("Một lượt = 5 cú; thế bi xê dịch nhẹ sau mỗi cú. Qua bài khi đạt từ %d/5 cú (mức đạt tính theo độ khó đo được của bài). Sao = số cú đạt; 5 sao cần thêm điểm trung bình từ 85."),drill.passMade),14,.white))
+        more.addArrangedSubview(label(Drill.scoringNote,14,.white))
+        let guided=UIButton(type:.system);guided.setTitle("Bắt đầu có Coach (xem điểm va băng, lời khuyên)",for:.normal);guided.heightAnchor.constraint(greaterThanOrEqualToConstant:44).isActive=true;guided.addAction(UIAction{[weak self]_ in self?.guidedStart?()},for:.touchUpInside);more.addArrangedSubview(guided)
         if let link=drill.video,let url=URL(string:link) {
             let video=UIButton(type:.system);video.setTitle(link.contains("youtu") ? "▶︎ Xem video hướng dẫn của tác giả":"📄 Đọc hướng dẫn của tác giả",for:.normal)
             video.heightAnchor.constraint(greaterThanOrEqualToConstant:44).isActive=true
-            video.addAction(UIAction{_ in UIApplication.shared.open(url)},for:.touchUpInside);stack.addArrangedSubview(video)
+            video.addAction(UIAction{_ in UIApplication.shared.open(url)},for:.touchUpInside);more.addArrangedSubview(video)
+        }
+        if PlayerStore.shared.stars(drill.id)>=Int(BL_RUNG_PASS_STARS) {   // X8: only after the drill is passed
+            more.addArrangedSubview(label("Thử thách phụ",16,MenuSkin.gold,.bold))
+            let earned=Set(PlayerStore.shared.badges(drill.id))
+            for b in DrillBadge.allCases where b != .small || (drill.goal?.radius ?? 0)>0 {
+                more.addArrangedSubview(label((earned.contains(b) ? "✓ ":"○ ")+L10n.tr(b.title)+" "+b.symbol,14,earned.contains(b) ? .systemGreen:UIColor(white:0.8,alpha:1)))
+            }
         }
         NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:20),scroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-20),scroll.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:12),scroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-12),stack.leadingAnchor.constraint(equalTo:scroll.contentLayoutGuide.leadingAnchor),stack.trailingAnchor.constraint(equalTo:scroll.contentLayoutGuide.trailingAnchor),stack.topAnchor.constraint(equalTo:scroll.contentLayoutGuide.topAnchor),stack.bottomAnchor.constraint(equalTo:scroll.contentLayoutGuide.bottomAnchor),stack.widthAnchor.constraint(equalTo:scroll.frameLayoutGuide.widthAnchor)])
     }
 }
 private final class DrillPreviewView:UIView {
     let drill:Drill
-    init(drill:Drill){self.drill=drill;super.init(frame:.zero);backgroundColor=UIColor(red:0.07,green:0.045,blue:0.03,alpha:1);layer.cornerRadius=12;clipsToBounds=true}
+    /// X4: the pocket the reference stroke sends ball 1 into (computed once on a private world; nil when it pockets nothing).
+    private var pocket:Int?
+    init(drill:Drill){
+        self.drill=drill;super.init(frame:.zero);backgroundColor=UIColor(red:0.07,green:0.045,blue:0.03,alpha:1);layer.cornerRadius=12;clipsToBounds=true
+        if let spec=drill.spec,spec.kind != Int32(BL_DRILL_SAFETY) && spec.scanDegrees > 0 {
+            let world=BLWorld();world.loadLayout(drill.balls.map{$0.dictionary})
+            let out=world.simulate(angle:spec.solveAngle,speed:spec.solveSpeed,side:0,top:spec.solveTop)
+            let events=out["events"] as? [[String:NSNumber]] ?? []
+            pocket=events.first{$0["kind"]?.intValue==2 && $0["a"]?.intValue==1 && ($0["b"]?.intValue ?? -1)>=0}?["b"]?.intValue
+        }
+    }
     required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
     override func draw(_ rect:CGRect){
         guard let c=UIGraphicsGetCurrentContext() else{return}
@@ -356,10 +393,29 @@ private final class DrillPreviewView:UIView {
         c.setFillColor(UIColor(white:0.92,alpha:0.55).cgColor)
         for i in 1..<8 where i != 4 {let y = -long/2+Double(i)*long/8;for x in [-short/2,short/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
         for i in 1..<4 {let x = -short/2+Double(i)*short/4;for y in [-long/2,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-1.5,y:q.y-1.5,width:3,height:3))}}
-        let pocket=max(6,min(11,CGFloat(0.06)*scale))
+        // X4: diamond numbers on one long and one short rail — long 0…8 (from the foot), short 0…4 (from the left); 10 pt, 70 %.
+        let numberAttrs:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:10,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.7)]
+        func number(_ n:Int,at q:CGPoint,out:CGVector){
+            let t=String(n) as NSString,size=t.size(withAttributes:numberAttrs)
+            t.draw(at:CGPoint(x:q.x+out.dx*9-size.width/2,y:q.y+out.dy*9-size.height/2),withAttributes:numberAttrs)
+        }
+        for i in 0...8 {number(i,at:point(-short/2,-long/2+Double(i)*long/8),out:landscape ? CGVector(dx:0,dy:-1):CGVector(dx:-1,dy:0))}
+        for i in 0...4 {number(i,at:point(-short/2+Double(i)*short/4,-long/2),out:landscape ? CGVector(dx:-1,dy:0):CGVector(dx:0,dy:1))}
+        let pocketR=max(6,min(11,CGFloat(0.06)*scale))
         c.setFillColor(UIColor(white:0.02,alpha:1).cgColor)
-        for x in [-short/2,short/2]{for y in [-long/2,0.0,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-pocket,y:q.y-pocket,width:2*pocket,height:2*pocket))}}
+        for x in [-short/2,short/2]{for y in [-long/2,0.0,long/2]{let q=point(x,y);c.fillEllipse(in:CGRect(x:q.x-pocketR,y:q.y-pocketR,width:2*pocketR,height:2*pocketR))}}
         let r=max(6,min(10,CGFloat(0.0286)*scale*1.6))
+        // X4: the target pocket glows (the one the reference stroke uses), the goal zone is a dashed gold ring.
+        if let k=pocket,(0..<6).contains(k) {
+            let px=k%2==0 ? -short/2:short/2,py=k<2 ? -long/2:(k<4 ? 0.0:long/2),q=point(px,py)
+            c.setStrokeColor(UIColor(red:1,green:0.85,blue:0.3,alpha:0.95).cgColor);c.setLineWidth(2.5)
+            c.strokeEllipse(in:CGRect(x:q.x-pocketR*1.7,y:q.y-pocketR*1.7,width:pocketR*3.4,height:pocketR*3.4))
+        }
+        if let g=drill.goal,g.radius>0 {
+            let q=point(g.x,g.y),gr=CGFloat(g.radius)*scale
+            c.setStrokeColor(UIColor(red:1,green:0.85,blue:0.3,alpha:0.95).cgColor);c.setLineWidth(1.8);c.setLineDash(phase:0,lengths:[5,4])
+            c.strokeEllipse(in:CGRect(x:q.x-gr,y:q.y-gr,width:2*gr,height:2*gr));c.setLineDash(phase:0,lengths:[])
+        }
         // Mũi tên hướng ngắm bắt đầu từ bi cái (trước đây chỉ có chữ, không có hình).
         if let cue=drill.balls.first(where:{$0.id==0}) {
             let from=point(cue.x,cue.y),to=point(cue.x+cos(drill.angle)*0.45,cue.y+sin(drill.angle)*0.45)
@@ -369,14 +425,20 @@ private final class DrillPreviewView:UIView {
             c.setFillColor(UIColor.white.withAlphaComponent(0.85).cgColor)
             c.move(to:to);c.addLine(to:CGPoint(x:to.x-ux*9-uy*5,y:to.y-uy*9+ux*5));c.addLine(to:CGPoint(x:to.x-ux*9+uy*5,y:to.y-uy*9-ux*5));c.closePath();c.fillPath()
         }
+        let position=drill.spec?.chapter==5   // "Đi bi": ball 2 is the NEXT ball, not a blocker
         for b in drill.balls {
             let q=point(b.x,b.y),box=CGRect(x:q.x-r,y:q.y-r,width:2*r,height:2*r)
-            let color:UIColor = b.id==0 ? .white:(b.id==1 ? UIColor(red:1,green:0.63,blue:0.1,alpha:1):UIColor(white:0.35,alpha:1))
+            let next=position && b.id==2
+            let color:UIColor = b.id==0 ? .white:(b.id==1 ? UIColor(red:1,green:0.63,blue:0.1,alpha:1):(next ? UIColor(red:1,green:0.9,blue:0.55,alpha:1):UIColor(white:0.35,alpha:1)))
             c.setFillColor(color.cgColor);c.fillEllipse(in:box)
             c.setStrokeColor(UIColor.black.withAlphaComponent(0.55).cgColor);c.setLineWidth(1);c.strokeEllipse(in:box)
+            if next {
+                let t="2" as NSString,attrs:[NSAttributedString.Key:Any]=[.font:UIFont.systemFont(ofSize:r*1.2,weight:.bold),.foregroundColor:UIColor.black],size=t.size(withAttributes:attrs)
+                t.draw(at:CGPoint(x:q.x-size.width/2,y:q.y-size.height/2),withAttributes:attrs)
+            }
         }
-        let note="Trắng: bi cái · Cam: bi 1 · Xám: bi cản · Nét đứt: hướng ngắm gợi ý ban đầu" as NSString
-        note.draw(at:CGPoint(x:bounds.minX,y:self.bounds.maxY-18),withAttributes:[.font:UIFont.systemFont(ofSize:11,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.85)])
+        let caption=position ? "Trắng: bi cái · Cam: bi 1 · Vàng nhạt: bi kế tiếp · Nét đứt: hướng ngắm gợi ý ban đầu":"Trắng: bi cái · Cam: bi 1 · Xám: bi cản · Nét đứt: hướng ngắm gợi ý ban đầu"
+        (L10n.tr(caption) as NSString).draw(at:CGPoint(x:bounds.minX,y:self.bounds.maxY-18),withAttributes:[.font:UIFont.systemFont(ofSize:11,weight:.medium),.foregroundColor:UIColor.white.withAlphaComponent(0.85)])
     }
 }
 

@@ -312,14 +312,25 @@ extension TrainingController {
             return
         }
         let average=lessonScores.reduce(0,+)/max(1,n)
-        let stars=lessonPasses>=5 && average>=85 ? 5:min(4,lessonPasses)
-        let cleared=lessonPasses>=3
+        // 0.49b D1 (approved): the pass mark scales with the drill — measured make rate − 15 points, 20–70 % (BLDrillPassMade); 3/5 without a spec.
+        let passMade:Int=d.spec.map{var s=$0;return Int(BLDrillPassMade(&s,5))} ?? 3
+        let cleared=lessonPasses>=passMade
+        let stars=lessonPasses>=5 && average>=85 ? 5:(cleared ? max(3,min(4,lessonPasses)):min(2,lessonPasses))
+        var newBadges:[DrillBadge]=[]   // 0.49b X8: side challenges, only after the drill is passed
+        if cleared{
+            if DrillBadge.longestRun(roundResults)>=3,PlayerStore.shared.awardBadge(.streak3,drill:d.id){newBadges.append(.streak3)}
+            if var small=d.spec,small.goalR>0{
+                small.goalR*=0.6
+                if roundSmallMade>=Int(BLDrillPassMade(&small,5)),PlayerStore.shared.awardBadge(.small,drill:d.id){newBadges.append(.small)}
+            }
+            if !roundCoachUsed,PlayerStore.shared.awardBadge(.noCoach,drill:d.id){newBadges.append(.noCoach)}
+        }
         let round=PlayerStore.shared.recordRound(drill:d.id,stars:stars,average:Double(average),made:lessonPasses)   // 0.45 M5: the only writer of progress
         roundFinished047(d,round:round,stars:stars,average:average)   // 0.47 M2/M3/M5/M6: streak, record, summary, challenge
         lessonScores=[];lessonPasses=0
         let next=FeatureFlags.chapters && Chapters.locate(d.id) != nil ? Chapters.nextRung(after:d.id):Drill.all.indices.first{$0>index && Drill.all[$0].level>0}   // 0.47 M0: next rung of the ladder
         let alert=UIAlertController(title:(cleared ? "Qua bài · ":"Chưa qua · ")+Drill.starText(stars),
-            message:"\(d.title)\nĐiểm trung bình \(average)/100.\n"+(cleared ? "Bài đã được đánh dấu hoàn thành.":"Cần đạt ít nhất 3/5 cú. Gợi ý: bật Coach để xem điểm va băng và một thay đổi cho cú sau."),preferredStyle:.alert)
+            message:"\(d.title)\nĐiểm trung bình \(average)/100.\n"+(cleared ? "Bài đã được đánh dấu hoàn thành.":String(format:L10n.tr("Cần đạt ít nhất %d/5 cú. Gợi ý: bật Coach để xem điểm va băng và một thay đổi cho cú sau."),passMade))+(newBadges.isEmpty ? "":"\n"+L10n.tr("Huy hiệu mới")+": "+newBadges.map{L10n.tr($0.title)}.joined(separator:" · ")),preferredStyle:.alert)
         alert.addAction(UIAlertAction(title:"Tập lại lượt mới",style:.default){[weak self]_ in self?.beginDrill(index,guided:false)})
         if let next=next {alert.addAction(UIAlertAction(title:"Bài tiếp theo",style:.default){[weak self]_ in self?.beginDrill(next,guided:false)})}
         roundAlertExtras047(alert,drill:d,round:round,index:index)   // 0.47: Bài hôm nay tiếp theo · chuỗi ngày · Xem chi tiết · Thách bạn

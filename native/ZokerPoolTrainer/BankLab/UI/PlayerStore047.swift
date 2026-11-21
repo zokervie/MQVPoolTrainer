@@ -61,6 +61,19 @@ struct TestLog: Codable, Equatable {
 /// 0.49b X7: one set of 10 shots on a real table, typed in by the player ("Ra bàn thật").
 struct RealTableLog: Codable, Equatable { var day: Int64; var made: Int }
 
+/// 0.49b X8: side challenges, shown as a small badge on the drill card once the drill is passed.
+enum DrillBadge: String, CaseIterable { case streak3, small, noCoach
+    /// Vietnamese source titles (English in I18N_en); Foundation-only users show them through L10n at the UI.
+    var title: String { switch self { case .streak3: return "3 cú liên tiếp"; case .small: return "Vùng nhỏ"; case .noCoach: return "Không Coach" } }
+    var symbol: String { switch self { case .streak3: return "⚡︎"; case .small: return "◎"; case .noCoach: return "✋" } }
+    /// Longest run of made shots in a round ("3 cú liên tiếp" needs ≥ 3).
+    static func longestRun(_ results: [Bool]) -> Int {
+        var best = 0, run = 0
+        for r in results { run = r ? run + 1 : 0; best = max(best, run) }
+        return best
+    }
+}
+
 struct PlayerData: Codable, Equatable {
     static let currentSchema = 1
     var schemaVersion = PlayerData.currentSchema
@@ -78,6 +91,7 @@ struct PlayerData: Codable, Equatable {
     var tipsSeen: [Int] = []            // chapters whose tip card was shown once
     // 0.49b
     var examKeysMigrated = false        // "chapter-<n>" exam keys moved to BLDrillChapterKey names (X1)
+    var badges: [String: [String]] = [:]            // drill id → DrillBadge raw values earned (X8)
     var realTable: [String: [RealTableLog]] = [:]   // drill id → tries on a real table (X7), oldest first
 
     init(now: Date, day: Int64) { metrics = UsageMetrics(installedAt: now, installDay: day) }
@@ -98,6 +112,7 @@ struct PlayerData: Codable, Equatable {
         tipsSeen = try c.decodeIfPresent([Int].self, forKey: .tipsSeen) ?? []
         examKeysMigrated = try c.decodeIfPresent(Bool.self, forKey: .examKeysMigrated) ?? false
         realTable = try c.decodeIfPresent([String: [RealTableLog]].self, forKey: .realTable) ?? [:]
+        badges = try c.decodeIfPresent([String: [String]].self, forKey: .badges) ?? [:]
     }
 }
 
@@ -253,6 +268,14 @@ final class PlayerStore {
         }
         data.examKeysMigrated = true; save()
     }
+    /// 0.49b X8: true when the badge is new for this drill.
+    @discardableResult func awardBadge(_ badge: DrillBadge, drill: String) -> Bool {
+        var list = data.badges[drill] ?? []
+        guard !list.contains(badge.rawValue) else { return false }
+        list.append(badge.rawValue); data.badges[drill] = list; save()
+        return true
+    }
+    func badges(_ drill: String) -> [DrillBadge] { (data.badges[drill] ?? []).compactMap { DrillBadge(rawValue: $0) } }
     static let maxRealTable = 50
     /// 0.49b X7: tries on a real table for one drill (made out of 10), the last `maxRealTable` kept.
     func recordRealTable(drill: String, made: Int, at now: Date = Date()) {
