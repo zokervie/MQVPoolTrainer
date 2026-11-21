@@ -7,6 +7,9 @@ import UIKit
 /// copies them out and gates on the summary. The saved table choice is restored at the end.
 extension TrainingController {
     static let tableQABlownMax = 0.02
+    /// 0.49c (e): a black snapshot (SceneKit snapshot on some Simulators) read as 0 % blown-out and passed. A frame darker than this
+    /// mean luma is NOT a measurement: the probe reports NOT_RUN instead of PASS.
+    static let tableQAMinMean = 0.02
 
     func startTableFamilyQA() {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("table-qa")
@@ -19,7 +22,8 @@ extension TrainingController {
         var measures: [[String: Any]] = []
         func finish() {
             let pass = measures.count == TableFamily.allCases.count && measures.allSatisfy { ($0["pass"] as? Bool) == true }
-            let summary: [String: Any] = ["result": pass ? "PASS" : "FAIL", "families": measures.count, "space": 0,
+            let blankAll = !measures.isEmpty && measures.allSatisfy { ($0["blank"] as? Bool) == true }
+            let summary: [String: Any] = ["result": blankAll ? "NOT_RUN" : (pass ? "PASS" : "FAIL"), "families": measures.count, "space": 0,
                                           "blownMax": Self.tableQABlownMax, "measures": measures]
             if let data = try? JSONSerialization.data(withJSONObject: summary, options: [.prettyPrinted, .sortedKeys]) {
                 try? data.write(to: dir.appendingPathComponent("summary.json"), options: .atomic)
@@ -36,9 +40,10 @@ extension TrainingController {
                 let name = "family-" + family.name.lowercased().replacingOccurrences(of: "z-", with: "")
                 try? image.pngData()?.write(to: dir.appendingPathComponent(name + ".png"))
                 let stats = Self.lumaStats(image, rect: CGRect(origin: .zero, size: image.size))
-                let pass = stats.mean > 0 && stats.blown < Self.tableQABlownMax
+                let blank = stats.mean < Self.tableQAMinMean
+                let pass = !blank && stats.blown < Self.tableQABlownMax
                 measures.append(["family": family.name, "look": look.id, "image": name + ".png", "mean": stats.mean,
-                                 "blown": stats.blown, "pass": pass])
+                                 "blown": stats.blown, "pass": pass, "blank": blank])
                 shot(i + 1)
             }
         }

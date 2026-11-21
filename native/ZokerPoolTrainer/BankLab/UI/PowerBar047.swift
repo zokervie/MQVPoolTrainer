@@ -54,7 +54,20 @@ final class PowerBarControl: UIControl {
         label.text = fraction > 0 ? String(format: "%lld%%", Int((fraction * 100).rounded())) : "0%"
         accessibilityValue = String(format: "%lld%%", Int((fraction * 100).rounded()))
     }
+    /// 0.49c G3: the bar is small (≈ 28 × 180 pt); holding it magnifies ×2.5 around the finger (like the effect ball) so the load can
+    /// be set finely. Local touch coordinates are unaffected by the transform, so 1 screen pt moves the load 2.5× less.
+    static let holdZoom: CGFloat = 2.5
+    /// Largest magnification reached since launch (QA probe: a UI test cannot read the scene while the finger is down).
+    private(set) var peakZoom: CGFloat = 1
+    private func zoom(_ on: Bool, around p: CGPoint) {
+        if on { peakZoom = Self.holdZoom }
+        let d = CGPoint(x: p.x - bounds.midX, y: p.y - bounds.midY)
+        let target = on ? CGAffineTransform(translationX: d.x, y: d.y).scaledBy(x: Self.holdZoom, y: Self.holdZoom).translatedBy(x: -d.x, y: -d.y) : .identity
+        // Zoom in at once: an animated transform makes the touch's local coordinates drift during the first frames of the drag.
+        if on { transform = target } else { UIView.animate(withDuration: 0.12) { self.transform = target } }
+    }
     override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+        zoom(true, around: touch.location(in: self))
         startY = touch.location(in: self).y; fraction = 0; redraw()
         UISelectionFeedbackGenerator().selectionChanged()
         return true
@@ -68,12 +81,13 @@ final class PowerBarControl: UIControl {
     }
     override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
         let f = fraction
+        zoom(false, around: .zero)
         fraction = 0; redraw()
         guard f >= Self.cancelBelow else { return }
         firedFraction = f
         fire?(f)
     }
-    override func cancelTracking(with event: UIEvent?) { fraction = 0; redraw() }
+    override func cancelTracking(with event: UIEvent?) { zoom(false, around: .zero); fraction = 0; redraw() }
     // VoiceOver: swipe up/down sets the load, double-tap strikes.
     override func accessibilityIncrement() { fraction = min(1, fraction + 0.1); redraw() }
     override func accessibilityDecrement() { fraction = max(0, fraction - 0.1); redraw() }
@@ -87,6 +101,7 @@ extension TrainingController {
     var powerBarMaxSpeed: Double { BL_POWER_MAX_SPEED * Tuning.maxPower }
     /// QA launches keep the swipe (existing gesture tests) unless `--power-bar-qa` asks for the bar.
     var usesPowerBar: Bool {
+        if let chosen = powerBarUserOn { return chosen && FeatureFlags.powerBar }   // 0.49c G3: the on-screen switch wins this session
         if QA.anyFlag { return QA.has("--power-bar-qa") && FeatureFlags.powerBar }
         return FeatureFlags.usesPowerBar(shots: PlayerStore.shared.data.metrics.shots)
     }
@@ -105,7 +120,31 @@ extension TrainingController {
         if let bar = powerBar { powerFX.fire(bar.convert(CGPoint(x: bar.bounds.midX, y: bar.bounds.maxY), to: powerFX), speed: speed) }
         shoot(speed); spin.collapse(); setHold(false)
     }
+    /// 0.49c G3: small switch in the left cluster (next to "Đặt bi"): bar on = stroke with the bar, off = the swipe (B) only.
+    func buildPowerBarSwitch() {
+        let b = UIButton(type: .system); var c = UIButton.Configuration.filled()
+        c.image = UIImage(systemName: "slider.vertical.3"); c.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        c.cornerStyle = .capsule; c.contentInsets = .zero
+        b.configuration = c; b.accessibilityIdentifier = "PowerBarSwitch"
+        b.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            let on = !self.usesPowerBar
+            self.powerBarUserOn = on
+            UserDefaults.standard.set(on ? 1 : 0, forKey: Prefs.powerBarMode)
+            self.syncPowerBar(); self.view.setNeedsLayout()
+        }, for: .touchUpInside)
+        view.addSubview(b); powerBarSwitch = b
+    }
+    func syncPowerBarSwitch() {
+        guard let b = powerBarSwitch else { return }
+        let on = usesPowerBar
+        b.isHidden = menuOpen || spinExpanded || replayIndex != nil || !FeatureFlags.powerBar
+        b.configuration?.baseBackgroundColor = on ? ZDesign.Color.gold : UIColor(white: 0.03, alpha: 0.55)
+        b.configuration?.baseForegroundColor = on ? .black : .white
+        b.accessibilityLabel = on ? "Tắt thanh lực" : "Bật thanh lực"; b.accessibilityValue = on ? "1" : "0"
+    }
     func syncPowerBar() {
+        syncPowerBarSwitch()
         guard let bar = powerBar else { return }
         bar.maxSpeed = powerBarMaxSpeed
         let show = usesPowerBar && !menuOpen && !spinExpanded && !introRunning
@@ -118,7 +157,7 @@ extension TrainingController {
     func placePowerBar(rail: BLRect, safe: CGRect) {
         guard let bar = powerBar else { return }
         let pad = UIDevice.current.userInterfaceIdiom == .pad
-        let w: CGFloat = pad ? 50 : 40, h = min(safe.height * 0.46, pad ? 380 : 230)
+        let w: CGFloat = pad ? 28 : 26, h = min(safe.height * 0.40, pad ? 180 : 140)   // 0.49c G3: small; hold = ×2.5
         let x = leftHanded ? CGFloat(rail.x + rail.w) + 14 : CGFloat(rail.x) - 14 - w
         bar.frame = CGRect(x: x, y: safe.minY + safe.height * 0.16, width: w, height: h)
         syncPowerBar()

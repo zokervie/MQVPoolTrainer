@@ -40,6 +40,7 @@ extension TrainingController {
         place(lockButton,f.lock);lockButton.isHidden=menuOpen || spinExpanded;lockButton.setNeedsDisplay()   // 0.36: B is back (hold = lock aim), square, left of the effect ball
         for (k,icon) in cueIcons.enumerated(){place(icon,BLHUDCueIcon(f,Int32(k)))}
         if let b=placeBallButton{place(b,BLRectMake(f.cues.x,f.cues.y-8-64,64,64));syncPlaceBallButton()}   // 0.49c G6
+        if let b=powerBarSwitch{place(b,BLRectMake(f.cues.x+64+8,f.cues.y-8-52,44,44));syncPowerBarSwitch()}   // 0.49c G3: beside "Đặt bi"
         elevationPad.leftHanded=leftHanded
         let small=BLRectMake(0,f.coach.y+4,pad ? 76:62,36),guideW=pad ? 92:80
         var n=small,g=small,c=small;g.w=Double(guideW);c.w=pad ? 72:60   // 0.44.1: "Chấm cú" fits on one line
@@ -428,7 +429,7 @@ extension TrainingController {
             fineWheel.centerXAnchor.constraint(equalTo:spin.centerXAnchor),fineWheel.bottomAnchor.constraint(equalTo:spin.topAnchor,constant:-8),fineWheel.widthAnchor.constraint(equalToConstant:44),fineWheel.heightAnchor.constraint(equalToConstant:100),
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
         elevationPad.changed={[weak self] value in self?.setElevation(value);self?.updateElevationLoupe()}
-        buildCueIcons();buildPlaceBallButton()
+        buildCueIcons();buildPlaceBallButton();buildPowerBarSwitch()
         for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Chấm cú","CoachCardToggle")] {
             var c=UIButton.Configuration.plain();c.title=title;c.background.backgroundColor=UIColor(white:0.03,alpha:0.42);c.background.cornerRadius=10
             c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:12,weight:.semibold);return a}

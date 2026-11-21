@@ -24,7 +24,9 @@ python3 - "$out/summary.json" <<'PY'
 import json,sys
 r=json.load(open(sys.argv[1]))
 for m in r['measures']:
-    print(f"{m['family']:<11} ({m['look']}): cháy {m['blown']*100:5.2f}%  sáng TB {m['mean']:.3f}  {'PASS' if m['pass'] else 'FAIL'}")
+    print(f"{m['family']:<11} ({m['look']}): cháy {m['blown']*100:5.2f}%  sáng TB {m['mean']:.3f}  {'BLANK' if m.get('blank') else ('PASS' if m['pass'] else 'FAIL')}")
+if r['result']=='NOT_RUN':
+    print("NOT_RUN: ảnh chụp đen (độ sáng TB < ngưỡng) — không phải số đo; không báo PASS"); raise SystemExit(3)
 print(f"{r['result']} table families: {r['families']} họ, phòng {r['space']}")
 raise SystemExit(0 if r['result']=='PASS' and r['families']==4 else 1)
 PY

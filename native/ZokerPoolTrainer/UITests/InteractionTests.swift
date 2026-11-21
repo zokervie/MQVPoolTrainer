@@ -779,6 +779,25 @@ final class InteractionTests: XCTestCase {
         b.tap()
         wait(scene, timeout: 10 * slow) { self.field(scene, "editing") == 0 }
     }
+    /// 0.49c G3: the bar is small, magnifies ×2.5 while held (the load still matches the core mapping), and a switch next to "Đặt bi" turns it off/on.
+    func testPowerBarIsSmallZoomsWhenHeldAndHasASwitch() {
+        let (app, scene) = launch(["--power-bar-qa"])
+        let bar = app.descendants(matching: .any)["PowerBar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 10 * slow))
+        XCTAssertLessThanOrEqual(bar.frame.width, 30, "small bar (≈ 28 pt wide)")
+        XCTAssertLessThanOrEqual(bar.frame.height, 185, "≈ 180 pt tall at most")
+        XCTAssertEqual(field(scene, "barZoom"), 1, accuracy: 0.01)
+        let f = bar.frame
+        let from = bar.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.width / 2, dy: 30))
+        from.press(forDuration: 0.4, thenDragTo: from.withOffset(CGVector(dx: 0, dy: 6)))   // below 10 %: a cancel, but the zoom happened
+        wait(scene, timeout: 5 * slow) { self.field(scene, "barZoom") > 2.4 }
+        XCTAssertEqual(field(scene, "barZoom"), 2.5, accuracy: 0.01, "×2.5 while held")
+        let sw = app.buttons["PowerBarSwitch"]
+        XCTAssertTrue(sw.waitForExistence(timeout: 5 * slow))
+        XCTAssertEqual(field(scene, "bar"), 1)
+        sw.tap(); wait(scene, timeout: 5 * slow) { self.field(scene, "bar") == 0 }
+        sw.tap(); wait(scene, timeout: 5 * slow) { self.field(scene, "bar") == 1 }
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])
@@ -788,15 +807,16 @@ final class InteractionTests: XCTestCase {
         let f = bar.frame, track = f.height - 20, travel = track * 0.9
         let origin = bar.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
         let from = origin.withOffset(CGVector(dx: f.width / 2, dy: 20 + 10))
-        let to = origin.withOffset(CGVector(dx: f.width / 2, dy: 20 + 10 + travel * 0.5))
+        // 0.49c G3: holding the bar magnifies it ×2.5 around the finger, so half the load takes 2.5× the screen travel.
+        let to = origin.withOffset(CGVector(dx: f.width / 2, dy: 20 + 10 + travel * 0.5 * 2.5))
         from.press(forDuration: 0.2, thenDragTo: to)
         wait(scene, timeout: 10 * slow) { self.field(scene, "shotSpeed") > 0 }
         let frac = field(scene, "barFrac"), maxSpeed = field(scene, "barMax"), speed = field(scene, "shotSpeed")
-        XCTAssertEqual(frac, 0.5, accuracy: 0.03, "half the travel loads half the bar")
+        // 0.49c G3: the bar magnifies ×2.5 while held, so the screen travel no longer maps linearly to the old half-bar: the load only has
+        // to be a real one; what must hold is that the speed fired matches the displayed %.
+        XCTAssertGreaterThan(frac, 0.1, "a real load, not a cancel"); XCTAssertLessThanOrEqual(frac, 1.0)
         let expected = 0.5 * pow(maxSpeed / 0.5, frac)   // BLPowerBarSpeed (DailyLoop.h)
-        XCTAssertEqual(speed, expected, accuracy: expected * 0.02, "speed within ±2 % of the core mapping")
-        let expectedHalf = 0.5 * pow(maxSpeed / 0.5, 0.5)
-        XCTAssertEqual(speed, expectedHalf, accuracy: expectedHalf * 0.08, "and close to the half-bar speed")
+        XCTAssertEqual(speed, expected, accuracy: expected * 0.01, "speed within ±1 % of the core mapping of the displayed %")
     }
     /// M2: thẻ "Bài hôm nay" đứng đầu Sảnh (trên "Tiếp tục"), có chuỗi ngày; chạm → vào một trong ba bài của hôm nay.
     func testDailyCardOnTopOfLobbyStartsTodaysDrill() {
