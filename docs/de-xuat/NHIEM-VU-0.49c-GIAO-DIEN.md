@@ -35,5 +35,10 @@ Chủ dự án chấp thuận 21/11 09:39: D1 (mức Đạt theo độ khó) và
 ## G7. Giật ở 60 Hz (IPA 163)
 - Về 0 lượt bố cục UIKit giữa cú (đang 2) và bỏ tick 29,7 ms; làm B2c (nhoè chuyển động bi nhanh). Đo lại 60 Hz và 120 Hz trên iPad.
 
+## G8. Luật phá 9 Ball (chủ dự án báo 21/11 09:40)
+- Lỗi: phá chạm bi 1, có bi vào, vẫn tới lượt máy. Nguyên nhân: app bật luật phá 3 bi (WPA Regulation 16, tuỳ chọn giải đấu).
+- Phiên đám mây đã sửa lõi cầu nối (`c41bf0d` trên `cho/native-0.49-xuong-bai`): `BLMatch.threeBallBreak` mặc định **tắt**.
+- Việc Mac: công tắc "Luật phá 3 bi (giải đấu)" trong Tuỳ chỉnh (mặc định tắt, lưu lựa chọn, gán vào `BLMatch` mỗi ván). Khi bật mà phá chưa đạt: hiện dòng giải thích rõ "Phá chưa đạt luật 3 bi: cần 3 bi vào lỗ hoặc qua vạch đầu bàn — đối thủ được chọn". UI test: ván 9 Ball, phá có bi vào → vẫn lượt người phá.
+
 ## Thứ tự
-G7 → G4 → G3 → G6 → G5 → G2 → G1. Báo cáo `NGHIEM-THU-0.49c.md` (PASS/FAIL/NOT RUN từng mục, ảnh, phần chưa xác minh trên thiết bị).
+G8 → G7 → G4 → G3 → G6 → G5 → G2 → G1. Báo cáo `NGHIEM-THU-0.49c.md` (PASS/FAIL/NOT RUN từng mục, ảnh, phần chưa xác minh trên thiết bị).
