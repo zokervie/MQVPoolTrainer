@@ -76,6 +76,23 @@ _cside = cut_layout(30, -1, 0.60, (0.42, 0.22), SIDE_R)
 _xs = cut_layout(0, 1, 0.35, (0.50, 0.10), (2 * (0.635 - R) - (-0.635 - 0.2 * R), 0.0))   # mirror of the left side pocket
 _cp = cut_layout(30, 1, 0.45, (0.25, 0.55), CORNER_TR)   # chapter 4: the same 30° cut, two different cue-ball rules
 
+# 0.50 skills ("công cụ"), same order as BL_SKILL_* in DrillCatalog.h
+SKILLS = ["straight", "speed", "spin", "ghost", "rule30", "rule90", "position", "mirror", "plus", "corner5", "bank", "hide"]
+
+
+def skill_of(key):
+    """What each 0.49 drill teaches. First drill of a skill in catalogue order = its lesson (BLSkillLesson)."""
+    table = [("first-shot", "straight"), ("speed-", "speed"), ("stop-", "spin"), ("follow-", "spin"), ("draw-", "spin"),
+             ("cut-", "ghost"), ("cue-path-30", "rule30"), ("cue-path-90", "rule90"), ("cue-path-2rail", "rule30"),
+             ("pos-", "position"), ("kick1-", "mirror"), ("kick2-double", "mirror"), ("kick2-", "plus"),
+             ("kick3-", "corner5"), ("kick4", "corner5"), ("bank", "bank"), ("safe-", "hide"),
+             ("trick-combo", "ghost"), ("trick-kick3", "corner5")]
+    for prefix, skill in table:
+        if key.startswith(prefix):
+            return SKILLS.index(skill)
+    return -1
+
+
 DRILLS = [
     # ── 1 · Cú thẳng và lực ── straight first, then pace (pace before spin: stop / follow / draw need it)
     D("first-shot", 1, "goal", [(0, *_fc), (1, *_fo)], atan2(_fo[1] - _fc[1], _fo[0] - _fc[0]), pot_only=True, tip=-0.15, scan=4),

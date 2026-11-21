@@ -8,7 +8,7 @@ enable_testing()
 # CI checks the two lists match, so a new test file cannot be silently skipped by ctest.
 set(ZOKER_TEST_SUITES
   Physics Prediction Practice Contact ExtendedPractice Research Elevated KickSearch
-  Calibration Cushion3D Presentation SpinTransfer PresentationPolicy Determinism Literature CueClearance DiamondSystem PowerScale MatchRules AimMasseRail ReverseZigzag CueTip KickSystems RailEnglish BreakSymmetry PublishedBenchmark SystemsBenchmark AirborneContact Lockstep Opponent FirstShot IntroBreak TableSize DailyLoop Chapter CameraPlanner DrillCatalog
+  Calibration Cushion3D Presentation SpinTransfer PresentationPolicy Determinism Literature CueClearance DiamondSystem PowerScale MatchRules AimMasseRail ReverseZigzag CueTip KickSystems RailEnglish BreakSymmetry PublishedBenchmark SystemsBenchmark AirborneContact Lockstep Opponent FirstShot IntroBreak TableSize DailyLoop Chapter CameraPlanner DrillCatalog Puzzle
 )
 
 foreach(suite IN LISTS ZOKER_TEST_SUITES)
