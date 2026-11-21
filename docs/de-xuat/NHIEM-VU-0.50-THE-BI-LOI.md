@@ -1,5 +1,7 @@
 # NHIỆM VỤ 0.50 — Lõi "Thế bí" (phiên đám mây, C/C++/Python)
 
+**Trạng thái 21/11 13:20: ĐÃ LÀM** — commit `941d835` trên `cho/native-0.50-the-bi-core` (Opus 5.5). 50 thế bí (mục tiêu 60: phòng 5 có 5, phòng 6 có 11, phòng 7 Bank để trống). Test Puzzle 979 kiểm PASS g++ + clang++. Khác kế hoạch: bảng thế bí sinh ra `PuzzleCatalogData.h` qua `collect_puzzles.py` (đo lại trên giá trị lưu thật); tuyến của thế Reach/Hide chỉ tính đường bi cái (`BLPuzzleRoute`). **Chờ review độc lập** (Fable, sau 20:00).
+
 Chủ dự án chấp thuận 21/11 11:23. Thiết kế: Project doc `claude/zoker-he-thong-the-bi-2026-11-21.md`.
 Nhánh: `cho/native-0.50-the-bi-core` (từ `cho/native-0.49-xuong-bai` @ c41bf0d; chưa có thay đổi). Phiên Mac đang sửa nhánh 0.49: **không đụng file Swift**, chỉ THÊM trường vào cuối `BLDrillSpec` (không đổi tên trường cũ).
 Đẩy GitHub từ đám mây bị chặn ghi (403): giao bằng `git bundle` chép vào Mac qua device_commit_files, chủ dự án chạy lệnh push (đã làm một lần 21/11).
