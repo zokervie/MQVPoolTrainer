@@ -14,3 +14,19 @@ Lõi C (Puzzle.h, 50 thế, 979 kiểm) do phiên đám mây làm; gộp sạch,
 Ảnh bản đồ phòng / màn thế bí / gợi ý bậc 2: NOT RUN.
 
 accept_local đầy đủ: PASSED_SIMULATOR_UNSIGNED, 9/9 bước PASS, 46 UI test 0 lỗi (gồm 2 test thế bí mới).
+
+## Lượt hoàn tất (sau điều tra lệch app ↔ máy chấm)
+**Nguyên nhân gốc lệch** (so `engine.settings` với `Config::app` bằng cờ QA `--settings-diff-qa`): cơ đã lưu từ lần chơi trước là Jump (`cueElevationDegrees=45`, `cueType=1`, `experimental3D=1`), nên cú lời giải mẫu trượt 9–10 cm; thêm một nguyên nhân phụ: `beginPuzzle` gọi `loadDrill` một lần và `loadDrill` im lặng bỏ qua khi camera cú chưa về. Sửa: thế bí và bài tập luôn bắt đầu bằng cơ thường (`chooseShotKind(0)`), `beginPuzzle` chờ nạp xong rồi mới mở phiên. Test giải (bắt đầu với cơ Jump đã lưu, `-shotKind017 1`) PASS. Chưa có test C++ vì lệch nằm ở trạng thái app, không ở lõi.
+
+| Mục | Kết quả | Ghi chú |
+|---|---|---|
+| T4 bậc 3 | PASS (UI test) | đường mẫu chạy một lần (4 s, mờ), khoá cú trong lúc chạy, tốn 2 lượt, lưu `watchedAt` (sao ≤ 1 theo `BLPuzzleSessionStars`). |
+| T4 Ra bàn tập + Quay lại | PASS (UI test) | bậc 1 → "Ra bàn tập" mở bài Học của công cụ; vòng đạt → +1 gợi ý (bình 2 → 3) và nút "Quay lại thế bí". |
+| T5 sao | PASS (UI test giải bằng lời giải mẫu) / Sổ lời giải PASS (mở được, có mục) | Sổ: cú của bạn cạnh cú mẫu (lệch góc, lệch lực). Chưa vẽ hai đường bi cạnh nhau. |
+| T6 ôn 1/3/7 ngày | PASS (UI test) | phần "Thế bí hôm nay" trong danh sách; thế lật gương (`BLPuzzleMirror`), không sao. Chưa nằm trong màn "Bài hôm nay" cũ. |
+| T7 kết thúc đẹp | PASS (UI test) | hai thế liền chưa giải → đề nghị thế mở, chưa giải, dễ nhất; nhắc nghỉ 45 phút (có code, chưa có test). |
+| T8 đo cục bộ | PASS (UI test mở màn) | số thế giải, lần cạn bình, tỉ lệ ra bàn tập rồi quay lại giải được, thế bỏ nhiều nhất. Chỉ trên máy. |
+| Biểu tượng công cụ | PASS (có trên thanh thế bí và danh sách) | SF Symbols. |
+| Ảnh bản đồ phòng / màn thế bí / gợi ý bậc 2 | NOT RUN | ảnh chụp XCUITest bị xoay 90° (chưa sửa được: đặt hướng thiết bị không đổi kết quả) |
+
+accept_local đầy đủ cuối lượt: **PASSED_SIMULATOR_UNSIGNED**, 9/9 bước PASS, 53 UI test 0 lỗi. Test thế bí "hai lần trượt" và "gợi ý" từng không ổn định (bấm nút khi QA đang bắn / chưa sẵn sàng); đã sửa tận gốc bằng chờ điều kiện có hạn giờ.

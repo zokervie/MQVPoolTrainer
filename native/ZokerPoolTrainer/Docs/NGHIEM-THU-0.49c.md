@@ -26,3 +26,6 @@ Thứ tự giao: G8 → G7 → G4 → G3 → G6 → G5 → G2 → G1. Cập nh�
 
 ## Lượt 4 (G2 + gộp 0.50 core + lát cắt 0.50)
 accept_local đầy đủ @ commit lát cắt 0.50: **PASSED_SIMULATOR_UNSIGNED**, 9/9 bước PASS (gồm table-glare, unsigned-iphone-build), 46 UI test, 0 lỗi. Chưa xác minh trên thiết bị.
+
+## Bù G2 (lượt 5)
+Bảng Menu dùng cùng khung gỗ đặc (`Wood.panel`), hộp chọn chương nền gỗ + thẻ gỗ (tiêu đề Petemoss). Test: thẻ nằm trong bảng ở cỡ chữ lớn nhất (tham số cỡ chữ); chưa xác nhận chữ thực sự phóng to (chiều cao thẻ không đổi) nên Dynamic Type cỡ lớn là NOT VERIFIED. Ảnh xem được: NOT FIXED (ảnh chụp bị xoay). accept_local 9/9 PASS cuối lượt (53 UI test).
