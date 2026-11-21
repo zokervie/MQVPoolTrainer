@@ -505,7 +505,8 @@ extension TrainingController {
     /// Display name for a plate: upper case; long names keep the given name whole and shorten the rest to initials
     /// ("Nguyễn Văn Anh" → "N.V. ANH"); the computer's level is abbreviated ("Máy · Quarter Pro" → "MÁY · QP").
     static func scoreboardName(_ raw: String) -> String {
-        let short = ["Beginner": "BEG", "Amateur": "AMA", "Quarter Pro": "QP", "Semi Pro": "SP", "Pro": "PRO", "AI": "AI"]
+        let short = ["Beginner": "BEG", "Amateur": "AMA", "Quarter Pro": "QP", "Semi Pro": "SP", "Pro": "PRO", "AI": "AI",
+                     "Tập sự": "TS", "Nghiệp dư": "ND", "CLB": "CLB", "Phong trào": "PT", "Chuyên nghiệp": "CN", "Đỉnh cao": "DC"]
         let parts = raw.components(separatedBy: " · ")
         if parts.count == 2, let level = short[parts[1]] { return (parts[0] + " · " + level).uppercased() }
         let words = raw.split(separator: " ").map(String.init)
@@ -1277,25 +1278,23 @@ extension TrainingController {
 
 // MARK: - 0.40 Đấu với máy (computer opponent, Core/Opponent.hpp via BLOpponent)
 extension TrainingController {
-    static let computerLevelTitles = ["Beginner", "Amateur", "Quarter Pro", "Semi Pro", "Pro", "AI"]
+    /// 0.49c G2: Vietnamese level names (English in I18N_en: Beginner · Amateur · Quarter Pro · Semi Pro · Pro · AI).
+    static let computerLevelTitles = ["Tập sự", "Nghiệp dư", "CLB", "Phong trào", "Chuyên nghiệp", "Đỉnh cao"]
     static let computerLevelNotes = ["mới chơi, đánh theo cảm tính", "chơi vui, chỉ lo vào bi", "CLB: đi vị trí, thủ, kick, bi băng",
                                      "phong trào: thêm combo, lực và ép phê đa dạng", "chuyên nghiệp: tính 2 bi, xoáy ngang, nhảy bi", "gần như không trượt, cả massé"]
     /// Lobby → Thi đấu → Đấu với máy: level, then rule, then race.
     func openComputerMatch() {
         guard !shotActive, replayIndex == nil, !locked else { return }
         if matchPlay.active { openMatchActions(); return }
-        let sheet = UIAlertController(title: "Đấu với máy", message: "Máy tính bằng chính vật lý của bàn và tự thử cú theo tay của cấp đó. Cấp càng cao càng ít sai tay, điều bi xa hơn, dùng lực/ép phê, thủ, kick, nhảy, massé.", preferredStyle: .actionSheet)
-        for (level, title) in Self.computerLevelTitles.enumerated() {
-            sheet.addAction(UIAlertAction(title: "\(title) · \(Self.computerLevelNotes[level])", style: .default) { [weak self] _ in self?.chooseComputerRule(level) })
+        // 0.49c G2: wood panel (Petemoss title, level names in Petemoss on equal wood cards), not a glass action sheet.
+        let items = Self.computerLevelTitles.enumerated().map { (level, title) in
+            WoodPickerController.Item(title: L10n.tr(title), sub: L10n.tr(Self.computerLevelNotes[level])) { [weak self] in self?.chooseComputerRule(level) }
         }
-        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel)); presentSheet(sheet, source: menuButton)
+        topPresenter.present(WoodPickerController(title: L10n.tr("Đấu với máy"), message: L10n.tr("Máy tính bằng chính vật lý của bàn và tự thử cú theo tay của cấp đó. Cấp càng cao càng ít sai tay, điều bi xa hơn, dùng lực/ép phê, thủ, kick, nhảy, massé."), items: items), animated: true)
     }
     func chooseComputerRule(_ level: Int) {
-        let sheet = UIAlertController(title: "Luật", message: "Đối thủ: \(Self.computerLevelTitles[level])", preferredStyle: .actionSheet)
-        for (rule, title) in matchDisciplines {
-            sheet.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in self?.chooseComputerRace(level, rule: rule) })
-        }
-        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel)); presentSheet(sheet, source: menuButton)
+        let items = matchDisciplines.map { (rule, title) in WoodPickerController.Item(title: title, sub: nil) { [weak self] in self?.chooseComputerRace(level, rule: rule) } }
+        topPresenter.present(WoodPickerController(title: L10n.tr("Luật"), message: L10n.tr("Đối thủ") + ": " + L10n.tr(Self.computerLevelTitles[level]), items: items), animated: true)
     }
     /// 0.46: also used by the Lobby's "Tiếp tục" (recent computer match).
     func startComputerMatch(level: Int, rule: String, race: Int) {
@@ -1311,11 +1310,8 @@ extension TrainingController {
         notifyStatus("Đấu với máy · \(Self.computerLevelTitles[level]) · race \(race) · bạn phá trước")
     }
     func chooseComputerRace(_ level: Int, rule: String) {
-        let sheet = UIAlertController(title: "Chạm mấy ván?", message: nil, preferredStyle: .actionSheet)
-        for race in [1, 3, 5, 7, 9] {
-            sheet.addAction(UIAlertAction(title: "Race \(race)", style: .default) { [weak self] _ in self?.startComputerMatch(level: level, rule: rule, race: race) })
-        }
-        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel)); presentSheet(sheet, source: menuButton)
+        let items = [1, 3, 5, 7, 9].map { race in WoodPickerController.Item(title: "Race \(race)", sub: nil) { [weak self] in self?.startComputerMatch(level: level, rule: rule, race: race) } }
+        topPresenter.present(WoodPickerController(title: L10n.tr("Chạm mấy ván?"), items: items), animated: true)
     }
     /// Called every tick: when it is the computer's turn and the table is still, plan on a background queue and play
     /// the turn through the same command path as a human (choice → ball in hand → call → stroke).

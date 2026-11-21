@@ -142,7 +142,7 @@ final class ChaptersController: UITableViewController {
     }
     override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let c = Chapters.all[section], isOpen = open.indices.contains(section) && open[section]
-        let title = UILabel(); title.text = "Chương \(c.number) · \(c.title)"; title.font = .systemFont(ofSize: 17, weight: .heavy)
+        let title = UILabel(); title.text = "Chương \(c.number) · \(c.title)"; title.font = Wood.titleFont(24)   // 0.49c G2: chapter names in Petemoss
         title.textColor = isOpen ? ZDesign.Color.gold : UIColor(white: 0.55, alpha: 1)
         let tip = UILabel(); tip.text = "Mẹo: " + c.tip; tip.font = .systemFont(ofSize: 14, weight: .semibold); tip.numberOfLines = 0
         tip.textColor = isOpen ? .white : UIColor(white: 0.5, alpha: 1)

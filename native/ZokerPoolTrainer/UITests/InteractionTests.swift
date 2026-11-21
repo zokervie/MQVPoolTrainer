@@ -839,6 +839,41 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 180 * slow), "five QA shots close the round")
         XCTAssertTrue(app.alerts.firstMatch.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Huy hiệu mới")).firstMatch.exists, "the round message names the new badge")
     }
+    /// 0.49c G2: Petemoss is in the bundle (Vietnamese glyphs), "Đấu với máy" opens as a solid wood picker with Vietnamese level names on
+    /// equal-size cards, and Pháp lý credits the font with its licence.
+    func testWoodPickerPetemossAndLegal() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]
+        app.launch()
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 60))
+        wait(scene, timeout: 20 * slow) { self.text(scene, "petemoss") != "" }
+        XCTAssertEqual(text(scene, "petemoss"), "1", "Petemoss-Regular.ttf is registered (UIAppFonts)")
+        XCTAssertTrue(app.buttons["LobbyComputer"].waitForExistence(timeout: 30)); app.buttons["LobbyComputer"].tap()
+        XCTAssertTrue(app.otherElements["WoodPicker"].waitForExistence(timeout: 10 * slow) || app.staticTexts["WoodPickerTitle"].waitForExistence(timeout: 5), "wood picker, not a glass sheet")
+        let names = ["Tập sự", "Nghiệp dư", "CLB", "Phong trào", "Chuyên nghiệp", "Đỉnh cao"]
+        var heights = Set<Int>()
+        for (i, n) in names.enumerated() {
+            let card = app.descendants(matching: .any)["WoodItem-\(i)"]
+            XCTAssertTrue(card.waitForExistence(timeout: 5 * slow), "level card \(i)")
+            XCTAssertTrue(card.label.hasPrefix(n), "Vietnamese level name: \(card.label)")
+            heights.insert(Int(card.frame.height.rounded()))
+        }
+        XCTAssertEqual(heights.count, 1, "all level cards are the same size: \(heights)")
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "wood-picker"; shot.lifetime = .keepAlways; add(shot)
+    }
+    func testLegalScreenCreditsPetemoss() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--visual-qa", "--g1-default-qa", "--legal-qa"]
+        app.launch()
+        let entry = app.cells["LegalEntry-0"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 60))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Petemoss")).firstMatch.exists, "the font is credited")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "SIL Open Font License 1.1")).firstMatch.exists, "with its licence")
+        entry.tap()
+        XCTAssertTrue(app.textViews["LegalLicenseText"].waitForExistence(timeout: 10 * slow))
+        XCTAssertTrue((app.textViews["LegalLicenseText"].value as? String ?? "").contains("SIL OPEN FONT LICENSE Version 1.1"), "the original OFL.txt")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

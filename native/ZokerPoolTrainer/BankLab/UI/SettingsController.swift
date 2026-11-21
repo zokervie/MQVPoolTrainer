@@ -301,6 +301,7 @@ final class CustomizeController:UIViewController {
         slider("Độ rõ của gậy khi mờ",Prefs.tuneCueGhost,0.2,0.8,fallback:0.42,format:{String(format:"%.0f%%",$0*100)})
         // 0.41 (owner): 7-colour power scale (tím = nhẹ … đỏ = mạnh), misty swipe trail, speed shown where the swipe ends.
         toggle("Thang lực 7 màu · vệt vuốt · số lực cuối cú",Prefs.tunePowerFX,true)
+        target.addArrangedSubview(UIButton.lab("Pháp lý · giấy phép"){[weak self] in guard let self=self else{return};let nav=UINavigationController(rootViewController:LegalController());nav.overrideUserInterfaceStyle = .dark;self.present(nav,animated:true)})   // 0.49c G2
         toggle("Luật phá 3 bi (giải đấu)",Prefs.threeBallBreak,false)   // 0.49c G8: off = a break that pots a ball keeps the turn
         toggle("Intro thương hiệu khi mở app (lần đầu đủ 5,6 s, sau đó 1 s)",Prefs.introEnabled,true)
         toggle("Hướng dẫn cú đầu tiên khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)",Prefs.tutorialEnabled,true)
@@ -424,7 +425,7 @@ final class CustomizeController:UIViewController {
         let r=UIStackView(arrangedSubviews:[l,sw]);r.spacing=12;r.alignment = .center;target.addArrangedSubview(r)
     }
     private func header(_ text:String){
-        let l=UILabel();l.text=text.uppercased();l.textColor=UIColor.rgb(0xEAC583);l.font = .systemFont(ofSize:13,weight:.bold);target.addArrangedSubview(l)
+        let l=UILabel();l.text=text;l.textColor=UIColor.rgb(0xEAC583);l.font=Wood.titleFont(24);target.addArrangedSubview(l)   // 0.49c G2: section titles in Petemoss
     }
     private func slider(_ title:String,_ key:String,_ lo:Double,_ hi:Double,fallback:Double=1,format:((Double)->String)? = nil){
         let fmt=format ?? {String(format:"%lld %%",Int(($0*100).rounded()))}
