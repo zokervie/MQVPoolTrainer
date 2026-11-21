@@ -20,3 +20,6 @@ Thứ tự giao: G8 → G7 → G4 → G3 → G6 → G5 → G2 → G1. Cập nh�
 
 ## Kết quả accept_local đầy đủ (lượt 2, @d1 + docs)
 `bash Tools/accept_local.sh`: **PASSED_SIMULATOR_UNSIGNED**, 8/8 bước PASS gồm `unsigned-iphone-build` (IPA không ký); 42 UI test, 0 lỗi. Lần chạy trước cùng mã: 41/42, `testNoUIKitLayoutPassWhileTheBallsRoll` FAIL một lần khi máy tải (1 lượt bố cục giữa khung), không tái hiện lại (lẻ 3/3 + simctl 4/4, rồi bộ đầy đủ PASS): coi là KHÔNG ỔN ĐỊNH, chưa tìm ra nguyên nhân. Chưa xác minh trên thiết bị.
+
+## Kết quả accept_local đầy đủ (lượt 3, có bước `table-glare`)
+**PASSED_SIMULATOR_UNSIGNED**, 9/9 bước PASS (assets, portable-regressions, replay-recording, lan-wire-protocol, simulator-build, screenshots-and-runtime-probes, table-glare, ui-gesture-tests 42 test 0 lỗi, unsigned-iphone-build). Chưa xác minh trên thiết bị.
