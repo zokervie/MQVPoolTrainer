@@ -138,7 +138,8 @@ DRILLS = [
     # bank1–3 (0.52): layouts found by backward search (object ball banked alone first, cue ball put straight behind it,
     # 28–48 cm away), kept only when every rail contact is ≥ 20 cm from the pocket (no jaw bounces). The ≤ 0.48 layouts
     # had the balls 0.6–0.9 m apart: windows ≈ 0.05°, 2–3 %. No true three-rail bank ≥ 5 % was found in 59 candidates,
-    # so bank3 is a long two-rail bank (rails = 2) until the owner decides otherwise.
+    # so bank3 is a long two-rail bank (rails = 2): right rail, left rail, back into the right side pocket.
+    # Owner decision 22/11/2026: keep it as the two-rail bank (option 1).
     # cross-side bank: straight in off the right rail into the left side pocket (first, easiest rung)
     D("bank-cross-side", 7, "bank", [(0, *_xs[0]), (1, 0.50, 0.10)], _xs[1], rails=1, scan=180),
     D("bank1", 7, "bank", [(0, -0.0468, -0.4810), (1, 0.2291, -0.4148)], 0.235619, rails=1, jitter=0.0, scan=25),
