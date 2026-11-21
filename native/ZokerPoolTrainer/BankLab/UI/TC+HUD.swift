@@ -180,11 +180,10 @@ extension TrainingController {
             menuButton.widthAnchor.constraint(equalToConstant:78),menuButton.heightAnchor.constraint(equalToConstant:44)])
 
         // 0.41 (owner): the menu opens in a wooden frame (10 pt walnut rim), the inside a deep muted tone.
-        panel.layer.cornerRadius=20;panel.layer.borderWidth=1.5;panel.layer.borderColor=MenuSkin.gold.withAlphaComponent(0.6).cgColor
-        panel.layer.shadowColor=UIColor.black.cgColor;panel.layer.shadowOpacity=0.6;panel.layer.shadowRadius=14
+        Wood.panel(panel,radius:20)   // 0.49c G2: the same solid wood panel as the pickers (opaque, raised border, drop shadow)
         panel.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(panel)
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;panel.addSubview(scroll)
-        MenuSkin.frame(panel,content:scroll,tone:UIColor(red:0.06,green:0.05,blue:0.045,alpha:0.97),radius:12)
+        MenuSkin.frame(panel,content:scroll,tone:UIColor(red:0.06,green:0.05,blue:0.045,alpha:1),radius:12)
         NSLayoutConstraint.activate([
             panel.leadingAnchor.constraint(equalTo:menuButton.leadingAnchor),
             panel.topAnchor.constraint(equalTo:menuButton.bottomAnchor,constant:8),

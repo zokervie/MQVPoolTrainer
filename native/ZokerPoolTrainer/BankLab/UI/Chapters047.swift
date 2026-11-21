@@ -118,7 +118,7 @@ final class ChaptersController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        tableView.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
+        tableView.backgroundColor = MenuSkin.frameWood   // 0.49c G2: wood behind, tan wood cards
         navigationController?.navigationBar.barStyle = .black
         tableView.rowHeight = UITableView.automaticDimension; tableView.estimatedRowHeight = 70
         tableView.accessibilityIdentifier = "Chapters"
@@ -157,8 +157,8 @@ final class ChaptersController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let c = Chapters.all[indexPath.section], chapterOpen = open.indices.contains(indexPath.section) && open[indexPath.section]
         let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
-        cell.backgroundColor = UIColor(white: 0.14, alpha: 1)
-        cell.textLabel?.textColor = .white; cell.detailTextLabel?.textColor = UIColor(white: 0.78, alpha: 1)
+        cell.backgroundColor = Wood.cardTop
+        cell.textLabel?.textColor = Wood.ink; cell.detailTextLabel?.textColor = Wood.inkSoft
         cell.textLabel?.font = .systemFont(ofSize: 16, weight: .semibold); cell.detailTextLabel?.font = .systemFont(ofSize: 12); cell.detailTextLabel?.numberOfLines = 2
         if c.drills.isEmpty {
             cell.textLabel?.text = "Bài mới đang soạn"; cell.detailTextLabel?.text = "Chương này không chặn chương sau"

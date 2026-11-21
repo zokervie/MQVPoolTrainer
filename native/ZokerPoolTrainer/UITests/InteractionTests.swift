@@ -842,6 +842,7 @@ final class InteractionTests: XCTestCase {
     /// 0.49c G2: Petemoss is in the bundle (Vietnamese glyphs), "Đấu với máy" opens as a solid wood picker with Vietnamese level names on
     /// equal-size cards, and Pháp lý credits the font with its licence.
     func testWoodPickerPetemossAndLegal() {
+        XCUIDevice.shared.orientation = .landscapeLeft   // upright pictures (a portrait device otherwise captures the landscape app sideways)
         let app = XCUIApplication()
         app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]
         app.launch()
@@ -861,6 +862,21 @@ final class InteractionTests: XCTestCase {
         }
         XCTAssertEqual(heights.count, 1, "all level cards are the same size: \(heights)")
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "wood-picker"; shot.lifetime = .keepAlways; add(shot)
+    }
+    /// 0.49c G2: largest accessibility text size — the wood picker keeps every card inside its panel and the content wraps (scrolls), no clipping.
+    func testWoodPickerFitsAtTheLargestTextSize() {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.buttons["LobbyComputer"].waitForExistence(timeout: 60)); app.buttons["LobbyComputer"].tap()
+        let panel = app.otherElements["WoodPicker"]
+        XCTAssertTrue(panel.waitForExistence(timeout: 10 * slow))
+        let card = app.descendants(matching: .any)["WoodItem-0"]
+        XCTAssertTrue(card.waitForExistence(timeout: 5 * slow))
+        XCTAssertLessThanOrEqual(card.frame.maxX, panel.frame.maxX + 1, "the card does not run out of the panel on the right")
+        XCTAssertGreaterThanOrEqual(card.frame.minX, panel.frame.minX - 1)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "wood-picker-xxxl"; shot.lifetime = .keepAlways; add(shot)
     }
     func testLegalScreenCreditsPetemoss() {
         let app = XCUIApplication()
