@@ -29,6 +29,8 @@ struct PuzzleSession {
     var mirrored = false      // a review: the left–right twin of the puzzle (T6), no stars
     var viaPractice = false   // came back from "Ra bàn tập" (T8)
     var reviewStep = 0
+    var userSpec: BLPuzzleSpec?   // 0.51 N3: a friend's puzzle (index −1), checked again on this device
+    var userCode = ""
     var dailyDay: Int64?      // 0.51 N1: today's daily puzzle (6 tries, no hints, no stars)
 }
 
@@ -195,16 +197,17 @@ extension TrainingController {
         topPresenter.present(nav, animated: true)
     }
     func puzzleSpec(_ s: PuzzleSession) -> BLPuzzleSpec? {
+        if let u = s.userSpec { return u }
         guard var p = BLPuzzleAt(Int32(s.index))?.pointee else { return nil }
         guard s.mirrored else { return p }
         var out = BLPuzzleSpec(); BLPuzzleMirror(&p, &out); return out
     }
     /// T2: load the puzzle as the table: its layout, nothing drawn (no aim help in the main mode), one line of task.
     /// T6: `mirrored` = the left–right twin used by the reviews (no stars).
-    func beginPuzzle(_ i: Int, mirrored: Bool = false, carry: PuzzleSession? = nil, reviewStep: Int = 0, daily: Int64? = nil) {
-        guard let p = BLPuzzleAt(Int32(i))?.pointee else { return }
-        let key = String(cString: p.spec.key)
-        guard let drillIndex = Drill.all.firstIndex(where: { $0.id == (mirrored ? "m-" : "") + key }) else { return }
+    func beginPuzzle(_ i: Int, mirrored: Bool = false, carry: PuzzleSession? = nil, reviewStep: Int = 0, daily: Int64? = nil, user: BLPuzzleSpec? = nil, userCode: String = "", userDrillIndex: Int = -1) {
+        guard let p = user ?? BLPuzzleAt(Int32(i))?.pointee else { return }
+        let key = user != nil ? "user" : String(cString: p.spec.key)
+        guard let drillIndex = user != nil ? userDrillIndex : Drill.all.firstIndex(where: { $0.id == (mirrored ? "m-" : "") + key }), drillIndex >= 0 else { return }
         // T7 "kết thúc đẹp": the puzzle being left was not solved → count it; after two in a row offer an easier open one.
         if let old = puzzleSession, !old.solved, old.tries > 0, old.index != i || old.mirrored != mirrored { puzzleFailedInRow += 1 } else if puzzleSession?.solved == true { puzzleFailedInRow = 0 }
         if testRun != nil { endTestRun(cancelled: true) }
@@ -224,7 +227,7 @@ extension TrainingController {
             }
             lessonActive = false
             var session = carry ?? PuzzleSession(index: i, drillIndex: drillIndex)
-            session.index = i; session.drillIndex = drillIndex; session.mirrored = mirrored; session.reviewStep = reviewStep; session.solved = false; session.dailyDay = daily
+            session.index = i; session.drillIndex = drillIndex; session.mirrored = mirrored; session.reviewStep = reviewStep; session.solved = false; session.dailyDay = daily; session.userSpec = user; session.userCode = userCode
             if let day = daily { session.tries = PlayerStore.shared.dailyState(day).grades.count }
             if QA.has("--puzzle-hint3-qa") { session.hintLevel = 2 }   // QA: the jar holds 3 and level 3 costs 2 after two earlier hints, so a test starts at level 2
             puzzleSession = session
@@ -300,7 +303,7 @@ extension TrainingController {
         let jar = currentHintJar()
         puzzleHintButton?.configuration?.title = "\(jar.count)"
         puzzleHintButton?.isEnabled = !shotActive && !s.mirrored
-        puzzleHintButton?.isHidden = s.mirrored || s.dailyDay != nil   // a review and the daily puzzle are played without hints
+        puzzleHintButton?.isHidden = s.mirrored || s.dailyDay != nil || s.userSpec != nil   // a review and the daily puzzle are played without hints
         puzzleBookButton?.isHidden = !s.solved
     }
     // MARK: T3 retry
@@ -333,7 +336,7 @@ extension TrainingController {
     }
     var puzzleGhostActive: Bool { Date().timeIntervalSince1970 < puzzleGhostUntil }
     func puzzleHint() {
-        guard var session = puzzleSession, !session.mirrored, session.dailyDay == nil, !shotActive, !puzzleGhostActive, let p = puzzleSpec(session) else { return }
+        guard var session = puzzleSession, !session.mirrored, session.dailyDay == nil, session.userSpec == nil, !shotActive, !puzzleGhostActive, let p = puzzleSpec(session) else { return }
         let level = min(3, session.hintLevel + 1)
         let now = Date().timeIntervalSince1970
         var jar = currentHintJar(now: now)
@@ -400,6 +403,23 @@ extension TrainingController {
         guard var s = puzzleSession, s.drillIndex == drillIndex, var p = puzzleSpec(s) else { return }
         s.tries += 1; puzzleAction()
         if let day = s.dailyDay { puzzleSession = s; dailyShotFinished(s, day: day, d: d, passed: passed, events: events); return }
+        if passed, let user = s.userSpec {   // a friend's puzzle: no stars, no book; a line to challenge back
+            s.solved = true
+            let line = String(format: L10n.tr("Tôi giải mã %@ trong %d cơ"), UserPuzzleController.pretty(s.userCode), s.tries)
+            statusLabel.text = L10n.tr("Giải được") + " · " + String(format: L10n.tr("%d lần thử"), s.tries); userChallengeLine = line; _ = user
+            puzzleSession = s; syncPuzzleBar()
+            let alert = UIAlertController(title: L10n.tr("Giải được"), message: line, preferredStyle: .alert)
+            alert.view.accessibilityIdentifier = "UserPuzzleSolved"
+            alert.addAction(UIAlertAction(title: L10n.tr("Thách lại"), style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                let share = UIActivityViewController(activityItems: [line], applicationActivities: nil)
+                share.popoverPresentationController?.sourceView = self.view
+                share.popoverPresentationController?.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+                self.topPresenter.present(share, animated: true)
+            })
+            alert.addAction(UIAlertAction(title: L10n.tr("Đóng"), style: .cancel)); topPresenter.present(alert, animated: true)
+            return
+        }
         if passed {
             let kinds = events.map { Int32($0["kind"]?.intValue ?? 0) }, a = events.map { Int32($0["a"]?.intValue ?? 0) }, b = events.map { Int32($0["b"]?.intValue ?? 0) }
             let sig = BLDrillSignature(Int32(events.count), kinds, a, b)

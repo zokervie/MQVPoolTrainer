@@ -1122,6 +1122,42 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(scores.allSatisfy { (0...100).contains($0) }, "scores 0…100: \(scores)")
         attachUpright("predict-the-path")
     }
+    /// 0.51 N3: arrange → Kiểm thế finds routes → Gửi gives a 15-character code → a receiver types it, the layout is rebuilt and re-checked, then played.
+    /// An invalid arrangement is refused (a "Hit ball 1" puzzle needs a grey ball).
+    func testUserPuzzleCheckSendReceiveAndPlay() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--user-puzzle-qa"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyUserPuzzle"].waitForExistence(timeout: 60)); app.buttons["LobbyUserPuzzle"].tap()
+        let status = app.staticTexts["UserPuzzleStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 15 * slow))
+        // an invalid arrangement: "Hit ball 1" with no grey ball
+        app.segmentedControls["UserPuzzleStyle"].buttons.element(boundBy: 1).tap()
+        app.buttons["UserPuzzleCheck"].tap()
+        expectation(for: NSPredicate(format: "label CONTAINS %@", "chưa hợp lệ"), evaluatedWith: status); waitForExpectations(timeout: 10 * slow)
+        app.segmentedControls["UserPuzzleStyle"].buttons.element(boundBy: 0).tap()
+        XCTAssertFalse(app.buttons["UserPuzzleSend"].isEnabled, "nothing to send before a check")
+        app.buttons["UserPuzzleCheck"].tap()
+        expectation(for: NSPredicate(format: "label CONTAINS %@", "lời giải"), evaluatedWith: status); waitForExpectations(timeout: 60 * slow)
+        XCTAssertTrue(app.buttons["UserPuzzleSend"].isEnabled, "a layout with routes can be sent")
+        app.buttons["UserPuzzleSend"].tap()
+        let codeLabel = app.staticTexts["UserPuzzleCode"]
+        XCTAssertTrue(codeLabel.waitForExistence(timeout: 10 * slow))
+        let code = codeLabel.label
+        XCTAssertNotNil(code.range(of: "^[0-9A-Z]{5}-[0-9A-Z]{5}-[0-9A-Z]{5}$", options: .regularExpression), "XXXXX-XXXXX-XXXXX: \(code)")
+        app.terminate()
+        // the receiving device
+        let app2 = XCUIApplication(); app2.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]; app2.launch()
+        XCTAssertTrue(app2.buttons["LobbyUserPuzzle"].waitForExistence(timeout: 60)); app2.buttons["LobbyUserPuzzle"].tap()
+        XCTAssertTrue(app2.buttons["UserPuzzleEnter"].waitForExistence(timeout: 15 * slow)); app2.buttons["UserPuzzleEnter"].tap()
+        let field = app2.textFields["UserPuzzleCodeField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10 * slow)); field.tap(); field.typeText(code)
+        app2.alerts.firstMatch.buttons["Kiểm tra và chơi"].tap()
+        let scene = app2.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 120 * slow), "the editor closes when the re-check passes; status: \(app2.staticTexts["UserPuzzleStatus"].label) code: \(code)")
+        wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == "user" }
+        XCTAssertEqual(text(scene, "puzzle"), "user", "the received puzzle is on the table")
+        XCTAssertTrue(app2.staticTexts["PuzzleTask"].waitForExistence(timeout: 10 * slow))
+        XCTAssertTrue(text(scene, "userCheck").hasPrefix("received:"), "re-checked on the receiving device: \(text(scene, "userCheck"))")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

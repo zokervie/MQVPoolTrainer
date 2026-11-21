@@ -214,7 +214,12 @@ struct Drill {
             system:"Bi ma: điểm ngắm = tâm bi 1 lùi 2R (57 mm) theo hướng ngược đường bi 1 → lỗ. Cắt \(Int(degrees))°: bi 1 đi lệch \(Int(degrees))° so với đường cơ; cắt càng mỏng throw càng làm bi 1 lệch theo hướng bi cái đi (bù ngắm dày hơn ~1–2°).")
     }
     /// 0.49b X1: the catalogue (C table) when the flag is on — tools and legacy drills keep their indices — else the ≤ 0.48 list.
-    static let all:[Drill] = FeatureFlags.drillCatalog ? DrillCatalog.all(legacy:legacyAll):legacyAll
+    static var all:[Drill] = FeatureFlags.drillCatalog ? DrillCatalog.all(legacy:legacyAll):legacyAll
+    /// 0.51 N3: a received puzzle takes (or replaces) the single "user" slot at the end of the list.
+    static func registerUser(_ d:Drill)->Int{
+        if let i=all.firstIndex(where:{$0.id=="user"}){all[i]=d;return i}
+        all.append(d);return all.count-1
+    }
     static let legacyAll:[Drill] = {
         let stopBalls=[BallState(id:0,x:0.02,y:0.01),BallState(id:1,x:0.33,y:0.63)],stopAngle=atan2(0.62,0.31)
         var r:[Drill]=[
