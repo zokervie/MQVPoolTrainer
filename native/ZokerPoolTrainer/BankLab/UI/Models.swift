@@ -263,7 +263,7 @@ struct Drill {
             balls:[BallState(id:0,x:-0.30,y:-0.70),BallState(id:1,x:-0.08,y:-0.13)],angle:1.18,level:4,system:plus))
         r.append(Drill(title:"Kick 2 băng · Hệ Plus",note:"Qua băng ngắn rồi băng dài trước khi chạm bi 1.",rails:2,kick:true,
             balls:[BallState(id:0,x:-0.22,y:-0.95),BallState(id:1,x:0.30,y:0.62),BallState(id:2,x:0.05,y:-0.20)],angle:atan2(0.62+0.95,0.30+0.22),level:4,system:plus))
-        r.append(Drill(title:"Bank 3 băng",note:"Bi 1 vào lỗ sau đúng 3 băng.",rails:3,kick:false,
+        r.append(Drill(title:"Bank 2 băng dài",note:"Bi 1 chạm băng phải, sang băng trái rồi về lỗ giữa phải.",rails:2,kick:false,
             balls:[BallState(id:0,x:0.22,y:-0.72),BallState(id:1,x:0.06,y:-0.15)],angle:1.84,level:4,system:plus))
         r.append(Drill(title:"Kick 4 băng",note:"Chuỗi 4 băng trước khi chạm bi 1; rất nhạy với lực.",rails:4,kick:true,
             balls:[BallState(id:0,x:-0.25,y:-0.60),BallState(id:1,x:0.15,y:0.38)],angle:0.29,level:4,system:corner5))
@@ -297,7 +297,7 @@ struct Drill {
             "Kick 3 băng · Bi cản cao":"https://drdavepoolinfo.com/faq/bank-kick/corner-5/",
             "Bank 1 băng":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
             "Bank 2 băng":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
-            "Bank 3 băng":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
+            "Bank 2 băng dài":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
             "Kick 2 băng · Hệ Plus":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
             "Kick 4 băng":"https://drdavepoolinfo.com/tutorial/kicks-and-banks/",
             "Trick · Jump qua bi cản":"https://drdavepoolinfo.com/FAQ/jump/technique/",

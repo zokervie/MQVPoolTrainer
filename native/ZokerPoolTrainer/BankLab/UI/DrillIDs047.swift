@@ -31,7 +31,7 @@ enum DrillIDs {
         ("Bank 1 băng", "bank1"),
         ("Bank 2 băng", "bank2"),
         ("Kick 2 băng · Hệ Plus", "kick2-plus"),
-        ("Bank 3 băng", "bank3"),
+        ("Bank 2 băng dài", "bank3"),
         ("Kick 4 băng", "kick4"),
         ("Trick · Combo dính", "trick-combo"),
         ("Trick · Jump qua bi cản", "trick-jump"),
