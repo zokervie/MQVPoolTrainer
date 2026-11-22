@@ -133,7 +133,8 @@ int main(){
      auto a=r.complete(shot({0,1,8,9},{contact(1),pot(1,2)}));
      check(!a.foul&&a.state.currentPlayer==0,"auto-call: object ball straight into a pocket is a called pot (8-ball)");}
     {auto r=playing(Discipline::EightBall);r.autoCall=true;r.state.groups={{0,1}};
-     auto a=r.complete(shot({0,1,8,9},{contact(1),rail(1,0,.2),pot(1,2,.4)}));
+     Event bank=rail(1,0,.2);bank.p={-.635,-.4};Event in=pot(1,2,.4);in.p={-.66,0};   // 0.53: positions, so the rail is not the pocket jaw
+     auto a=r.complete(shot({0,1,8,9},{contact(1),bank,in}));
      check(a.state.currentPlayer==1,"auto-call: a bank is lucky unless called -> turn passes");}
     {auto r=playing(Discipline::EightBall);r.autoCall=true;r.state.groups={{0,1}};
      auto a=r.complete(shot({0,1,8,9},{contact(1),rail(1,0,.2),pot(1,2,.4)},Call{1,2}));
@@ -149,6 +150,21 @@ int main(){
      check(a.state.winner<0,"auto-call: 10-ball combination on the 10 is not a lucky win");}
     {check(Rules::inferDirectCall({contact(3),pot(3,1)}).ball==3&&Rules::inferDirectCall({contact(3),pot(3,1)}).pocket==1,"inferDirectCall reads ball and pocket");
      check(Rules::inferDirectCall({contact(3),Event{1,3,5,.2,{}},pot(3,1,.3)}).ball==0,"inferDirectCall: kiss before the pocket = no call");}
+    // 0.53 (owner 22/11): "phễu" — a ball that touches the jaw / cushion nose of the pocket it then drops into is
+    // pocketed, not lucky. Only a cushion hit away from that pocket (a bank, or a ball running into another pocket
+    // after a rail) is uncalled. Jaw = cushion contact within 15 cm of where the ball drops [quyết định của chủ dự án;
+    // 15 cm ≈ đoạn mũi băng cong vào miệng lỗ của bàn WPA, suy ra].
+    {const Event jaw{0,3,4,.25,{.60,1.20}},farRail{0,3,1,.2,{.635,.2}};
+     Event p=pot(3,5,.3);p.p={.62,1.25};
+     check(Rules::inferDirectCall({contact(3),jaw,p}).ball==3&&Rules::inferDirectCall({contact(3),jaw,p}).pocket==5,"phễu: jaw rattle then drop = called");
+     const Event jaw2{0,3,5,.27,{.63,1.22}};
+     check(Rules::inferDirectCall({contact(3),jaw,jaw2,p}).ball==3,"phễu: two jaw touches then drop = called");
+     check(Rules::inferDirectCall({contact(3),farRail,p}).ball==0,"phễu: a rail away from the pocket = bank, not called");
+     check(Rules::inferDirectCall({contact(3),jaw,Event{1,3,7,.28,{.6,1.1}},p}).ball==0,"phễu: jaw then a kiss = not called");
+     auto r=playing(Discipline::TenBall);r.autoCall=true;
+     Event p1=pot(1,5,.3);p1.p={.62,1.25};
+     auto a=r.complete(shot({0,1,10},{contact(1),Event{0,1,4,.25,{.60,1.20}},p1}));
+     check(!a.foul&&a.state.currentPlayer==0,"phễu: 10-ball jaw-rattle pot keeps the turn");}
     // 0.40b shot clock: the app adjudicates "time expired" as a stroke with no contact (WPA 6.x standard foul):
     // incoming player gets ball in hand anywhere, the foul counts toward the three-foul rule (9/10-ball).
     for(auto d:{Discipline::NineBall,Discipline::TenBall,Discipline::EightBall}){

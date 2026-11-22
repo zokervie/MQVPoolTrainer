@@ -79,7 +79,8 @@ public:
     // 0.26 (owner 03/11/2026): no "lucky" balls in 8-ball / 10-ball without forcing a call before every shot.
     // When the shooter made no call, the call is read from the shot itself: the first object ball the cue ball
     // touches, if it goes straight into a pocket without touching any cushion or ball on the way, is the called
-    // ball/pocket. Anything else (bank, kick, combination, kiss, a second ball dropping) is uncalled -> it does not
+    // ball/pocket (0.53: touching the jaw of that same pocket on the way in still counts — "phễu").
+    // Anything else (bank, kick, combination, kiss, a second ball dropping) is uncalled -> it does not
     // count, exactly as an uncalled pot under WPA rules. A different shot is called with the Call button.
     // Off by default so the core keeps the explicit-call regressions; the app turns it on (BLMatch.mm).
     bool autoCall=false;
@@ -87,12 +88,23 @@ public:
         int target=-1;size_t i=0;
         for(;i<events.size();++i)if(events[i].kind==1&&(events[i].a==0||events[i].b==0)){target=events[i].a==0?events[i].b:events[i].a;break;}
         Call c;if(target<=0)return c;
+        // 0.53 phễu: cushion touches of the target within jawRadius of where it then drops are part of the pot.
+        const double jawRadius=.15;
         for(++i;i<events.size();++i){
             const Event& ev=events[i];
             const bool involves=ev.a==target||(ev.kind==1&&ev.b==target);
             if(!involves)continue;
-            if(ev.kind==2&&ev.a==target&&ev.b>=0){c.ball=target;c.pocket=ev.b;}
-            return c;   // first thing that happens to the target decides: pocket = called, anything else = not
+            if(ev.kind==2&&ev.a==target&&ev.b>=0){c.ball=target;c.pocket=ev.b;return c;}
+            if(ev.kind!=0)return c;                              // a kiss: not called
+            size_t k=i+1;const Event* drop=nullptr;bool clean=true;
+            for(;k<events.size();++k){const Event& f=events[k];
+                if(!(f.a==target||(f.kind==1&&f.b==target)))continue;
+                if(f.kind==2&&f.a==target){drop=&f;break;}
+                if(f.kind!=0){clean=false;break;}}
+            if(!clean||!drop||drop->b<0)return c;
+            for(size_t j=i;j<k;++j){const Event& f=events[j];
+                if(f.a==target&&f.kind==0&&(f.p-drop->p).length()>jawRadius)return c;}   // a real rail: bank, not called
+            c.ball=target;c.pocket=drop->b;return c;
         }
         return c;
     }
