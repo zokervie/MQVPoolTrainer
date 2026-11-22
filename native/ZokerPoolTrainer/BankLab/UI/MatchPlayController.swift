@@ -655,13 +655,37 @@ extension TrainingController {
         sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel))
         presentSheet(sheet, source: matchPlay.banner)
     }
-    /// 0.26 Call: full-screen top view; tap the ball, then the pocket. Cancel by tapping Call again.
+    /// 0.53 B3: Call in one tap. The called ball defaults to the legal target (9/10-ball: lowest; 8-ball: own group, nearest the aim line), the camera
+    /// stays where it is, the six pockets get a soft white mist; a tap on a pocket completes the call. Tap another ball first to call it
+    /// (combo). Only when a tap hits neither a pocket nor a ball the top view opens. Cancel by tapping Call again.
+    func matchDefaultCallBall() -> Int {
+        let active = balls.filter { $0.id > 0 && !$0.sunk }
+        guard !active.isEmpty else { return 0 }
+        var pool = active
+        if matchPlay.state["rule"] as? String == "eightBall", let groups = matchPlay.state["groups"] as? [Int], groups.count == 2 {
+            let group = groups[matchInt("currentPlayer")]
+            if group >= 0 {
+                let own = active.filter { group == 0 ? (1...7).contains($0.id) : (9...15).contains($0.id) }
+                pool = own.isEmpty ? active.filter { $0.id == 8 } : own
+            } else { pool = active.filter { $0.id != 8 } }
+            if pool.isEmpty { pool = active }
+            if let cue = balls.first(where: { $0.id == 0 }) {
+                let d = SIMD2<Double>(cos(angle), sin(angle))
+                func offLine(_ b: BallState) -> Double {   // distance from the aim ray (behind the cue ball counts as far)
+                    let v = SIMD2<Double>(b.x - cue.x, b.y - cue.y), along = v.x * d.x + v.y * d.y
+                    return along <= 0 ? 99 : abs(v.x * d.y - v.y * d.x)
+                }
+                return pool.min { offLine($0) < offLine($1) }?.id ?? 0
+            }
+        }
+        return pool.min { $0.id < $1.id }?.id ?? 0
+    }
     func beginMatchCallPick() {
         guard matchAllowsInput, !shotActive, matchBool("requiresCall") else { return }
         if matchCallPicking != 0 { endMatchCallPick(); notifyStatus("Đã hủy gọi lỗ"); return }
-        matchCallPose = captureCamera(); selectCamera(1); matchCallPicking = 1; matchCallBall = 0
+        matchCallPose = nil; matchCallBall = matchDefaultCallBall(); matchCallPicking = 2
         showCallPockets(1)
-        notifyStatus("Gọi lỗ · chạm vào bi muốn gọi, rồi chạm lỗ đang nhấp nháy")
+        notifyStatus(L10n.tr("Gọi bi") + " \(matchCallBall) · " + L10n.tr("chạm vào lỗ") + " (" + L10n.tr("muốn gọi bi khác: chạm bi đó trước") + ")")
     }
     func endMatchCallPick() {
         if matchCallPicking != 0 && matchPlay.calledBall == 0 { showCallPockets(0) }
@@ -671,21 +695,24 @@ extension TrainingController {
     /// Returns true when the tap was used by the Call picker.
     func handleMatchCallTap(_ p: SIMD2<Double>) -> Bool {
         guard matchCallPicking != 0 else { return false }
-        if matchCallPicking == 1 {
-            let candidates = balls.filter { $0.id > 0 && !$0.sunk }
-            guard let ball = candidates.min(by: { hypot($0.x - p.x, $0.y - p.y) < hypot($1.x - p.x, $1.y - p.y) }),
-                  hypot(ball.x - p.x, ball.y - p.y) < 0.12 else { notifyStatus("Chạm gần một bi hơn"); return true }
-            matchCallBall = ball.id; matchCallPicking = 2; notifyStatus("Bi \(ball.id) · chạm vào lỗ"); return true
-        }
         // Pocket order = solver order (Physics.cpp World::pocket), independent of camera rotation.
         let g = engine.settings, x = (g["tableWidth"]?.doubleValue ?? 1.27) / 2, y = (g["tableLength"]?.doubleValue ?? 2.54) / 2
         let holes = [(-x, -y), (x, -y), (-x, 0.0), (x, 0.0), (-x, y), (x, y)]
         let pocket = holes.indices.min(by: { hypot(holes[$0].0 - p.x, holes[$0].1 - p.y) < hypot(holes[$1].0 - p.x, holes[$1].1 - p.y) }) ?? 0
-        guard hypot(holes[pocket].0 - p.x, holes[pocket].1 - p.y) < 0.35 else { notifyStatus("Chạm gần một lỗ hơn"); return true }
-        let ball = matchCallBall; endMatchCallPick()
-        submitMatchAction(.callShot, call: LANCall(ball: ball, pocket: pocket))
-        showCallPockets(2, chosen: pocket)
-        notifyStatus("✓ Đã gọi bi \(ball) · lỗ \(pocket + 1)")
+        if hypot(holes[pocket].0 - p.x, holes[pocket].1 - p.y) < 0.35 {
+            let ball = matchCallBall; endMatchCallPick()
+            submitMatchAction(.callShot, call: LANCall(ball: ball, pocket: pocket))
+            showCallPockets(2, chosen: pocket)
+            notifyStatus("✓ Đã gọi bi \(ball) · lỗ \(pocket + 1)")
+            return true
+        }
+        let candidates = balls.filter { $0.id > 0 && !$0.sunk }
+        if let ball = candidates.min(by: { hypot($0.x - p.x, $0.y - p.y) < hypot($1.x - p.x, $1.y - p.y) }), hypot(ball.x - p.x, ball.y - p.y) < 0.12 {
+            matchCallBall = ball.id; notifyStatus("Bi \(ball.id) · chạm vào lỗ"); return true
+        }
+        // Neither a pocket nor a ball: from this low angle the pocket is hard to hit — only now open the top view.
+        if matchCallPose == nil { matchCallPose = captureCamera(); selectCamera(1) }
+        notifyStatus("Chạm vào lỗ (đã mở góc trên cao)")
         return true
     }
     /// 0.28: ~3.4 s racking intro at the start of every rack; tap the table to skip. Input waits for it.

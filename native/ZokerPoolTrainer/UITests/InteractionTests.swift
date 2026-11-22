@@ -1202,6 +1202,14 @@ final class InteractionTests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["PowerBar"].isHittable, "no power bar in a drill")
         XCTAssertFalse(app.buttons["PowerBarSwitch"].isHittable, "no switch either")
     }
+    /// 0.53 B3: the call needs one tap: ball 1 is called by default (10-ball), the camera stays low, and a tap on a pocket completes it.
+    func testCallNeedsOnlyOneTapOnAPocket() {
+        let (_, scene) = launch(["--call-qa", "--call-tap-pocket-qa"])
+        wait(scene, timeout: 60 * slow) { self.field(scene, "calledPocket") == 3 }
+        XCTAssertEqual(field(scene, "calledBall"), 1, "the default called ball is the lowest ball on the table")
+        XCTAssertEqual(field(scene, "calledPocket"), 3, "one tap on the right side pocket")
+        XCTAssertNotEqual(field(scene, "mode"), 1, "no forced top view")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

@@ -434,6 +434,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
                     if let i=Drill.all.firstIndex(where:{$0.goal != nil && !($0.goal!.potOnly)}){self.loadDrill(i);self.syncPowerBar();self.applyCoachVisibility()}}
             }
+            if args.contains("--call-qa") {   // 0.53 B3: a 10-ball match after the break (a call is required); 3 s later the QA taps pocket 4 (right side)
+                DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
+                    self.startMatch(rule:"tenBall",network:false)
+                    self.matchPlay.state["breakShot"]=NSNumber(value:false);self.matchPlay.state["requiresCall"]=NSNumber(value:true);self.syncMatchControls();self.updateControls()
+                    if args.contains("--call-tap-pocket-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){
+                        self.beginMatchCallPick();let w=(self.engine.settings["tableWidth"]?.doubleValue ?? 1.27)/2
+                        _=self.handleMatchCallTap(SIMD2<Double>(w,0.0))}}}
+            }
             if args.contains("--hold-ring-qa") {   // 0.53 A2: a drill with a mission ring, B held after 3 s
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
                     if let i=Drill.all.firstIndex(where:{$0.goal != nil && !($0.goal!.potOnly)}){self.loadDrill(i);self.coaching=true;self.applyCoachVisibility()}
