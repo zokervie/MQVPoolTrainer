@@ -144,6 +144,7 @@ struct PlayerData: Codable, Equatable {
     var chapterUndo: [String: Int] = [:]            // chapter key → take-backs used (BLChapterUndoLeft)
     var titlesSeen: [String: Int] = [:]             // chapter key → highest title index already celebrated
     var chapterResets: [String: Int] = [:]          // chapter key → times "Chơi lại chương từ đầu" was used
+    var chapterRescue: [String: Int] = [:]          // 0.56 K2: chapter key → times the rescue power bar was accepted (no "Tay sạch" afterwards)
     init(now: Date, day: Int64) { metrics = UsageMetrics(installedAt: now, installDay: day) }
     // Missing fields (older / newer files) fall back to defaults instead of failing the whole file.
     init(from decoder: Decoder) throws {
@@ -176,6 +177,7 @@ struct PlayerData: Codable, Equatable {
         chapterUndo = try c.decodeIfPresent([String: Int].self, forKey: .chapterUndo) ?? [:]
         titlesSeen = try c.decodeIfPresent([String: Int].self, forKey: .titlesSeen) ?? [:]
         chapterResets = try c.decodeIfPresent([String: Int].self, forKey: .chapterResets) ?? [:]
+        chapterRescue = try c.decodeIfPresent([String: Int].self, forKey: .chapterRescue) ?? [:]
         eye = try c.decodeIfPresent(Double.self, forKey: .eye) ?? 1000
         predictDay = try c.decodeIfPresent(Int64.self, forKey: .predictDay) ?? -1
         predictCount = try c.decodeIfPresent(Int.self, forKey: .predictCount) ?? 0
@@ -407,6 +409,8 @@ final class PlayerStore {
         recordRound(drill: id, stars: old, average: average, made: made)
         return newBest
     }
+    func rescueUsed(_ chapterKey: String) -> Int { data.chapterRescue[chapterKey] ?? 0 }
+    func noteRescue(_ chapterKey: String) { data.chapterRescue[chapterKey] = rescueUsed(chapterKey) + 1; save() }
     func noteUndo(_ chapterKey: String) { data.chapterUndo[chapterKey] = undoUsed(chapterKey) + 1; save() }
     func undoUsed(_ chapterKey: String) -> Int { data.chapterUndo[chapterKey] ?? 0 }
     func titleSeen(_ chapterKey: String) -> Int { data.titlesSeen[chapterKey] ?? -1 }
@@ -415,7 +419,7 @@ final class PlayerStore {
     func resetChapter(key: String, drills: [String], ladders: [String]) {
         for id in drills { data.stars.removeValue(forKey: id); data.ladderStars.removeValue(forKey: id); data.bestAverage.removeValue(forKey: id) }
         for l in ladders { data.ladderWarm.removeValue(forKey: l) }
-        data.chapterUndo.removeValue(forKey: key); data.titlesSeen.removeValue(forKey: key)
+        data.chapterUndo.removeValue(forKey: key); data.titlesSeen.removeValue(forKey: key); data.chapterRescue.removeValue(forKey: key)
         data.chapterResets[key] = (data.chapterResets[key] ?? 0) + 1; save()
     }
     func markPuzzleReviewDone(key: String, step: Int) {

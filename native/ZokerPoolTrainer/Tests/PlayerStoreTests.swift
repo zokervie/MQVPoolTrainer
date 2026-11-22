@@ -206,6 +206,8 @@ import Foundation
         try check(h9.stars("force-near-1") == 5, "the 3-star ring counts as passed (5 on the old scale) for the chapter gates")
         h9.noteUndo("straight-speed"); h9.noteUndo("straight-speed"); h9.noteUndo("cut")
         try check(h9.undoUsed("straight-speed") == 2 && h9.undoUsed("cut") == 1, "take-backs are counted per chapter key")
+        h9.noteRescue("cut"); h9.noteRescue("cut")
+        try check(h9.rescueUsed("cut") == 2 && h9.rescueUsed("straight-speed") == 0, "the rescue bar is counted per chapter key")
         h9.markTitleSeen("straight-speed", 3)
         h9.markTitleSeen("straight-speed", 2)
         try check(h9.titleSeen("straight-speed") == 3, "the highest title celebrated is kept")

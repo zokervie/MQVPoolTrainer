@@ -28,8 +28,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var puzzleSession:PuzzleSession?;var puzzleBar:UIView?;var puzzleTaskLabel:UILabel?;var puzzleHintButton:UIButton?;var puzzleRetryMs=0.0,puzzleRetries=0   // 0.50 Thế bí
     var glareSummary=""   // 0.49c G5 probe result for XCTest: "<PASS|FAIL|NOT_RUN>:<worst %>"
     var strikeSettled=false,midShotLayoutPasses=0,midShotLayoutTotal=0   // 0.49c G7
-    var placeCaption:UILabel?,powerCaption:UILabel?   // 0.53 B1: small captions under the two buttons
-    var powerBarSwitch:UIButton?;var powerBarUserOn:Bool?   // 0.49c G3
+    var rescueBarDrill = -1,failedRounds:[String:Int]=[:],rescueAsked:Set<String>=[]   // 0.56 K2: the rescue power bar (this drill only)
     var placeBallButton:UIButton!   // 0.49c G6: stand-alone "Đặt bi" (64 pt) above the Đánh/Jump/Massé/Break row
     var drillVariant=0   // 0.49b X3: layout variant of the shot about to be played (0 = catalogue layout)
     /// 0.44.1 M4: the new tutorial (Tutorial044.swift).
@@ -442,6 +441,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     if args.contains("--call-tap-pocket-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){
                         self.beginMatchCallPick();let w=(self.engine.settings["tableWidth"]?.doubleValue ?? 1.27)/2
                         _=self.handleMatchCallTap(SIMD2<Double>(w,0.0))}}}
+            }
+            if args.contains("--rescue-qa") || args.contains("--rescue-ch1-qa") {   // 0.56 K2: chapter 2 with 92 take-backs used (8 left) and 3 missed rounds; the ch1 variant must NOT ask
+                DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
+                    let n=args.contains("--rescue-ch1-qa") ? 1:2
+                    guard let c=Chapters.chapter(n),let id=c.drills.first,let index=Chapters.index(of:id) else{return}
+                    for _ in 0..<(n==2 ? 92:92){PlayerStore.shared.noteUndo(c.key)}
+                    self.failedRounds[id]=3;self.beginDrill(index,guided:false)}
             }
             if args.contains("--hold-ring-qa") {   // 0.53 A2: a drill with a mission ring, B held after 3 s
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}

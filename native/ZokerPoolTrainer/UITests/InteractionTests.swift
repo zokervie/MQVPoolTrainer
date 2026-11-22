@@ -793,7 +793,7 @@ final class InteractionTests: XCTestCase {
         let (app, scene) = launch([])
         let b = app.buttons["PlaceBallButton"]
         XCTAssertTrue(b.waitForExistence(timeout: 20 * slow), "the button is on the table, not in a menu")
-        XCTAssertGreaterThanOrEqual(b.frame.width, 63.5, "64 pt")
+        XCTAssertGreaterThanOrEqual(b.frame.height, 43.5, "same key size as the rest of the column")
         XCTAssertTrue(b.isEnabled, "free table: placing is allowed")
         b.tap()
         wait(scene, timeout: 10 * slow) { self.field(scene, "editing") == 1 }
@@ -813,11 +813,8 @@ final class InteractionTests: XCTestCase {
         from.press(forDuration: 0.4, thenDragTo: from.withOffset(CGVector(dx: 0, dy: 6)))   // below 10 %: a cancel, but the zoom happened
         wait(scene, timeout: 5 * slow) { self.field(scene, "barZoom") > 2.4 }
         XCTAssertEqual(field(scene, "barZoom"), 2.5, accuracy: 0.01, "×2.5 while held")
-        let sw = app.buttons["PowerBarSwitch"]
-        XCTAssertTrue(sw.waitForExistence(timeout: 5 * slow))
+        XCTAssertFalse(app.buttons["PowerBarSwitch"].exists, "0.56 K2: there is no on-screen switch any more")
         XCTAssertEqual(field(scene, "bar"), 1)
-        sw.tap(); wait(scene, timeout: 5 * slow) { self.field(scene, "bar") == 0 }
-        sw.tap(); wait(scene, timeout: 5 * slow) { self.field(scene, "bar") == 1 }
     }
     /// 0.49c G7: no UIKit layout pass lands between the frames of a rolling shot (everything the strike invalidated is laid out in the
     /// strike call). Counted by the app from the end of the strike to the end of the shot; Simulator only — device frame timing NOT RUN.
@@ -1189,20 +1186,43 @@ final class InteractionTests: XCTestCase {
         wait(scene, timeout: 60 * slow) { self.field(scene, "locked") == 1 }
         XCTAssertEqual(field(scene, "ringHidden"), 0, "the ring stays while B is held: \(scene.value as? String ?? "")")
     }
-    /// 0.53 B1: "Đặt bi" and the bar switch sit at the right, beside the power bar, each with a small caption.
-    func testPlaceBallAndPowerSwitchBesideThePowerBarWithCaptions() {
-        let (app, scene) = launch(["--power-bar-qa"])
-        let bar = app.descendants(matching: .any)["PowerBar"], place = app.buttons["PlaceBallButton"], sw = app.buttons["PowerBarSwitch"]
-        XCTAssertTrue(bar.waitForExistence(timeout: 10 * slow) && place.waitForExistence(timeout: 10 * slow) && sw.exists)
-        XCTAssertGreaterThan(place.frame.midX, scene.frame.midX, "right half of the screen")
-        XCTAssertLessThan(abs(place.frame.maxX - bar.frame.minX), 40, "beside the bar")
-        XCTAssertLessThan(abs(sw.frame.midX - place.frame.midX), 4, "switch under the place button")
-        XCTAssertGreaterThan(sw.frame.minY, place.frame.maxY, "switch below the place button")
-        XCTAssertTrue(app.staticTexts["Đặt bi"].exists && app.staticTexts["Thanh lực"].exists, "captions under both buttons")
+    /// 0.56 K1/K2: the right column is exactly four keys — Đặt bi · Lùi cú · Camera ngắm · Bàn, top to bottom, same size; no power-bar switch anywhere.
+    func testRightColumnIsFourKeysAndNoPowerSwitch() {
+        let (app, _) = launch(["--power-bar-qa"])
+        let place = app.buttons["PlaceBallButton"], retry = app.buttons["QuickRetry"], camera = app.buttons["QuickCamera"], table = app.buttons["QuickTable"]
+        XCTAssertTrue(place.waitForExistence(timeout: 10 * slow) && retry.exists && camera.exists && table.exists)
+        XCTAssertLessThan(place.frame.midY, retry.frame.midY); XCTAssertLessThan(retry.frame.midY, camera.frame.midY); XCTAssertLessThan(camera.frame.midY, table.frame.midY)
+        XCTAssertEqual(place.frame.height, retry.frame.height, accuracy: 1, "Đặt bi has the size of the other keys")
+        XCTAssertEqual(place.frame.width, retry.frame.width, accuracy: 1)
+        XCTAssertFalse(app.buttons["PowerBarSwitch"].exists, "no switch")
+    }
+    /// 0.56 K3: D = the effect ball; B is D × D beside it; each cue button is D wide, 2/3 D tall, flush above B / the ball.
+    func testLeftClusterGeometry() {
+        let (app, _) = launch(["--ux017-qa"])
+        let ball = app.descendants(matching: .any)["Điểm chạm đầu cơ"].firstMatch, play = app.buttons["CueIconPlay"], brk = app.buttons["CueIconBreak"]
+        XCTAssertTrue(ball.waitForExistence(timeout: 10 * slow) && play.exists && brk.exists)
+        let d = ball.frame.width
+        XCTAssertEqual(play.frame.width, d, accuracy: 2, "cue buttons are D wide"); XCTAssertEqual(brk.frame.width, d, accuracy: 2)
+        XCTAssertEqual(play.frame.height, d * 2 / 3, accuracy: 2, "…and 2/3 D tall")
+        XCTAssertEqual(brk.frame.minX, ball.frame.minX, accuracy: 2, "Cơ phá is right above the effect ball")
+        XCTAssertLessThanOrEqual(play.frame.maxY, ball.frame.minY + 1)
+    }
+    /// 0.56 K2: in chapter 2 with 8 take-backs left and 3 missed rounds the rescue card appears once; "Dùng" shows the bar for that drill; chapter 1 never asks.
+    func testRescueCardOffersThePowerBarOnlyInLaterChapters() {
+        let (app, scene) = launch(["--rescue-qa"])
+        let card = app.alerts["RescueCard"]
+        XCTAssertTrue(card.waitForExistence(timeout: 40 * slow), "the rescue card: \(scene.value as? String ?? "")")
+        XCTAssertEqual(field(scene, "barOn"), 0, "no bar before the player agrees")
+        card.buttons["Dùng"].tap()
+        wait(scene, timeout: 10 * slow) { self.field(scene, "barOn") == 1 }
+        XCTAssertEqual(field(scene, "barOn"), 1); XCTAssertEqual(field(scene, "rescueUsed"), 1, "counted for the chapter (no Tay sạch afterwards)")
+        app.terminate()
+        let (app1, _) = launch(["--rescue-ch1-qa"])
+        XCTAssertFalse(app1.alerts["RescueCard"].waitForExistence(timeout: 12 * slow), "chapter 1 is the force chapter: never offered")
     }
     /// 0.53 C1: in a training drill the power bar and its switch are gone and the mission ring is on without Coach; free play keeps the bar.
     func testTrainingDrillHasNoPowerBarAndAlwaysTheRing() {
-        let (app, scene) = launch(["--power-bar-qa", "--training-drill-qa"])
+        let (app, scene) = launch(["--training-drill-qa"])
         wait(scene, timeout: 60 * slow) { self.field(scene, "ringHidden") == 0 }
         XCTAssertEqual(field(scene, "ringHidden"), 0, "the ring is on without turning Coach on")
         XCTAssertFalse(app.descendants(matching: .any)["PowerBar"].isHittable, "no power bar in a drill")

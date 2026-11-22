@@ -32,7 +32,7 @@ extension TrainingController {
         // 0.46: cột phím chỉ còn 2–3 nút: thu chiều cao theo số nút đang hiện, giữ đáy (dưới ngón cái) như cũ.
         var railFrame=f.rail
         if quickTable != nil {
-            let visible=Double((matchIsCompetitive ? (matchBool("requiresCall") ? 1:0):1)+2)   // (Lùi cú | Call) + Camera + Bàn; 0.53 B1: Xem lại lives in Bàn
+            let visible=Double(1+(matchIsCompetitive ? (matchBool("requiresCall") ? 1:0):1)+2)   // Đặt bi + (Lùi cú | Call) + Camera + Bàn; 0.53 B1: Xem lại lives in Bàn
             if visible>0 {let h=min(f.rail.h,visible*f.button+(visible-1)*Double(quickRail.spacing));railFrame.y=f.rail.y+f.rail.h-h;railFrame.h=h}
         }
         place(quickScroll,railFrame);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
@@ -406,7 +406,7 @@ extension TrainingController {
         quickTable=button("tablecells","Bàn","QuickTable");quickTable.showsMenuAsPrimaryAction=true
         quickTable.accessibilityLabel="Bàn";quickTable.accessibilityHint="Đặt bi, thêm bi, bao cơ"
         quickTable.menu=UIMenu(title:"Bàn",children:[UIDeferredMenuElement.uncached{[weak self] completion in completion(self?.tableMenuItems() ?? [])}])
-        for item in [retryButton,quickCall,quickCamera!,quickTable!] {
+        for item in [quickPlace!,retryButton,quickCall,quickCamera!,quickTable!] {
             item.heightAnchor.constraint(equalToConstant:44).isActive=true;quickRail.addArrangedSubview(item)
         }
         quickScroll.translatesAutoresizingMaskIntoConstraints=false;quickScroll.accessibilityIdentifier="QuickRailScroll";quickScroll.showsVerticalScrollIndicator=false
@@ -426,7 +426,7 @@ extension TrainingController {
             fineWheel.centerXAnchor.constraint(equalTo:spin.centerXAnchor),fineWheel.bottomAnchor.constraint(equalTo:spin.topAnchor,constant:-8),fineWheel.widthAnchor.constraint(equalToConstant:44),fineWheel.heightAnchor.constraint(equalToConstant:100),
             spin.trailingAnchor.constraint(equalTo:elevationPad.leadingAnchor,constant:-16)])
         elevationPad.changed={[weak self] value in self?.setElevation(value);self?.updateElevationLoupe()}
-        buildCueIcons();buildPlaceBallButton();buildPowerBarSwitch()
+        buildCueIcons();placeBallButton=quickPlace;quickPlace.accessibilityIdentifier="PlaceBallButton"   // 0.56 K1: Đặt bi is the first key of the right column
         for (b,title,id) in [(numbersButton,"Nút số","NumbersToggle"),(guideToggle,"Chỉ dẫn","GuideToggle"),(cardToggle,"Chấm cú","CoachCardToggle")] {
             var c=UIButton.Configuration.plain();c.title=title;c.background.backgroundColor=UIColor(white:0.03,alpha:0.42);c.background.cornerRadius=10
             c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:12,weight:.semibold);return a}
@@ -456,21 +456,9 @@ extension TrainingController {
     }
     /// 0.49c G6 (IPA 163): "Đặt bi" out of the "Bàn" menu — 64 pt, left edge, right above the cue-kind row; lit only when the rules let
     /// the player place balls; one tap = drag the cue ball, tap again = done (same action as the old shortcut).
-    func buildPlaceBallButton(){
-        let b=UIButton(type:.system);var c=UIButton.Configuration.filled()
-        c.image=UIImage(systemName:"hand.draw");c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:22,weight:.semibold)
-        c.baseBackgroundColor=UIColor(white:0.03,alpha:0.55);c.baseForegroundColor = .white;c.cornerStyle = .capsule;c.contentInsets = .zero
-        b.configuration=c;b.accessibilityIdentifier="PlaceBallButton";b.accessibilityLabel="Nút đặt bi"
-        b.addAction(UIAction{[weak self]_ in self?.toggleEdit()},for:.touchUpInside)
-        view.addSubview(b);placeBallButton=b
-    }
     func syncPlaceBallButton(){
         guard let b=placeBallButton else{return}
-        let on=quickPlace?.isEnabled ?? false
-        b.isHidden=menuOpen || spinExpanded || replayIndex != nil
-        placeCaption?.isHidden=b.isHidden;placeCaption?.alpha=on ? 1:0.4
-        b.isEnabled=on;b.alpha=on ? 1:0.35
-        b.configuration?.baseBackgroundColor=isPlacingBalls ? ZDesign.Color.gold:UIColor(white:0.03,alpha:0.55)
+        b.configuration?.background.backgroundColor=isPlacingBalls ? ZDesign.Color.gold:UIColor(white:0.03,alpha:0.42)
         b.configuration?.baseForegroundColor=isPlacingBalls ? .black:.white
         b.accessibilityLabel=isPlacingBalls ? "Nút xong đặt bi":"Nút đặt bi"
     }
@@ -485,6 +473,15 @@ extension TrainingController {
             c.background.backgroundColor=UIColor(white:0.03,alpha:0.32);c.background.cornerRadius=8;c.contentInsets = .zero
             b.configuration=c;b.accessibilityIdentifier=ids[k];b.accessibilityLabel="Gậy "+names[k];b.accessibilityValue=""
             b.addAction(UIAction{[weak self]_ in self?.chooseCueIcon(k)},for:.touchUpInside)
+            // 0.56 K3: the label shrinks to stay inside the D × 2/3 D frame (never below 9 pt), the cue picture takes the upper part
+            c.titleLineBreakMode = .byClipping;c.imagePadding=1;c.contentInsets=NSDirectionalEdgeInsets(top:2,leading:2,bottom:2,trailing:2)
+            b.configurationUpdateHandler={button in
+                guard var cfg=button.configuration,let title=cfg.title,button.bounds.width>0 else{return}
+                let full=(title as NSString).size(withAttributes:[.font:UIFont.systemFont(ofSize:11,weight:.bold)]).width
+                let size=max(9,min(11,11*(button.bounds.width-6)/max(1,full)))
+                cfg.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:size,weight:.bold);return a}
+                button.configuration=cfg
+            }
             view.addSubview(b);cueIcons.append(b)
         }
     }
@@ -533,7 +530,7 @@ extension TrainingController {
             icon.configuration?.subtitle=nil   // 0.46: icon 3D của cơ trong bao thay cho nhãn phụ tên cơ
             // 0.44 (#18): the key shows the cue that is in the bag — colour, inlay, shaft, ferrule and tip.
             let look=CueBag.cue(role)
-            if icon.accessibilityHint != look.id {icon.accessibilityHint=look.id;icon.configuration?.image=look.iconImage()}
+            let iconW=max(40,icon.bounds.width-10);if icon.accessibilityHint != look.id+"|\(Int(iconW))" {icon.accessibilityHint=look.id+"|\(Int(iconW))";icon.configuration?.image=look.iconImage(size:CGSize(width:iconW,height:k==1 ? 15:11))}   // 0.56 K3: play cue long and thin, break cue with the fatter butt
         }
     }
     func syncQuickRail(){

@@ -73,7 +73,7 @@ static bool inside(const BLRect& r, double x0, double y0, double w, double h) { 
 static void checkHUD022(double x0, double y0, double w, double h, int pad) {
     for (int left = 0; left < 2; ++left) for (int practice = 0; practice < 2; ++practice) for (int expanded = 0; expanded < 2; ++expanded) {
         const BLHUDFrames f = BLHUDLayout(x0, y0, w, h, pad, left, practice, expanded);
-        assert(f.items == (practice ? 6 : 5));
+        assert(f.items == 4);   // 0.56 K1: Đặt bi · Lùi cú (Call) · Camera ngắm · Bàn
         // while the effect ball is held only it and the wheel are shown
         std::vector<BLRect> shown{f.spin, f.wheel};
         if (!expanded) { shown.push_back(f.rail); shown.push_back(f.menu); shown.push_back(f.elevation); shown.push_back(f.lock); for (int k = 0; k < BL_CUE_ICONS; ++k) shown.push_back(BLHUDCueIcon(f, k)); }
@@ -92,10 +92,18 @@ static void checkHUD022(double x0, double y0, double w, double h, int pad) {
             assert(f.spin.w >= (pad ? 100 : 76));
             // 0.36: one row of 4 cue icons above B + effect ball; B square on the outer side, ball next to it
             for (int k = 0; k < BL_CUE_ICONS; ++k) { const BLRect c = BLHUDCueIcon(f, k); assert(c.y + c.h <= f.spin.y && c.y + c.h <= f.lock.y && std::abs(c.y - BLHUDCueIcon(f, 0).y) < 1e-9);
-                if (k) assert(c.x >= BLHUDCueIcon(f, k - 1).x + BLHUDCueIcon(f, k - 1).w); }
+                if (k) { if (!left) assert(c.x >= BLHUDCueIcon(f, k - 1).x + BLHUDCueIcon(f, k - 1).w); else assert(BLHUDCueIcon(f, k - 1).x >= c.x + c.w); } }
             assert(std::abs(f.lock.w - f.lock.h) < 1e-9 && f.lock.w >= 44);
             if (!left) assert(f.lock.x + f.lock.w <= f.spin.x); else assert(f.lock.x >= f.spin.x + f.spin.w);
             assert(std::abs((f.lock.y + f.lock.h / 2) - (f.spin.y + f.spin.h / 2)) < 1e-9);   // vertically centred pair
+            // 0.56 K3: D = effect ball diameter; B is D × D on the same row and bottom; each cue button is D wide, 2/3 D tall, flush with the button below
+            const double D = f.spin.w;
+            assert(std::abs(f.lock.w - D) < 1e-9 && std::abs(f.lock.h - D) < 1e-9 && std::abs((f.lock.y + f.lock.h) - (f.spin.y + f.spin.h)) < 1e-9);
+            const BLRect c0 = BLHUDCueIcon(f, 0), c1 = BLHUDCueIcon(f, 1);
+            assert(std::abs(c0.w - D) < 1e-9 && std::abs(c0.h - 2 * D / 3) < 1e-9 && std::abs(c1.w - D) < 1e-9 && std::abs(c1.h - 2 * D / 3) < 1e-9);
+            assert(std::abs(c0.x - f.lock.x) < 1e-9 && std::abs(c1.x - f.spin.x) < 1e-9);   // right above B and above the effect ball
+            const double hgap = left ? f.lock.x - (f.spin.x + f.spin.w) : f.spin.x - (f.lock.x + f.lock.w), vgap = f.lock.y - (c0.y + c0.h);
+            assert(std::abs(vgap - hgap) < 1e-9);   // vertical gap = horizontal gap
         }
         else { assert(f.spin.w <= (pad ? 200 : 150) + 1e-9); }   // zoom, but not so big it hides the table
         if (left) { const BLHUDFrames r = BLHUDLayout(x0, y0, w, h, pad, 0, practice, expanded);

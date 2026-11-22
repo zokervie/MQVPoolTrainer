@@ -14,6 +14,23 @@ extension TrainingController {
         }
         run()
     }
+    /// 0.56 K2: after a scored round — a miss counts toward "failed rounds in a row", a pass clears it.
+    func noteRoundForRescue(_ d: Drill, cleared: Bool) { failedRounds[d.id] = cleared ? 0 : (failedRounds[d.id] ?? 0) + 1 }
+    /// 0.56 K2: when a chapter drill starts and BLPowerBarRescue says yes, ask ONCE (per drill) — "Dùng" shows the power bar for this drill only (and costs "Tay sạch").
+    func maybeOfferRescue(_ d: Drill) {
+        guard let c = currentChapter, !rescueAsked.contains(d.id), rescueBarDrill != drillIndex,
+              Mastery.rescue(c, makePercent: Int(d.spec?.makePercent ?? 100), failedRounds: failedRounds[d.id] ?? 0) else { return }
+        rescueAsked.insert(d.id)
+        let index = drillIndex
+        let alert = UIAlertController(title: nil, message: L10n.tr("Bài này khó. Dùng thanh lực trợ giúp? (mất dấu Tay sạch)"), preferredStyle: .alert)
+        alert.view.accessibilityIdentifier = "RescueCard"
+        alert.addAction(UIAlertAction(title: L10n.tr("Dùng"), style: .default) { [weak self] _ in
+            guard let self = self, self.drillIndex == index else { return }
+            PlayerStore.shared.noteRescue(c.key); self.rescueBarDrill = index; self.syncPowerBar(); self.view.setNeedsLayout()
+        })
+        alert.addAction(UIAlertAction(title: L10n.tr("Tự đánh tiếp"), style: .cancel))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.topPresenter.present(alert, animated: true) }
+    }
     /// The line shown when a ring is opened: warm-up progress or the shot requirement.
     func ladderIntro(_ d: Drill) {
         guard let spec = d.spec, spec.tier > 0 else { return }
@@ -63,6 +80,7 @@ extension TrainingController {
         let stars = Int(BLRoundStars(&spec, Int32(lessonPasses), 5)), made = lessonPasses
         let chapter = currentChapter
         let before = chapter.map { Mastery.percent($0) } ?? 0, nextOpenBefore = ladderNextRing(d).map { Mastery.ringOpen($0) } ?? false
+        noteRoundForRescue(d, cleared: stars > 0)
         let newBest = store.recordLadderRound(id: d.id, stars: stars, made: made, average: Double(made) * 20)
         lessonScores = []; lessonPasses = 0
         let after = chapter.map { Mastery.percent($0) } ?? 0

@@ -316,6 +316,7 @@ extension TrainingController {
         // 0.49b D1 (approved): the pass mark scales with the drill — measured make rate − 15 points, 20–70 % (BLDrillPassMade); 3/5 without a spec.
         let passMade:Int=d.spec.map{var s=$0;return Int(BLDrillPassMade(&s,5))} ?? 3
         let cleared=lessonPasses>=passMade
+        noteRoundForRescue(d,cleared:cleared)   // 0.56 K2
         let stars=lessonPasses>=5 && average>=85 ? 5:(cleared ? max(3,min(4,lessonPasses)):min(2,lessonPasses))
         var newBadges:[DrillBadge]=[]   // 0.49b X8: side challenges, only after the drill is passed
         if cleared{

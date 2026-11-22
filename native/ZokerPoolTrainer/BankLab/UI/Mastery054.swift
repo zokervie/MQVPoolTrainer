@@ -44,7 +44,12 @@ enum Mastery {
     /// -1 = unlimited
     static func undoLeft(_ c: Chapter, _ s: PlayerStore = .shared) -> Int { Int(BLChapterUndoLeft(Int32(c.number), Int32(s.undoUsed(c.key)))) }
     static func undoAllowed(_ c: Chapter, _ s: PlayerStore = .shared) -> Bool { BLChapterUndoAllowed(Int32(c.number), Int32(s.undoUsed(c.key))) != 0 }
-    static func cleanSeal(_ c: Chapter, _ s: PlayerStore = .shared) -> Bool { BLChapterCleanSeal(Int32(percent(c, s)), Int32(s.undoUsed(c.key))) != 0 }
+    /// 0.56 K2: no "Tay sạch" after a take-back or after the rescue power bar (BLChapterCleanSealNoHelp).
+    static func cleanSeal(_ c: Chapter, _ s: PlayerStore = .shared) -> Bool { BLChapterCleanSealNoHelp(Int32(percent(c, s)), Int32(s.undoUsed(c.key)), Int32(s.rescueUsed(c.key))) != 0 }
+    /// Offer the rescue power bar? (BLPowerBarRescue: never in chapter 1; ≤ 10 take-backs left; and the rung is hard or was missed 3 scored rounds in a row)
+    static func rescue(_ c: Chapter, makePercent: Int, failedRounds: Int, _ s: PlayerStore = .shared) -> Bool {
+        BLPowerBarRescue(Int32(c.number), Int32(s.undoUsed(c.key)), Int32(makePercent), Int32(failedRounds)) != 0
+    }
 
     /// "Khoe": 1080×1350, wood frame and Petemoss like the menu. Name · title · nickname · % · "Tay sạch" seal · logo. No aim lines, no solutions.
     static func cardImage(player: String, title: String, nickname: String, percent: Int, seal: Bool) -> UIImage {

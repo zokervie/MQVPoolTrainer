@@ -100,14 +100,14 @@ final class PowerBarControl: UIControl {
 extension TrainingController {
     var powerBarMaxSpeed: Double { BL_POWER_MAX_SPEED * Tuning.maxPower }
     /// QA launches keep the swipe (existing gesture tests) unless `--power-bar-qa` asks for the bar.
-    /// 0.53 C1: Bài tập / Thử thách / Thế bí train the swipe: no power bar (and no switch), the mission ring is always on. Free play and matches keep the bar.
-    var inTrainingMode: Bool { !matchPlay.active && drillIndex > Drill.rollTest }
+    /// 0.56 K2: no on-screen switch in any mode — the default stroke is the swipe (B). The bar is only a rescue the player accepts in a chapter drill
+    /// (BLPowerBarRescue, offered once), until the drill is left. `--power-bar-qa` (Debug) keeps it for the bar's own gesture tests.
     var usesPowerBar: Bool {
-        if inTrainingMode { return false }
-        if let chosen = powerBarUserOn { return chosen && FeatureFlags.powerBar }   // 0.49c G3: the on-screen switch wins this session
-        if QA.anyFlag { return QA.has("--power-bar-qa") && FeatureFlags.powerBar }
-        return FeatureFlags.usesPowerBar(shots: PlayerStore.shared.data.metrics.shots)
+        guard FeatureFlags.powerBar else { return false }
+        if QA.has("--power-bar-qa") { return true }
+        return rescueBarDrill >= 0 && rescueBarDrill == drillIndex && !matchPlay.active
     }
+    var inTrainingMode: Bool { !matchPlay.active && drillIndex > Drill.rollTest }   // 0.53 C1: the mission ring is always on in Bài tập
     func installPowerBar() {
         guard powerBar == nil else { return }
         let bar = PowerBarControl(frame: .zero)
@@ -123,32 +123,7 @@ extension TrainingController {
         if let bar = powerBar { powerFX.fire(bar.convert(CGPoint(x: bar.bounds.midX, y: bar.bounds.maxY), to: powerFX), speed: speed) }
         shoot(speed); spin.collapse(); setHold(false)
     }
-    /// 0.49c G3: small switch in the left cluster (next to "Đặt bi"): bar on = stroke with the bar, off = the swipe (B) only.
-    func buildPowerBarSwitch() {
-        let b = UIButton(type: .system); var c = UIButton.Configuration.filled()
-        c.image = UIImage(systemName: "slider.vertical.3"); c.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-        c.cornerStyle = .capsule; c.contentInsets = .zero
-        b.configuration = c; b.accessibilityIdentifier = "PowerBarSwitch"
-        b.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let on = !self.usesPowerBar
-            self.powerBarUserOn = on
-            UserDefaults.standard.set(on ? 1 : 0, forKey: Prefs.powerBarMode)
-            self.syncPowerBar(); self.view.setNeedsLayout()
-        }, for: .touchUpInside)
-        view.addSubview(b); powerBarSwitch = b
-    }
-    func syncPowerBarSwitch() {
-        guard let b = powerBarSwitch else { return }
-        let on = usesPowerBar
-        b.isHidden = menuOpen || spinExpanded || replayIndex != nil || !FeatureFlags.powerBar || inTrainingMode
-        powerCaption?.isHidden = b.isHidden
-        b.configuration?.baseBackgroundColor = on ? ZDesign.Color.gold : UIColor(white: 0.03, alpha: 0.55)
-        b.configuration?.baseForegroundColor = on ? .black : .white
-        b.accessibilityLabel = on ? "Tắt thanh lực" : "Bật thanh lực"; b.accessibilityValue = on ? "1" : "0"
-    }
     func syncPowerBar() {
-        syncPowerBarSwitch()
         guard let bar = powerBar else { return }
         bar.maxSpeed = powerBarMaxSpeed
         let show = usesPowerBar && !menuOpen && !spinExpanded && !introRunning
@@ -164,27 +139,6 @@ extension TrainingController {
         let w: CGFloat = pad ? 28 : 26, h = min(safe.height * 0.40, pad ? 180 : 140)   // 0.49c G3: small; hold = ×2.5
         let x = leftHanded ? CGFloat(rail.x + rail.w) + 14 : CGFloat(rail.x) - 14 - w
         bar.frame = CGRect(x: x, y: safe.minY + safe.height * 0.16, width: w, height: h)
-        placeSideButtons(bar: bar.frame)
         syncPowerBar()
-    }
-    /// 0.53 B1: "Đặt bi" and the bar switch sit beside the power bar (toward the table), each with a small caption; never moved while balls roll
-    /// (this runs from the HUD layout only, which the shot defers).
-    func placeSideButtons(bar: CGRect) {
-        guard let place = placeBallButton, let sw = powerBarSwitch else { return }
-        func caption(_ existing: UILabel?, _ text: String) -> UILabel {
-            if let l = existing { return l }
-            let l = UILabel(); l.text = L10n.tr(text); l.font = .systemFont(ofSize: 11, weight: .semibold); l.textColor = UIColor(white: 1, alpha: 0.85)
-            l.textAlignment = .center; l.adjustsFontSizeToFitWidth = true; l.minimumScaleFactor = 0.7; l.isUserInteractionEnabled = false
-            l.layer.shadowColor = UIColor.black.cgColor; l.layer.shadowRadius = 2; l.layer.shadowOpacity = 0.8; l.layer.shadowOffset = .zero
-            view.addSubview(l); return l
-        }
-        placeCaption = caption(placeCaption, "Đặt bi"); powerCaption = caption(powerCaption, "Thanh lực")
-        let colW: CGFloat = 64, x = leftHanded ? bar.maxX + 10 : bar.minX - 10 - colW
-        let top = bar.minY
-        place.bounds = CGRect(x: 0, y: 0, width: 64, height: 64); place.center = CGPoint(x: x + colW / 2, y: top + 32)
-        placeCaption?.frame = CGRect(x: x - 6, y: top + 66, width: colW + 12, height: 14)
-        sw.bounds = CGRect(x: 0, y: 0, width: 44, height: 44); sw.center = CGPoint(x: x + colW / 2, y: top + 66 + 14 + 6 + 22)
-        powerCaption?.frame = CGRect(x: x - 6, y: top + 66 + 14 + 6 + 44 + 2, width: colW + 12, height: 14)
-        syncPlaceBallButton(); syncPowerBarSwitch()
     }
 }

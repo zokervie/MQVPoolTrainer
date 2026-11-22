@@ -137,7 +137,7 @@ static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, 
     BLHUDFrames f;
     const double edge = 6, gap = pad ? 10 : 8, bh = pad ? 56 : 44, bgap = 4, railW = pad ? 64 : 54;
     const double spinS = pad ? 100 : 76, fanS = pad ? 84 : 64, wheelW = pad ? 192 : 148, wheelH = pad ? 48 : 40, icon = pad ? 52 : 44, igap = 4;
-    f.items = practice ? 6 : 5; f.button = bh; f.cueIcon = icon;
+    f.items = 4; f.button = bh; f.cueIcon = icon;   // 0.56 K1: Đặt bi · (Lùi cú | Call) · Camera · Bàn
     const double content = f.items * bh + (f.items - 1) * bgap;
     const double railH = fmin(content, h - 2 * edge);
     f.railScrolls = railH + 1e-9 < content;
@@ -147,12 +147,15 @@ static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, 
     f.elevation = BLRectMake(f.wheel.x + (wheelW - fanS) / 2, f.wheel.y - gap - fanS, fanS, fanS);
     // 0.36 (owner): bottom-left cluster = a row of the 4 cue icons on top; below it the square B (outer side) and
     // the round effect ball next to it. The pair is centred under the row.
-    const double lockS = pad ? 72 : 56, clusterX = x0 + edge;
-    const double rowW = BL_CUE_ICONS * icon + (BL_CUE_ICONS - 1) * igap, pairW = lockS + gap + spinS;
-    const double width = fmax(rowW, pairW), pairX = clusterX + (width - pairW) / 2;
-    f.lock = BLRectMake(pairX, bottom - spinS + (spinS - lockS) / 2, lockS, lockS);
+    // 0.56 K3: D = the effect ball's diameter. B is a D × D square on the same row and the same bottom; "Cơ chơi" sits right above B and "Cơ phá" right above
+    // the effect ball, each a landscape rectangle D wide and 2/3 D tall, edges flush with the button below; the vertical gap equals the horizontal one.
+    (void)icon; (void)igap; (void)practice;
+    const double lockS = spinS, clusterX = x0 + edge;
+    const double pairW = lockS + gap + spinS, pairX = clusterX;
+    f.lock = BLRectMake(pairX, bottom - spinS, lockS, lockS);
     f.spin = BLRectMake(pairX + lockS + gap, bottom - spinS, spinS, spinS);
-    f.cues = BLRectMake(clusterX + (width - rowW) / 2, f.spin.y - gap - icon, rowW, icon);
+    f.cueIcon = spinS;
+    f.cues = BLRectMake(pairX, f.spin.y - gap - spinS * 2.0 / 3.0, pairW, spinS * 2.0 / 3.0);
     if (expanded) {   // grows up/right from the bottom-left corner: big enough to aim, not hiding the table
         const double big = fmax(spinS, fmin(pad ? 200 : 150, bottom - (y0 + edge + 50)));
         f.spin = BLRectMake(f.spin.x, bottom - big, big, big);
@@ -170,9 +173,8 @@ static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, 
 
 // Cue icon k (0 Đánh, 1 Jump, 2 Massé, 3 Break) in one row inside f.cues, left to right in that order (0.36);
 // same reading order in both hands, the row itself mirrors.
-static inline BLRect BLHUDCueIcon(BLHUDFrames f, int k) {
-    const double s = f.cueIcon, step = (f.cues.w - s) / (BL_CUE_ICONS - 1);
-    return BLRectMake(f.cues.x + k * step, f.cues.y, s, s);
+static inline BLRect BLHUDCueIcon(BLHUDFrames f, int k) {   // 0.56 K3: icon 0 above B, icon 1 above the effect ball (follows the mirror)
+    return BLRectMake(k == 0 ? f.lock.x : f.spin.x, f.cues.y, f.cueIcon, f.cues.h);
 }
 // Icon order -> shot kind (ShotKindPolicy: 0 play, 1 jump, 2 break, 3 massé) and its default elevation (deg).
 static inline int BLCueIconKind(int k) { return k == 1 ? 2 : 0; }   // default kind of the button (the elevation then moves it within its family)

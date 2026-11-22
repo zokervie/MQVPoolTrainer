@@ -341,9 +341,7 @@ final class CustomizeController:UIViewController {
         target.addArrangedSubview(clockNote)
         header("Lực đánh")
         slider("Lực đánh tối đa",  Prefs.tuneMaxPower,0.6,1.3,format:{String(format:"%.1f m/s",8*$0)})
-        if FeatureFlags.powerBar {   // 0.47 M1: stroke input (default: power bar for a new player, swipe after 50 shots)
-            segmented("Kiểu ra cơ",["Thanh lực","Vuốt B"],FeatureFlags.usesPowerBar(shots:PlayerStore.shared.data.metrics.shots) ? 0:1){UserDefaults.standard.set($0==0 ? 1:0,forKey:Prefs.powerBarMode)}
-        }
+        // 0.56 K2: "Kiểu ra cơ" is gone — the swipe (B) is the only stroke; the power bar is a rescue offered inside chapter drills.
         let physicsStart=target.arrangedSubviews.count
         header("Bàn và vật lý")
         target.addArrangedSubview(UIButton.lab("Mẫu loại bàn (nhanh / chuẩn / chậm) và thông số chi tiết"){[weak self] in

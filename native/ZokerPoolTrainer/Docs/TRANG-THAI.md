@@ -22,6 +22,7 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 | 0.52 | `cho/native-0.49-xuong-bai` | B1 gộp lõi bài băng/trô, B2 "Bank 2 băng dài" (vi+en), accept_local 9/9 (56 UI test). Chưa: xem bằng mắt thẻ bank/draw. `Docs/NGHIEM-THU-0.52.md` |
 | 0.53 | `cho/native-0.53-phieu-lo` | Xong: A2, A3.2, B2, C1 (+A1 chưa tái hiện lỗi, B1/B6 một phần). Chưa làm: A3.1/A3.3 (cần 2 máy), B3, B4, B5, C2, Xem lại→Bàn, bàn bên. accept_local 9/9 (60 UI test). `Docs/NGHIEM-THU-0.53.md` |
 | 0.54 | `cho/native-0.53-phieu-lo` | M1–M5: chương 1 "Kiểm soát lực" (9 thang vòng, khởi động, 0…3 sao, % + danh hiệu, quỹ lùi cú, chơi lại chương, thẻ khoe); luật gọi Mastery.h. Chưa: UI test hết quỹ ch.2–9, % cho ch.2–9, ảnh thẻ khoe mẫu. `Docs/NGHIEM-THU-0.54.md` |
+| 0.56 | `cho/native-0.53-phieu-lo` | K1 cột phải 4 nút, K2 bỏ công tắc thanh lực (cứu nguy BLPowerBarRescue), K3 cụm trái D / 2/3 D, ảnh 3 máy. `Docs/NGHIEM-THU-0.56.md` |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
 Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
