@@ -33,6 +33,12 @@ int main() {
           BLChapterUndoLeft(1, 999) == -1, "take-backs left never go negative; chapter 1 unlimited");
     check(BLChapterUndoAllowed(1, 500) && BLChapterUndoAllowed(3, 69) && !BLChapterUndoAllowed(3, 70), "take-back allowed until the budget is spent");
     check(BLChapterCleanSeal(72, 0) && !BLChapterCleanSeal(72, 1) && !BLChapterCleanSeal(40, 0), "clean seal: finished, no take-back");
+    // power-bar rescue (0.56)
+    check(!BLPowerBarRescue(1, 9999, 10, 9), "rescue: never in chapter 1");
+    check(!BLPowerBarRescue(2, 89, 10, 9) && BLPowerBarRescue(2, 90, 10, 0), "rescue: only from the last 10 take-backs (chapter 2: 100)");
+    check(!BLPowerBarRescue(3, 65, 60, 2) && BLPowerBarRescue(3, 65, 34, 0) && BLPowerBarRescue(3, 65, 60, 3), "rescue: hard rung (< 35 %) or 3 failed rounds");
+    check(BLPowerBarRescue(5, 30, 60, 3), "rescue: still offered with no take-back left");
+    check(BLChapterCleanSealNoHelp(80, 0, 0) && !BLChapterCleanSealNoHelp(80, 0, 1) && !BLChapterCleanSealNoHelp(80, 1, 0), "clean seal: no take-back and no rescue");
 
     // the force-control chapter: 9 ladders × 3 rings, rings shrink, measured rate falls, three stars reachable
     int32_t rungs[64]; const int32_t n = BLLadderRungs(1, rungs, 64);

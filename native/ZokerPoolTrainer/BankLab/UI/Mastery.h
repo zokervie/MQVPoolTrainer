@@ -76,6 +76,24 @@ static inline int32_t BLChapterUndoLeft(int32_t chapter, int32_t used) {
 static inline int BLChapterUndoAllowed(int32_t chapter, int32_t used) { return BLChapterUndoLeft(chapter, used) != 0; }
 static inline int BLChapterCleanSeal(int32_t percent, int32_t undoUsed) { return percent >= BL_TITLE_FIRST_PERCENT && undoUsed == 0; }
 
+/* 0.56 power-bar rescue (owner 22/11 18:21): no power-bar switch on the play screen. The bar is offered only as a
+ * rescue, inside a chapter with a take-back budget, when the player is down to the last BL_RESCUE_UNDO_LEFT take-backs
+ * AND the rung is hard (measured make rate < BL_RESCUE_HARD_PERCENT) or has beaten them BL_RESCUE_FAILED_ROUNDS
+ * scored rounds in a row. Never in chapter 1 (the force chapter: the bar would do the drill for them).
+ * Using the rescue counts as help: no "Tay sạch" seal for that chapter.     [quyết định chủ dự án; 35 % và 3: GIẢ ĐỊNH] */
+#define BL_RESCUE_UNDO_LEFT 10
+#define BL_RESCUE_HARD_PERCENT 35
+#define BL_RESCUE_FAILED_ROUNDS 3
+static inline int BLPowerBarRescue(int32_t chapter, int32_t undoUsed, int32_t makePercent, int32_t failedRoundsInARow) {
+    if (chapter <= 1) return 0;
+    const int32_t left = BLChapterUndoLeft(chapter, undoUsed);
+    if (left < 0 || left > BL_RESCUE_UNDO_LEFT) return 0;
+    return makePercent < BL_RESCUE_HARD_PERCENT || failedRoundsInARow >= BL_RESCUE_FAILED_ROUNDS;
+}
+static inline int BLChapterCleanSealNoHelp(int32_t percent, int32_t undoUsed, int32_t rescueUsed) {
+    return BLChapterCleanSeal(percent, undoUsed) && rescueUsed == 0;
+}
+
 /* Ladder helpers on the catalogue: rungs of a chapter (rows with tier > 0), and the row of the previous ring. */
 static inline int32_t BLLadderRungs(int32_t chapter, int32_t *indices, int32_t capacity) {
     int32_t n = 0;
