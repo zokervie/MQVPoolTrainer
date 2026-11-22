@@ -119,6 +119,222 @@
   "top": 0.5,
   "window": 0.25
  },
+ "force-1rail-long-1": {
+  "angle": 0.349066,
+  "percent": 78,
+  "shots": 9082,
+  "speed": 1.22,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-1rail-long-2": {
+  "angle": 0.349066,
+  "percent": 66,
+  "shots": 9059,
+  "speed": 1.18,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-1rail-long-3": {
+  "angle": 0.349066,
+  "percent": 39,
+  "shots": 8790,
+  "speed": 1.2,
+  "top": 0.0,
+  "window": 2.95
+ },
+ "force-1rail-short-1": {
+  "angle": 1.570796,
+  "percent": 73,
+  "shots": 9082,
+  "speed": 1.58,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-1rail-short-2": {
+  "angle": 1.570796,
+  "percent": 50,
+  "shots": 9068,
+  "speed": 1.62,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-1rail-short-3": {
+  "angle": 1.570796,
+  "percent": 34,
+  "shots": 8890,
+  "speed": 1.64,
+  "top": 0.0,
+  "window": 2.15
+ },
+ "force-2rail-1": {
+  "angle": 1.047198,
+  "percent": 73,
+  "shots": 9082,
+  "speed": 1.98,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-2rail-2": {
+  "angle": 1.043707,
+  "percent": 54,
+  "shots": 9069,
+  "speed": 2.02,
+  "top": 0.0,
+  "window": 4.0
+ },
+ "force-2rail-3": {
+  "angle": 1.048943,
+  "percent": 39,
+  "shots": 8941,
+  "speed": 2.0,
+  "top": 0.0,
+  "window": 3.0
+ },
+ "force-2rail-long-1": {
+  "angle": 1.570796,
+  "percent": 62,
+  "shots": 9032,
+  "speed": 3.0,
+  "top": 0.0,
+  "window": 3.65
+ },
+ "force-2rail-long-2": {
+  "angle": 1.570796,
+  "percent": 45,
+  "shots": 8920,
+  "speed": 2.94,
+  "top": 0.0,
+  "window": 2.45
+ },
+ "force-2rail-long-3": {
+  "angle": 1.570796,
+  "percent": 32,
+  "shots": 8830,
+  "speed": 3.0,
+  "top": 0.0,
+  "window": 1.95
+ },
+ "force-3rail-1": {
+  "angle": 0.837758,
+  "percent": 69,
+  "shots": 9082,
+  "speed": 2.52,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-3rail-2": {
+  "angle": 0.841249,
+  "percent": 58,
+  "shots": 9081,
+  "speed": 2.42,
+  "top": 0.0,
+  "window": 3.95
+ },
+ "force-3rail-3": {
+  "angle": 0.825541,
+  "percent": 33,
+  "shots": 8968,
+  "speed": 2.52,
+  "top": 0.0,
+  "window": 3.2
+ },
+ "force-draw-1": {
+  "angle": 1.098422,
+  "percent": 66,
+  "shots": 3691,
+  "speed": 2.8,
+  "top": -0.55,
+  "window": 0.4
+ },
+ "force-draw-2": {
+  "angle": 1.098422,
+  "percent": 45,
+  "shots": 3627,
+  "speed": 2.8,
+  "top": -0.55,
+  "window": 0.4
+ },
+ "force-draw-3": {
+  "angle": 1.100167,
+  "percent": 23,
+  "shots": 3562,
+  "speed": 2.8,
+  "top": -0.55,
+  "window": 0.3
+ },
+ "force-far-1": {
+  "angle": 1.570796,
+  "percent": 77,
+  "shots": 9082,
+  "speed": 1.26,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-far-2": {
+  "angle": 1.570796,
+  "percent": 62,
+  "shots": 9066,
+  "speed": 1.22,
+  "top": 0.0,
+  "window": 3.55
+ },
+ "force-far-3": {
+  "angle": 1.570796,
+  "percent": 37,
+  "shots": 8918,
+  "speed": 1.2,
+  "top": 0.0,
+  "window": 1.65
+ },
+ "force-follow-1": {
+  "angle": 1.101913,
+  "percent": 66,
+  "shots": 3895,
+  "speed": 1.7,
+  "top": 0.5,
+  "window": 0.25
+ },
+ "force-follow-2": {
+  "angle": 1.101913,
+  "percent": 50,
+  "shots": 3888,
+  "speed": 1.7,
+  "top": 0.5,
+  "window": 0.25
+ },
+ "force-follow-3": {
+  "angle": 1.103658,
+  "percent": 36,
+  "shots": 3814,
+  "speed": 1.7,
+  "top": 0.5,
+  "window": 0.1
+ },
+ "force-near-1": {
+  "angle": 1.570796,
+  "percent": 80,
+  "shots": 9046,
+  "speed": 0.54,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-near-2": {
+  "angle": 1.570796,
+  "percent": 57,
+  "shots": 8980,
+  "speed": 0.54,
+  "top": 0.0,
+  "window": 4.05
+ },
+ "force-near-3": {
+  "angle": 1.570796,
+  "percent": 52,
+  "shots": 8840,
+  "speed": 0.54,
+  "top": 0.0,
+  "window": 4.05
+ },
  "kick1-blocker": {
   "angle": 2.44025,
   "percent": 91,

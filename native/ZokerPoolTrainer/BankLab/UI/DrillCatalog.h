@@ -39,7 +39,8 @@ typedef struct {
     const char *key;
     int32_t chapter;          /* 1-based, BLDrillChapterKey */
     int32_t kind;             /* BL_DRILL_* */
-    int32_t rails;            /* kick: cue-ball rails before ball 1; bank: object-ball rails before the pocket */
+    int32_t rails;            /* kick: cue-ball rails before ball 1; bank: object-ball rails before the pocket;
+                                 0.54 goal without a pot: cue-ball cushions before it stops (exactly), 0 = any */
     int32_t ballCount;
     BLDrillBall balls[BL_DRILL_MAX_BALLS];
     double angle;             /* default aim shown when the drill loads (radians) */
@@ -52,6 +53,8 @@ typedef struct {
     int32_t makePercent;      /* % made with that stroke under the checker's player error (DrillCheck.hpp) */
     int32_t skill;            /* 0.50: BL_SKILL_* taught (drills) or needed (puzzles) */
     int32_t flags;            /* 0.50: BL_DRILL_LEGAL_FIRST | BL_DRILL_CLEAN */
+    int32_t tier;             /* 0.54 ring ladder: 0 = single drill; 1…3 = the same layout with a smaller ring each tier
+                                 (keys "<group>-1" … "<group>-3", consecutive in the table) */
 } BLDrillSpec;
 
 /* Difficulty 1–5 from the measured make rate (bands GIẢ ĐỊNH; ≥ 70 % made is "Đạt" in the 0.49 mastery rule). */
@@ -183,6 +186,11 @@ static inline int BLDrillJudge(const BLDrillSpec *d, const BLDrillLayout *L, int
     case BL_DRILL_GOAL:
         if (d->potOnly) return made;
         if (d->potRequired && !made) return 0;
+        if (d->rails > 0 && !d->potRequired) {   /* 0.54 force ladder: the cue ball must take exactly `rails` cushions */
+            int32_t rails = 0;
+            for (int32_t e = 0; e < eventCount; ++e) if (kind[e] == 0 && a[e] == 0) ++rails;
+            if (rails != d->rails) return 0;
+        }
         return hypot(xs[cue] - d->goalX, ys[cue] - d->goalY) <= d->goalR;
     case BL_DRILL_KICK: {
         int32_t rails = 0;

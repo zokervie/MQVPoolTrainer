@@ -41,10 +41,10 @@ def render():
             solve, pct = (m["angle"], m["speed"], m["top"]), m["percent"]
         else:
             solve, pct = (0, 0, 0), 0   # not measured yet: the test fails until drill_sweep has run
-        lines.append('    { "%s", %d, %s, %d, %d, { %s },\n      %s, %s, %s, %s, %d, %d, %s, %s, %s, %s, %s, %s, %d, %d, %d },' % (
+        lines.append('    { "%s", %d, %s, %d, %d, { %s },\n      %s, %s, %s, %s, %d, %d, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d },' % (
             d["key"], d["chapter"], KIND[d["kind"]], d["rails"], len(d["balls"]), balls,
             f(d["angle"]), f(gx), f(gy), f(gr), int(d["pot_required"]), int(d["pot_only"]), f(d["tip"]), f(d["jitter"]),
-            f(d["scan"]), f(solve[0]), f(solve[1]), f(solve[2]), pct, catalog.skill_of(d["key"]), d.get("flags", 0)))
+            f(d["scan"]), f(solve[0]), f(solve[1]), f(solve[2]), pct, catalog.skill_of(d["key"]), d.get("flags", 0), d.get("tier", 0)))
     lines.append("};")
     lines.append("#define BL_DRILL_CHAPTERS %d" % len(catalog.CHAPTERS))
     lines.append("static const char *const BLDrillChapterKeys[BL_DRILL_CHAPTERS] = { %s };" %
@@ -67,13 +67,13 @@ def render_puzzles():
                                                             s["percent"], fx(s["hint"][0]), fx(s["hint"][1]))
                          for s in p["solutions"][:4])
         kind = {0: "BL_DRILL_GOAL", 1: "BL_DRILL_KICK", 2: "BL_DRILL_BANK", 3: "BL_DRILL_SAFETY", 4: "BL_DRILL_REACH"}[p["kind"]]
-        lines.append('    { { "%s", %d, %s, %d, %d, { %s },\n        %s, %s, %s, %s, %d, %d, 0.0, 0.0, 0.0, %s, %s, %s, %d, %d, %d },\n'
+        lines.append('    { { "%s", %d, %s, %d, %d, { %s },\n        %s, %s, %s, %s, %d, %d, 0.0, 0.0, 0.0, %s, %s, %s, %d, %d, %d, 0 },\n'
                      '      %d, %d, { %s } },' % (
             p["key"], p["room"], kind, p["rails"], len(p["balls"]), balls, fx(p["angle"]), fx(p["goal"][0]), fx(p["goal"][1]),
             fx(p["goal"][2]), p["potRequired"], p["potOnly"], fx(best["angle"]), fx(best["speed"]), fx(best["top"]),
             best["percent"], p["skill"], p["flags"], p["styleId"], min(4, len(p["solutions"])), sols))
     if not puzzles:   # an empty C array is not valid C: one inert entry the app never lists (chapter 0)
-        lines.append('    { { "none", 0, BL_DRILL_GOAL, 0, 1, { { 0, 0.0, 0.0 } }, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0 }, 0, 0, { { 0, 0.0, 0.0, 0.0, 0, 0.0, 0.0 } } },')
+        lines.append('    { { "none", 0, BL_DRILL_GOAL, 0, 1, { { 0, 0.0, 0.0 } }, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0 }, 0, 0, { { 0, 0.0, 0.0, 0.0, 0, 0.0, 0.0 } } },')
     lines.append("};")
     return "\n".join(lines).replace("\\n", "\n") + "\n"
 
