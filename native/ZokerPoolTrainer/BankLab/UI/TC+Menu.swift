@@ -130,6 +130,7 @@ extension TrainingController {
         loadDrill(index);applyCoachVisibility()
         lessonActive=Drill.all[index].level>0 || (FeatureFlags.chapters && Chapters.locate(Drill.all[index].id) != nil);lessonScores=[];lessonPasses=0   // 0.47 M0: every ladder drill (also "Cú đầu tiên") is a 5-shot round
         if lessonActive {scoreLabel.text="Lượt 5 cú · 0 / 5";notifyStatus(String(format:L10n.tr("Bài tập: %@ · cần đạt %d/5 cú"),Drill.all[index].title,Drill.all[index].passMade))}
+        if (Drill.all[index].spec?.tier ?? 0)>0 {ladderIntro(Drill.all[index])}   // 0.54
     }
     func chooseDrill(){
         guard matchAllowsEditing else{return}

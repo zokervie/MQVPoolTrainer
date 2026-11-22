@@ -37,7 +37,7 @@ enum DrillCatalog {
     struct ChapterText { let key: String; let title: String; let tip: String; let more: String; let source: String }
     /// Chapter texts by BLDrillChapterKey: title · one-line tip · extra line · source.
     static let chapterText: [String: ChapterText] = Dictionary(uniqueKeysWithValues: [
-        ChapterText(key: "straight-speed", title: "Cú thẳng và lực", tip: "Lực là quãng lăn", more: "Gấp đôi quãng: lực chỉ cần ×1,4",
+        ChapterText(key: "straight-speed", title: "Kiểm soát lực", tip: "Lực là quãng lăn", more: "Gấp đôi quãng: lực chỉ cần ×1,4",
                     source: "Thang Lực 1–30 của app; bài stop / theo / lùi của Kinister và Dr. Dave Alciatore"),
         ChapterText(key: "stop-follow-draw", title: "Dừng – theo – lùi", tip: "Trên tâm theo, dưới tâm lùi", more: "Bi cái càng xa, xoáy dưới càng hao",
                     source: "Bài stop / theo / lùi của Kinister và Dr. Dave Alciatore"),
@@ -66,8 +66,12 @@ enum DrillCatalog {
             var idx = [Int32](repeating: 0, count: 64)
             let c = Int(BLDrillChapterDrills(Int32(n), &idx, 64))
             let t = chapterText[key] ?? ChapterText(key: key, title: key, tip: "", more: "", source: "")
-            return Chapter(number: n, title: t.title, tip: t.tip, tipMore: t.more, source: t.source,
-                           drills: (0..<c).map { Self.key(at: Int(idx[$0])) }, key: key, blocking: !nonBlocking.contains(key))
+            let ids = (0..<c).map { Self.key(at: Int(idx[$0])) }
+            let ringIds = ids.filter { (spec($0)?.tier ?? 0) > 0 }
+            var chapter = Chapter(number: n, title: t.title, tip: t.tip, tipMore: t.more, source: t.source,
+                           drills: ringIds.isEmpty ? ids : ringIds, key: key, blocking: !nonBlocking.contains(key))
+            if !ringIds.isEmpty { chapter.legacy = ids.filter { (spec($0)?.tier ?? 0) == 0 } }   // 0.54: "Bài cũ"
+            return chapter
         }
     }
 

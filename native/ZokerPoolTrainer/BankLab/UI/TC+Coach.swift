@@ -289,6 +289,7 @@ extension TrainingController {
         return (miss.isFinite ? max(0,55-Int(miss*150)):0,String(format:"%lld/%lld băng · bi 1 cách lỗ %.0f cm",railCount,d.rails,miss.isFinite ? miss*100:0))
     }
     func scoreLesson(_ d:Drill,passed:Bool,scratch:Bool,timedOut:Bool,railCount:Int,events:[[String:NSNumber]]){
+        if let spec=d.spec,spec.tier>0{ladderShot(d,passed:passed,railCount:railCount);return}   // 0.54: ring ladders have their own flow (warm-up, 0…3 stars)
         let (score,detail)=lessonShotScore(d,passed:passed,scratch:scratch,timedOut:timedOut,railCount:railCount)
         lessonScores.append(score);if passed{lessonPasses+=1}
         let n=lessonScores.count

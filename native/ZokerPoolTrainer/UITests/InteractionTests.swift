@@ -66,6 +66,12 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(sub.waitForExistence(timeout:5 * slow),"save / library submenu");sub.tap()
     }
     private func waitReplayReady(_ scene: XCUIElement) { wait(scene,timeout:30 * slow){self.field(scene,"replayReady")==1} }
+    /// 0.54: "Bài cũ" sits below chapter 1's nine ladders and its exam — scroll the Chapters table until the row is on screen.
+    private func chapterCell(_ app: XCUIApplication, _ id: String) -> XCUIElement {
+        let cell = app.cells[id], table = app.tables["Chapters"]
+        for _ in 0..<8 where !(cell.exists && cell.isHittable) { table.swipeUp() }
+        return cell
+    }
     private func quick(_ app: XCUIApplication, _ id: String) -> XCUIElement {
         let button = app.buttons[id]
         let scroll = app.scrollViews["QuickRailScroll"]
@@ -692,8 +698,8 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60))
         app.buttons["LobbyDrills"].tap()
         XCTAssertTrue(app.tables["Chapters"].waitForExistence(timeout: 10 * slow), "chapters replace the 5-level list")
-        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].exists, "chapter 1 rung 1 open")
-        app.cells["ChapterDrill-first-shot"].tap()
+        XCTAssertTrue(chapterCell(app, "ChapterDrill-first-shot").exists, "chapter 1 rung 1 open")
+        chapterCell(app, "ChapterDrill-first-shot").tap()
         XCTAssertTrue(app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow), "first time in a chapter: its tip card")
         app.buttons["TipCardOK"].tap()
         let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
@@ -735,7 +741,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(counts.allSatisfy { $0 >= 2 }, "every chapter has at least two drills: \(counts)")
         app.buttons["LobbyDrills"].tap()
         XCTAssertTrue(app.tables["Chapters"].waitForExistence(timeout: 10 * slow))
-        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].exists, "the first rung of chapter 1 is open")
+        XCTAssertTrue(chapterCell(app, "ChapterDrill-first-shot").exists, "the first rung of chapter 1 is open")
     }
     /// 0.49b X3: shot 0 of a round is the catalogue layout; from shot 1 the cue ball sits a little elsewhere (≤ the drill's jitter).
     func testRoundMovesTheCueBallBetweenShots() {
@@ -743,7 +749,7 @@ final class InteractionTests: XCTestCase {
         app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa"]
         app.launch()
         XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
-        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].waitForExistence(timeout: 10 * slow)); app.cells["ChapterDrill-first-shot"].tap()
+        XCTAssertTrue(chapterCell(app, "ChapterDrill-first-shot").waitForExistence(timeout: 10 * slow)); chapterCell(app, "ChapterDrill-first-shot").tap()
         if app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow) { app.buttons["TipCardOK"].tap() }
         let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
         XCTAssertTrue(start.waitForExistence(timeout: 5 * slow)); start.tap()
@@ -764,7 +770,7 @@ final class InteractionTests: XCTestCase {
         app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]
         app.launch()
         XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
-        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].waitForExistence(timeout: 10 * slow)); app.cells["ChapterDrill-first-shot"].tap()
+        XCTAssertTrue(chapterCell(app, "ChapterDrill-first-shot").waitForExistence(timeout: 10 * slow)); chapterCell(app, "ChapterDrill-first-shot").tap()
         if app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow) { app.buttons["TipCardOK"].tap() }
         XCTAssertTrue(app.staticTexts["DrillTip"].waitForExistence(timeout: 5 * slow), "one tip line of the chapter")
         XCTAssertFalse(app.staticTexts["Cách chấm điểm"].exists, "the scoring text is folded away")
@@ -847,7 +853,7 @@ final class InteractionTests: XCTestCase {
         app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa"]
         app.launch()
         XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
-        XCTAssertTrue(app.cells["ChapterDrill-first-shot"].waitForExistence(timeout: 10 * slow)); app.cells["ChapterDrill-first-shot"].tap()
+        XCTAssertTrue(chapterCell(app, "ChapterDrill-first-shot").waitForExistence(timeout: 10 * slow)); chapterCell(app, "ChapterDrill-first-shot").tap()
         if app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow) { app.buttons["TipCardOK"].tap() }
         let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
         XCTAssertTrue(start.waitForExistence(timeout: 5 * slow)); start.tap()
@@ -1209,6 +1215,40 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene, "calledBall"), 1, "the default called ball is the lowest ball on the table")
         XCTAssertEqual(field(scene, "calledPocket"), 3, "one tap on the right side pocket")
         XCTAssertNotEqual(field(scene, "mode"), 1, "no forced top view")
+    }
+    /// 0.54 M1/M3/M4/M6: chapter 1 shows nine ladders, the title for the saved progress (70 % → "Triển Vọng", from Mastery.h), the "∞" take-back line,
+    /// locked rings beyond a ring with fewer than 3 stars, the intro text; "Chơi lại chương" (two confirmations) clears it.
+    func testChapterOneLaddersTitleAndReset() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--mastery-qa"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
+        XCTAssertTrue(app.tables["Chapters"].waitForExistence(timeout: 10 * slow))
+        let title = app.staticTexts["ChapterTitle-1"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 10 * slow), "title line of chapter 1")
+        XCTAssertTrue(title.label.contains("Triển Vọng") && title.label.contains("70 %"), "70 % = title 2: \(title.label)")
+        XCTAssertTrue(title.label.contains("Bàn Tay Nhung"), "the chapter nickname")
+        XCTAssertTrue(app.staticTexts["ChapterUndo-1"].firstMatch.label.contains("∞"), "chapter 1: unlimited take-backs")
+        XCTAssertTrue(app.cells["ChapterLadder-force-near"].exists && app.cells["ChapterLadder-force-far"].exists, "ladder cards")
+        let follow = chapterCell(app, "ChapterLadder-force-follow")
+        let followText = follow.descendants(matching: .staticText).allElementsBoundByIndex.map { $0.label }.joined(separator: " ")
+        XCTAssertTrue(followText.contains("🔒"), "no stars yet: the smaller rings are locked: \(followText)")
+        // reset the chapter: two confirmations
+        let settings = chapterCell(app, "ChapterSettings-1"); settings.tap()
+        if app.buttons["TipCardOK"].waitForExistence(timeout: 1) { app.buttons["TipCardOK"].tap() }
+        let again = app.buttons["Chơi lại chương từ đầu"].firstMatch
+        XCTAssertTrue(again.waitForExistence(timeout: 5 * slow)); again.tap()
+        let sure = app.alerts["ChapterResetSure"]; XCTAssertTrue(sure.waitForExistence(timeout: 5 * slow)); sure.buttons["Tiếp tục"].tap()
+        let really = app.alerts["ChapterResetReally"]; XCTAssertTrue(really.waitForExistence(timeout: 5 * slow)); really.buttons["Chơi lại chương"].tap()
+        app.tables["Chapters"].swipeDown(); app.tables["Chapters"].swipeDown()
+        let after = app.staticTexts["ChapterTitle-1"].firstMatch
+        XCTAssertTrue(after.waitForExistence(timeout: 5 * slow) && after.label.contains("0 %") && after.label.contains("Tay Mơ Có Chí"), "back to the start: \(after.label)")
+    }
+    /// 0.54 M3/M5: moving up a title shows one card (once), and the share card is drawn at 1080×1350 (probe: PNG bytes > 0).
+    func testTitleCardAppearsOnceWithAShareCard() {
+        let (app, scene) = launch(["--mastery-qa", "--mastery-card-qa", "--fresh-player-qa"])
+        let card = app.alerts["TitleCard"]
+        XCTAssertTrue(card.waitForExistence(timeout: 30 * slow), "the card for the new title")
+        XCTAssertTrue(card.label.contains("Triển Vọng"), card.label)
+        XCTAssertEqual(text(scene, "titleCard"), "2")
     }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {

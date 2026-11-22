@@ -331,13 +331,13 @@ extension TrainingController {
         var retry=UIButton.Configuration.plain();retry.title="Lùi cú";retry.image=UIImage(systemName:"arrow.uturn.backward");retry.imagePadding=5;retry.baseForegroundColor=UIColor.white.withAlphaComponent(0.8);retry.background.backgroundColor=UIColor(white:0.03,alpha:0.3);retry.background.cornerRadius=18
         retry.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:9,weight:.medium);return a}
         retry.title="Tập lại";retryButton.configuration=retry;retryButton.translatesAutoresizingMaskIntoConstraints=false;retryButton.accessibilityLabel="Dừng và đánh lại cú vừa rồi";view.addSubview(retryButton)
-        retryButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};if self.shotBack.isEmpty{self.undo()}else{self.stepShot(-1)}},for:.touchUpInside)
+        retryButton.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.userTakeBack{if self.shotBack.isEmpty{self.undo()}else{self.stepShot(-1)}}},for:.touchUpInside)
         retryButton.menu=UIMenu(title:"Lùi / tiến cú",children:[UIDeferredMenuElement.uncached{[weak self] completion in
             guard let self=self else{completion([]);return}
             let back=self.shotBack.count,forward=self.shotForward.count
-            completion([UIAction(title:"Lùi 1 cú (còn \(back))",attributes:back==0 ? [.disabled]:[]){[weak self]_ in self?.stepShot(-1)},
+            completion([UIAction(title:"Lùi 1 cú (còn \(back))",attributes:back==0 ? [.disabled]:[]){[weak self]_ in self?.userTakeBack{self?.stepShot(-1)}},
                         UIAction(title:"Tiến 1 cú (còn \(forward))",attributes:forward==0 ? [.disabled]:[]){[weak self]_ in self?.stepShot(1)},
-                        UIAction(title:"Về đầu phiên",attributes:back==0 ? [.disabled]:[]){[weak self]_ in self?.stepShot(-99)},
+                        UIAction(title:"Về đầu phiên",attributes:back==0 ? [.disabled]:[]){[weak self]_ in self?.userTakeBack{self?.stepShot(-99)}},
                         UIAction(title:"Tới cú mới nhất",attributes:forward==0 ? [.disabled]:[]){[weak self]_ in self?.stepShot(99)}])}])
         panel.isHidden=true;table.cameraMode=2;table.showNumbers=false
     }
@@ -636,7 +636,7 @@ extension TrainingController {
         replayButton.isEnabled = !shotActive && !frames.isEmpty && localTurn
         replayButton.configuration?.title=replayIndex == nil ? "Xem lại":"Dừng xem"
         undoButton.isEnabled = !before.isEmpty && localTurn
-        retryButton.isEnabled = !before.isEmpty && !isPlacingBalls && localTurn && !spinExpanded
+        retryButton.isEnabled = !before.isEmpty && !isPlacingBalls && localTurn && !spinExpanded && (currentChapter.map{Mastery.undoAllowed($0)} ?? true)   // 0.54 M4
         syncMatchControls()
     }
 }
