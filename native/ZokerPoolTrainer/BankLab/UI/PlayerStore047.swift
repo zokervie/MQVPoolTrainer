@@ -138,6 +138,12 @@ struct PlayerData: Codable, Equatable {
     var badges: [String: [String]] = [:]            // drill id → DrillBadge raw values earned (X8)
     var realTable: [String: [RealTableLog]] = [:]   // drill id → tries on a real table (X7), oldest first
 
+    // 0.54 "Làm chủ chương"
+    var ladderStars: [String: Int] = [:]            // ring id "force-near-2" → best stars 0…3 of a scored round (BLRoundStars)
+    var ladderWarm: [String: Int] = [:]             // ladder name → warm-up shots made in the big ring (BLWarmupDone)
+    var chapterUndo: [String: Int] = [:]            // chapter key → take-backs used (BLChapterUndoLeft)
+    var titlesSeen: [String: Int] = [:]             // chapter key → highest title index already celebrated
+    var chapterResets: [String: Int] = [:]          // chapter key → times "Chơi lại chương từ đầu" was used
     init(now: Date, day: Int64) { metrics = UsageMetrics(installedAt: now, installDay: day) }
     // Missing fields (older / newer files) fall back to defaults instead of failing the whole file.
     init(from decoder: Decoder) throws {
@@ -165,6 +171,11 @@ struct PlayerData: Codable, Equatable {
         puzzleBook = try c.decodeIfPresent([String: PuzzleRecord].self, forKey: .puzzleBook) ?? [:]
         dailyPuzzle = try c.decodeIfPresent([String: DailyPuzzleState].self, forKey: .dailyPuzzle) ?? [:]
         dailyShares = try c.decodeIfPresent(Int.self, forKey: .dailyShares) ?? 0
+        ladderStars = try c.decodeIfPresent([String: Int].self, forKey: .ladderStars) ?? [:]
+        ladderWarm = try c.decodeIfPresent([String: Int].self, forKey: .ladderWarm) ?? [:]
+        chapterUndo = try c.decodeIfPresent([String: Int].self, forKey: .chapterUndo) ?? [:]
+        titlesSeen = try c.decodeIfPresent([String: Int].self, forKey: .titlesSeen) ?? [:]
+        chapterResets = try c.decodeIfPresent([String: Int].self, forKey: .chapterResets) ?? [:]
         eye = try c.decodeIfPresent(Double.self, forKey: .eye) ?? 1000
         predictDay = try c.decodeIfPresent(Int64.self, forKey: .predictDay) ?? -1
         predictCount = try c.decodeIfPresent(Int.self, forKey: .predictCount) ?? 0
@@ -383,6 +394,29 @@ final class PlayerStore {
             guard let step = Self.reviewSteps.first(where: { !done.contains($0) && today - solved >= Int64($0) }) else { return nil }
             return (key, step, solved)
         }.sorted { ($0.2, $0.0) < ($1.2, $1.0) }.map { ($0.0, $0.1) }
+    }
+    // MARK: 0.54 ring ladders and chapter mastery (rules live in Mastery.h; this is storage only)
+    func ladderStars(_ id: String) -> Int { data.ladderStars[id] ?? 0 }
+    func warmMade(_ ladder: String) -> Int { data.ladderWarm[ladder] ?? 0 }
+    func addWarm(_ ladder: String, made: Int) { data.ladderWarm[ladder] = warmMade(ladder) + max(0, made); save() }
+    /// A scored round of a ring (0…3 stars). The chapter gates read the old 5-star scale, so a ring with ≥ 1 star counts as passed there.
+    @discardableResult func recordLadderRound(id: String, stars: Int, made: Int = -1, average: Double = 0) -> Bool {
+        let s = max(0, min(3, stars)), newBest = s > ladderStars(id)
+        if newBest { data.ladderStars[id] = s }
+        let old = s == 3 ? 5 : (s == 2 ? 4 : (s == 1 ? 3 : 0))
+        recordRound(drill: id, stars: old, average: average, made: made)
+        return newBest
+    }
+    func noteUndo(_ chapterKey: String) { data.chapterUndo[chapterKey] = undoUsed(chapterKey) + 1; save() }
+    func undoUsed(_ chapterKey: String) -> Int { data.chapterUndo[chapterKey] ?? 0 }
+    func titleSeen(_ chapterKey: String) -> Int { data.titlesSeen[chapterKey] ?? -1 }
+    func markTitleSeen(_ chapterKey: String, _ index: Int) { if index > titleSeen(chapterKey) { data.titlesSeen[chapterKey] = index; save() } }
+    /// "Chơi lại chương từ đầu": stars, warm-ups, take-backs and the celebrated title of ONE chapter are cleared (the only way back to "Tay sạch").
+    func resetChapter(key: String, drills: [String], ladders: [String]) {
+        for id in drills { data.stars.removeValue(forKey: id); data.ladderStars.removeValue(forKey: id); data.bestAverage.removeValue(forKey: id) }
+        for l in ladders { data.ladderWarm.removeValue(forKey: l) }
+        data.chapterUndo.removeValue(forKey: key); data.titlesSeen.removeValue(forKey: key)
+        data.chapterResets[key] = (data.chapterResets[key] ?? 0) + 1; save()
     }
     func markPuzzleReviewDone(key: String, step: Int) {
         var done = data.puzzleReviewDone[key] ?? []; if !done.contains(step) { done.append(step) }
