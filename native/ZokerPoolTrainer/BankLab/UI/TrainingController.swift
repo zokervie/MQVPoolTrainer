@@ -28,6 +28,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var puzzleSession:PuzzleSession?;var puzzleBar:UIView?;var puzzleTaskLabel:UILabel?;var puzzleHintButton:UIButton?;var puzzleRetryMs=0.0,puzzleRetries=0   // 0.50 Thế bí
     var glareSummary=""   // 0.49c G5 probe result for XCTest: "<PASS|FAIL|NOT_RUN>:<worst %>"
     var strikeSettled=false,midShotLayoutPasses=0,midShotLayoutTotal=0   // 0.49c G7
+    var placeCaption:UILabel?,powerCaption:UILabel?   // 0.53 B1: small captions under the two buttons
     var powerBarSwitch:UIButton?;var powerBarUserOn:Bool?   // 0.49c G3
     var placeBallButton:UIButton!   // 0.49c G6: stand-alone "Đặt bi" (64 pt) above the Đánh/Jump/Massé/Break row
     var drillVariant=0   // 0.49b X3: layout variant of the shot about to be played (0 = catalogue layout)

@@ -1176,6 +1176,17 @@ final class InteractionTests: XCTestCase {
         wait(scene, timeout: 60 * slow) { self.field(scene, "locked") == 1 }
         XCTAssertEqual(field(scene, "ringHidden"), 0, "the ring stays while B is held: \(scene.value as? String ?? "")")
     }
+    /// 0.53 B1: "Đặt bi" and the bar switch sit at the right, beside the power bar, each with a small caption.
+    func testPlaceBallAndPowerSwitchBesideThePowerBarWithCaptions() {
+        let (app, scene) = launch(["--power-bar-qa"])
+        let bar = app.descendants(matching: .any)["PowerBar"], place = app.buttons["PlaceBallButton"], sw = app.buttons["PowerBarSwitch"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 10 * slow) && place.waitForExistence(timeout: 10 * slow) && sw.exists)
+        XCTAssertGreaterThan(place.frame.midX, scene.frame.midX, "right half of the screen")
+        XCTAssertLessThan(abs(place.frame.maxX - bar.frame.minX), 40, "beside the bar")
+        XCTAssertLessThan(abs(sw.frame.midX - place.frame.midX), 4, "switch under the place button")
+        XCTAssertGreaterThan(sw.frame.minY, place.frame.maxY, "switch below the place button")
+        XCTAssertTrue(app.staticTexts["Đặt bi"].exists && app.staticTexts["Thanh lực"].exists, "captions under both buttons")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

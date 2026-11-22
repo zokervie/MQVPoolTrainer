@@ -39,8 +39,6 @@ extension TrainingController {
         place(menuButton,f.menu);place(coachButton,f.coach);place(panel,f.panel);spin.setNeedsDisplay()
         place(lockButton,f.lock);lockButton.isHidden=menuOpen || spinExpanded;lockButton.setNeedsDisplay()   // 0.36: B is back (hold = lock aim), square, left of the effect ball
         for (k,icon) in cueIcons.enumerated(){place(icon,BLHUDCueIcon(f,Int32(k)))}
-        if let b=placeBallButton{place(b,BLRectMake(f.cues.x,f.cues.y-8-64,64,64));syncPlaceBallButton()}   // 0.49c G6
-        if let b=powerBarSwitch{place(b,BLRectMake(f.cues.x+64+8,f.cues.y-8-52,44,44));syncPowerBarSwitch()}   // 0.49c G3: beside "Đặt bi"
         elevationPad.leftHanded=leftHanded
         let small=BLRectMake(0,f.coach.y+4,pad ? 76:62,36),guideW=pad ? 92:80
         var n=small,g=small,c=small;g.w=Double(guideW);c.w=pad ? 72:60   // 0.44.1: "Chấm cú" fits on one line
@@ -470,6 +468,7 @@ extension TrainingController {
         guard let b=placeBallButton else{return}
         let on=quickPlace?.isEnabled ?? false
         b.isHidden=menuOpen || spinExpanded || replayIndex != nil
+        placeCaption?.isHidden=b.isHidden;placeCaption?.alpha=on ? 1:0.4
         b.isEnabled=on;b.alpha=on ? 1:0.35
         b.configuration?.baseBackgroundColor=isPlacingBalls ? ZDesign.Color.gold:UIColor(white:0.03,alpha:0.55)
         b.configuration?.baseForegroundColor=isPlacingBalls ? .black:.white
