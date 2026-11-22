@@ -20,6 +20,7 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 | 0.50 | `cho/native-0.49-xuong-bai` (đã gộp `cho/native-0.50-the-bi-core`) | Thế bí: giao diện đủ T1–T8 (bản đồ phòng, màn thế bí, thử lại, gợi ý bậc 1–3, Ra bàn tập + quay lại, Sổ lời giải, ôn 1/3/7 ngày lật gương, kết thúc đẹp, đo cục bộ). Gốc lệch app↔máy chấm: cơ Jump đã lưu (đã sửa). Chưa: ảnh (ảnh XCUITest bị xoay). `Docs/NGHIEM-THU-0.50.md` |
 | 0.51 | `cho/native-0.49-xuong-bai` | N1 thế bí của ngày (6 cơ, ⚪🟡🟢, khoá, Khoe, chuỗi ngày), N2 đoán đường bi + Chỉ số Mắt, N3 đặt thế cho bạn (cầu nối `BLDrillQuick.mm`, mã 15 ký tự, kiểm lại ở máy nhận), N4 (bóng đường bi, tờ dán PDF + QR, URL scheme). Chưa: quay chậm/kính lúp, miệng lỗ 0,5 s, clip 6 s. `BL_DAILY_EPOCH_DAY` cần đặt theo ngày phát hành. accept_local 9/9 (56 UI test). `Docs/NGHIEM-THU-0.51.md` |
 | 0.52 | `cho/native-0.49-xuong-bai` | B1 gộp lõi bài băng/trô, B2 "Bank 2 băng dài" (vi+en), accept_local 9/9 (56 UI test). Chưa: xem bằng mắt thẻ bank/draw. `Docs/NGHIEM-THU-0.52.md` |
+| 0.53 | `cho/native-0.53-phieu-lo` | Xong: A2, A3.2, B2, C1 (+A1 chưa tái hiện lỗi, B1/B6 một phần). Chưa làm: A3.1/A3.3 (cần 2 máy), B3, B4, B5, C2, Xem lại→Bàn, bàn bên. accept_local 9/9 (60 UI test). `Docs/NGHIEM-THU-0.53.md` |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
 Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
