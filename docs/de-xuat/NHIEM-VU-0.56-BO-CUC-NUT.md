@@ -5,8 +5,8 @@ Chủ dự án yêu cầu 22/11 18:17 (ảnh Simulator iPhone 17 Pro). Làm trê
 ```
  Cụm trái                         Cụm phải
  ┌──────┐ ┌──────┐                      [Đặt bi]
- │ Cơ   │ │ Cơ   │   (chữ nhật 2:3,      [Lùi cú]
- │ chơi │ │ phá  │    nằm ngang)         [Camera]
+ │ ━━━━ │ │ ━━━▬ │   rộng = D, cao 2/3 D [Lùi cú]
+ │Cơ chơi│ │Cơ phá│                      [Camera]
  └──────┘ └──────┘                      [Bàn]
  ┌──────┐  ╭──────╮            ◢ góc dựng
  │  B   │  │ bi ép│
@@ -21,12 +21,15 @@ trên cùng cột: Đặt bi · Lùi cú · Camera ngắm · Bàn. Bỏ nút tr�
 Bật: vàng. Tắt: thanh lực ẩn, biểu tượng vẫn ở chỗ cũ (mờ). Trong Bài tập / Thử thách / Thế bí vẫn ẩn hẳn (0.53 C1).
 (Đề xuất của phiên đám mây — chủ dự án chưa nói chỗ; nếu anh muốn khác thì sửa sau.)
 
-**K3. Cụm trái.**
-- Nút B: hình vuông bo góc nhẹ, cạnh = đường kính nút bi ép phê. B và bi ép phê cùng hàng, cùng đáy, khe giữa = khe
-  giữa hai nút cơ.
-- "Cơ chơi" và "Cơ phá": hai chữ nhật nằm ngang, cao : rộng = 2 : 3, đặt cạnh nhau ngay trên hàng B + bi ép phê. Tổng
-  bề rộng hàng trên = tổng bề rộng hàng dưới (mép trái, mép phải thẳng hàng).
-- Nhãn đổi theo góc dựng như 0.53 B2 (Cơ chơi ↔ Massé, Cơ phá ↔ Nhảy); chữ không tràn ở cỡ chữ lớn.
+**K3. Cụm trái.** (chủ dự án làm rõ 18:19)
+- Gọi D = đường kính nút bi ép phê.
+- Nút B: hình vuông bo góc nhẹ, cạnh = D. B và bi ép phê cùng hàng, cùng đáy.
+- "Cơ chơi" nằm ngay trên B, "Cơ phá" nằm ngay trên bi ép phê. Mỗi nút là chữ nhật nằm ngang, cạnh dài = D,
+  cao = 2/3 D (tỉ lệ 2:3). Mép trái/phải của mỗi nút thẳng hàng với nút bên dưới; khe dọc = khe ngang giữa B và bi ép phê.
+- Bên trong mỗi nút: hình cây cơ nằm ngang (cơ chơi: dài, mảnh; cơ phá: đầu to hơn) chiếm phần trên, dòng chữ nhỏ ở
+  dưới ("Cơ chơi" / "Massé", "Cơ phá" / "Nhảy"), tất cả nằm gọn trong khung, không tràn ở cỡ chữ lớn (thu chữ, tối
+  thiểu 9 pt).
+- Nút đang chọn: viền vàng như hiện tại.
 
 **K4. Ràng buộc.** Không relayout khi bi đang chạy. Kiểm iPhone SE (màn nhỏ), iPhone 17 Pro Max, iPad: không chồng lên
 nhau, không đè vùng nỉ giữa bàn hơn hiện tại. Định danh UI test giữ nguyên (`PlaceBallButton`, `CueIcon…`, nút B,
