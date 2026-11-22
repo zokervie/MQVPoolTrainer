@@ -267,7 +267,7 @@ extension TableScene {
         for z:Float in [-2.4,-1.2,0]{_=box(0.06,1.56,0.05,SCNVector3(3.92,0.75,z),mat(.white,roughness:0.4),chamfer:0.004)}
         plant(SCNVector3(3.4,0,-3.9));plant(SCNVector3(-3.4,0,3.9),scale:0.8)
         sideGallery([6,18,14,5],side:-1,y:1.25,size:0.8,from:-3.3,to:0.9)
-        brandWall(SCNVector3(1.3,1.35,-4.62),yaw:0,width:2.2,plate:mat(.rgb(0x2B2420),roughness:0.4))
+        brandWall(SCNVector3(1.3,0.9,-4.62),yaw:0,width:2.2,plate:mat(.rgb(0x2B2420),roughness:0.4))
         roomLamp(SCNVector3(3.4,1.2,-1.2),45,6500,end:5);roomLamp(SCNVector3(-2.5,1.8,2.5),20,3000,end:4)
     }
     /// Garden terrace: stone deck, pergola wall with photos under string lights, lawn, hedges and sky.
@@ -290,7 +290,7 @@ extension TableScene {
         for k in 0..<22 {let x = -3.5+Float(k)*0.333;let sag=0.12*sin(Float(k%11)/10*Float.pi)
             let n=SCNNode(geometry:SCNSphere(radius:0.025));n.geometry?.materials=[bulb];n.position=SCNVector3(x,2.1-sag,-3.55);scene.rootNode.addChildNode(n)}
         endGallery([15,20,13,11],side:-1,y:0.55,size:0.85,from:-3.0,to:3.0)
-        brandWall(SCNVector3(0,1.55,-4.6),yaw:0,width:2.6)
+        brandWall(SCNVector3(0,0.9,-4.6),yaw:0,width:2.6)
         for x:Float in [-3.8,3.8]{plant(SCNVector3(x,0,3.8),scale:1.3);plant(SCNVector3(x,0,-2.8),scale:1.1)}
         tableFixture()
         let sun=SCNNode();sun.light=SCNLight();sun.light?.type = .directional;sun.light?.intensity=170;sun.light?.temperature=5600
@@ -314,7 +314,7 @@ extension TableScene {
         }
         sideGallery([22,4,24],side:-1,y:1.3,size:1.0,from:-2.6,to:2.6,lamp:gold)
         sideGallery([14,13,15],side:1,y:1.3,size:1.0,from:-2.6,to:2.6,lamp:gold)
-        brandWall(SCNVector3(0,2.2,-4.6),yaw:0,width:3.0,plate:mat(.rgb(0x1A1410),roughness:0.3,metal:0.2))
+        brandWall(SCNVector3(0,0.95,-4.6),yaw:0,width:3.0,plate:mat(.rgb(0x1A1410),roughness:0.3,metal:0.2))
         for z:Float in [-2.2,2.2]{
             let crystal=emissive(UIColor(white:1,alpha:1),.rgb(0xFFF2D0))
             for ring in 0..<2 {let r:Float = ring==0 ? 0.35:0.22,y:Float = ring==0 ? 2.9:2.75
@@ -338,7 +338,7 @@ extension TableScene {
         sideGallery([19,6],side:1,y:1.0,size:0.95,from:-1.6,to:1.6,lamp:gold)
         let crest=SCNNode(geometry:SCNCylinder(radius:0.45,height:0.03));crest.geometry?.materials=[gold];crest.eulerAngles.x = .pi/2;crest.position=SCNVector3(0,2.4,4.6);scene.rootNode.addChildNode(crest)
         let z=zLogo(height:0.5,material:mat(.rgb(0x5A0F14),roughness:0.4));z.position=SCNVector3(0,2.4,4.55);z.eulerAngles.y = .pi;scene.rootNode.addChildNode(z)
-        brandWall(SCNVector3(0,1.3,-4.6),yaw:0,width:2.8)
+        brandWall(SCNVector3(0,0.85,-4.6),yaw:0,width:2.8)
         _=box(2.4,0.02,5.6,SCNVector3(0,-0.745,0),mat(.rgb(0x7A1A1F),roughness:0.95),chamfer:0)
         _=box(2.5,0.019,5.7,SCNVector3(0,-0.746,0),gold,chamfer:0)
     }
@@ -366,7 +366,7 @@ extension TableScene {
             hangPhoto(k,SCNVector3(x,3.0,-7.15),yaw:0,size:3.0,lamp:mat(UIColor(white:0.02,alpha:1)))}
         for (i,k) in [12,9,5].enumerated(){let x=Float(i-1)*3.4
             hangPhoto(k,SCNVector3(x,3.0,7.15),yaw:Float.pi,size:3.0,lamp:mat(UIColor(white:0.02,alpha:1)))}
-        brandWall(SCNVector3(0,5.1,-7.1),yaw:0,width:5.0)
+        brandWall(SCNVector3(0,2.5,-7.1),yaw:0,width:5.0)
         let spot=SCNNode();spot.light=SCNLight();spot.light?.type = .spot;spot.light?.intensity=320;spot.light?.temperature=5000
         spot.light?.spotInnerAngle=30;spot.light?.spotOuterAngle=55;spot.position=SCNVector3(0,4.2,0);spot.eulerAngles.x = -.pi/2;scene.rootNode.addChildNode(spot)
         // lighting truss over the table
@@ -380,7 +380,7 @@ extension TableScene {
         sideGallery([8,23,18],side:-1,y:1.15,size:0.85,from:-2.6,to:2.6)
         sideGallery([1,10],side:1,y:1.15,size:0.85,from:-1.6,to:1.6)
         cueRack(SCNVector3(2.4,0,-4.55),yaw:0)
-        brandWall(SCNVector3(-0.6,1.5,-4.55),yaw:0,width:2.4)
+        brandWall(SCNVector3(-0.6,0.9,-4.55),yaw:0,width:2.4)
         downlights([-2.8,2.8],[-3.2,0,3.2],y:2.6)
     }
     /// VIP Zoker lounge: black marble floor with gold inlay, leather walls, trophy cabinets, sofas, champagne bar.
@@ -400,7 +400,7 @@ extension TableScene {
             _=box(0.04,0.02,9.0,SCNVector3(side*3.9,2.42,0),emissive(.rgb(0xFFD68A),.rgb(0xE0A23A)),chamfer:0)
         }
         trophyCabinet(SCNVector3(-2.6,0,-4.35),yaw:0);trophyCabinet(SCNVector3(2.6,0,-4.35),yaw:0)
-        brandWall(SCNVector3(0,1.55,-4.6),yaw:0,width:2.6)
+        brandWall(SCNVector3(0,0.9,-4.6),yaw:0,width:2.6)
         sideGallery([9,2,5],side:-1,y:1.2,size:0.95,from:-2.8,to:2.2,lamp:gold)
         sideGallery([3,15,20],side:1,y:1.2,size:0.95,from:-2.8,to:2.2,lamp:gold)
         let cream=mat(.rgb(0xE9DFCB),roughness:0.6)
@@ -433,7 +433,7 @@ extension TableScene {
         let wall=mat(.rgb(0x1B1F28),roughness:0.6)
         _=box(7.6,3.0,0.25,SCNVector3(0,0.7,-4.75),wall,chamfer:0.02)
         endGallery([21,11,14,13],side:-1,y:0.45,size:0.8,from:-2.9,to:2.9)
-        brandWall(SCNVector3(0,1.6,-4.6),yaw:0,width:2.8)
+        brandWall(SCNVector3(0,0.9,-4.6),yaw:0,width:2.8)
         let bulb=emissive(.rgb(0xFFF0C8),.rgb(0xFFC66A))
         for line in 0..<3 {let z = -3+Float(line)*3
             for k in 0..<24 {let x = -3.9+Float(k)*0.34;let sag=0.25*sin(Float(k)/23*Float.pi)
@@ -464,7 +464,7 @@ extension TableScene {
                 hoop.position=SCNVector3(side*3.45+dx,-0.45,side*(z+2.6));scene.rootNode.addChildNode(hoop)}}}
         sideGallery([16,24],side:-1,y:1.1,size:0.85,from:-3.2,to:-0.8,lamp:iron)
         sideGallery([7,19],side:1,y:1.1,size:0.85,from:0.8,to:3.2,lamp:iron)
-        brandWall(SCNVector3(0,1.4,-4.6),yaw:0,width:2.6,plate:oak,letters:premiumMaterial("ChampagneGold"))
+        brandWall(SCNVector3(0,0.9,-4.6),yaw:0,width:2.6,plate:oak,letters:premiumMaterial("ChampagneGold"))
         let flame=emissive(.rgb(0xFFB04A),.rgb(0xFF9A2A))
         for side:Float in [-1,1]{for z:Float in [-3.2,0,3.2]{
             _=box(0.12,0.22,0.12,SCNVector3(side*3.85,1.6,z),iron,chamfer:0.01)
