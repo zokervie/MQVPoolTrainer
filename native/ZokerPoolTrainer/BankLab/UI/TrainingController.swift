@@ -405,6 +405,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 guard let self=self else{return};self.coaching=true;self.cardOn=true;self.loadDrill(Drill.startup);self.showCoach(self.drillBrief(Drill.all[Drill.startup]))}}
             if args.contains("--cue-look-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startCueLookQA()}}   // 0.44.1 M3 stills
             if args.contains("--wall-photo-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startWallPhotoQA()}}   // 0.44.1 M2
+            if let flag=args.first(where:{$0.hasPrefix("--scene-photos-qa=")}){let tag=String(flag.dropFirst("--scene-photos-qa=".count));DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startScenePhotosQA(tag:tag)}}   // 0.53
             if args.contains("--table-glare-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startTableGlareQA()}}   // 0.49c G5
             if args.contains("--table-family-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in self?.startTableFamilyQA()}}   // 0.46 M3
             if args.contains("--nearby-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+(args.contains("--lan-host-qa") ? 6:2)){[weak self] in self?.openNearbyLobby(tab:args.contains("--lan-host-qa") ? 0:1)}}   // 0.44-mm Nearby Play screen (QA guest opens Tìm phòng)

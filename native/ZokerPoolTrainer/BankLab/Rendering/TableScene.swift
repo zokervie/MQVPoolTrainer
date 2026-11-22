@@ -1587,6 +1587,32 @@ final class TableScene {
     private let introRoot=SCNNode()
     private var introDone:(()->Void)?
     var rackIntroPlaying:Bool{introDone != nil}
+    /// The regulation rack frame node for these (racked) balls, centre-of-table plane, resting on the cloth. Used by the intro and the photo QA.
+    func makeRackFrame(objects:[BallState],radius r:Float)->SCNNode{
+        let wood=premiumMaterial("WalnutDark")
+        let triangle=SCNNode();triangle.name="rack-frame"
+        for (a,b) in Self.rackFrameEdges(objects.map{SIMD2<Float>(Float($0.x),Float($0.y))},radius:r) {
+            let d=b-a,length=simd_length(d),mid=(a+b)/2
+            let normal=simd_normalize(SIMD2<Float>(d.y,-d.x))
+            let centroid=objects.map{SIMD2<Float>(Float($0.x),Float($0.y))}.reduce(SIMD2<Float>(0,0),+)/Float(objects.count)
+            let outward=simd_dot(normal,mid-centroid)>0 ? normal:-normal
+            let thick:Float=0.018
+            let bar=SCNNode(geometry:SCNBox(width:CGFloat(length+thick*1.2),height:0.024,length:CGFloat(thick),chamferRadius:0.004))
+            bar.geometry?.materials=[wood]
+            let centre=mid+outward*(thick/2)
+            bar.position=SCNVector3(centre.x,0.012,centre.y);bar.eulerAngles.y = -atan2(d.y,d.x)
+            triangle.addChildNode(bar)
+        }
+        return triangle
+    }
+    /// QA only: put the frame on the cloth around the racked balls with no animation (photo probe).
+    func qaShowRackFrame(_ balls:[BallState]){
+        introRoot.childNodes.forEach{$0.removeFromParentNode()}
+        if introRoot.parent==nil{scene.rootNode.addChildNode(introRoot)}
+        let objects=balls.filter{$0.id>0 && !$0.sunk}
+        guard !objects.isEmpty else{return}
+        introRoot.addChildNode(makeRackFrame(objects:objects,radius:Float(radius)))
+    }
     /// Wooden triangle drops over loosely placed balls, the balls are pushed tight into the final rack positions
     /// (exactly the solver's layout), the triangle lifts off. ~3.4 s; skipRackIntro() ends it at once.
     func playRackIntro(_ balls:[BallState],completion:@escaping ()->Void){
@@ -1616,20 +1642,7 @@ final class TableScene {
         // triangle (5 rows), 10 → 10-ball triangle (4 rows), 9 → 9-ball diamond. The inner edge is the frozen-ball outline
         // offset by one radius (equilateral: side = (n−1)·2R + 2√3·R; 60°/120° rhombus: side = 2·2R + (√3 + 1/√3)·R),
         // centred on the rack's centroid (for full triangular racks the ball mean IS the triangle centroid).
-        let wood=premiumMaterial("WalnutDark")
-        let triangle=SCNNode();triangle.name="rack-frame"
-        for (a,b) in Self.rackFrameEdges(objects.map{SIMD2<Float>(Float($0.x),Float($0.y))},radius:r) {
-            let d=b-a,length=simd_length(d),mid=(a+b)/2
-            let normal=simd_normalize(SIMD2<Float>(d.y,-d.x))
-            let centroid=objects.map{SIMD2<Float>(Float($0.x),Float($0.y))}.reduce(SIMD2<Float>(0,0),+)/Float(objects.count)
-            let outward=simd_dot(normal,mid-centroid)>0 ? normal:-normal
-            let thick:Float=0.018
-            let bar=SCNNode(geometry:SCNBox(width:CGFloat(length+thick*1.2),height:0.024,length:CGFloat(thick),chamferRadius:0.004))
-            bar.geometry?.materials=[wood]
-            let centre=mid+outward*(thick/2)
-            bar.position=SCNVector3(centre.x,0.012,centre.y);bar.eulerAngles.y = -atan2(d.y,d.x)
-            triangle.addChildNode(bar)
-        }
+        let triangle=makeRackFrame(objects:objects,radius:r)
         let apexAtLow=abs(ys.min()!-cy)>abs(ys.max()!-cy)
         triangle.position=SCNVector3(0,0.30,0);triangle.opacity=0;introRoot.addChildNode(triangle)
         let drop=SCNAction.group([.move(to:SCNVector3(0,0,0),duration:0.7),.fadeIn(duration:0.4)]);drop.timingMode = .easeOut
@@ -2163,6 +2176,9 @@ final class TableScene {
     }
     // MARK: Nút số kim cương và điểm va băng (chế độ Luyện; ẩn khi đang vuốt cơ)
     private var diamondLabels:SCNNode?
+    static var qaLegacyDiamonds=false
+    /// Photo QA: show the diamond numbers regardless of the Coach state (the next refresh would hide them again).
+    func qaForceDiamonds(_ on:Bool){showsDiamondNumbers=on;diamondLabels?.isHidden = !on}
     private var railMarks=SCNNode()
     private func labelImage(_ text:String,size:CGFloat,color:UIColor,background:UIColor?)->UIImage{
         let key="\(text)|\(size)|\(color.description)|\(background?.description ?? "-")"
@@ -2185,9 +2201,11 @@ final class TableScene {
         plane.materials=[m];let n=SCNNode(geometry:plane);n.position=p;n.renderingOrder=40;n.castsShadow=false
         n.constraints=[SCNBillboardConstraint()];return n
     }
-    /// Số nút: băng dài 0…8 (4 = lỗ giữa), băng ngắn 0…4, đặt ngoài mép gỗ cạnh từng nút.
+    /// Số nút: băng dài 0…8 (4 = lỗ giữa, không có kim cương), băng ngắn 0…4.
+    /// 0.53 B4: each number is a small bubble sitting right above its own diamond, joined to it by a thin thread; the diamond glows softly while numbers are on.
+    /// The bubble keeps a steady ~14 pt on screen (scaled by the camera distance) and fades when it is close to the camera (it could hide a ball).
     var showsDiamondNumbers:Bool=false {didSet{
-        if showsDiamondNumbers && diamondLabels==nil {
+        if showsDiamondNumbers && diamondLabels==nil && Self.qaLegacyDiamonds {   // photo QA only: the pre-0.53 look, for before/after shots
             let root=SCNNode();root.name="diamond-numbers"
             for i in 0...8 {for side:Float in [-1,1]{
                 let z=Float(i)*2.54/8-1.27
@@ -2197,6 +2215,35 @@ final class TableScene {
                 let x=Float(i)*1.27/4-0.635
                 root.addChildNode(billboard(labelImage("\(i)",size:40,color:UIColor(red:1,green:0.85,blue:0.45,alpha:1),background:UIColor(white:0,alpha:0.45)),size:0.045,at:SCNVector3(x,0.075,side*1.425)))
             }}
+            scene.rootNode.addChildNode(root);diamondLabels=root
+        }
+        if showsDiamondNumbers && diamondLabels==nil {
+            let root=SCNNode();root.name="diamond-numbers"
+            if let asset=NSDataAsset(name:"PC_Diamonds"),let layout=try? JSONDecoder().decode(KitSights.self,from:asset.data){
+                let glow=SCNMaterial();glow.lightingModel = .constant;glow.diffuse.contents=UIColor(red:1,green:0.86,blue:0.5,alpha:1);glow.emission.contents=UIColor(red:1,green:0.78,blue:0.35,alpha:1)
+                let thread=SCNMaterial();thread.lightingModel = .constant;thread.diffuse.contents=UIColor(white:1,alpha:0.7)
+                for site in layout.sites {
+                    let x=site.x_mm/1000,z=site.z_mm/1000,shortRail=abs(site.z_mm)>1300
+                    let n=shortRail ? Int(((x+0.635)/(1.27/4)).rounded()):Int(((z+1.27)/(2.54/8)).rounded())
+                    let base=SCNVector3(x,0.0575,z),top=SCNVector3(x,0.125,z)
+                    let spark=SCNNode(geometry:SCNSphere(radius:0.0065));spark.geometry?.materials=[glow];spark.position=base;spark.castsShadow=false;spark.renderingOrder=39
+                    let rod=SCNNode(geometry:SCNCylinder(radius:0.0006,height:0.067));rod.geometry?.materials=[thread];rod.position=SCNVector3(x,0.091,z);rod.castsShadow=false
+                    let tint=shortRail ? UIColor(red:1,green:0.85,blue:0.45,alpha:1):UIColor.white
+                    let bubble=billboard(labelImage("\(n)",size:40,color:tint,background:UIColor(white:0,alpha:0.55)),size:1,at:top)
+                    bubble.constraints=[]   // replaced by the steady-size constraint below
+                    let eye=camera
+                    let steady=SCNTransformConstraint(inWorldSpace:true){node,t in
+                        guard let cam=eye.presentation as SCNNode? else{return t}
+                        let cw=cam.simdWorldTransform,p=SIMD3<Float>(t.m41,t.m42,t.m43),d=simd_length(SIMD3<Float>(cw.columns.3.x,cw.columns.3.y,cw.columns.3.z)-p)
+                        let k=max(0.02,min(0.09,d*0.0297))   // 14 pt at a 45° field of view on a ~390 pt tall view
+                        node.opacity = d<0.9 ? 0.3:1
+                        var m=SCNMatrix4(cw);m.m41=p.x;m.m42=p.y;m.m43=p.z
+                        return SCNMatrix4Mult(SCNMatrix4MakeScale(k,k,k),m)
+                    }
+                    bubble.constraints=[steady]
+                    root.addChildNode(spark);root.addChildNode(rod);root.addChildNode(bubble)
+                }
+            }
             scene.rootNode.addChildNode(root);diamondLabels=root
         }
         diamondLabels?.isHidden = trainingOverlaysHidden || !showsDiamondNumbers
@@ -2348,6 +2395,21 @@ extension TableScene {
         let image = renderer.snapshot(atTime: 0, with: size, antialiasingMode: .multisampling2X)
         guard image.cgImage != nil else { return nil }
         return image
+    }
+    /// 0.53 photo QA: the live scene (balls, rooms, everything) from the real play camera (`pose` nil) or from a given eye/target. Offscreen SCNRenderer + Metal.
+    func photo(size: CGSize, eye: SCNVector3? = nil, target: SCNVector3 = SCNVector3(0, 0, 0), fov: CGFloat = 55, up: SCNVector3 = SCNVector3(0, 1, 0)) -> UIImage? {
+        guard let device = MTLCreateSystemDefaultDevice() else { return nil }
+        let renderer = SCNRenderer(device: device, options: nil); renderer.scene = scene; renderer.autoenablesDefaultLighting = false
+        // The real play camera node is moved to the requested pose (and restored), so camera-dependent constraints (number bubbles) face the photo's eye.
+        let saved = camera.transform, savedFov = camera.camera?.fieldOfView ?? 45, savedZNear = camera.camera?.zNear ?? 0.012
+        defer { camera.transform = saved; camera.camera?.fieldOfView = savedFov; camera.camera?.zNear = savedZNear }
+        if let eye = eye {
+            camera.camera?.fieldOfView = fov; camera.camera?.zNear = 0.02
+            camera.position = eye; camera.look(at: target, up: up, localFront: SCNVector3(0, 0, -1))
+        }
+        renderer.pointOfView = camera
+        let image = renderer.snapshot(atTime: 0, with: size, antialiasingMode: .multisampling2X)
+        return image.cgImage != nil ? image : nil
     }
     func topDownImage(size: CGSize) -> UIImage? {
         let key = "\(look.id)|\(clothTintIndex.map(String.init) ?? "-")|\(Int(size.width))x\(Int(size.height))"
