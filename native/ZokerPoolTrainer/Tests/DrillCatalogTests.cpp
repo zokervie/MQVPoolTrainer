@@ -133,6 +133,7 @@ static void playable() {
         int hardest = 101;
         for (int32_t r = 0; r < n; ++r) {
             const BLDrillSpec& d = *BLDrillAt(idx[r]);
+            if (d.tier > 0) continue;   // 0.54 ring ladders restart at the big ring: their order is checked in MasteryTests
             check(d.makePercent <= hardest + 15, std::string("ladder climbs at ") + d.key + " (" + std::to_string(d.makePercent) +
                                                       "% after a " + std::to_string(hardest) + "% rung)");
             hardest = std::min(hardest, int(d.makePercent));

@@ -113,6 +113,8 @@ inline std::vector<DrillStroke> drillStrokes(const BLDrillSpec& d) {
     std::vector<DrillStroke> v;
     if (d.kind == BL_DRILL_BANK) {   // banks: narrow windows that move with pace (bank3 only shows up at 2.8–3.4 m/s)
         for (double s : {1.4, 2.2, 2.8, 3.4, 4.2}) for (double t : {-0.2, 0.0, 0.3}) v.push_back({s, t});
+    } else if (d.kind == BL_DRILL_GOAL && d.tier > 0 && d.ballCount == 1) {   // 0.54 force ladder: pace is the whole drill
+        for (int i = 25; i <= 220; ++i) v.push_back({i * 0.02, 0.0});   // 0.02 m/s: a 0.1 step moves the stop point ~10 cm
     } else if (d.kind == BL_DRILL_KICK || d.scanDegrees > 90) {
         for (double s : {1.4, 2.4, 3.6}) for (double t : {0.0, 0.3}) v.push_back({s, t});
     } else {
@@ -143,6 +145,7 @@ struct DrillErrors { double aimDeg = 0.3, speedRel = 0.06, tip = 0.06, side = 0.
 inline DrillErrors drillErrors(const BLDrillSpec& d) {
     DrillErrors e;
     if (d.kind == BL_DRILL_KICK || d.kind == BL_DRILL_BANK) e.aimDeg = 0.6 + 0.3 * d.rails;
+    if (d.kind == BL_DRILL_GOAL && !d.potRequired && d.rails > 0) e.aimDeg = 0.6 + 0.3 * d.rails;   // 0.54: same rule, GIẢ ĐỊNH
     return e;
 }
 struct DrillRng {

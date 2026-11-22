@@ -55,10 +55,16 @@ def old_kick(rails, variant):
 
 
 def D(key, chapter, kind, balls, angle, rails=0, goal=None, pot_required=False, pot_only=False, tip=0.0,
-      jitter=0.03, scan=6.0, assumed_pct=None):
+      jitter=0.03, scan=6.0, assumed_pct=None, tier=0):
     return dict(key=key, chapter=chapter, kind=kind, balls=balls, angle=angle, rails=rails, goal=goal,
                 pot_required=pot_required, pot_only=pot_only, tip=tip, jitter=jitter, scan=scan,
-                assumed_pct=assumed_pct)
+                assumed_pct=assumed_pct, tier=tier)
+
+
+def ladder(group, chapter, balls, angle, centre, radii, rails=0, pot_required=False, jitter=0.0, scan=4.0):
+    """0.54 ring ladder: one layout, three rings (keys <group>-1…3, tier 1…3)."""
+    return [D("%s-%d" % (group, t + 1), chapter, "goal", balls, angle, rails=rails, goal=(centre[0], centre[1], r),
+              pot_required=pot_required, jitter=jitter, scan=scan, tier=t + 1) for t, r in enumerate(radii)]
 
 
 # FirstShot.h (straight along the top-right diagonal: object 0.40 m from the pocket, cue 0.22 m behind)
@@ -100,6 +106,18 @@ def skill_of(key):
 DRILLS = [
     # ── 1 · Cú thẳng và lực ── straight first, then pace (pace before spin: stop / follow / draw need it)
     D("first-shot", 1, "goal", [(0, *_fc), (1, *_fo)], atan2(_fo[1] - _fc[1], _fo[0] - _fc[0]), pot_only=True, tip=-0.15, scan=4),
+    # ── 0.54 Chương 1 "Kiểm soát lực": 9 bài × 3 cỡ vòng (bài 10 = bài thi, do app ghép). Bi cái một mình; vòng đặt
+    # ở chỗ bi dừng với một lực vừa (đo trên lõi). Bài có băng: bi cái phải chạm ĐÚNG số băng rồi dừng trong vòng.
+    # Cỡ vòng: GIẢ ĐỊNH, chọn theo tỉ lệ đo của máy chấm (measured.json).
+    *ladder("force-near", 1, [(0, 0.0, -0.9)], 1.5707963267949, (0.0, -0.25), (0.14, 0.10, 0.07)),
+    *ladder("force-far", 1, [(0, 0.0, -0.9)], 1.5707963267949, (0.0, 0.75), (0.24, 0.17, 0.11)),
+    *ladder("force-1rail-short", 1, [(0, 0.0, -0.6)], 1.5707963267949, (0.0, -0.193), (0.34, 0.25, 0.17), rails=1),
+    *ladder("force-1rail-long", 1, [(0, -0.3, -0.6)], radians(20), (-0.149, 0.039), (0.22, 0.15, 0.10), rails=1),
+    *ladder("force-2rail", 1, [(0, 0.25, -0.8)], radians(60), (-0.343, 0.125), (0.36, 0.27, 0.19), rails=2),
+    *ladder("force-2rail-long", 1, [(0, 0.2, -0.9)], 1.5707963267949, (0.2, 0.247), (0.40, 0.30, 0.22), rails=2),
+    *ladder("force-3rail", 1, [(0, -0.2, -0.5)], radians(48), (-0.228, -0.017), (0.36, 0.26, 0.17), rails=3),
+    *ladder("force-follow", 1, _stop, _stopA, (0.50, 0.97), (0.17, 0.12, 0.09), pot_required=True, scan=6.0),
+    *ladder("force-draw", 1, _draw, _stopA, (0.1703, 0.3106), (0.19, 0.14, 0.10), pot_required=True, scan=6.0),
     D("speed-1", 1, "goal", [(0, 0.0, -0.9)], 1.5707963267949, goal=(0.0, 0.10, 0.15), jitter=0.05, scan=4),
     D("speed-2", 1, "goal", [(0, 0.0, -0.9)], 1.5707963267949, goal=(0.0, 0.55, 0.14), jitter=0.05, scan=4),
     D("speed-3", 1, "goal", [(0, 0.0, -0.9)], 1.5707963267949, goal=(0.0, 0.95, 0.13), jitter=0.05, scan=4),
