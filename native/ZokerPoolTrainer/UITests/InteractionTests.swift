@@ -1187,6 +1187,14 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThan(sw.frame.minY, place.frame.maxY, "switch below the place button")
         XCTAssertTrue(app.staticTexts["Đặt bi"].exists && app.staticTexts["Thanh lực"].exists, "captions under both buttons")
     }
+    /// 0.53 C1: in a training drill the power bar and its switch are gone and the mission ring is on without Coach; free play keeps the bar.
+    func testTrainingDrillHasNoPowerBarAndAlwaysTheRing() {
+        let (app, scene) = launch(["--power-bar-qa", "--training-drill-qa"])
+        wait(scene, timeout: 60 * slow) { self.field(scene, "ringHidden") == 0 }
+        XCTAssertEqual(field(scene, "ringHidden"), 0, "the ring is on without turning Coach on")
+        XCTAssertFalse(app.descendants(matching: .any)["PowerBar"].isHittable, "no power bar in a drill")
+        XCTAssertFalse(app.buttons["PowerBarSwitch"].isHittable, "no switch either")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

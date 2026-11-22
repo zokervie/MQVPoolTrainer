@@ -52,7 +52,7 @@ extension TrainingController {
         if puzzleSession != nil && !Drill.all[index].id.hasPrefix("p-"){puzzleSession=nil;syncPuzzleBar()}   // 0.50: leaving a puzzle ends its session
         drillIndex=index;drillVariant=0;roundResults=[];roundSmallMade=0;roundCoachUsed=false;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
         PlayerStore.shared.noteDrillOpened(drill.id)   // 0.45 M5: attempt time starts when the drill is on the table
-        table.target(coachOn ? drill.goal:nil)
+        table.target(coachOn || inTrainingMode ? drill.goal:nil)
         initial=drill.balls;before=initial;angle=drill.angle
         engine.loadLayout(initial.map{$0.dictionary});clearShot();locked=false;isPlacingBalls=false;spin.reset();applyDrillTip()
         titleLabel.text=drill.title;hintLabel.text=strokeHint

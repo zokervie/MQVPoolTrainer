@@ -100,7 +100,10 @@ final class PowerBarControl: UIControl {
 extension TrainingController {
     var powerBarMaxSpeed: Double { BL_POWER_MAX_SPEED * Tuning.maxPower }
     /// QA launches keep the swipe (existing gesture tests) unless `--power-bar-qa` asks for the bar.
+    /// 0.53 C1: Bài tập / Thử thách / Thế bí train the swipe: no power bar (and no switch), the mission ring is always on. Free play and matches keep the bar.
+    var inTrainingMode: Bool { !matchPlay.active && drillIndex > Drill.rollTest }
     var usesPowerBar: Bool {
+        if inTrainingMode { return false }
         if let chosen = powerBarUserOn { return chosen && FeatureFlags.powerBar }   // 0.49c G3: the on-screen switch wins this session
         if QA.anyFlag { return QA.has("--power-bar-qa") && FeatureFlags.powerBar }
         return FeatureFlags.usesPowerBar(shots: PlayerStore.shared.data.metrics.shots)
@@ -138,7 +141,7 @@ extension TrainingController {
     func syncPowerBarSwitch() {
         guard let b = powerBarSwitch else { return }
         let on = usesPowerBar
-        b.isHidden = menuOpen || spinExpanded || replayIndex != nil || !FeatureFlags.powerBar
+        b.isHidden = menuOpen || spinExpanded || replayIndex != nil || !FeatureFlags.powerBar || inTrainingMode
         powerCaption?.isHidden = b.isHidden
         b.configuration?.baseBackgroundColor = on ? ZDesign.Color.gold : UIColor(white: 0.03, alpha: 0.55)
         b.configuration?.baseForegroundColor = on ? .black : .white

@@ -426,6 +426,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     self.matchPlay.state["headStringOnly"]=NSNumber(value:false);self.matchPlay.computerLevel=nil
                     self.syncMatchControls()}   // only the match sync (as after the computer's shot): the button must follow it
             }
+            if args.contains("--training-drill-qa") {   // 0.53 C1: open a catalogue drill that has a mission ring
+                DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
+                    if let i=Drill.all.firstIndex(where:{$0.goal != nil && !($0.goal!.potOnly)}){self.loadDrill(i);self.syncPowerBar();self.applyCoachVisibility()}}
+            }
             if args.contains("--hold-ring-qa") {   // 0.53 A2: a drill with a mission ring, B held after 3 s
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
                     if let i=Drill.all.firstIndex(where:{$0.goal != nil && !($0.goal!.potOnly)}){self.loadDrill(i);self.coaching=true;self.applyCoachVisibility()}

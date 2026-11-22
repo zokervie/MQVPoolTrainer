@@ -63,7 +63,7 @@ extension TrainingController {
         for icon in cueIcons{icon.isHidden=locked || menuOpen || spinExpanded}
         coachButton.isHidden=locked || menuOpen
         syncOverlayButtons()
-        table.setTrainingOverlaysHidden(!coachOn || locked,holding:coachOn && locked)
+        table.setTrainingOverlaysHidden(!coachOn || locked,holding:inTrainingMode || (coachOn && locked))
         if !locked{stroke.cancelStroke();pull=0;if matchIsCompetitive{table.setCompetitivePresentation(numbers:matchPlay.showNumbers)}}
     }
     /// 0.44: rail clearance that is a real elevated stroke (above the normal 6° stance) — see BLCueStrokeElevation.
