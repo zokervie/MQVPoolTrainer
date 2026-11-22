@@ -15,7 +15,7 @@ enum DailyDrills {
             let id = Drill.all[i].id
             // Brief: only from OPEN CHAPTERS (rung order is for the ladder; daily practice may mix the rungs).
             let open = !FeatureFlags.chapters || Chapters.locate(id).map { openChapters[$0.chapter - 1] } ?? true
-            return open ? (Chapters.stars(id) > 0 ? Chapters.stars(id) : 3) : 0
+            return open && Mastery.ringOpen(id) ? (Chapters.stars(id) > 0 ? Chapters.stars(id) : 3) : 0
         }
         let kinds = pool.map { Chapters.kind(Drill.all[$0].id).rawValue }
         var out = [Int32](repeating: 0, count: Int(BL_DAILY_COUNT))

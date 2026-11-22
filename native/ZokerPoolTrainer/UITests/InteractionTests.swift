@@ -1309,7 +1309,7 @@ final class InteractionTests: XCTestCase {
         let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
         if start.waitForExistence(timeout: 5 * slow) { start.tap() }
         wait(scene, timeout: 20 * slow) { self.text(scene, "lesson") == "1" }
-        XCTAssertTrue(["first-shot", "speed-1", "speed-2", "speed-3"].contains(text(scene, "drill")),
+        XCTAssertTrue(text(scene, "drill").hasSuffix("-1") && text(scene, "drill").hasPrefix("force-") || ["first-shot", "speed-1", "speed-2", "speed-3"].contains(text(scene, "drill")),   // 0.54: chapter 1 is a ring ladder; only the big ring is open for a new player
                       "a new player only gets drills of open chapters (chapter 1)")
     }
     /// M3: màn Tiến bộ (Swift Charts) với 30 ngày dữ liệu giả — biểu đồ, chuỗi, nút bài kiểm tuần; ảnh cho nghiệm thu.
