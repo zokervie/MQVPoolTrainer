@@ -10,16 +10,23 @@ Chủ dự án yêu cầu 22/11 18:17 (ảnh Simulator iPhone 17 Pro). Làm trê
  └──────┘ └──────┘                      [Bàn]
  ┌──────┐  ╭──────╮            ◢ góc dựng
  │  B   │  │ bi ép│
- │      │  │ phê  │            ▭▭▭▭ thanh lực [≡]
+ │      │  │ phê  │            (không còn công tắc thanh lực)
  └──────┘  ╰──────╯
 ```
 
 **K1. Cụm phải.** Nút "Đặt bi" thu về đúng cỡ và kiểu của Lùi cú / Camera ngắm / Bàn (biểu tượng + chữ nhỏ), đứng
 trên cùng cột: Đặt bi · Lùi cú · Camera ngắm · Bàn. Bỏ nút tròn lớn hiện tại.
 
-**K2. Công tắc thanh lực.** Thành biểu tượng nhỏ (≡ ba thanh trượt, ~28 pt, vùng chạm ≥ 44 pt) ở đầu trái thanh lực.
-Bật: vàng. Tắt: thanh lực ẩn, biểu tượng vẫn ở chỗ cũ (mờ). Trong Bài tập / Thử thách / Thế bí vẫn ẩn hẳn (0.53 C1).
-(Đề xuất của phiên đám mây — chủ dự án chưa nói chỗ; nếu anh muốn khác thì sửa sau.)
+**K2. Bỏ công tắc thanh lực** (chủ dự án 22/11 18:21; thay đề xuất cũ). Gộp nhánh lõi
+`origin/cho/native-0.56-cuu-luc` (thêm `BLPowerBarRescue`, `BLChapterCleanSealNoHelp` vào `Mastery.h`).
+- Màn chơi KHÔNG còn nút bật/tắt thanh lực ở mọi chế độ (Chơi tự do, Đấu, Bài tập, Thử thách, Thế bí). Mặc định đánh
+  bằng vuốt B. Ai đã bật thanh lực ở bản cũ: tắt khi cập nhật.
+- Cứu nguy: trong Bài tập theo chương, khi `BLPowerBarRescue(chương, số lùi cú đã dùng, makePercent của bài,
+  số lượt chấm trượt liên tiếp)` trả 1, hiện một lần thẻ "Bài này khó. Dùng thanh lực trợ giúp? (mất dấu Tay sạch)"
+  với hai nút "Dùng" / "Tự đánh tiếp". Chọn Dùng: thanh lực hiện cho bài đó tới khi rời bài; lưu `rescueUsed` theo
+  chương; dấu Tay sạch dùng `BLChapterCleanSealNoHelp`. Chọn Tự đánh tiếp: không hỏi lại trong bài đó.
+- Cụm phải chỉ còn cột 4 nút (K1) + góc dựng + vùng vuốt; cân lại khoảng cách cho thoáng.
+- UI test: công tắc cũ không còn; thẻ cứu nguy hiện đúng điều kiện (cờ QA giả lập chương 2, đã dùng 92 lùi cú).
 
 **K3. Cụm trái.** (chủ dự án làm rõ 18:19)
 - Gọi D = đường kính nút bi ép phê.
