@@ -1250,6 +1250,26 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(card.label.contains("Triển Vọng"), card.label)
         XCTAssertEqual(text(scene, "titleCard"), "2")
     }
+    /// 0.54 M2: a ring: warm-up shots first (not scored, "Khởi động n/5" until 5 are made), then a scored round of 5 → the result card with 0…3 stars.
+    func testRingWarmupThenScoredRound() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
+        let ladder = app.cells["ChapterLadder-force-near"]
+        XCTAssertTrue(ladder.waitForExistence(timeout: 10 * slow)); ladder.tap()
+        if app.buttons["TipCardOK"].waitForExistence(timeout: 3 * slow) { app.buttons["TipCardOK"].tap() }
+        let ring1 = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Vòng 1")).firstMatch
+        XCTAssertTrue(ring1.waitForExistence(timeout: 5 * slow)); ring1.tap()
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 5 * slow)); start.tap()
+        let scene = app.otherElements["PoolScene"]
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 60 * slow) { self.text(scene, "drill") == "force-near-1" && self.text(scene, "lesson") == "1" }
+        wait(scene, timeout: 120 * slow) { (scene.value as? String ?? "").contains("Khởi động") }
+        XCTAssertTrue((scene.value as? String ?? "").contains("Khởi động"), "the warm-up line comes first")
+        let card = app.alerts["LadderRound"]
+        XCTAssertTrue(card.waitForExistence(timeout: 400 * slow), "after the warm-up, five scored shots close the round: \(scene.value as? String ?? "")")
+        XCTAssertTrue(card.label.hasPrefix("Vòng 1"), card.label)
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])
