@@ -2,6 +2,8 @@
 
 Gộp `origin/cho/native-0.54-lam-chu-chuong` không xung đột (gen_catalog --check khớp). Mọi luật gọi hàm C trong `UI/Mastery.h`; Swift chỉ giữ tên, nhóm hàng và vẽ. Chưa xác minh trên thiết bị. Ngưỡng là quyết định chủ dự án hoặc GIẢ ĐỊNH ghi trong Mastery.h.
 
+accept_local đầy đủ: PASSED_SIMULATOR_UNSIGNED, 9/9 bước, 64 UI test 0 lỗi (giới hạn giờ ui-gesture-tests nâng 2700 → 3900 s vì thêm test).
+
 | Mục | Kết quả | Ghi chú |
 |---|---|---|
 | M1 chương 1 "Kiểm soát lực" | PASS (UI test) | Chín thẻ thang (mỗi thẻ 3 vòng V1–V3 với sao tốt nhất, khoá 🔒 khi vòng trước chưa đủ 3 sao: `BLTierOpen`), thẻ "Bài thi · 5 thế", mục "Bài cũ" (không tính vào %), lời mở đầu nguyên văn. Bài thi: 5 thế rút từ các vòng đã mở (hạt giống theo số lần đã thi), mỗi thế 2 cú = chuẩn thi 10 cú (GIẢ ĐỊNH: spec nói 5 thế, hạ tầng thi đang là 10 cú); điều kiện mở bài thi: vòng to của cả 9 thang đạt ≥ 1 sao (GIẢ ĐỊNH, spec không nêu). Các test cũ dùng `ChapterDrill-first-shot` giờ cuộn tới mục Bài cũ (helper `chapterCell`). |
