@@ -32,7 +32,7 @@ extension TrainingController {
         // 0.46: cột phím chỉ còn 2–3 nút: thu chiều cao theo số nút đang hiện, giữ đáy (dưới ngón cái) như cũ.
         var railFrame=f.rail
         if quickTable != nil {
-            let visible=Double(1+(matchIsCompetitive ? (matchBool("requiresCall") ? 1:0):1)+2)   // Xem lại + (Lùi cú | Call) + Camera + Bàn
+            let visible=Double((matchIsCompetitive ? (matchBool("requiresCall") ? 1:0):1)+2)   // (Lùi cú | Call) + Camera + Bàn; 0.53 B1: Xem lại lives in Bàn
             if visible>0 {let h=min(f.rail.h,visible*f.button+(visible-1)*Double(quickRail.spacing));railFrame.y=f.rail.y+f.rail.h-h;railFrame.h=h}
         }
         place(quickScroll,railFrame);place(spin,f.spin);place(fineWheel,f.wheel);place(elevationPad,f.elevation)
@@ -89,7 +89,7 @@ extension TrainingController {
             if elevationPad.frame.maxY>fineWheel.frame.minY+1{failures.append("Elevation fan is not on top of the wheel")}
             if leftHanded ? spin.frame.minX<view.bounds.midX : spin.frame.maxX>view.bounds.midX{failures.append("Effect ball is not on the side opposite the shortcut column")}
         }
-        let interactive:[UIControl]=([spin,coachButton,quickReplay!,retryButton,quickCall,quickCamera!,quickTable!]+cueIcons).filter{!$0.isHidden}
+        let interactive:[UIControl]=([spin,coachButton,retryButton,quickCall,quickCamera!,quickTable!]+cueIcons).filter{!$0.isHidden}
         for control in interactive {
             let name=control.accessibilityIdentifier ?? control.accessibilityLabel ?? String(describing:type(of:control))
             frames[name]=String(describing:control.convert(control.bounds,to:view))
@@ -406,7 +406,7 @@ extension TrainingController {
         quickTable=button("tablecells","Bàn","QuickTable");quickTable.showsMenuAsPrimaryAction=true
         quickTable.accessibilityLabel="Bàn";quickTable.accessibilityHint="Đặt bi, thêm bi, bao cơ"
         quickTable.menu=UIMenu(title:"Bàn",children:[UIDeferredMenuElement.uncached{[weak self] completion in completion(self?.tableMenuItems() ?? [])}])
-        for item in [quickReplay!,retryButton,quickCall,quickCamera!,quickTable!] {
+        for item in [retryButton,quickCall,quickCamera!,quickTable!] {
             item.heightAnchor.constraint(equalToConstant:44).isActive=true;quickRail.addArrangedSubview(item)
         }
         quickScroll.translatesAutoresizingMaskIntoConstraints=false;quickScroll.accessibilityIdentifier="QuickRailScroll";quickScroll.showsVerticalScrollIndicator=false
@@ -757,6 +757,9 @@ extension TrainingController {
     }
     func tableMenuItems()->[UIMenuElement]{
         var items:[UIMenuElement]=[]
+        // 0.53 B1: Xem lại moved here from the shortcut column; the save / library submenu comes with it.
+        items.append(UIAction(title:replayIndex == nil ? "Xem lại":"Dừng xem",image:UIImage(systemName:"play.circle"),attributes:(quickReplay?.isEnabled ?? false) || replayIndex != nil ? []:[.disabled]){[weak self]_ in self?.replay()})
+        items.append(UIMenu(title:"Lưu cú / Thư viện",image:UIImage(systemName:"tray.full"),children:replayMenu().children))
         // Đặt bi / Xong đặt bi (bật theo luật trận: bi cầm tay) — đang đặt thì thêm "Hủy đặt bi".
         items.append(UIAction(title:isPlacingBalls ? "Xong đặt bi":"Đặt bi",image:UIImage(systemName:"hand.draw"),attributes:quickPlace.isEnabled ? []:[.disabled]){[weak self]_ in self?.toggleEdit()})
         if isPlacingBalls {

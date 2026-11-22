@@ -47,7 +47,7 @@ enum TutorialScript {
         ]
     }
     static let hints: [TutorialHint] = [
-        TutorialHint(id: "replay", caption: "Xem lại cú này", target: { $0.quickReplay }),
+        TutorialHint(id: "replay", caption: "Xem lại cú: Bàn → Xem lại", target: { $0.quickTable }),
         TutorialHint(id: "retry", caption: "Đánh lại từ đây", target: { $0.retryButton }),
         TutorialHint(id: "spin", caption: "Kéo để chọn điểm chạm", target: { $0.spin }),
         TutorialHint(id: "elevation", caption: "Kéo để nâng đuôi cơ", target: { $0.elevationPad }),

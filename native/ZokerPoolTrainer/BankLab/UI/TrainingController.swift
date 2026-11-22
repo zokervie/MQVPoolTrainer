@@ -422,9 +422,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 let rule = String(flag.dropFirst("--match-foul-qa=".count))
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
                     self.startComputerMatch(level:1,rule:rule,race:3)
-                    self.matchPlay.rules?.reset(breaker:1);self.matchPlay.state["ballInHand"]=NSNumber(value:true);self.matchPlay.state["currentPlayer"]=NSNumber(value:0)
-                    self.matchPlay.state["headStringOnly"]=NSNumber(value:false);self.matchPlay.computerLevel=nil
-                    self.syncMatchControls()}   // only the match sync (as after the computer's shot): the button must follow it
+                    // the computer's turn first (button off through updateControls), then it fouls: turn passes to the human with ball in hand
+                    self.matchPlay.computerThinking=true;self.matchPlay.state["currentPlayer"]=NSNumber(value:1);self.matchPlay.state["ballInHand"]=NSNumber(value:false)
+                    self.updateControls();self.syncMatchControls()
+                    DispatchQueue.main.asyncAfter(deadline:.now()+1){
+                        self.matchPlay.state["ballInHand"]=NSNumber(value:true);self.matchPlay.state["currentPlayer"]=NSNumber(value:0);self.matchPlay.state["headStringOnly"]=NSNumber(value:false)
+                        self.matchPlay.computerLevel=nil;self.matchPlay.computerThinking=false
+                        self.syncMatchControls()}}   // only the match sync (as after the computer's shot): the button must follow it
             }
             if args.contains("--training-drill-qa") {   // 0.53 C1: open a catalogue drill that has a mission ring
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}

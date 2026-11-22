@@ -54,6 +54,18 @@ final class InteractionTests: XCTestCase {
 
     /// The compact column scrolls on a landscape SE; interaction must use the
     /// actual visible button rather than an off-screen coordinate.
+    /// 0.53 B1: "Xem lại" lives in the Bàn menu now.
+    private func tapReplay(_ app: XCUIApplication) {
+        quick(app,"QuickTable").tap()
+        let item=app.buttons["Xem lại"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout:5 * slow),"Xem lại in the Bàn menu");item.tap()
+    }
+    private func openReplaySubmenu(_ app: XCUIApplication) {
+        quick(app,"QuickTable").tap()
+        let sub=app.buttons["Lưu cú / Thư viện"].firstMatch
+        XCTAssertTrue(sub.waitForExistence(timeout:5 * slow),"save / library submenu");sub.tap()
+    }
+    private func waitReplayReady(_ scene: XCUIElement) { wait(scene,timeout:30 * slow){self.field(scene,"replayReady")==1} }
     private func quick(_ app: XCUIApplication, _ id: String) -> XCUIElement {
         let button = app.buttons[id]
         let scroll = app.scrollViews["QuickRailScroll"]
@@ -169,7 +181,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThan(coach.frame.minX,menu.frame.maxX)
         XCTAssertLessThan(coach.frame.midX,scene.frame.midX)
         XCTAssertGreaterThan(rail.frame.midX,scene.frame.midX)
-        let order=["QuickReplay","QuickRetry","QuickCamera","QuickTable"]   // 0.46 M2: Đặt bi · Thêm bi · Bao cơ are in "Bàn"
+        let order=["QuickRetry","QuickCamera","QuickTable"]   // 0.46 M2: Đặt bi · Thêm bi · Bao cơ are in "Bàn"
         for (upper,lower) in zip(order,order.dropFirst()) {
             XCTAssertLessThan(app.buttons[upper].frame.midY,app.buttons[lower].frame.midY,"\(upper) above \(lower)")
         }
@@ -251,10 +263,9 @@ final class InteractionTests: XCTestCase {
         // Shots now settle fast (0.29), so a short replay can finish before a slow simulator answers;
         // --replay-hold-qa keeps the last frame until Done.
         let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa"])
-        let replay=app.buttons["QuickReplay"]
-        expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay);waitForExpectations(timeout:30 * slow)
+        waitReplayReady(scene)
         let pitch=field(scene,"pitch")
-        quick(app,"QuickReplay").tap();app.buttons["ReplayPause"].tap()
+        tapReplay(app);app.buttons["ReplayPause"].tap()
         let start=scene.coordinate(withNormalizedOffset:CGVector(dx:0.35,dy:0.30))
         let end=scene.coordinate(withNormalizedOffset:CGVector(dx:0.35,dy:0.50))
         start.press(forDuration:0.05,thenDragTo:end)
@@ -511,7 +522,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(cont.waitForNonExistence(timeout: 10 * slow), "the Lobby closes")
         let scene = app.otherElements["PoolScene"]
         XCTAssertTrue(scene.waitForExistence(timeout: 30))
-        XCTAssertTrue(app.buttons["QuickReplay"].waitForExistence(timeout: 10 * slow), "at the table, HUD in front")
+        XCTAssertTrue(app.buttons["QuickTable"].waitForExistence(timeout: 10 * slow), "at the table, HUD in front")
         XCTAssertFalse(app.buttons["LobbyContinue"].exists)
     }
     /// 0.45 M3: Lobby language follows the device on a fresh install — Vietnamese device: Vietnamese Lobby, English
@@ -584,7 +595,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"coach"),0,"Competitive mode cannot enable coaching")
         let retry=app.buttons["QuickRetry"]   // hidden (or disabled) in competitive play
         XCTAssertTrue(!retry.exists || !retry.isEnabled)
-        XCTAssertFalse(app.buttons["QuickReplay"].isEnabled)
+        XCTAssertEqual(field(scene,"replayReady"),0,"no replay in competitive play before a shot")
         XCTAssertFalse(app.otherElements["CoachCard"].isHittable)
     }
 
@@ -606,12 +617,9 @@ final class InteractionTests: XCTestCase {
         wait(scene){self.field(scene,"moving")==0 && self.field(scene,"shots")>=1}
         // Wait for settlement: archive actions are intentionally unavailable
         // while any pocket presentation or shot-ready guard remains active.
-        let replay=app.buttons["QuickReplay"]
-        expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay)
-        waitForExpectations(timeout:30 * slow)
-        // Intel CI: a long press occasionally lands before the menu is ready — press again (max 3).
+        waitReplayReady(scene)
         let save=app.buttons["Lưu cú này"].firstMatch
-        for _ in 0..<3 where !save.exists { quick(app,"QuickReplay").press(forDuration:1.2); _=save.waitForExistence(timeout:4 * slow) }
+        for _ in 0..<3 where !save.exists { openReplaySubmenu(app); _=save.waitForExistence(timeout:4 * slow) }
         XCTAssertTrue(save.exists,"replay menu · probe: \(scene.value ?? "")");save.tap()
         let alert=app.alerts["Lưu cú này"]
         XCTAssertTrue(alert.waitForExistence(timeout:5 * slow))
@@ -629,7 +637,7 @@ final class InteractionTests: XCTestCase {
         start.press(forDuration:0.05,thenDragTo:end)
         let liveAngle=angle(scene),liveX=field(scene,"cueX"),liveY=field(scene,"cueY")
         func openArchive() {
-            quick(app,"QuickReplay").press(forDuration:1)
+            openReplaySubmenu(app)
             let list=app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@","Cú đã lưu (")).firstMatch
             XCTAssertTrue(list.waitForExistence(timeout:5 * slow));list.tap()
             let item=app.buttons.matching(NSPredicate(format:"label CONTAINS %@",name)).firstMatch
@@ -658,9 +666,8 @@ final class InteractionTests: XCTestCase {
         wait(scene,timeout:30 * slow){self.field(scene,"preRoll")>5 && self.field(scene,"moving")==0}
         XCTAssertGreaterThan(field(scene,"preRoll"),5)
         XCTAssertLessThanOrEqual(field(scene,"preRoll"),8.01)
-        let button=quick(app,"QuickReplay")
-        expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:button)
-        waitForExpectations(timeout:15 * slow);button.tap()
+        waitReplayReady(scene)
+        tapReplay(app)
         // 0.41 (owner 13/11): replay starts exactly 1 s before cue contact (was the whole preparation). The
         // negative clock lasts only 1 s, shorter than one XCUITest snapshot on CI, so assert the lead itself.
         wait(scene,timeout:5 * slow){self.field(scene,"replay")==1}
@@ -1294,10 +1301,9 @@ final class InteractionTests: XCTestCase {
     /// then exports the same shot as 9:16 and 16:9 (offline render at the output size).
     func testReplayPlannedAnglesAndExportBothFrames() {
         let (app,scene)=launch(["--ux017-shot-qa","--replay-hold-qa","--replay-angle-reset-qa","--export-small-qa"])
-        let replay=app.buttons["QuickReplay"]
-        expectation(for:NSPredicate(format:"enabled == true"),evaluatedWith:replay);waitForExpectations(timeout:30 * slow)
+        waitReplayReady(scene)
         wait(scene,timeout:30 * slow){self.field(scene,"moving")==0}
-        quick(app,"QuickReplay").tap()
+        tapReplay(app)
         wait(scene,timeout:10 * slow){self.field(scene,"replay")==1 && self.field(scene,"camPlan")==1}
         XCTAssertEqual(field(scene,"cam"),0,"Đạo diễn is the default replay angle")
         // The planned cut sequence advances with the clock (a slow roll with no contact may plan one merged scene).
@@ -1317,7 +1323,7 @@ final class InteractionTests: XCTestCase {
         app.buttons["ReplayDone"].tap()
         wait(scene,timeout:5 * slow){self.field(scene,"replay")==0}
         for (n,title) in ["Video dọc 9:16 (TikTok, Reels, Shorts)","Video ngang 16:9"].enumerated() {
-            quick(app,"QuickReplay").tap()
+            tapReplay(app)
             wait(scene,timeout:10 * slow){self.field(scene,"replay")==1}
             app.buttons["ReplayExport"].tap()
             let option=app.buttons[title];XCTAssertTrue(option.waitForExistence(timeout:5 * slow),title);option.tap()
