@@ -2,6 +2,8 @@
 
 Gộp `origin/cho/native-0.56-cuu-luc` (BLPowerBarRescue, BLChapterCleanSealNoHelp trong Mastery.h) không xung đột. Cảm giác bấm: chưa xác minh trên thiết bị. Một commit chung cho K1–K3 vì ba mục đụng cùng bố cục (không tách sạch được).
 
+accept_local đầy đủ: PASSED_SIMULATOR_UNSIGNED, 9/9 bước, 67 UI test 0 lỗi.
+
 | Mục | Kết quả | Ghi chú |
 |---|---|---|
 | K1 cụm phải | PASS (UI test + ảnh) | Đặt bi vào đúng cỡ/kiểu Lùi cú · Camera ngắm · Bàn (biểu tượng + chữ nhỏ), đứng trên cùng cột; nút tròn lớn bỏ. Test: thứ tự trên→dưới, cùng cao/rộng. Id `PlaceBallButton` giữ nguyên. |
