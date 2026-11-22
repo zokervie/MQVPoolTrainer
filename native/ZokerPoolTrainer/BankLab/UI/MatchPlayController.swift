@@ -568,6 +568,7 @@ extension TrainingController {
             button?.isEnabled = false
         }
         quickPlace?.isEnabled = matchAllowsInput && !shotActive && matchBool("ballInHand") && (matchPlay.state["pendingChoice"] as? String ?? "").isEmpty
+        syncPlaceBallButton()   // 0.53 A1: the Place-ball button follows quickPlace (a foul gives ball-in-hand to the human)
         lockButton.isEnabled = strokeAllowed
         stroke.isEnabled = strokeStaysArmed   // 0.44: a sync never cancels a stroke in progress
         stroke.isUserInteractionEnabled = stroke.isEnabled

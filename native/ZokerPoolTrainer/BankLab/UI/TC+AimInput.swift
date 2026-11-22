@@ -52,7 +52,7 @@ extension TrainingController {
     func setHold(_ held:Bool){
         locked=held && strokeAllowed
         powerFX.showMeter(locked)
-        wakeRendering();table.setTrainingOverlaysHidden(locked);coachCard.isHidden=locked || !cardOn || coachCard.alpha==0
+        wakeRendering();table.setTrainingOverlaysHidden(locked,holding:locked);coachCard.isHidden=locked || !cardOn || coachCard.alpha==0
         for recognizer in aimRecognizers{recognizer.isEnabled = !locked}
         stroke.isUserInteractionEnabled=locked;stroke.isEnabled=locked
         menuButton.isHidden=locked
@@ -62,7 +62,7 @@ extension TrainingController {
         for icon in cueIcons{icon.isHidden=locked || menuOpen || spinExpanded}
         coachButton.isHidden=locked || menuOpen
         syncOverlayButtons()
-        table.setTrainingOverlaysHidden(!coachOn || locked)
+        table.setTrainingOverlaysHidden(!coachOn || locked,holding:coachOn && locked)
         if !locked{stroke.cancelStroke();pull=0;if matchIsCompetitive{table.setCompetitivePresentation(numbers:matchPlay.showNumbers)}}
     }
     /// 0.44: rail clearance that is a real elevated stroke (above the normal 6° stance) — see BLCueStrokeElevation.

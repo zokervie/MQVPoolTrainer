@@ -2210,10 +2210,12 @@ final class TableScene {
         }
         scene.rootNode.addChildNode(railMarks)
     }
-    func setTrainingOverlaysHidden(_ hidden:Bool){
+    var targetRingHidden:Bool{targetRoot.isHidden}
+    /// 0.53 A2: `holding` (B held for the stroke) hides only the prediction and trail; the mission ring and the diamond numbers stay.
+    func setTrainingOverlaysHidden(_ hidden:Bool,holding:Bool=false){
         trainingOverlaysHidden=hidden
-        targetRoot.isHidden=hidden;guideRoot.isHidden=hidden;trailRoot.isHidden=hidden
-        diamondLabels?.isHidden=hidden || !showsDiamondNumbers;railMarks.isHidden=hidden
+        targetRoot.isHidden=hidden && !holding;guideRoot.isHidden=hidden;trailRoot.isHidden=hidden
+        diamondLabels?.isHidden=(hidden && !holding) || !showsDiamondNumbers;railMarks.isHidden=hidden
     }
     /// Match spectators can choose physical diamond numbers, but never receive
     /// target rings, predictions, trails or coaching contact markers.

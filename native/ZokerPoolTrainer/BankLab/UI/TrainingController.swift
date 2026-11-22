@@ -417,6 +417,19 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     self.matchPlay.rules?.reset(breaker:1);self.updateMatchState()
                     self.syncMatchControls();self.updateControls()}
             }
+            if let flag = args.first(where:{$0.hasPrefix("--match-foul-qa=")}) {   // 0.53 A1: the computer fouled → the human has ball in hand
+                let rule = String(flag.dropFirst("--match-foul-qa=".count))
+                DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
+                    self.startComputerMatch(level:1,rule:rule,race:3)
+                    self.matchPlay.rules?.reset(breaker:1);self.matchPlay.state["ballInHand"]=NSNumber(value:true);self.matchPlay.state["currentPlayer"]=NSNumber(value:0)
+                    self.matchPlay.state["headStringOnly"]=NSNumber(value:false);self.matchPlay.computerLevel=nil
+                    self.syncMatchControls()}   // only the match sync (as after the computer's shot): the button must follow it
+            }
+            if args.contains("--hold-ring-qa") {   // 0.53 A2: a drill with a mission ring, B held after 3 s
+                DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
+                    if let i=Drill.all.firstIndex(where:{$0.goal != nil && !($0.goal!.potOnly)}){self.loadDrill(i);self.coaching=true;self.applyCoachVisibility()}
+                    DispatchQueue.main.asyncAfter(deadline:.now()+2.5){self.locked=false;self.setHold(true)}}
+            }
             if args.contains("--ux017-shot-qa") {
                 DispatchQueue.main.asyncAfter(deadline:.now()+1){[weak self] in guard let self=self else{return};self.loadDrill(Drill.rollTest);self.spin.select(side:0,top:0.4);self.locked=true;self.shoot(0.2)}
             }

@@ -1161,6 +1161,21 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(app2.staticTexts["PuzzleTask"].waitForExistence(timeout: 10 * slow))
         XCTAssertTrue(text(scene, "userCheck").hasPrefix("received:"), "re-checked on the receiving device: \(text(scene, "userCheck"))")
     }
+    /// 0.53 A1: after the computer's foul the human has ball in hand and the "Place ball" button must be ON (8-, 9- and 10-ball).
+    func testPlaceBallButtonOnAfterComputerFoul() {
+        for rule in ["tenBall", "nineBall", "eightBall"] {
+            let (app, scene) = launch(["--match-foul-qa=\(rule)"])
+            wait(scene, timeout: 60 * slow) { self.field(scene, "placeOn") == 1 }
+            XCTAssertEqual(field(scene, "placeOn"), 1, "\(rule): ball in hand → Place ball enabled")
+            app.terminate()
+        }
+    }
+    /// 0.53 A2: holding B for the stroke keeps the mission ring (only the prediction and trail hide).
+    func testMissionRingStaysWhileBIsHeld() {
+        let (_, scene) = launch(["--hold-ring-qa"])
+        wait(scene, timeout: 60 * slow) { self.field(scene, "locked") == 1 }
+        XCTAssertEqual(field(scene, "ringHidden"), 0, "the ring stays while B is held: \(scene.value as? String ?? "")")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

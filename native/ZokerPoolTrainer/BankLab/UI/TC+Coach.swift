@@ -27,7 +27,7 @@ extension TrainingController {
         coachButton.accessibilityValue=coaching ? "Bật":"Tắt"
         table.showsDiamondNumbers=numbersOn && coaching   // 0.35: Nút số lives under Coach
         table.target(coaching ? Drill.all[drillIndex].goal:nil)
-        table.setTrainingOverlaysHidden(!coaching || locked)
+        table.setTrainingOverlaysHidden(!coaching || locked,holding:coaching && locked)
         if !coaching {hideCoach();table.showRailContacts([]);table.trails([:]);table.prediction([],visible:false);guideOn=false;lastGuideVisible=false;guideButton?.configuration?.title="Dự báo: tắt"}
         hintLabel.isHidden = !coaching;scoreLabel.isHidden = !coaching
         syncOverlayButtons()
