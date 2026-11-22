@@ -1589,20 +1589,49 @@ final class TableScene {
     var rackIntroPlaying:Bool{introDone != nil}
     /// The regulation rack frame node for these (racked) balls, centre-of-table plane, resting on the cloth. Used by the intro and the photo QA.
     func makeRackFrame(objects:[BallState],radius r:Float)->SCNNode{
+        // 0.53 B5: ONE solid piece — the regulation outline (rackFrameEdges, unchanged: that is the inner edge) extruded 2.4 cm high, 1.8 cm thick,
+        // outer corners rounded 2.5 cm, inner corners 4 mm, top edge bevelled. (The wood texture runs one way over the whole piece.)
         let wood=premiumMaterial("WalnutDark")
         let triangle=SCNNode();triangle.name="rack-frame"
-        for (a,b) in Self.rackFrameEdges(objects.map{SIMD2<Float>(Float($0.x),Float($0.y))},radius:r) {
-            let d=b-a,length=simd_length(d),mid=(a+b)/2
-            let normal=simd_normalize(SIMD2<Float>(d.y,-d.x))
-            let centroid=objects.map{SIMD2<Float>(Float($0.x),Float($0.y))}.reduce(SIMD2<Float>(0,0),+)/Float(objects.count)
-            let outward=simd_dot(normal,mid-centroid)>0 ? normal:-normal
-            let thick:Float=0.018
-            let bar=SCNNode(geometry:SCNBox(width:CGFloat(length+thick*1.2),height:0.024,length:CGFloat(thick),chamferRadius:0.004))
-            bar.geometry?.materials=[wood]
-            let centre=mid+outward*(thick/2)
-            bar.position=SCNVector3(centre.x,0.012,centre.y);bar.eulerAngles.y = -atan2(d.y,d.x)
-            triangle.addChildNode(bar)
+        let edges=Self.rackFrameEdges(objects.map{SIMD2<Float>(Float($0.x),Float($0.y))},radius:r)
+        guard edges.count>=3 else{return triangle}
+        let inner=edges.map{$0.0}
+        let centroid=inner.reduce(SIMD2<Float>(0,0),+)/Float(inner.count)
+        // offset polygon: every edge pushed outward by `d`, neighbours intersected
+        func offset(_ poly:[SIMD2<Float>],_ d:Float)->[SIMD2<Float>]{
+            let n=poly.count
+            func line(_ i:Int)->(p:SIMD2<Float>,dir:SIMD2<Float>){
+                let a=poly[i],b=poly[(i+1)%n],dir=simd_normalize(b-a);var nor=SIMD2<Float>(dir.y,-dir.x)
+                if simd_dot(nor,(a+b)/2-centroid)<0{nor = -nor}
+                return(a+nor*d,dir)
+            }
+            return (0..<n).map{i in
+                let l1=line((i+n-1)%n),l2=line(i)
+                let cross=l1.dir.x*l2.dir.y-l1.dir.y*l2.dir.x
+                guard abs(cross)>1e-6 else{return l2.p}
+                let diff=l2.p-l1.p,t=(diff.x*l2.dir.y-diff.y*l2.dir.x)/cross
+                return l1.p+l1.dir*t
+            }
         }
+        func rounded(_ poly:[SIMD2<Float>],radius:CGFloat)->CGPath{
+            let path=CGMutablePath(),n=poly.count
+            func pt(_ v:SIMD2<Float>)->CGPoint{CGPoint(x:CGFloat(v.x),y:CGFloat(-v.y))}   // shape y = -scene z (see the rotation below)
+            path.move(to:pt((poly[0]+poly[1])/2))
+            for i in 1...n{
+                let v=poly[i%n],next=poly[(i+1)%n]
+                path.addArc(tangent1End:pt(v),tangent2End:pt((v+next)/2),radius:radius)
+            }
+            path.closeSubpath();return path
+        }
+        let outer=offset(inner,0.018)
+        let combined=CGMutablePath()
+        combined.addPath(rounded(outer,radius:0.025));combined.addPath(rounded(inner,radius:0.004))
+        let bezier=UIBezierPath(cgPath:combined);bezier.usesEvenOddFillRule=true;bezier.flatness=0.0004
+        let shape=SCNShape(path:bezier,extrusionDepth:0.024)
+        shape.chamferRadius=0.003;shape.chamferMode = .both
+        shape.materials=[wood]
+        let node=SCNNode(geometry:shape);node.eulerAngles.x = -.pi/2;node.castsShadow=true
+        triangle.addChildNode(node)
         return triangle
     }
     /// QA only: put the frame on the cloth around the racked balls with no animation (photo probe).
