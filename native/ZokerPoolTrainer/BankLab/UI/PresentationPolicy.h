@@ -131,7 +131,7 @@ typedef struct {
 
 static inline BLRect BLRectMake(double x, double y, double w, double h) { BLRect r; r.x = x; r.y = y; r.w = w; r.h = h; return r; }
 static inline BLRect BLMirror(BLRect r, double x0, double w) { BLRect m = r; m.x = x0 + w - (r.x - x0) - r.w; return m; }
-#define BL_CUE_ICONS 4
+#define BL_CUE_ICONS 2   // 0.53 B2: Cơ chơi (Đánh/Massé) · Cơ phá (Phá/Nhảy)
 
 static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, int pad, int leftHanded, int practice, int expanded) {
     BLHUDFrames f;
@@ -175,8 +175,7 @@ static inline BLRect BLHUDCueIcon(BLHUDFrames f, int k) {
     return BLRectMake(f.cues.x + k * step, f.cues.y, s, s);
 }
 // Icon order -> shot kind (ShotKindPolicy: 0 play, 1 jump, 2 break, 3 massé) and its default elevation (deg).
-static inline int BLCueIconKind(int k) { return k == 1 ? 1 : (k == 2 ? 3 : (k == 3 ? 2 : 0)); }
-static inline double BLCueIconElevation(int k) { return k == 1 ? 45.0 : (k == 2 ? 70.0 : 0.0); }
+static inline int BLCueIconKind(int k) { return k == 1 ? 2 : 0; }   // default kind of the button (the elevation then moves it within its family)
 
 // 0.30 elevation fan: quarter circle, pivot at the bottom corner nearest the effect ball side opposite
 // (bottom-left for right hand). Touch angle above the horizontal = cue elevation, 0-90 deg, whole degrees.

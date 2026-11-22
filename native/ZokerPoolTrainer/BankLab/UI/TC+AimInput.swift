@@ -43,7 +43,8 @@ extension TrainingController {
         guard !presentationBusy,localTurn,!locked else{return}
         var values=engine.settings;values["cueElevationDegrees"]=NSNumber(value:degrees);values["experimental3D"]=NSNumber(value:degrees>0)
         engine.settings=values;table.cueElevation=degrees
-        let followed=Int(BLShotKindForElevation(Int32(shotKind),degrees))
+        let followed=Int(BLCueMergedKind(Int32(shotKind),degrees))
+        if followed != shotKind{UIImpactFeedbackGenerator(style:.light).impactOccurred()}   // 0.53 B2: a light tap when the cue changes family member
         if followed != shotKind{shotKind=followed;UserDefaults.standard.set(followed,forKey:"shotKind017");applySquirtPolicy();table.masseLook=followed==3;table.selectCue(followed==3 ? 0:followed)}
         spin.maximumOffset=tipLimit(elevated:degrees>0)
         UserDefaults.standard.set(engine.settings,forKey:"physics");guideDirty=true;syncQuickRail()

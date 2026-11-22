@@ -988,5 +988,9 @@
 "Thế này không giải được, mã bị từ chối.": "This puzzle cannot be solved, the code is refused.",
 "Thế bí của bạn bè": "A friend's puzzle",
 "Tôi giải mã %@ trong %d cơ": "I solved code %@ in %d tries",
-"Thách lại": "Challenge back"
+"Thách lại": "Challenge back",
+"Cơ chơi": "Play cue",
+"Cơ phá": "Break cue",
+"Massé": "Massé",
+"Nhảy": "Jump"
 }

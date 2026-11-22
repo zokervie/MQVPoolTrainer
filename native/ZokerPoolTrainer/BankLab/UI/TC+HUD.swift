@@ -475,22 +475,24 @@ extension TrainingController {
         b.accessibilityLabel=isPlacingBalls ? "Nút xong đặt bi":"Nút đặt bi"
     }
     func buildCueIcons(){
-        let names=["Đánh","Jump","Massé","Break"],ids=["CueIconPlay","CueIconJump","CueIconMasse","CueIconBreak"]
+        let names=["Cơ chơi","Cơ phá"],ids=["CueIconPlay","CueIconBreak"]
         for k in 0..<Int(BL_CUE_ICONS) {
             let b=UIButton(type:.system);var c=UIButton.Configuration.plain()
-            c.title=names[k];c.image=UIImage(systemName:k==2 ? "arrow.turn.up.right":(k==1 ? "arrow.up.forward":(k==3 ? "burst":"line.diagonal")))
+            c.title=L10n.tr(names[k]);c.image=UIImage(systemName:k==1 ? "burst":"line.diagonal")
             c.imagePlacement = .top;c.imagePadding=2;c.preferredSymbolConfigurationForImage=UIImage.SymbolConfiguration(pointSize:11,weight:.semibold)
             c.titleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:10.5,weight:.bold);return a}
             c.subtitleTextAttributesTransformer=UIConfigurationTextAttributesTransformer{a in var a=a;a.font=UIFont.systemFont(ofSize:8,weight:.medium);return a}
             c.background.backgroundColor=UIColor(white:0.03,alpha:0.32);c.background.cornerRadius=8;c.contentInsets = .zero
-            b.configuration=c;b.accessibilityIdentifier=ids[k];b.accessibilityLabel="Gậy "+names[k]
+            b.configuration=c;b.accessibilityIdentifier=ids[k];b.accessibilityLabel="Gậy "+names[k];b.accessibilityValue=""
             b.addAction(UIAction{[weak self]_ in self?.chooseCueIcon(k)},for:.touchUpInside)
             view.addSubview(b);cueIcons.append(b)
         }
     }
     func chooseCueIcon(_ k:Int){
+        // 0.53 B2: two buttons = two families. Outside the family the tap picks its base cue; inside it, the tap puts the cue level again.
         let kind=Int(BLCueIconKind(Int32(k)))
-        if kind != shotKind {chooseShotKind(kind)} else if kind==3 || kind==1 {setElevation(BLCueIconElevation(Int32(k)))}
+        let inFamily=k==0 ? (shotKind==0 || shotKind==3):(shotKind==1 || shotKind==2)
+        if !inFamily {chooseShotKind(kind)} else if table.cueElevation>0 {setElevation(0)}
         syncQuickRail()
     }
     /// 0.34: Club (like the owner's photo) · Trong nhà · Ngoài trời · Cung điện · Hoàng gia · Thi đấu quốc tế · Club cổ điển
@@ -519,13 +521,15 @@ extension TrainingController {
     func syncCueIcons(){
         syncOverlayButtons()
         for (k,icon) in cueIcons.enumerated(){
-            let on=Int(BLCueIconKind(Int32(k)))==shotKind
+            let on=k==0 ? (shotKind==0 || shotKind==3):(shotKind==1 || shotKind==2)
             icon.configuration?.baseForegroundColor=on ? .white:UIColor.rgb(0xEAC583).withAlphaComponent(0.8)
             icon.configuration?.background.backgroundColor=on ? UIColor.rgb(0xEAC583).withAlphaComponent(0.42):UIColor(white:0.03,alpha:0.32)
             icon.configuration?.background.strokeColor=on ? .white:UIColor.white.withAlphaComponent(0.15);icon.configuration?.background.strokeWidth=on ? 1:0.5
             icon.isEnabled = localTurn && !presentationBusy && !locked
             icon.accessibilityValue=on ? "Đang chọn":""
-            let role=Int(BLCueIconKind(Int32(k)))==2 ? 2:(Int(BLCueIconKind(Int32(k)))==1 ? 1:0)
+            // the label follows the cue the elevation made: Cơ chơi → Massé, Cơ phá → Nhảy
+            icon.configuration?.title=L10n.tr(k==0 ? (shotKind==3 ? "Massé":"Cơ chơi"):(shotKind==1 ? "Nhảy":"Cơ phá"))
+            let role=k==1 ? (shotKind==1 ? 1:2):0
             icon.configuration?.subtitle=nil   // 0.46: icon 3D của cơ trong bao thay cho nhãn phụ tên cơ
             // 0.44 (#18): the key shows the cue that is in the bag — colour, inlay, shaft, ferrule and tip.
             let look=CueBag.cue(role)

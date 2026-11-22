@@ -297,22 +297,22 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"locked"),0,"effect ball must not latch the lock by default")
     }
 
-    /// 0.36: four cue icons in a row above the effect ball; Jump 45°, Massé 70° (play cue raised), Break, back to Đánh.
-    func testCueIconsSelectPlayJumpMasseBreak() {
+    /// 0.53 B2: two cue buttons in a row above the effect ball: "Cơ chơi" (Đánh, Massé from elevation) and "Cơ phá" (Phá, Nhảy from elevation).
+    func testTwoCueButtonsPlayAndBreak() {
         let (app,scene)=launch(["--ux017-qa"])
-        for (id,kind) in [("CueIconJump",1.0),("CueIconMasse",3.0),("CueIconBreak",2.0),("CueIconPlay",0.0)] {
+        XCTAssertFalse(app.buttons["CueIconJump"].exists || app.buttons["CueIconMasse"].exists, "Jump and Massé are no longer separate buttons")
+        for (id,kind) in [("CueIconBreak",2.0),("CueIconPlay",0.0)] {
             let icon=app.buttons[id];XCTAssertTrue(icon.waitForExistence(timeout:5 * slow),id)
-            // CI Simulator under 0.36 shadow load sometimes drops a tap: retry (a repeat tap on the selected icon only nudges elevation)
             for _ in 0..<3 { icon.tap(); if poll(6 * slow,{self.field(scene,"kind")==kind}) {break} }
             settle(scene,"kind",kind)
         }
+        XCTAssertEqual(app.buttons["CueIconPlay"].label, "Gậy Cơ chơi")
         let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
-        // 0.36: row of 4 above the effect ball, left→right Đánh, Jump, Massé, Break; B square beside the ball
         let e=effect.frame
-        let row=["CueIconPlay","CueIconJump","CueIconMasse","CueIconBreak"].map{app.buttons[$0].frame}
+        let row=["CueIconPlay","CueIconBreak"].map{app.buttons[$0].frame}
         for f in row{XCTAssertLessThanOrEqual(f.maxY,e.minY+1,"cue row above effect ball")}
-        for i in 1..<row.count{XCTAssertGreaterThanOrEqual(row[i].minX,row[i-1].maxX-1,"cue row left→right")}
-        XCTAssertEqual(row[0].midY,row[3].midY,accuracy:1,"one horizontal row")
+        XCTAssertGreaterThanOrEqual(row[1].minX,row[0].maxX-1,"Cơ chơi left of Cơ phá")
+        XCTAssertEqual(row[0].midY,row[1].midY,accuracy:1,"one horizontal row")
         // 0.35: Nút số / Chỉ dẫn / Bảng only with Coach
         XCTAssertFalse(app.buttons["NumbersToggle"].isHittable,"numbers only with Coach")
         XCTAssertFalse(app.buttons["GuideToggle"].isHittable,"guide button only with Coach")

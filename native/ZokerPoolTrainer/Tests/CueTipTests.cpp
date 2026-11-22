@@ -94,6 +94,11 @@ int main() {
     // ---- 0.22: three cues in the bag; Massé follows the playing cue's elevation ----
     check(BLShotKindForElevation(0, 59.9) == 0 && BLShotKindForElevation(0, 60) == 3 && BLShotKindForElevation(3, 45) == 0 &&
           BLShotKindForElevation(1, 80) == 1 && BLShotKindForElevation(2, 70) == 2, "Đánh raised to 60 deg becomes Massé (soft tip); Jump/Break unchanged");
+    // ---- 0.53 B2: two cue buttons; the family follows the elevation with a hysteresis band (thresholds are assumptions, one place) ----
+    check(BLCueMergedKind(0, 36.9) == 0 && BLCueMergedKind(0, 37.0) == 3 && BLCueMergedKind(3, 33.0) == 3 && BLCueMergedKind(3, 32.9) == 0 &&
+          BLCueMergedKind(0, 35.0) == 0 && BLCueMergedKind(3, 35.0) == 3, "play cue: Massé from 37 deg, back to Đánh below 33 deg, stable inside the band");
+    check(BLCueMergedKind(2, 21.9) == 2 && BLCueMergedKind(2, 22.0) == 1 && BLCueMergedKind(1, 18.0) == 1 && BLCueMergedKind(1, 17.9) == 2 &&
+          BLCueMergedKind(2, 20.0) == 2 && BLCueMergedKind(1, 20.0) == 1, "break cue: Nhảy from 22 deg, back to Phá below 18 deg, stable inside the band");
     // ---- 0.29: a ball spinning in place is at rest (no multi-second wait); draw/follow untouched ----
     {   auto spinner = [](bool settle) { Config c; c.coupledCushions = true; c.settleSpinInPlace = settle; c.width = 40; c.length = 40;
             World w(c); Ball b; b.id = 0; b.spin = 40; w.balls = {b}; double t = 0; while (w.moving() && t < 10) { w.step(); t += World::stepSize; } return t; };

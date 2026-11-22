@@ -38,4 +38,19 @@ static inline int BLShotKindForElevation(int shotKind, double elevationDegrees) 
     return shotKind;
 }
 
+// 0.53 B2: hai nút cơ. "Cơ chơi" (kiểu 0/3): dựng cơ >= 37 độ tự thành Massé, < 33 độ trở lại Đánh. "Cơ phá" (kiểu 2/1): < 18 độ là Phá, >= 22 độ là Nhảy.
+// Vùng đệm (histeresis) để cơ không nhấp nháy quanh ngưỡng. Ngưỡng là GIẢ ĐỊNH (cần đối chiếu trên bàn thật), đặt ở một chỗ này.
+// Máy đối thủ (Opponent.hpp) vẫn dùng BL_MASSE_ELEVATION; dữ liệu cú và bản phát lại không đổi.
+#define BL_PLAY_MASSE_UP 37.0
+#define BL_PLAY_MASSE_DOWN 33.0
+#define BL_BREAK_JUMP_UP 22.0
+#define BL_JUMP_BREAK_DOWN 18.0
+static inline int BLCueMergedKind(int shotKind, double deg) {
+    if (shotKind == 0 && deg >= BL_PLAY_MASSE_UP) return 3;
+    if (shotKind == 3 && deg < BL_PLAY_MASSE_DOWN) return 0;
+    if (shotKind == 2 && deg >= BL_BREAK_JUMP_UP) return 1;
+    if (shotKind == 1 && deg < BL_JUMP_BREAK_DOWN) return 2;
+    return shotKind;
+}
+
 #endif

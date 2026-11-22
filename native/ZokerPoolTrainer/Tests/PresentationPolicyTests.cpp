@@ -165,8 +165,7 @@ int main() {
     checkHUD022(0, 0, 568, 299, 0); checkHUD022(59, 0, 734, 372, 0); checkHUD022(59, 0, 814, 409, 0);
     checkHUD022(0, 24, 1180, 776, 1); checkHUD022(0, 24, 1376, 1000, 1);
     passed("0.33 HUD: effect ball with Jump/Đánh/Massé/Break around it bottom-left, column + wheel + fan right, mirror, no overlaps");
-    assert(BLCueIconKind(0) == 0 && BLCueIconKind(1) == 1 && BLCueIconKind(2) == 3 && BLCueIconKind(3) == 2);
-    assert(BLCueIconElevation(1) == 45 && BLCueIconElevation(2) == 70 && BLCueIconElevation(0) == 0 && BLCueIconElevation(3) == 0);
+    assert(BL_CUE_ICONS == 2 && BLCueIconKind(0) == 0 && BLCueIconKind(1) == 2);   // 0.53 B2: "Cơ chơi" (Đánh/Massé) and "Cơ phá" (Phá/Nhảy)
     assert(BLFanDegrees(60, 64, 64, 64, 0) == 0 && BLFanDegrees(0, 0, 64, 64, 0) == 90 && BLFanDegrees(40, 24, 64, 64, 0) == 45);
     assert(BLFanDegrees(24, 24, 64, 64, 1) == 45 && BLFanDegrees(70, 64, 64, 64, 0) == 0 && BLFanDegrees(-5, 30, 64, 64, 0) == 90);
     passed("0.30 cue icons Đánh/Jump/Massé/Break (45°/70° presets) and elevation fan 0-90°");
