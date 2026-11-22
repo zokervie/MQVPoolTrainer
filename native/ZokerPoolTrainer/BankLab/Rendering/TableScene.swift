@@ -1056,7 +1056,7 @@ final class TableScene {
             let post=SCNNode(geometry:SCNCylinder(radius:0.025,height:0.7));post.geometry?.materials=[brass];post.position=SCNVector3(x,-0.42,barZ-0.55);scene.rootNode.addChildNode(post)
             let foot=SCNNode(geometry:SCNCylinder(radius:0.2,height:0.02));foot.geometry?.materials=[dark];foot.position=SCNVector3(x,-0.77,barZ-0.55);scene.rootNode.addChildNode(foot)}
         // neighbour tables, each under its own dimmed fixture, with a few balls left on them
-        for p in [SCNVector3(-2.65,0,-1.6),SCNVector3(2.65,0,1.6)]{
+        for p in [SCNVector3(-3.13,0,-1.6),SCNVector3(3.13,0,1.6)]{   // 0.53 B6: ≥ 1.6 m rail-to-rail from the main table
             neighbourTable(p)
             let housing=mat(UIColor(white:0.08,alpha:1),roughness:0.3,metal:0.6)
             _=box(0.9,0.06,1.9,SCNVector3(p.x,1.75,p.z),housing,chamfer:0.01)
@@ -1065,7 +1065,7 @@ final class TableScene {
                 let ball=SCNNode(geometry:SCNSphere(radius:0.0286));ball.geometry?.materials=[mat(c,roughness:0.2)]
                 ball.position=SCNVector3(p.x-0.3+Float(k)*0.19,0.035,p.z+Float(k%2)*0.4-0.2);scene.rootNode.addChildNode(ball)}
         }
-        roomLamp(SCNVector3(-2.65,1.6,-1.6),16,4800,end:3.2);roomLamp(SCNVector3(2.65,1.6,1.6),16,4800,end:3.2);roomLamp(SCNVector3(0.6,1.3,4.0),12,2700,end:3)
+        roomLamp(SCNVector3(-3.13,1.6,-1.6),16,4800,end:3.2);roomLamp(SCNVector3(3.13,1.6,1.6),16,4800,end:3.2);roomLamp(SCNVector3(0.6,1.3,4.0),12,2700,end:3)
     }
     /// Low-pile club carpet: deep teal-charcoal with a small diamond motif (no hard edges, mip-safe).
     func carpetTexture()->UIImage{
@@ -1079,11 +1079,26 @@ final class TableScene {
             for (x,y) in [(0,0),(128,0),(0,128),(128,128)]{UIColor(red:0.42,green:0.30,blue:0.16,alpha:0.12).setFill();ctx.cgContext.fillEllipse(in:CGRect(x:x-5,y:y-5,width:10,height:10))}
         }
     }
+    /// 0.53 B6: a complete second table — dark blue cloth (darker than the main one), wooden rails with cushion noses, six pockets, four legs.
     func neighbourTable(_ p:SCNVector3){
-        let black=mat(UIColor(white:0.05,alpha:1),roughness:0.35),grey=mat(.rgb(0x6e767d),roughness:0.97),alu=mat(.rgb(0xc4c9cd),roughness:0.35,metal:0.8)
+        let black=mat(UIColor(white:0.05,alpha:1),roughness:0.35),alu=mat(.rgb(0xc4c9cd),roughness:0.35,metal:0.8)
+        let cloth=mat(UIColor(red:0.04,green:0.10,blue:0.24,alpha:1),roughness:0.97),rail=mat(.rgb(0x3a1d10),roughness:0.45),hole=mat(UIColor(white:0.02,alpha:1),roughness:1)
+        let hw:Float=0.635,hl:Float=1.27   // playing area 1.27 × 2.54 m
         _=box(1.55,0.18,2.85,SCNVector3(p.x,-0.10,p.z),black,chamfer:0.02)
-        _=box(1.40,0.012,2.70,SCNVector3(p.x,0.0,p.z),grey,chamfer:0.004)
-        _=box(1.58,0.02,2.88,SCNVector3(p.x,-0.005,p.z),alu,chamfer:0.006)
+        _=box(1.27,0.012,2.54,SCNVector3(p.x,0.0,p.z),cloth,chamfer:0.002)
+        _=box(1.58,0.012,2.88,SCNVector3(p.x,-0.004,p.z),alu,chamfer:0.004)
+        // wooden rails around the cloth (top at 0.05) and cushion noses on their inner edge
+        for side:Float in [-1,1]{
+            _=box(0.14,0.05,2.85,SCNVector3(p.x+side*(hw+0.07),0.022,p.z),rail,chamfer:0.008)
+            _=box(1.55,0.05,0.155,SCNVector3(p.x,0.022,p.z+side*(hl+0.0775)),rail,chamfer:0.008)
+            _=box(0.035,0.03,2.40,SCNVector3(p.x+side*(hw-0.0175),0.018,p.z),cloth,chamfer:0.006)
+            _=box(1.17,0.03,0.035,SCNVector3(p.x,0.018,p.z+side*(hl-0.0175)),cloth,chamfer:0.006)
+        }
+        // six pockets: four corners and two side pockets
+        for x:Float in [-hw,hw]{for z:Float in [-hl,0,hl]{
+            let m=SCNNode(geometry:SCNCylinder(radius:z==0 ? 0.06:0.07,height:0.012));m.geometry?.materials=[hole]
+            m.position=SCNVector3(p.x+x*(z==0 ? 1.06:1.0),0.036,p.z+z*(z==0 ? 1:1.0));scene.rootNode.addChildNode(m)
+        }}
         for dx:Float in [-0.6,0.6]{for dz:Float in [-1.2,1.2]{_=box(0.14,0.6,0.14,SCNVector3(p.x+dx,-0.48,p.z+dz),black,chamfer:0.02)}}
     }
     /// Home: warm oak floor, cream walls, a sofa and a window of daylight.
@@ -1098,7 +1113,7 @@ final class TableScene {
         _=box(2.4,0.45,0.85,SCNVector3(0,-0.52,3.9),sofa,chamfer:0.08);_=box(2.4,0.55,0.22,SCNVector3(0,-0.2,4.25),sofa,chamfer:0.08)
         _=box(2.2,1.4,0.04,SCNVector3(3.95,0.7,0),emissive(UIColor(red:0.75,green:0.85,blue:0.95,alpha:1),UIColor(red:0.55,green:0.65,blue:0.75,alpha:1)),chamfer:0)
         _=box(1.6,0.9,0.05,SCNVector3(0,0.9,-4.62),emissive(.rgb(0x2a2f36),.rgb(0x101418)),chamfer:0.01)   // TV / painting
-        roomLamp(SCNVector3(3.4,1.2,0),45,6500,end:5);roomLamp(SCNVector3(-2.5,1.8,2.5),20,3000,end:4)
+        roomLamp(SCNVector3(3.4,1.2,0),26,6500,end:5);roomLamp(SCNVector3(-2.5,1.8,2.5),14,3000,end:4)   // 0.53 C2: the walls and ceiling were blown out
     }
     /// Outdoors: wooden deck, low glass rail, sky and sun.
     private func buildOutdoor(){

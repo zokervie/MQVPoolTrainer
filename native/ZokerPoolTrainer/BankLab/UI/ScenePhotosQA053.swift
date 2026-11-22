@@ -9,6 +9,7 @@ extension TrainingController {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("scene-photos-" + tag)
         try? FileManager.default.removeItem(at: dir); try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         for v in view.subviews where v !== scn { v.isHidden = true }
+        selectCamera(2); wakeRendering()   // the default low aiming camera (behind the cue ball)
         let size = CGSize(width: 960, height: 540)
         func save(_ name: String, _ image: UIImage?) { if let d = image?.pngData() { try? d.write(to: dir.appendingPathComponent(name + ".png")) } }
         func details() {
@@ -51,7 +52,7 @@ extension TrainingController {
         }
         func room(_ k: Int) {
             guard k < TableScene.spaces.count else { details(); return }
-            table.selectSpace(k)
+            table.selectSpace(k); selectCamera(2); wakeRendering()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                 guard let self = self else { return }
                 save("room\(k)-play", self.table.photo(size: size))
