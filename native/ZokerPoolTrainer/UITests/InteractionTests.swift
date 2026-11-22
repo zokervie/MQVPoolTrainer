@@ -1270,6 +1270,13 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 400 * slow), "after the warm-up, five scored shots close the round: \(scene.value as? String ?? "")")
         XCTAssertTrue(card.label.hasPrefix("Vòng 1"), card.label)
     }
+    /// 0.56 K5 photo: the HUD in the standard room on whatever device the run targets (upright attachment, exported by Tools/run_hud_photos.sh).
+    func testHudPhoto056() {
+        let (_, scene) = launch(["--ux017-qa"])
+        XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        Thread.sleep(forTimeInterval: 3)
+        attachUpright("hud056-" + UIDevice.current.name.replacingOccurrences(of: " ", with: "_"))
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])
