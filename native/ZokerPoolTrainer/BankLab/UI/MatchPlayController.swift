@@ -47,6 +47,7 @@ final class MatchPlayState {
     var playout = PlayoutClock()
     var audioEvents: [LANEvent] = []
     var playedEvents = Set<Int>()
+    var pocketLedger = PocketSoundLedger()   // 0.53 A3.2: one drop sound per (shot, ball, pocket) across both audio paths
     var audioShotID = -1
     var lastGuestShot = -1
     var lastGuestTurn = -1
@@ -1248,7 +1249,8 @@ extension TrainingController {
         }
         while let event = matchPlay.audioEvents.first, event.time <= matchPlay.guestClock {
             matchPlay.audioEvents.removeFirst(); matchPlay.playedEvents.insert(event.index)
-            if !latest.isPaused, UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true {
+            if !latest.isPaused, UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true,
+               matchPlay.pocketLedger.firstTime(shot: matchPlay.audioShotID, event: event) {
                 poolAudio.play(kind: event.kind, impact: event.impact,
                                pan: audioPan(event.x, event.y), eventAge: max(0, matchPlay.guestClock - event.time))
             }
@@ -1768,7 +1770,7 @@ extension TrainingController {
         matchPlay.predictor = world; matchPlay.predictorShot = start.shotID
         matchPlay.predictorEvents = 0; matchPlay.predictorDiverged = false
         matchPlay.predictorChecks = []; matchPlay.predictorVerified = 0; matchPlay.lockstepShots += 1
-        matchPlay.predictorDelay = 0
+        matchPlay.predictorDelay = 0.1   // 0.53 A3.1: the same 0.1 s cue lead on every path, also when no aim packet arrived (balls never move before the cue)
         matchPlay.guestRecord = GuestShotRecord(start: start, shooter: matchInt("currentPlayer"), isBreak: matchBool("breakShot"),
                                                 first: world.ballStates)
         // The opponent's cue closes onto the ball first (same 0.1 s lead as the snapshot path), then the balls move.
@@ -1818,7 +1820,9 @@ extension TrainingController {
         let fresh = world.events(since: UInt(matchPlay.predictorEvents))
         if !fresh.isEmpty {
             if UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true {
-                for event in fresh {
+                for (offset, event) in fresh.enumerated() {
+                    if let wire = matchEvent(event, index: matchPlay.predictorEvents + offset),
+                       !matchPlay.pocketLedger.firstTime(shot: matchPlay.predictorShot, event: wire) { continue }
                     poolAudio.play(kind: event["kind"]?.intValue ?? 1, impact: event["impact"]?.doubleValue ?? 0.3,
                                    pan: audioPan(event["x"]?.doubleValue ?? 0, event["y"]?.doubleValue ?? 0),
                                    eventAge: max(0, world.elapsed - (event["time"]?.doubleValue ?? world.elapsed)))

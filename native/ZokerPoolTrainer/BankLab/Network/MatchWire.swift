@@ -77,6 +77,18 @@ struct LANCall: Codable, Equatable {
     }
 }
 
+/// 0.53 A3.2: one sound per pocket drop. The guest has two audio sources for a shot (its own lockstep solver and the host's snapshot events);
+/// whichever delivers a drop first claims (shot, ball, pocket) and the other stays silent, also across a mid-shot fallback.
+struct PocketSoundLedger {
+    private var shot = Int.min
+    private var claimed = Set<String>()
+    mutating func firstTime(shot id: Int, event: LANEvent) -> Bool {
+        if id != shot { shot = id; claimed.removeAll() }
+        guard event.kind == 2 else { return true }
+        return claimed.insert("\(event.a)|\(event.b)").inserted
+    }
+}
+
 struct LANEvent: Codable, Equatable {
     var index: Int
     var kind: Int

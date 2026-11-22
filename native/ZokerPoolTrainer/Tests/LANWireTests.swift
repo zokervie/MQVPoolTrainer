@@ -174,6 +174,18 @@ import Foundation
         try check(!badAim.isValid, "pull outside 0…1 is rejected")
         badAim = aim; badAim.side = 0.7; badAim.top = 0.7
         try check(!badAim.isValid, "tip point outside the miscue circle is rejected")
+        // 0.53 A3.2: a pocket drop is played once per (shot, ball, pocket) no matter which path (lockstep world / snapshot events) delivers it,
+        // including a switch from lockstep to snapshots in the middle of the shot; other impacts are never suppressed.
+        var ledger = PocketSoundLedger()
+        let drop = LANEvent(index: 7, kind: 2, a: 5, b: 3, time: 1.2, x: 0, y: 0, impact: 0.4)
+        try check(ledger.firstTime(shot: 9, event: drop), "the first delivery of a drop plays")
+        var viaSnapshot = drop; viaSnapshot.index = 2   // a different event index on the other path
+        try check(!ledger.firstTime(shot: 9, event: viaSnapshot), "the same drop from the snapshot path is silent")
+        let rail = LANEvent(index: 1, kind: 0, a: 5, b: 0, time: 0.3, x: 0, y: 0, impact: 0.2)
+        try check(ledger.firstTime(shot: 9, event: rail) && ledger.firstTime(shot: 9, event: rail), "cushion and ball impacts are not deduplicated")
+        try check(ledger.firstTime(shot: 10, event: drop), "the next shot plays its own drop")
+        var other = drop; other.a = 6
+        try check(ledger.firstTime(shot: 10, event: other), "another ball dropping is a different sound")
         print("PASS LAN wire: \(checks) production codec/authority/roundtrip validation checks; two-device transport NOT_RUN")
     }
 }
