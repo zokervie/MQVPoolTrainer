@@ -45,7 +45,7 @@ def run(portable=False):
                        ('simulator-build',['bash','Verify-on-Mac.command']),
                        ('screenshots-and-runtime-probes',['bash','Tools/ci_screenshots.sh']),
                        ('table-glare',['bash','Tools/run_table_glare_qa.sh','build/glare-accept']),   # 0.49c G5: offscreen render, ≤ 2 % near-white on every look
-                       ('ui-gesture-tests',['bash','Tools/run_ui_tests.sh']),
+                       *([] if os.environ.get('ZOKER_UI_SHARDED')=='1' else [('ui-gesture-tests',['bash','Tools/run_ui_tests.sh'])]),   # CI: separate shard jobs
                        ('unsigned-iphone-build',['bash','Build-Unsigned-IPA.command'])]
         for name,command in stages:
             print('RUN',name,flush=True)

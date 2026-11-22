@@ -8,11 +8,26 @@ xcrun simctl shutdown "$device_id" 2>/dev/null || true
 xcrun simctl boot "$device_id"
 xcrun simctl bootstatus "$device_id" -b
 # Keep an xcresult per attempt; never accept a previous test run as evidence.
-result_path="$PWD/build/ui-tests-$(date +%Y%m%d-%H%M%S).xcresult"
+# CI shards (UI_SHARD=k/n): every n-th test of InteractionTests, in source order, starting at k. Unset = all tests.
+only=(-only-testing:ZokerPoolTrainerUITests/InteractionTests)
+log_name=ui-tests
+if [ -n "${UI_SHARD:-}" ]; then
+  k=${UI_SHARD%/*}; n=${UI_SHARD#*/}
+  only=()
+  i=0
+  while read -r t; do
+    if [ $(( i % n )) -eq $(( k - 1 )) ]; then only+=("-only-testing:ZokerPoolTrainerUITests/InteractionTests/$t"); fi
+    i=$((i + 1))
+  done < <(grep -oE 'func test[A-Za-z0-9_]+\(' UITests/InteractionTests.swift | sed -E 's/func (test[A-Za-z0-9_]+)\(/\1/')
+  [ ${#only[@]} -gt 0 ] || { echo "UI_SHARD $UI_SHARD selects no test"; exit 1; }
+  echo "UI shard $UI_SHARD: ${#only[@]} of $i tests"
+  log_name="ui-tests-shard$k"
+fi
+result_path="$PWD/build/$log_name-$(date +%Y%m%d-%H%M%S).xcresult"
 NSUnbufferedIO=YES xcodebuild test -project ZokerPoolTrainer.xcodeproj -scheme ZokerPoolTrainer \
   -configuration Debug -destination "platform=iOS Simulator,id=$device_id" \
   -derivedDataPath "$PWD/build/Simulator" -resultBundlePath "$result_path" \
   -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
   -destination-timeout 120 -test-timeouts-enabled YES -default-test-execution-time-allowance 900 -maximum-test-execution-time-allowance 900 \
-  -only-testing:ZokerPoolTrainerUITests/InteractionTests \
-  ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/ui-tests.log
+  "${only[@]}" \
+  ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO 2>&1 | tee "build/$log_name.log"

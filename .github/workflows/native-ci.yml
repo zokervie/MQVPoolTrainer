@@ -11,7 +11,7 @@ on:
       runner:
         description: Máy Mac (khi macos-15 Apple Silicon hết chỗ, chọn macos-15-intel)
         type: choice
-        options: [macos-15, macos-15-intel]
+        options: [macos-15, macos-15-intel, macos-26]
         default: macos-15
 permissions:
   contents: read
@@ -70,8 +70,17 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Chọn Xcode 16.4
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app && xcodebuild -version
+      - name: Chọn Xcode 26 (App Store yêu cầu SDK iOS 26 từ 28/4/2026)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode_26*.app 2>/dev/null || true
+          xc=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i -E 'beta|release_candidate' | sort -V | tail -1 || true)
+          if [ -z "$xc" ]; then echo "::error::Máy chạy không có Xcode 26"; exit 1; fi
+          sudo xcode-select -s "$xc"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun simctl list runtimes | grep -i ios || true
       - name: Thư viện sinh tài nguyên
         run: python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
       - name: Xuất IPA ứng viên trước nghiệm thu
@@ -115,6 +124,7 @@ jobs:
         run: |
           set -o pipefail
           export BUILD_NUMBER=$((24 + BUILD_NUMBER))
+          export ZOKER_UI_SHARDED=1   # 67 UI tests overran 45–65 min on one runner (CI 163–167): they run in job mac-ui
           python3 Tools/run_acceptance.py 2>&1 | tee build/acceptance-progress.log
           REPORT=$(ls dist/ACCEPTANCE-*.json | tail -1)
           python3 -c "import json;r=json.load(open('$REPORT'));print('::notice title=acceptance::'+r['status']+' · '+', '.join(s['name']+'='+s['status'] for s in r['stages']))"
@@ -187,3 +197,54 @@ jobs:
           gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
             | grep '^native-' | tail -n +11 | while read -r old; do gh release delete "$old" -y || true; done
           echo "::notice title=release::$TAG · $LINK"
+
+  mac-ui:
+    # UI tests (XCTest gestures) split in two shards on two runners, in parallel with the acceptance job.
+    name: UI test ${{ matrix.shard }}/2 (Simulator)
+    needs: portable
+    runs-on: ${{ github.event.inputs.runner || 'macos-15-intel' }}
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    defaults:
+      run:
+        working-directory: native/ZokerPoolTrainer
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Chọn Xcode 26 (App Store yêu cầu SDK iOS 26 từ 28/4/2026)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode_26*.app 2>/dev/null || true
+          xc=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i -E 'beta|release_candidate' | sort -V | tail -1 || true)
+          if [ -z "$xc" ]; then echo "::error::Máy chạy không có Xcode 26"; exit 1; fi
+          sudo xcode-select -s "$xc"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun simctl list runtimes | grep -i ios || true
+      - name: Thư viện sinh tài nguyên
+        run: python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
+      - name: Tài nguyên
+        run: python3 Tools/prepare_ci_assets.py
+      - name: UI test shard ${{ matrix.shard }}/2
+        env:
+          UI_SHARD: ${{ matrix.shard }}/2
+        run: |
+          set -o pipefail
+          mkdir -p build
+          bash Tools/run_ui_tests.sh   # job limit 100 min; per-test limits in run_ui_tests.sh
+      - name: Tóm tắt test trượt
+        if: failure()
+        run: |
+          grep -hE "error: -\[|Test Case .* failed|TEST (SUCCEEDED|FAILED)" build/ui-tests-shard*.log | cut -c1-300 | tail -40 | sed 's/^/::error title=UI shard ${{ matrix.shard }}::/' || true
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: zoker-ui-tests-${{ github.run_number }}-${{ matrix.shard }}
+          path: native/ZokerPoolTrainer/build/ui-tests-shard*.log
+          retention-days: 14
