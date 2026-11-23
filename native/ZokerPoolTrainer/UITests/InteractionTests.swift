@@ -819,7 +819,7 @@ final class InteractionTests: XCTestCase {
     /// 0.49c G7: no UIKit layout pass lands between the frames of a rolling shot (everything the strike invalidated is laid out in the
     /// strike call). Counted by the app from the end of the strike to the end of the shot; Simulator only — device frame timing NOT RUN.
     func testNoUIKitLayoutPassWhileTheBallsRoll() {
-        let (_, scene) = launch(["--ux017-shot-qa"])
+        let (_, scene) = launch(["--ux017-shot-qa", "--layout-trace-qa"])
         wait(scene, timeout: 60 * slow) { (scene.value as? String ?? "").contains("status=Quãng đường bi cái") }   // the QA shot has finished
         XCTAssertEqual(field(scene, "midShotLayout"), 0, "layout passes between frames of the shot: \(scene.value as? String ?? "")")
     }

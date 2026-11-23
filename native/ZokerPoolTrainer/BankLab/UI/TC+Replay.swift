@@ -17,7 +17,7 @@ extension TrainingController {
         replayAutoButton.setTitle(replayAngle048.title,for:.normal);table.replayTrails048([:],ghost:nil)
         if let pose=savedAimCamera{applyCamera(pose)}else{table.cameraMode=2}
         replaySlider.minimumValue=Float(-replayLead);replaySlider.maximumValue=Float(frameTimes.last ?? 1);replaySlider.value=Float(replayClock)
-        replayBar.isHidden=false;menuButton.isHidden=true;replayPause.setTitle("Dừng",for:.normal)
+        showReplayBar();menuButton.isHidden=true;replayPause.setTitle("Dừng",for:.normal)
         statusLabel.text="Xem lại · kéo để đổi góc · tua để xem điểm chạm"
         applyReplayCoach();wakeRendering()
         updateControls()
@@ -27,7 +27,7 @@ extension TrainingController {
         guard !shotActive,!frames.isEmpty,replayIndex==nil else{notifyStatus("Chưa có cú đánh để xuất video");return}
         guard let recorder=HighlightRecorder(aspect:scn.bounds.width/max(1,scn.bounds.height)) else{notifyStatus("Không tạo được video");return}
         highlightRecorder=recorder;replay()
-        replayBar.isHidden=true;menuButton.isHidden=true
+        hideReplayBar();menuButton.isHidden=true
         notifyStatus("Đang quay video highlight…")
     }
     func stopReplay(){
@@ -47,7 +47,7 @@ extension TrainingController {
         }
         replayPreparation=nil;replayRenderedCueType=nil
         if let equipment=replayEquipment{table.selectCue(equipment.0);table.cueElevation=equipment.1};replayEquipment=nil
-        replayIndex=nil;replayPlan=nil;replayBar.isHidden=true;menuButton.isHidden=false;table.resetPocketPresentation();syncOverlayButtons()
+        replayIndex=nil;replayPlan=nil;hideReplayBar();menuButton.isHidden=false;table.resetPocketPresentation();syncOverlayButtons()
         if let saved=archiveReturn {
             frames=saved.frames;frameTimes=saved.times;lastShotEvents=saved.events;lastShot=saved.shot;paths=saved.paths;coaching=saved.coach;lastPreparation=saved.preparation;archiveReturn=nil
         }
@@ -60,10 +60,22 @@ extension TrainingController {
             DispatchQueue.main.async{[weak self] in guard let self=self,self.replayIndex==nil,!self.shotActive else{return};if self.loadNextHighlight(){self.replay()}}
         }
     }
+    /// 0.53 stability — ROOT CAUSE of testNoUIKitLayoutPassWhileTheBallsRoll flaking (~30 %): UIKit materialises the title label of a HIDDEN button
+    /// ("Đạo diễn", 30 → 56 pt) lazily on a Core Animation update, which landed in the middle of the first shot as one stray UIKit layout pass
+    /// (traced with --layout-trace-qa: UIButtonLegacyVisualProvider ← CALayer perform_update_ ← l10n_setText ← setNeedsLayout). The replay bar now
+    /// lives in the view hierarchy only while a replay is shown, so nothing hidden can be laid out during a live shot.
+    func showReplayBar(){
+        if replayBar.superview==nil{
+            view.addSubview(replayBar)
+            NSLayoutConstraint.activate((leftHanded ? replayBarLeft:replayBarRight)+replayBarFixed)   // removeFromSuperview dropped them
+        }
+        replayBar.isHidden=false
+    }
+    func hideReplayBar(){replayBar.isHidden=true;replayBar.removeFromSuperview()}
     func buildReplayBar(){
         replayBar.axis = .horizontal;replayBar.spacing=8;replayBar.alignment = .fill
         replayBar.backgroundColor=UIColor(white:0.04,alpha:0.9);replayBar.layer.cornerRadius=12
-        replayBar.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(replayBar)
+        replayBar.translatesAutoresizingMaskIntoConstraints=false   // 0.53 stability: the bar joins the view only while a replay runs (see showReplayBar)
         replayPause.setTitle("Dừng",for:.normal);replayRate.setTitle("1×",for:.normal);replayAutoButton.setTitle("Auto",for:.normal)
         let close=UIButton(type:.system);close.setTitle("Xong",for:.normal);close.accessibilityIdentifier="ReplayDone";replayAutoButton.accessibilityIdentifier="ReplayAuto"
         // 0.33: "Lưu" saves the shot being replayed; the camera button picks 1 of 4 replay angles.
@@ -77,7 +89,7 @@ extension TrainingController {
         for item in [replayPause,replayRate,replaySlider,replayAutoButton,save,export,close] as [UIView]{replayBar.addArrangedSubview(item)}
         replayBarRight=[replayBar.leadingAnchor.constraint(equalTo:coachButton.trailingAnchor,constant:8),replayBar.trailingAnchor.constraint(equalTo:quickScroll.leadingAnchor,constant:-8)]
         replayBarLeft=[replayBar.leadingAnchor.constraint(equalTo:quickScroll.trailingAnchor,constant:8),replayBar.trailingAnchor.constraint(equalTo:coachButton.leadingAnchor,constant:-8)]
-        NSLayoutConstraint.activate(replayBarRight+[replayBar.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),replayBar.heightAnchor.constraint(equalToConstant:48)])
+        replayBarFixed=[replayBar.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:8),replayBar.heightAnchor.constraint(equalToConstant:48)]
         replayPause.accessibilityIdentifier="ReplayPause";replaySlider.accessibilityIdentifier="ReplaySeek"
         replayPause.addAction(UIAction{[weak self]_ in guard let self=self else{return};self.replayPaused.toggle();self.replayPause.setTitle(self.replayPaused ? "Tiếp":"Dừng",for:.normal)},for:.touchUpInside)
         replayRate.showsMenuAsPrimaryAction=true;replayRate.menu=UIMenu(children:[0.25,0.5,1.0].map{rate in UIAction(title:"\(rate)×"){[weak self]_ in self?.replaySpeed=rate;self?.replayRate.setTitle("\(rate)×",for:.normal)}})
@@ -90,7 +102,10 @@ extension TrainingController {
             self.replayAudioIndex=self.lastShotEvents.prefix(while:{($0["time"]?.doubleValue ?? 0)<=self.replayClock}).count
             self.lastDirectorTime = -10;self.cameraSmooth048.reset();self.trailShown048 = -1;self.table.resetPocketPresentation();self.wakeRendering()
         },for:.valueChanged)
-        replayBar.isHidden=true
+        replayBar.isHidden=true;replayBar.removeFromSuperview()
+        #if DEBUG
+        if QA.has("--layout-trace-qa"){LayoutTrace.watched=[replayAutoButton,replayAutoButton.titleLabel!,replayBar];LayoutTrace.install()}
+        #endif
     }
     /// 0.48 M2: 2 automatic angles + 6 hand-picked (was 14). The menu rebuilds so the tick follows the current choice.
     func replayAngleMenu048()->UIMenu{

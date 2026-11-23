@@ -46,7 +46,7 @@ extension TrainingController {
         place(numbersButton,n);place(guideToggle,g);place(cardToggle,c)
         for b in [numbersButton,guideToggle,cardToggle]{b.setNeedsUpdateConfiguration()}
         // Replay bar: top row between Coach and the shortcut column (never over Coach); mirrored for left hand.
-        if (replayBarRight.first?.isActive ?? false) == leftHanded {   // only on a hand change (avoids a layout loop)
+        if replayBar.superview != nil,(replayBarRight.first?.isActive ?? false) == leftHanded {   // only on a hand change (avoids a layout loop)
             NSLayoutConstraint.deactivate(leftHanded ? replayBarRight:replayBarLeft);NSLayoutConstraint.activate(leftHanded ? replayBarLeft:replayBarRight)
         }
         retryButton.isHidden=matchIsCompetitive

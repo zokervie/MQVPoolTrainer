@@ -28,6 +28,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var puzzleSession:PuzzleSession?;var puzzleBar:UIView?;var puzzleTaskLabel:UILabel?;var puzzleHintButton:UIButton?;var puzzleRetryMs=0.0,puzzleRetries=0   // 0.50 Thế bí
     var glareSummary=""   // 0.49c G5 probe result for XCTest: "<PASS|FAIL|NOT_RUN>:<worst %>"
     var strikeSettled=false,midShotLayoutPasses=0,midShotLayoutTotal=0   // 0.49c G7
+    var midShotWhy="",layoutFrames:[ObjectIdentifier:CGRect]=[:]   // 0.53 stability: which views changed size in a mid-shot pass (Debug probe)
     var rescueBarDrill = -1,failedRounds:[String:Int]=[:],rescueAsked:Set<String>=[]   // 0.56 K2: the rescue power bar (this drill only)
     var placeBallButton:UIButton!   // 0.49c G6: stand-alone "Đặt bi" (64 pt) above the Đánh/Jump/Massé/Break row
     var drillVariant=0   // 0.49b X3: layout variant of the shot about to be played (0 = catalogue layout)
@@ -202,7 +203,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var eyePressDuringShot=false
     var eyeHoldWork:DispatchWorkItem?
     var frameLayoutAdopted=false
-    var replayBarRight:[NSLayoutConstraint]=[],replayBarLeft:[NSLayoutConstraint]=[]
+    var replayBarRight:[NSLayoutConstraint]=[],replayBarLeft:[NSLayoutConstraint]=[],replayBarFixed:[NSLayoutConstraint]=[]
     var matchCallPicking=0,matchCallBall=0,matchCallPose:CameraPose?
     var placementGrab=SIMD2<Double>(0,0),placementPose:CameraPose?   // 0.42 ball in hand
     // 0.25: practice history (step back / forward per shot or whole session) and session highlights.
@@ -591,10 +592,24 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// hidden menu, a toast, a score — ends here, and this used to re-place ~25 keys, redraw the effect ball and B,
     /// re-read saved offsets, restart a fade animation and re-arm the display link. Now the HUD is laid out only when
     /// its inputs changed (size, safe area, hand, expanded ball, key count, scale); everything else is a no-op.
+    /// Debug: frames of every view (3 levels) compared with the previous call; returns the ones that changed and remembers the new frames.
+    func diffLayoutFrames()->[String]{
+        var changed:[String]=[]
+        func walk(_ v:UIView,_ depth:Int){
+            let id=ObjectIdentifier(v)
+            if let old=layoutFrames[id],old != v.frame{changed.append("\(type(of:v)):\(v.accessibilityIdentifier ?? (v.superview?.accessibilityIdentifier ?? "-")):\((v as? UILabel)?.text ?? ""):\(Int(old.width))x\(Int(old.height))>\(Int(v.frame.width))x\(Int(v.frame.height))")}
+            layoutFrames[id]=v.frame;if depth<3{v.subviews.forEach{walk($0,depth+1)}}
+        }
+        walk(view,0);return changed
+    }
     override func viewDidLayoutSubviews(){
         let layoutStart=CACurrentMediaTime();defer{if let perf=Self.perfSegment {perf.layoutTime+=CACurrentMediaTime()-layoutStart}}
         super.viewDidLayoutSubviews()
-        if shotActive && strikeSettled {shotProfile.layoutPasses+=1;midShotLayoutPasses+=1;midShotLayoutTotal+=1}
+        if shotActive && strikeSettled {shotProfile.layoutPasses+=1;midShotLayoutPasses+=1;midShotLayoutTotal+=1
+            #if DEBUG
+            if midShotWhy.count<400{let changed=diffLayoutFrames();midShotWhy+="["+(changed.isEmpty ? "same-frames":changed.prefix(4).joined(separator:","))+"]"}
+            #endif
+        }
         else if shotActive {shotProfile.layoutPasses+=1}
         Self.perfSegment?.layoutPasses+=1
         let safe=hudSafeFrame

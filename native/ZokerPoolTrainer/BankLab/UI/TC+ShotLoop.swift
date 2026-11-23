@@ -63,7 +63,7 @@ extension TrainingController {
     }
     func clearShot(){if let restore=forcedElevationRestore{engine.settings=restore;forcedElevationRestore=nil};
         coachGeneration+=1;predictionGeneration+=1
-        if replayIndex != nil{stopReplay()};releasePeek();replayBar.isHidden=true
+        if replayIndex != nil{stopReplay()};releasePeek();hideReplayBar()
         aimBuffer=[];lastPreparation=[];replayPreparation=nil
         frames=[];frameTimes=[];paths=[:];shotActive=false;replayIndex=nil;lastEventCount=0
         BLShotCameraReset(&shotCameraState);table.trails([:]);guideDirty=true
@@ -260,7 +260,7 @@ extension TrainingController {
             // 0.37 (owner replay: object ball moving before the cue ball arrives): frames were sampled at 30 Hz, so a
             // 6 m/s jump shot moved 20 cm between samples and slow-motion interpolation started the object ball early.
             // Advance in 1/240 s chunks and sample by speed: 240 Hz while anything is fast, 60 Hz medium, 30 Hz slow.
-            if !strikeSettled {view.layoutIfNeeded();strikeSettled=true;midShotLayoutPasses=0}   // 0.49c G7: the strike's own passes end here
+            if !strikeSettled {view.layoutIfNeeded();strikeSettled=true;midShotLayoutPasses=0;midShotWhy="";_=diffLayoutFrames();LayoutTrace.cause=""}   // 0.49c G7: the strike's own passes end here
             var remaining=liveStartPending ? min(dt,1.0/Double(Tuning.frameRate)):dt
             liveStartPending=false
             perf?.physicsDt.append(remaining)
