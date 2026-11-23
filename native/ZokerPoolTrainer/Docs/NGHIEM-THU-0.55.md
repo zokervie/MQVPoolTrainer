@@ -2,6 +2,8 @@
 
 Chưa xác minh trên thiết bị. R1–R5 sửa cùng một màn (`UserPuzzle051.swift`) nên nằm chung MỘT commit (test PlayerStore viết trước).
 
+accept_local đầy đủ (sau khi gộp `origin/ci/native-0.56`, không xung đột; accept_local vẫn chạy cả UI vì không đặt ZOKER_UI_SHARDED): STATUS FAILED ở ui-gesture-tests, 8/9 bước PASS, 67 UI test với 2 test nhấp nháy: `testFreshInstallLaunchFlowIntroLobbyTutorialTable` (lần chạy riêng đầu cũng đỏ, lần sau PASS 29 s) và `testNoUIKitLayoutPassWhileTheBallsRoll` (PASS khi chạy lại). KHÔNG phải 9/9 sạch; lượt 0.56 trước đó là 9/9. Cần điều tra tính ổn định của hai test này.
+
 | Mục | Kết quả | Ghi chú |
 |---|---|---|
 | R1 kết quả kiểm cũ ghi đè thế mới | PASS (đơn vị) · UI NOT RUN | `CheckGate`: mỗi lần kiểm có "vé"; đổi thế (`changed()`) làm vé cũ mất hiệu lực, tác vụ nền chỉ ghi kết quả khi vé còn khớp (cả `receive()`). Khoá kéo bi, bật/tắt kiểu, thêm/bớt bi xám trong lúc kiểm. Test đơn vị trong PlayerStoreTests (vé cũ bị bỏ, chỉ vé mới nhất tính). Chưa có UI test "kiểm → đổi thế ngay → Gửi vẫn tắt": đã khoá kéo nên khó chen vào cửa sổ kiểm (1–1,5 phút trên Simulator) bằng cử chỉ. |
