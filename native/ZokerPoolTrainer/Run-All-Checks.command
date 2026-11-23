@@ -16,7 +16,7 @@ done
 python3 Tools/drills/gen_catalog.py --check   # 0.49b: committed drill data matches catalog.py + measured.json
 mkdir -p build/physics-checks
 if [ -n "${CXX:-}" ]; then compiler=("$CXX"); elif command -v xcrun >/dev/null 2>&1; then compiler=(xcrun clang++); else compiler=(c++); fi
-for suite in Physics Prediction Practice Contact ExtendedPractice Research Elevated KickSearch Calibration Cushion3D Presentation SpinTransfer PresentationPolicy Determinism Literature CueClearance DiamondSystem PowerScale MatchRules AimMasseRail ReverseZigzag CueTip KickSystems RailEnglish BreakSymmetry PublishedBenchmark SystemsBenchmark AirborneContact Lockstep Opponent FirstShot IntroBreak TableSize DailyLoop Chapter CameraPlanner DrillCatalog Puzzle PuzzleDaily DrawIdentity CushionReference Mastery; do
+for suite in Physics Prediction Practice Contact ExtendedPractice Research Elevated KickSearch Calibration Cushion3D Presentation SpinTransfer PresentationPolicy Determinism Literature CueClearance DiamondSystem PowerScale MatchRules AimMasseRail ReverseZigzag CueTip KickSystems RailEnglish BreakSymmetry PublishedBenchmark SystemsBenchmark AirborneContact Lockstep Opponent FirstShot IntroBreak TableSize DailyLoop Chapter CameraPlanner DrillCatalog Puzzle PuzzleDaily DrawIdentity CushionReference Mastery ReplaySmooth; do
   "${compiler[@]}" -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror "Tests/${suite}Tests.cpp" BankLab/Core/Physics.cpp BankLab/Core/ElevatedPhysics.cpp -o "build/physics-checks/$suite"
   "build/physics-checks/$suite"
 done
