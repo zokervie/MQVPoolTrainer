@@ -24,6 +24,7 @@ Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất
 | 0.54 | `cho/native-0.53-phieu-lo` | M1–M5: chương 1 "Kiểm soát lực" (9 thang vòng, khởi động, 0…3 sao, % + danh hiệu, quỹ lùi cú, chơi lại chương, thẻ khoe); luật gọi Mastery.h. Chưa: UI test hết quỹ ch.2–9, % cho ch.2–9, ảnh thẻ khoe mẫu. `Docs/NGHIEM-THU-0.54.md` |
 | 0.56 | `cho/native-0.53-phieu-lo` | K1 cột phải 4 nút, K2 bỏ công tắc thanh lực (cứu nguy BLPowerBarRescue), K3 cụm trái D / 2/3 D, ảnh 3 máy. `Docs/NGHIEM-THU-0.56.md` |
 | 0.55 | `cho/native-0.53-phieu-lo` | R1–R5 "Đặt thế bí cho bạn" (Thử nghiệm): chặn kết quả kiểm cũ, dòng chia sẻ, Dán, thẻ kết quả trước khi chơi, đếm mã tại máy. Đã sửa gốc 2 test nhấp nháy (thanh xem lại ẩn; intro giữ bằng cờ QA). Gộp thêm `ci/native-0.56` (CI chia đôi UI test; accept_local vẫn chạy đủ UI). `Docs/NGHIEM-THU-0.55.md` |
+| 0.57 | `cho/native-0.53-phieu-lo` | I1–I7 intro 3,2 s (rung CoreHaptics, nhạc tự hạ, tiếng bi tách trái–phải, IntroTiming một chỗ). Chưa: intro.mp4 mới (Simulator không quay được cảnh 3D), cảm giác/âm thanh trên máy. Tờ dán: sửa không phụ thuộc GPU (INFERRED). `Docs/NGHIEM-THU-0.57.md` |
 | `feature/zoker-native` | — | Chưa gộp 0.39–0.40c. Chỉ gộp sau khi anh xác nhận trên máy thật |
 
 Lệnh build: `git push -f origin cho/native-0.40c:ci/native-0.41`, rồi chờ CI bằng tác vụ nền. Nếu đỏ, đọc log job macOS bằng `gh api …/jobs/<id>/logs | grep -E "error:|FAIL"`.
