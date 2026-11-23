@@ -53,7 +53,7 @@ extension TrainingController {
         drillIndex=index;drillVariant=0;roundResults=[];roundSmallMade=0;roundCoachUsed=false;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
         PlayerStore.shared.noteDrillOpened(drill.id)   // 0.45 M5: attempt time starts when the drill is on the table
         table.target(coachOn || inTrainingMode ? drill.goal:nil)
-        initial=drill.balls;before=initial;angle=drill.angle
+        initial=drill.balls;before=initial;angle=drill.angle;resetUndoScope()
         engine.loadLayout(initial.map{$0.dictionary});clearShot();locked=false;isPlacingBalls=false;spin.reset();applyDrillTip()
         titleLabel.text=drill.title;hintLabel.text=strokeHint
         statusLabel.text="Trắng: bi cái · Vàng: bi 1";updateControls();refresh()
@@ -106,7 +106,7 @@ extension TrainingController {
         BLShotCameraStart(&shotCameraState)
         cameraManual=false;lastDirectorTime = -10;peekPose=nil;lastShotEvents=[]
         lastShotSetup=currentSetup()
-        if !matchIsCompetitive{shotBack.append(ShotStep(balls:balls,setup:lastShotSetup));shotForward.removeAll()}
+        if !matchIsCompetitive{shotShelf.push(ShotStep(balls:balls,setup:lastShotSetup),scope:shelfScope)}
         before=balls;frames=[before];frameTimes=[0];paths=[:];sampleClock=0;lastEventCount=0;mark("camera+history")
         // 0.37 (owner): a cue raised over the rail / a ball behind is a REAL elevated stroke — squirt fades in with the
         // elevation (squirtRampDegrees) and the 3D strike adds swerve/hop by speed. Restored when the shot ends.
@@ -577,7 +577,7 @@ extension TrainingController {
         let here=ShotStep(balls:balls,setup:currentSetup())
         var target:ShotStep?
         switch direction {
-        case -1: guard let state=shotBack.popLast() else{notifyStatus("Đã ở cú đầu");return};if !rolling{shotForward.append(here)};target=state
+        case -1: guard let state=shotShelf.popBack(scope:shelfScope) else{notifyStatus("Đã ở cú đầu");return};if !rolling{shotForward.append(here)};target=state
         case 1: guard let state=shotForward.popLast() else{notifyStatus("Đã ở cú mới nhất");return};shotBack.append(here);target=state
         case -99: guard !shotBack.isEmpty else{return};shotForward.append(here);shotForward+=shotBack.dropFirst().reversed();target=shotBack.first;shotBack.removeAll()
         default: guard !shotForward.isEmpty else{return};shotBack.append(here);shotBack+=shotForward.dropFirst().reversed();target=shotForward.first;shotForward.removeAll()

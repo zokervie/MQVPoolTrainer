@@ -215,7 +215,7 @@ extension TrainingController {
     func openLayout(_ index:Int){
         guard matchAllowsEditing else{return}
         guard localTurn,!presentationBusy else{return}
-        let l=savedLayouts()[index];loadDrill(Drill.free);initial=l.balls;before=initial;engine.loadLayout(initial.map{$0.dictionary});angle=l.angle
+        let l=savedLayouts()[index];loadDrill(Drill.free);initial=l.balls;before=initial;resetUndoScope();engine.loadLayout(initial.map{$0.dictionary});angle=l.angle
         titleLabel.text=l.name;refresh();updateControls()
     }
     func deleteLayout(){
@@ -242,7 +242,7 @@ extension TrainingController {
             if state.contains(where:{!$0.sunk && hypot($0.x-x,$0.y-y)<2.3*r}) {continue}
             state.append(BallState(id:id,x:x,y:y));added+=1
         }
-        engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls
+        engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls;resetUndoScope()
         statusLabel.text="Xếp ngẫu nhiên \(added) bi · seed \(shown)";refresh();updateControls();syncQuickRail()
     }
     func randomOptions(){
@@ -266,7 +266,7 @@ extension TrainingController {
             if state.contains(where:{!$0.sunk && hypot($0.x-x,$0.y-y)<0.065}){continue}
             state.append(BallState(id:id,x:x,y:y));added+=1
         }}
-        engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls
+        engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls;resetUndoScope()
         refresh();updateControls();notifyStatus("Đã thêm \(added) / \(count) bi · bố trí mặc định")
     }
     func addBall(){
@@ -277,7 +277,7 @@ extension TrainingController {
             let x = -0.4+Double(col)*0.2,y = -0.9+Double(row)*0.25
             if !state.contains(where:{!$0.sunk && hypot($0.x-x,$0.y-y)<0.065}) {
                 let previous=balls
-                state.append(BallState(id:id,x:x,y:y));engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls
+                state.append(BallState(id:id,x:x,y:y));engine.loadLayout(state.map{$0.dictionary});clearShot();initial=balls;before=balls;resetUndoScope()
                 editingSnapshot=previous;editingPose=captureCamera();isPlacingBalls=true;selectCamera(1)
                 notifyStatus("Đã thêm bi \(id) · kéo bi mới để đặt · Xong / Hủy")
                 refresh();updateControls();return
@@ -313,7 +313,7 @@ extension TrainingController {
         for row in 0..<5 {for column in 0...row{
             layout.append(BallState(id:ids[index],x:(Double(column)-Double(row)/2)*0.058,y:0.27+Double(row)*0.0503));index+=1
         }}
-        initial=layout;before=layout;engine.loadLayout(layout.map{$0.dictionary});angle=Double.pi/2
+        initial=layout;before=layout;resetUndoScope();engine.loadLayout(layout.map{$0.dictionary});angle=Double.pi/2
         table.cameraMode=0;table.orbit=0;table.zoom=1
         cameraButton.configuration?.title="Toàn bàn";titleLabel.text="Studio · 15 bi"
         guideOn=false;guideButton.configuration?.title="Dự báo: tắt";clearShot();refresh();updateControls()

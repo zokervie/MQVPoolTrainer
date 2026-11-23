@@ -21,3 +21,6 @@ build/lan-checks/PrefsTests
 # 0.57 I1/I3: intro timeline, cue draw-back, FOV punch, music duck, particle budget.
 xcrun swiftc -warnings-as-errors BankLab/UI/IntroTiming057.swift Tests/IntroTimingTests.swift -o build/lan-checks/IntroTimingTests
 build/lan-checks/IntroTimingTests
+# 0.58 L1: the take-back shelf never crosses drills or chapters.
+xcrun swiftc -warnings-as-errors BankLab/UI/UndoShelf058.swift Tests/UndoShelfTests.swift -o build/lan-checks/UndoShelfTests
+build/lan-checks/UndoShelfTests

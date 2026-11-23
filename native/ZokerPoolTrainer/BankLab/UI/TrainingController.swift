@@ -212,7 +212,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// setup now carries the aim camera as it was at the stroke (pose + yaw offset from the aim line) and the cue type.
     struct ShotSetup{var angle:Double,side:Double,top:Double,kind:Int,elevation:Double;var aimYaw:Double=0;var camera:CameraPose?=nil;var cueType:Int?=nil}
     struct ShotStep{var balls:[BallState];var setup:ShotSetup?}
-    var shotBack:[ShotStep]=[],shotForward:[ShotStep]=[]
+    /// 0.58 L1: one shelf per drill (scope = drill id); a new drill, chapter, variant or leaving the screen clears it.
+    var shotShelf=UndoShelf<ShotStep>()
+    var shotBack:[ShotStep]{get{shotShelf.back}set{shotShelf.back=newValue}}
+    var shotForward:[ShotStep]{get{shotShelf.forward}set{shotShelf.forward=newValue}}
+    var shelfScope:String{Drill.all.indices.contains(drillIndex) ? Drill.all[drillIndex].id : ""}
+    /// 0.58 L1: a fresh start of a drill/layout — nothing of the previous one (steps, last stroke setup, last shot) can be taken back into it.
+    func resetUndoScope(){shotShelf.clear(scope:shelfScope);lastShotSetup=nil;lastShot=nil}
     /// 0.30: Đánh / Jump / Massé / Break above the effect ball (BLHUDCueIcon, BLCueIconKind).
     var cueIcons:[UIButton]=[]
     /// 0.33: "Nút số" (diamond numbers, always offered) and "Chỉ dẫn" (aim/guide lines, shown when Coach is on),
