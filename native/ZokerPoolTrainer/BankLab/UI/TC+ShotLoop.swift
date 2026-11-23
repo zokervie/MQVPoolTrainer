@@ -141,7 +141,18 @@ extension TrainingController {
         // Cold shader compilation can outlast the wake requested in viewDidLoad.
         // Always present the initial camera and accessibility state on first tick.
         if lastTime==0{startupRenderUntil=ProcessInfo.processInfo.systemUptime+8;wakeRendering()}
-        if introRunning {lastTime=targetTimestamp;return}   // 0.44.1 M5: the intro director owns the table
+        if introRunning {
+            lastTime=targetTimestamp
+            // 0.58 CI 170: the intro owns the table, so the full probe below is not rewritten while it plays (and --intro-hold-qa keeps it up until a tap).
+            // The flow keys must still be current, or a UI test that waits for "flowLog=intro" sees the pre-intro string for ever.
+            if QA.has("--intro-lobby-qa"){
+                let v=scn.accessibilityValue ?? ""
+                let kept=v.components(separatedBy:";").filter{!$0.hasPrefix("flow=") && !$0.hasPrefix("flowLog=")}
+                let now=kept.joined(separator:";")+";flow="+appFlow.step.name+";flowLog="+appFlow.logText
+                if now != v {scn.accessibilityValue=now}
+            }
+            return   // 0.44.1 M5: the intro director owns the table
+        }
         // 0.33: advance to the time this frame will be SHOWN (targetTimestamp), not when the callback ran — removes the
         // judder of variable callback latency; on ProMotion the shot runs at up to 120 Hz.
         let shownAt=targetTimestamp

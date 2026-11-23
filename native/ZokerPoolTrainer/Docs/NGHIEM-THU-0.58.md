@@ -26,3 +26,9 @@ Test từng ghi chập chờn, chạy lại local: `testNoUIKitLayoutPassWhileTh
 
 ## accept_local sau khi sửa gốc CI 170 (23/11, commit 8eb6221…)
 7/9 giai đoạn PASS (assets, portable-regressions, replay-recording, lan-wire-protocol, simulator-build, screenshots-and-runtime-probes, table-glare). `ui-gesture-tests`: 72 test, 0 trượt (kể cả testFreshInstall…, testJumpShot…, testFlyer…, testPuzzleTwoFails…, testNoUIKitLayoutPass…) trong 3727 s nhưng bị cắt bởi ngân sách giai đoạn 3900 s → báo TIMEOUT; đã nâng ngân sách cục bộ lên 4800 s trong `Tools/run_acceptance.py` (bộ test dài thêm, không đổi tiêu chí test). `unsigned-iphone-build`: NOT RUN lần này (giai đoạn sau bị bỏ qua khi UI timeout). Một lần chạy sạch 72/72: chưa đủ để gọi hết chập chờn của testFreshInstall… (trước đó trượt 3/6 và trượt trong lần accept trước).
+
+## CI 170 shard 2 — testFreshInstallLaunchFlowIntroLobbyTutorialTable (24/11)
+- **Triệu chứng:** "the intro is the first flow step" rỗng, chờ 80 s (ui-tests-shard2.log, dòng 2766–2769). Lớp IntroOverlay đã hiện (~18 s).
+- **Gốc:** `frameStep` thoát sớm khi `introRunning`, nên chuỗi probe của PoolScene không được ghi lại; `AppFlow.begin()` chạy sau lần ghi probe cuối ⇒ `flowLog=` rỗng mãi. Từ 0.53 `--intro-hold-qa` giữ intro tới khi chạm nên không còn nhịp nào làm mới. Máy local qua nhờ một nhịp lọt giữa `begin()` và lúc intro chiếm bàn (phụ thuộc thời điểm).
+- **Sửa:** nhánh thoát sớm vẫn ghi `flow=`/`flowLog=` khi có `--intro-lobby-qa`. Không đổi timeout.
+- **Kiểm:** local Simulator 2/2 PASS (testFreshInstall…, testFirstLaunchIntroEndsWithin3Point5Seconds). Local qua cả trước khi sửa nên chưa chứng minh được; CI xác nhận. Chưa chạy lại accept_local đủ 9 giai đoạn. xcresult 170-2 chưa đọc, kết luận dựa log + code.
