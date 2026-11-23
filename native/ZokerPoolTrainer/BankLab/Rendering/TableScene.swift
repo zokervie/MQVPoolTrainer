@@ -127,9 +127,9 @@ final class TableScene {
     static let aimPitchRange:ClosedRange<Float> = 0.02...1.25
     static let defaultAimPitch:Float = 0.325
     var aimPitch:Float=TableScene.defaultAimPitch
-    /// Độ cao mắt tối thiểu (m, so với mặt nỉ): trên mặt nỉ 2 cm; trên băng/gỗ 0,056 + 0,03.
+    /// Độ cao mắt tối thiểu (m, so với mặt nỉ): trên mặt nỉ 2 cm; trên băng/gỗ 0,040 + 0,03 (0.58: băng gỗ 56 → 40 mm).
     static let minAimEyeHeightBed:Float = 0.02
-    static let minAimEyeHeightRail:Float = 0.086
+    static let minAimEyeHeightRail:Float = 0.070
     private var lastCameraTarget:SIMD3<Float>?
     var cueType=0
     var cueElevation:Double=0
@@ -583,7 +583,7 @@ final class TableScene {
             pocket(x+sideOffset,z)
         }}
         if let asset=NSDataAsset(name:"PC_Diamonds"),let layout=try? JSONDecoder().decode(KitSights.self,from:asset.data){
-            for site in layout.sites{diamond(SCNVector3(site.x_mm/1000,0.05615,site.z_mm/1000),shortRail:abs(site.z_mm)>1300)}
+            for site in layout.sites{diamond(SCNVector3(site.x_mm/1000,0.04015,site.z_mm/1000),shortRail:abs(site.z_mm)>1300)}
         }else{preconditionFailure("Missing Premium Classic diamond layout")}
         brandPlate(SCNVector3(0,-0.15,1.4415))   // 0.44: on the closed end skirt
         for side:Float in [-1,1]{apronLogo(side)}
@@ -703,9 +703,11 @@ final class TableScene {
         // small rounded nose (~3 mm), then a STRAIGHT top sloping ~7° up to the wooden rail cap (deck starts 52 mm
         // behind the nose at 47 mm), and an undercut face back to the bed. The old profile bulged 19 mm over 5 cm and
         // floated 7 mm above the bed, leaving a lit sliver under the nose.
-        let profile:[SIMD2<Float>]=[SIMD2(0,0.03629025),SIMD2(0.0007,0.0377),SIMD2(0.0022,0.0388),
-            SIMD2(0.0045,0.0395),SIMD2(0.012,0.0405),SIMD2(0.030,0.0428),SIMD2(0.048,0.0452),
-            SIMD2(0.053,0.0462),SIMD2(0.053,0.004),SIMD2(0.048,0.0005),SIMD2(0.014,0.0005),
+        // 0.58 L4: the wooden cap is 40 mm (was 56): the wedge now rises only from the 36.3 mm nose to 40 mm at the cap
+        // (CueClearance.h BLRailProfile uses the same numbers: 38.5 / 39.8 / 40 mm).
+        let profile:[SIMD2<Float>]=[SIMD2(0,0.03629025),SIMD2(0.0007,0.0367),SIMD2(0.0022,0.0372),
+            SIMD2(0.0045,0.0376),SIMD2(0.014,0.0385),SIMD2(0.030,0.0390),SIMD2(0.050,0.0398),
+            SIMD2(0.053,0.0400),SIMD2(0.053,0.004),SIMD2(0.048,0.0005),SIMD2(0.014,0.0005),
             SIMD2(0.006,0.017),SIMD2(0.0015,0.030)]
         var normals2:[SIMD2<Float>]=[],lengths:[Float]=[0]
         for j in 0..<profile.count {
@@ -1964,7 +1966,7 @@ final class TableScene {
             let radiusAim:Float = 0.4854*zoom
             var pitch=min(max(aimPitch,TableScene.aimPitchRange.lowerBound),TableScene.aimPitchRange.upperBound)
             // Không để mắt camera chui vào băng/khung gỗ khi bi cái sát băng: nếu mắt nằm ngoài mặt nỉ
-            // (|x|>0,635 hoặc |z|>1,27) thì nâng tối thiểu lên trên mặt gỗ (0,056 m) + 3 cm.
+            // (|x|>0,635 hoặc |z|>1,27) thì nâng tối thiểu lên trên mặt gỗ (0,040 m) + 3 cm.
             let horizontal=radiusAim*cos(pitch)
             let eyeXZ=SIMD2<Float>(origin.x-d.x*horizontal,origin.z-d.z*horizontal)
             let overBed=abs(eyeXZ.x)<0.635 && abs(eyeXZ.y)<1.27

@@ -84,11 +84,11 @@ extension TrainingController {
         let limit=maxStrokeElevation
         let others=balls.filter{$0.id != 0 && !$0.sunk};obstacleXs=others.map{$0.x};obstacleYs=others.map{$0.y}
         if spin.reachable==nil {
-            spin.reachable={[weak self] x,y in guard let self=self else{return true};return self.cueClearance(side:x,top:y)<=self.maxStrokeElevation}
+            spin.reachable={[weak self] x,y in guard let self=self else{return true};return self.cueClearance(side:x,top:y)<=self.railBridge.cap}
             spin.reachableSnapshot={[weak self] in
                 guard let self=self else{return {_,_ in true}}
                 // Identical to cueClearance(side:top:) <= maxStrokeElevation, with the solver read once per draw.
-                let limit=self.maxStrokeElevation
+                let limit=self.railBridge.cap   // 0.58 L4: the bridge's own ceiling for this fan
                 guard let c=self.cue,!c.sunk else{return {_,_ in 0<=limit}}
                 let angle=self.angle,g=self.geometry,obstacleXs=self.obstacleXs,obstacleYs=self.obstacleYs
                 return {s,t in
@@ -99,10 +99,17 @@ extension TrainingController {
             spin.clampTop={[weak self] x,y in
                 guard let self=self,let c=self.cue else{return y}
                 var xs=self.obstacleXs,ys=self.obstacleYs
-                return BLCueClampTopBalls(c.x,c.y,self.angle,x,y,self.geometry.width,self.geometry.length,self.geometry.radius,self.geometry.nose,self.maxStrokeElevation,self.spin.maximumOffset,&xs,&ys,Int32(xs.count))
+                return BLCueClampTopBalls(c.x,c.y,self.angle,x,y,self.geometry.width,self.geometry.length,self.geometry.radius,self.geometry.nose,self.railBridge.cap,self.spin.maximumOffset,&xs,&ys,Int32(xs.count))
             }
         }
-        if cueClearance(side:side,top:top)>limit {spin.select(side:side,top:top)} // select() kẹp lên vùng với tới
+        // 0.58 L4 "cơ trên băng": near a rail / ball behind, keep the cue as low as it can go and move the TIP up (rule: BLCueRailBridgeSolve);
+        // the wanted tip is remembered, so raising the fan or leaving the rail brings it back down. The opponent's shots never come here.
+        if let c=cue,!c.sunk {
+            railBridge.solve(x:c.x,y:c.y,angle:angle,side:side,fan:table.cueElevation,maxElevation:limit,maxOffset:spin.maximumOffset,
+                             width:geometry.width,length:geometry.length,radius:geometry.radius,nose:geometry.nose,xs:obstacleXs,ys:obstacleYs)
+            if abs(railBridge.top-top)>1e-9 {bridgeApplying=true;spin.select(side:side,top:railBridge.top);bridgeApplying=false}
+            spin.bridgeMoved=railBridge.moved
+        }
         table.clearanceElevation=cueClearance(side:side,top:top)   // drawn: the cue never passes through the rail
         elevationPad.minimum=min(strokeClearance,85)   // 0.44: the fan shows a real elevated stroke only (stance ≤ 6° = level)
         spin.setNeedsDisplay()

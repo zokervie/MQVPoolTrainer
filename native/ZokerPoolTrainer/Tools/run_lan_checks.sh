@@ -27,3 +27,6 @@ build/lan-checks/UndoShelfTests
 # 0.58 L3: pushed screens have a readable "Đóng".
 xcrun swiftc -warnings-as-errors BankLab/UI/PushedChrome058.swift Tests/PushedChromeTests.swift -o build/lan-checks/PushedChromeTests
 build/lan-checks/PushedChromeTests
+# 0.58 L4: the bridge policy glue (wanted tip, solve through the C core).
+xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/CueClearance.h BankLab/UI/RailBridge058.swift Tests/RailBridgeTests.swift -o build/lan-checks/RailBridgeTests
+build/lan-checks/RailBridgeTests

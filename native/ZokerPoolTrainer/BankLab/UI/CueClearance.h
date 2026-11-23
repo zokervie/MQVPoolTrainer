@@ -39,12 +39,12 @@ static inline double BLCueUnderside(double contactHeight, double d, double theta
 
 // 0.37 (owner screenshot: cue through the rail): the obstacle is the RENDERED rail, not two guessed points.
 // (setback behind the nose line, height above the bed) for a 57.15 mm ball — the cushion profile in
-// TableScene.cushionPath and the deck (top 56 mm, generate_table_mesh.py) out to the outer edge 172 mm back.
+// TableScene.cushionPath and the deck (top 40 mm since 0.58, was 56; generate_table_mesh.py RAIL_TOP) out to the outer edge 172 mm back.
 // Heights scale with the ball radius. First point is replaced by the actual nose height R(1+nose).
 #define BL_RAIL_PROFILE_COUNT 8
 static const double BLRailProfile[BL_RAIL_PROFILE_COUNT][2] = {
-    {0.0, 0.03629025}, {0.006, 0.0435}, {0.014, 0.0475}, {0.030, 0.052},
-    {0.050, 0.055}, {0.053, 0.056}, {0.110, 0.056}, {0.1725, 0.056}};
+    {0.0, 0.03629025}, {0.006, 0.0375}, {0.014, 0.0385}, {0.030, 0.0390},
+    {0.050, 0.0398}, {0.053, 0.0400}, {0.110, 0.0400}, {0.1725, 0.0400}};
 
 static inline int BLCueClearsRail(double contactHeight, double d1, double radius, double noseRatio, double theta) {
     const double k = radius / 0.028575;

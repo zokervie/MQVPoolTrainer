@@ -213,6 +213,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     struct ShotSetup{var angle:Double,side:Double,top:Double,kind:Int,elevation:Double;var aimYaw:Double=0;var camera:CameraPose?=nil;var cueType:Int?=nil}
     struct ShotStep{var balls:[BallState];var setup:ShotSetup?}
     /// 0.58 L1: one shelf per drill (scope = drill id); a new drill, chapter, variant or leaving the screen clears it.
+    var railBridge=RailBridge(),bridgeApplying=false   // 0.58 L4
     var shotShelf=UndoShelf<ShotStep>()
     var shotBack:[ShotStep]{get{shotShelf.back}set{shotShelf.back=newValue}}
     var shotForward:[ShotStep]{get{shotShelf.forward}set{shotShelf.forward=newValue}}
@@ -563,7 +564,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         NotificationCenter.default.addObserver(self,selector:#selector(thermalChanged),name:ProcessInfo.thermalStateDidChangeNotification,object:nil);thermalChanged()
 
         stroke.sensitivity=UserDefaults.standard.double(forKey:Prefs.sensitivity);if stroke.sensitivity==0{stroke.sensitivity=1}
-        spin.changed={[weak self]x,y in self?.side=x;self?.top=y;self?.guideDirty=true;self?.wakeRendering();self?.updateSpinLoupe()}
+        spin.changed={[weak self]x,y in self?.side=x;self?.top=y;if let me=self,!me.bridgeApplying{me.railBridge.playerChose(top:y)};self?.guideDirty=true;self?.wakeRendering();self?.updateSpinLoupe()}
         if ProcessInfo.processInfo.arguments.contains("--cue-contact-qa") {spin.select(side:-0.5,top:0.49)}
         if ProcessInfo.processInfo.arguments.contains("--spin-detail") {
             spinWidth.constant=190;spinHeight.constant=190;spin.alpha=0.97

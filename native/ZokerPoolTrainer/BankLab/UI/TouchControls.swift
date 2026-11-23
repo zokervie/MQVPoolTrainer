@@ -62,6 +62,8 @@ extension UIButton {
 }
 final class SpinPad:UIControl {
     var side=0.0,top=0.0
+    /// 0.58 L4: the tip shown was moved up by the rail bridge (gold dot + "Cơ trên băng").
+    var bridgeMoved=false{didSet{if bridgeMoved != oldValue{setNeedsDisplay()}}}
     var maximumOffset=0.7 {didSet{select(side:side,top:top)}}
     /// 0.35 (owner): jump cue — the upper half is locked (a jump needs a centre/low hit with the elevated cue).
     var maxTop=1.0 {didSet{if top>maxTop{select(side:side,top:maxTop)}else{setNeedsDisplay()}}}
@@ -143,9 +145,11 @@ final class SpinPad:UIControl {
             if detailed {label("JUMP · KHOÁ NỬA TRÊN",CGPoint(x:c.x,y:c.y-r*0.5),8,.white)}
         }
         let p=CGPoint(x:c.x+CGFloat(side)*r,y:c.y-CGFloat(top)*r)
-        ctx.setStrokeColor(UIColor.systemRed.cgColor);ctx.setLineWidth(1.5)
+        let tipColor=bridgeMoved ? UIColor.systemYellow:UIColor.systemRed
+        ctx.setStrokeColor(tipColor.cgColor);ctx.setLineWidth(1.5)
         ctx.strokeEllipse(in:CGRect(x:p.x-7,y:p.y-7,width:14,height:14))
-        UIColor.systemRed.setFill();ctx.fillEllipse(in:CGRect(x:p.x-2.5,y:p.y-2.5,width:5,height:5))
+        tipColor.setFill();ctx.fillEllipse(in:CGRect(x:p.x-2.5,y:p.y-2.5,width:5,height:5))
+        if bridgeMoved {label(L10n.tr("Cơ trên băng"),CGPoint(x:c.x,y:c.y+r*0.7),detailed ? 8:6,.systemYellow)}
         if detailed {
             label(String(format:"X %+.0f · Y %+.0f %%R",side*100,top*100),CGPoint(x:c.x,y:bounds.maxY-6),9,.white)
         }

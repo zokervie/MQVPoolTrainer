@@ -15,7 +15,7 @@ int main() {
     const double a = M_PI;
     const double centre = minE(frozen, 0, a, 0, 0), high = minE(frozen, 0, a, 0, 0.55), low = minE(frozen, 0, a, 0, -0.5);
     std::cout << "REPORT cue-clearance frozen: top+0.55=" << high << "deg centre=" << centre << "deg draw-0.5=" << low << "deg\n";
-    assert(high > 25 && high < 45);    // 0.37: profile băng thật trên màn hình (mũi bo tròn + gỗ 56 mm) → ~38°; ngoài đời bi sát băng phải dựng cơ 30–45°
+    assert(high > 1 && high < 12);    // 0.58: băng gỗ 40 mm (trước 56 mm → ~38°): bi sát băng, đầu cơ +0,55R chỉ cần ~3° (đo).
     // Tâm/dưới tâm bi sát băng: điểm chạm nằm dưới mũi băng, đầu cơ (Ø13 mm) không lách vào được → không với tới.
     assert(centre > 89 && low > 89);
     assert(!BLCueReachable(frozen, 0, a, 0, -0.5, W, L, R, nose, 45));
@@ -65,11 +65,12 @@ int main() {
         auto solve = [&](double gap, double t, double fan) { return BLCueRailBridgeSolve(frozen - gap, 0, a, 0, t, fan, 45, 0.55, W, L, R, nose, nullptr, nullptr, 0); };
         for (double gap : {0.10, 0.20, 0.40}) { const BLCueRailBridge b = solve(gap, 0, 0);
             assert(!b.moved && b.top == 0 && std::fabs(b.elevation - minE(frozen - gap, 0, a, 0, 0)) < 1e-9); }   // ≥ 10 cm: unchanged
-        for (double gap : {0.0, 0.01, 0.03, 0.06}) { const BLCueRailBridge b = solve(gap, 0, 0);
+        for (double gap : {0.0, 0.01, 0.03}) { const BLCueRailBridge b = solve(gap, 0, 0);   // 0.58: rail wood 40 mm, so from ~6 cm the 15° bridge is enough and the tip stays
             assert(b.moved && b.top > 0.2 && b.top <= 0.55 + 1e-9);
             assert(b.elevation <= std::fmax(b.floorDeg + BL_RAIL_BRIDGE_MARGIN_DEG, BL_RAIL_BRIDGE_COMFORT_DEG) + 1e-6);
             assert(b.elevation < minE(frozen - gap, 0, a, 0, 0));
             assert(std::fabs(minE(frozen - gap, 0, a, 0, b.top) - b.elevation) < 1e-6 || b.elevation >= minE(frozen - gap, 0, a, 0, b.top)); }
+        { const BLCueRailBridge b = solve(0.06, 0, 0); assert(!b.moved && b.top == 0 && b.elevation <= 15); }   // 6 cm off the rail: unchanged
         double last = 1;   // raising the fan lets the tip go lower (never higher)
         for (double fan : {0.0, 20.0, 30.0, 45.0}) { const BLCueRailBridge b = solve(0.03, -0.3, fan); assert(b.top <= last + 1e-9 && b.elevation >= fan - 1e-9); last = b.top; }
         assert(solve(0.03, -0.3, 45).top < -0.29);   // high enough fan: the asked draw is kept

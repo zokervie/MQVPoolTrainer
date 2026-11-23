@@ -89,6 +89,9 @@ def annulus(inner,outer,top,bottom):
    if inward:n=[-n[0],0,-n[2]]
    face(m,[(p[0],top,p[1]),(q[0],top,q[1]),(q[0],bottom,q[1]),(p[0],bottom,p[1])],[n]*4)
  return m
+# 0.58 L4: wooden rail top 56 -> 40 mm (owner doc: rail wood 38-42 mm by make; rubber nose 36.3 mm stays). Same value in
+# TableScene.cushionPath/diamonds and BLRailProfile (CueClearance.h).
+RAIL_TOP=.040
 def deck_region():
  # Exact boundary of rectangle UNION six disjoint circular pocket cuts.
  # The union is not star-shaped at corner pockets: radial strips can bridge a hole.
@@ -160,16 +163,16 @@ def deck_region():
  m=mesh();total=0
  for ids in triangles:
   tri=points[ids];u,v=tri[1]-tri[0],tri[2]-tri[0];total+=abs(float(u[0]*v[1]-u[1]*v[0]))/2
-  face(m,[(x,.056,z) for x,z in tri],[[0,1,0]]*3)
+  face(m,[(x,RAIL_TOP,z) for x,z in tri],[[0,1,0]]*3)
  assert abs(total-(area(outer)-area(inner)))<1e-8
  for p,q in zip(inner,inner[1:]+inner[:1]):
   dx,dz=q[0]-p[0],q[1]-p[1];length=math.hypot(dx,dz);n=[-dz/length,0,dx/length]
-  face(m,[(p[0],.056,p[1]),(q[0],.056,q[1]),(q[0],-.025,q[1]),(p[0],-.025,p[1])],[n]*4)
+  face(m,[(p[0],RAIL_TOP,p[1]),(q[0],RAIL_TOP,q[1]),(q[0],-.025,q[1]),(p[0],-.025,p[1])],[n]*4)
  # bullnose: ring k at angle phi_k (0 = top, pi/2 = side); radial offset FILLET*sin, drop FILLET*(1-cos)
  steps=6;rings=[]
  for k in range(steps+1):
   phi=math.pi/2*k/steps
-  rings.append([(rounded_radius(a,FILLET-FILLET*math.sin(phi)),.056-FILLET*(1-math.cos(phi)),a,phi) for a in angles])
+  rings.append([(rounded_radius(a,FILLET-FILLET*math.sin(phi)),RAIL_TOP-FILLET*(1-math.cos(phi)),a,phi) for a in angles])
  rings.append([(rounded_radius(a),-.025,a,math.pi/2) for a in angles])
  count=len(angles)
  for r0,r1 in zip(rings,rings[1:]):
@@ -184,7 +187,7 @@ def deck_region():
 meshes={'bed':bed(),'deck':deck_region(),
         # 0.37: the 5 mm gold strip on the top edge was sub-pixel from the aim view (jagged, flickering). Now a 14 mm
         # inlay band on the vertical side, standing 2 mm proud of the cabinet.
-        'trim':annulus(lambda a:rounded_radius(a,-.0005),lambda a:rounded_radius(a,-.002),.040,.026)}
+        'trim':annulus(lambda a:rounded_radius(a,-.0005),lambda a:rounded_radius(a,-.002),RAIL_TOP-.016,RAIL_TOP-.030)}
 p=ROOT/'BankLab/Assets.xcassets/TableMesh.dataset'
 (p/'mesh.json').write_text(json.dumps(meshes,separators=(',',':')))
 print('PASS: six regular apertures, exact bed/deck area, constrained boundary edges, no deck triangle bridges a pocket')
