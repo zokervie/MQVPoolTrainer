@@ -248,3 +248,11 @@ jobs:
           name: zoker-ui-tests-${{ github.run_number }}-${{ matrix.shard }}
           path: native/ZokerPoolTrainer/build/ui-tests-shard*.log
           retention-days: 14
+      - name: Giữ bằng chứng khi trượt (xcresult có ảnh chụp lúc lỗi, nhật ký app)
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: zoker-ui-xcresult-${{ github.run_number }}-${{ matrix.shard }}
+          path: native/ZokerPoolTrainer/build/ui-tests-shard*.xcresult
+          if-no-files-found: warn
+          retention-days: 7
