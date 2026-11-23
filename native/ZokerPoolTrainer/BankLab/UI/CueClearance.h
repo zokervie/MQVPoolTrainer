@@ -173,4 +173,42 @@ static inline double BLCueClampTopBalls(double x, double y, double angle, double
 #undef BL_REACH
 }
 
+// ---- 0.58 "cơ trên băng" (owner 23/11, screenshots at 85° and 45°): near a rail a player keeps the cue as low as the
+// rail allows and hits HIGHER on the cue ball; the cue is raised only when the player chooses to. The old behaviour
+// kept the chosen tip point and raised the cue up to the 45° stroke limit. Policy:
+//   floor = the lowest elevation that reaches ANY tip point on the requested side (scan up to the miscue ceiling),
+//   cap   = max(player's own elevation, floor + BL_RAIL_BRIDGE_MARGIN_DEG, BL_RAIL_BRIDGE_COMFORT_DEG),
+//   tip   = the requested tip if reachable under cap, else moved straight up to the first point that is.
+// So the cue sits on the rail at the lowest workable angle; dragging the elevation fan up lets the tip go lower.
+// Up to BL_RAIL_BRIDGE_COMFORT_DEG the chosen tip is kept (a bridge on the rail at ≤ 15° is an ordinary stroke), so shots
+// 10 cm or more from a rail do not change. Not a physics change: the stroke uses the resulting (tip, elevation) as before.
+//                                                     [quyết định chủ dự án; lề 2°, ngưỡng 15°: giả định]
+#define BL_RAIL_BRIDGE_MARGIN_DEG 2.0
+#define BL_RAIL_BRIDGE_COMFORT_DEG 15.0
+typedef struct { double top; double elevation; double floorDeg; int moved; } BLCueRailBridge;
+static inline BLCueRailBridge BLCueRailBridgeSolve(double x, double y, double angle, double side, double top,
+                                                   double playerElevationDeg, double maxElevationDeg, double maxOffset,
+                                                   double width, double length, double radius, double noseRatio,
+                                                   const double *bx, const double *by, int n) {
+    BLCueRailBridge r; r.top = top; r.moved = 0;
+#define BL_E(t) BLCueMinimumElevationBalls(x, y, angle, side, (t), width, length, radius, noseRatio, bx, by, n)
+    const double ceiling = sqrt(fmax(0.0, maxOffset * maxOffset - side * side));
+    double floorDeg = BL_E(top);
+    for (int k = 0; k <= 40; ++k) { const double t = top + (ceiling - top) * k / 40.0; floorDeg = fmin(floorDeg, BL_E(t)); }
+    r.floorDeg = floorDeg;
+    double cap = fmax(fmax(playerElevationDeg, floorDeg + BL_RAIL_BRIDGE_MARGIN_DEG), BL_RAIL_BRIDGE_COMFORT_DEG);
+    cap = fmin(cap, fmax(maxElevationDeg, floorDeg));
+    if (BL_E(top) > cap + 1e-9) {
+        double lo = top, hi = ceiling;
+        if (BL_E(hi) > cap + 1e-9) {   /* the ceiling itself is not the cheapest point (a ball behind): take the first reachable */
+            for (int k = 1; k <= 40; ++k) { const double t = top + (ceiling - top) * k / 40.0; if (BL_E(t) <= cap + 1e-9) { hi = t; break; } }
+        }
+        for (int i = 0; i < 50; ++i) { const double mid = (lo + hi) / 2; if (BL_E(mid) <= cap + 1e-9) hi = mid; else lo = mid; }
+        r.top = hi; r.moved = 1;
+    }
+    r.elevation = fmax(playerElevationDeg, BL_E(r.top));
+#undef BL_E
+    return r;
+}
+
 #endif

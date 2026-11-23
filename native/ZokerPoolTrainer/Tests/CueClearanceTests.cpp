@@ -60,5 +60,20 @@ int main() {
         assert(clamped > -0.5 && BLCueMinimumElevationBalls(0, 0, 0, 0, clamped, W, L, R, nose, xs, ys, 1) <= 25 + 1e-6);
         std::cout << "PASS CueClearance balls: cue lifts over balls behind, low tip clamps up\n";
     }
+    // 0.58 cơ trên băng: near a rail the tip moves up instead of the cue going to 45–90°.
+    {
+        auto solve = [&](double gap, double t, double fan) { return BLCueRailBridgeSolve(frozen - gap, 0, a, 0, t, fan, 45, 0.55, W, L, R, nose, nullptr, nullptr, 0); };
+        for (double gap : {0.10, 0.20, 0.40}) { const BLCueRailBridge b = solve(gap, 0, 0);
+            assert(!b.moved && b.top == 0 && std::fabs(b.elevation - minE(frozen - gap, 0, a, 0, 0)) < 1e-9); }   // ≥ 10 cm: unchanged
+        for (double gap : {0.0, 0.01, 0.03, 0.06}) { const BLCueRailBridge b = solve(gap, 0, 0);
+            assert(b.moved && b.top > 0.2 && b.top <= 0.55 + 1e-9);
+            assert(b.elevation <= std::fmax(b.floorDeg + BL_RAIL_BRIDGE_MARGIN_DEG, BL_RAIL_BRIDGE_COMFORT_DEG) + 1e-6);
+            assert(b.elevation < minE(frozen - gap, 0, a, 0, 0));
+            assert(std::fabs(minE(frozen - gap, 0, a, 0, b.top) - b.elevation) < 1e-6 || b.elevation >= minE(frozen - gap, 0, a, 0, b.top)); }
+        double last = 1;   // raising the fan lets the tip go lower (never higher)
+        for (double fan : {0.0, 20.0, 30.0, 45.0}) { const BLCueRailBridge b = solve(0.03, -0.3, fan); assert(b.top <= last + 1e-9 && b.elevation >= fan - 1e-9); last = b.top; }
+        assert(solve(0.03, -0.3, 45).top < -0.29);   // high enough fan: the asked draw is kept
+        std::cout << "REPORT rail bridge frozen: tip +" << solve(0, 0, 0).top << "R at " << solve(0, 0, 0).elevation << "deg (was centre at 90)\n";
+    }
     std::cout << "PASS CueClearance\n";
 }
