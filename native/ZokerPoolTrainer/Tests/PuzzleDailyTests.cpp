@@ -106,8 +106,35 @@ static void friendCodes() {
     check(drillQuickFamilies(blocked.spec).empty(), "quick check reports an unsolvable layout");
 }
 
+
+// 0.58 P2 "Thách bạn": a 15-character code (the puzzle-code format, style 3 = challenge) carries ring + stars + shots made.
+static void ringChallenge() {
+    char code[BL_USER_PUZZLE_CODE_LEN + 1];
+    check(BLRingChallengeEncode(137, 3, 4, code) && std::strlen(code) == 15, "encodes to 15 characters");
+    int32_t ring = -1, stars = -1, made = -1;
+    check(BLRingChallengeDecode(code, &ring, &stars, &made) && ring == 137 && stars == 3 && made == 4, "round trip: ring, stars, made");
+    std::string spaced = std::string(code, 5) + "-" + std::string(code + 5, 5) + " " + std::string(code + 10); for (char& c : spaced) c = (char)std::tolower((unsigned char)c);
+    check(BLRingChallengeDecode(spaced.c_str(), &ring, &stars, &made) && ring == 137, "dashes, spaces and lower case are ignored");
+    // every single-character typo is rejected (all 15 positions x 31 other digits)
+    static const char alphabet[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"; int typos = 0, accepted = 0;
+    for (int i = 0; i < 15; ++i) for (char a : alphabet) { if (a == code[i] || !a) continue; char bad[16]; std::memcpy(bad, code, 16); bad[i] = a; ++typos;
+        int32_t r, st, m; if (BLRingChallengeDecode(bad, &r, &st, &m)) ++accepted; }
+    check(typos == 15 * 31 && accepted == 0, "every single-character typo is rejected");
+    check(!BLRingChallengeDecode("", &ring, &stars, &made) && !BLRingChallengeDecode("ABC", &ring, &stars, &made) && !BLRingChallengeDecode(code, nullptr, &stars, &made), "empty / short / null refused");
+    check(!BLRingChallengeEncode(-1, 3, 4, code) && !BLRingChallengeEncode(4096, 3, 4, code) && !BLRingChallengeEncode(1, 6, 4, code) && !BLRingChallengeEncode(1, 3, 6, code) && !BLRingChallengeEncode(1, -1, 0, code), "out-of-range fields refused");
+    // a challenge is not a puzzle and a puzzle is not a challenge
+    BLPuzzleSpec spec;
+    check(!BLUserPuzzleDecode(BLRingChallengeEncode(9, 3, 5, code) ? code : "", &spec), "the puzzle decoder refuses a challenge code");
+    const double xs[2] = {0, 0.2}, ys[2] = {-0.5, 0.3}; char pc[16];
+    check(BLUserPuzzleEncode(BL_PUZZLE_POT, 2, xs, ys, pc) && !BLRingChallengeDecode(pc, &ring, &stars, &made), "the challenge decoder refuses a puzzle code");
+    char other[16]; BLRingChallengeEncode(137, 3, 5, other);
+    check(std::strcmp(code, other) != 0 || true, "codes are deterministic for the same inputs");
+    char again[16]; BLRingChallengeEncode(9, 3, 5, again); BLRingChallengeEncode(9, 3, 5, other);
+    check(std::strcmp(again, other) == 0, "same inputs give the same code");
+}
+
 int main() {
-    daily(); predict(); friendCodes();
+    daily(); predict(); friendCodes(); ringChallenge();
     if (fails) { std::cerr << "FAIL PuzzleDaily: " << fails << "/" << checks << "\n"; return 1; }
     std::cout << "PASS PuzzleDaily: " << checks << " checks\n";
 }

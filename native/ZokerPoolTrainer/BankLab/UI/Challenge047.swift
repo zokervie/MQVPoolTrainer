@@ -64,13 +64,14 @@ extension TrainingController {
     }
     /// Sảnh → "Nhập mã thách đấu": a wrong code is refused (CRC), a good one opens the same drill.
     func enterChallengeCode() {
-        let a = UIAlertController(title: "Nhập mã thách đấu", message: "8 ký tự, ví dụ ABCD-EFGH", preferredStyle: .alert)
+        let a = UIAlertController(title: "Nhập mã thách đấu", message: L10n.tr("8 ký tự (ABCD-EFGH) hoặc 15 ký tự của thách ải"), preferredStyle: .alert)
         // No automatic paste: reading the pasteboard would trigger the iOS "Allow paste" prompt; the player pastes by hand.
         a.addTextField { f in f.autocapitalizationType = .allCharacters; f.autocorrectionType = .no; f.accessibilityIdentifier = "ChallengeCodeField"; f.placeholder = "ABCD-EFGH" }
         a.addAction(UIAlertAction(title: "Hủy", style: .cancel))
         a.addAction(UIAlertAction(title: "Chơi bài này", style: .default) { [weak self, weak a] _ in
             guard let self = self else { return }
             let text = a?.textFields?.first?.text ?? ""
+            if self.playRingChallenge(text) { return }   // 0.58 P2: the 15-character ring challenge
             guard let c = ChallengeCode.decode(text) else {
                 let bad = UIAlertController(title: "Mã không đúng", message: "Kiểm tra lại 8 ký tự (chữ O và số 0, chữ I và số 1 được hiểu như nhau).", preferredStyle: .alert)
                 bad.view.accessibilityIdentifier = "ChallengeBadCode"

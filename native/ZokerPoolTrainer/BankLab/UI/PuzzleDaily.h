@@ -232,4 +232,46 @@ static inline int BLUserPuzzleDecode(const char *text, BLPuzzleSpec *out) {
     out->style = style;
     return 1;
 }
+
+/* ── 4. "Thách bạn" (0.58 P2): a ring challenge in the puzzle-code format ────────────────────────────────────────
+   Same 15 characters, same check: style field 3 (puzzles use 0…2) marks a challenge. Payload (64 bits): style 3 (2) ·
+   version 0 (2) · ring index in the stable catalogue (12) · stars 0…5 (3) · shots made 0…5 (3) · 42 bits of filler that
+   the decoder recomputes from the first 22 bits (so every single-character typo is rejected, and the code looks like
+   any other code). Nothing else travels: the receiver plays that ring and compares. */
+#define BL_RING_CHALLENGE_STYLE 3
+static inline uint64_t BLRingChallengeFill(uint64_t head22) {
+    uint64_t s = head22 ^ 0x5448414348ULL;   /* "THACH" */
+    return BLSplitMix64(&s) & ((1ULL << 42) - 1);
+}
+static inline int BLRingChallengeEncode(int32_t ring, int32_t stars, int32_t made, char *out) {
+    static const char alphabet[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+    if (!out || ring < 0 || ring > 4095 || stars < 0 || stars > 5 || made < 0 || made > 5) return 0;
+    const uint64_t head = ((uint64_t)BL_RING_CHALLENGE_STYLE << 20) | ((uint64_t)ring << 6) | ((uint64_t)stars << 3) | (uint64_t)made;
+    uint64_t payload = (head << 42) | BLRingChallengeFill(head);
+    const uint32_t check = BLUserPuzzleCheck(payload);
+    for (int i = 12; i >= 0; --i) { out[i] = alphabet[payload & 31]; payload >>= 5; }
+    out[13] = alphabet[(check >> 5) & 31]; out[14] = alphabet[check & 31]; out[15] = 0;
+    return 1;
+}
+/* 1 and the three fields when `text` is a well-formed challenge (spaces and dashes ignored, case-insensitive); else 0. */
+static inline int BLRingChallengeDecode(const char *text, int32_t *ring, int32_t *stars, int32_t *made) {
+    if (!text || !ring || !stars || !made) return 0;
+    int32_t digits[BL_USER_PUZZLE_CODE_LEN]; int32_t n = 0;
+    for (const char *p = text; *p; ++p) {
+        if (*p == ' ' || *p == '-') continue;
+        const int32_t v = BLUserPuzzleDigit(*p);
+        if (v < 0 || n >= BL_USER_PUZZLE_CODE_LEN) return 0;
+        digits[n++] = v;
+    }
+    if (n != BL_USER_PUZZLE_CODE_LEN || digits[0] > 15) return 0;
+    uint64_t payload = 0;
+    for (int32_t i = 0; i < 13; ++i) payload = (payload << 5) | (uint64_t)digits[i];
+    if (BLUserPuzzleCheck(payload) != (uint32_t)((digits[13] << 5) | digits[14])) return 0;
+    const uint64_t head = payload >> 42;
+    if ((head >> 20) != BL_RING_CHALLENGE_STYLE || ((head >> 18) & 3) != 0 || (payload & ((1ULL << 42) - 1)) != BLRingChallengeFill(head)) return 0;
+    const int32_t st = (int32_t)((head >> 3) & 7), m = (int32_t)(head & 7);
+    if (st > 5 || m > 5) return 0;
+    *ring = (int32_t)((head >> 6) & 0xFFF); *stars = st; *made = m;
+    return 1;
+}
 #endif
