@@ -102,7 +102,15 @@ extension TrainingController {
             if QA.has("--mastery-card-qa") { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.celebrateTitleIfNew(c) } }
         }
         if QA.has("--puzzle-review-qa") { PlayerStore.shared.recordPuzzleSolve(key: "p-1-01", record: PuzzleRecord(angle: 2.22, speed: 2.2, top: -0.3, signature: 5, day: 0, tries: 1), at: Date().addingTimeInterval(-86400)) }   // a solve yesterday: its day-1 review is due
-        if QA.has("--daily-flyer-qa") { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in let d = DailyPuzzle.flyerPDF(day: DailyPuzzle.today()); self?.flyerBytes = d.starts(with: Data("%PDF".utf8)) ? d.count : -1 } }
+        if QA.has("--daily-flyer-qa") { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            // off the main thread (a slow runner must never starve the UI), texts resolved here; -1 = not a PDF, -2 = a PDF without the QR image
+            let day = DailyPuzzle.today(), texts = DailyPuzzle.flyerTexts()
+            DispatchQueue.global(qos: .userInitiated).async {
+                let d = DailyPuzzle.flyerPDF(day: day, texts: texts)
+                let ok = d.starts(with: Data("%PDF".utf8))
+                DispatchQueue.main.async { self?.flyerBytes = !ok ? -1 : (d.count > 2000 ? d.count : -2) }
+            }
+        } }
         if QA.has("--open-puzzle-qa") { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.beginPuzzle(0) } }   // 0.50 QA: start puzzle #0 without the Lobby
         if QA.has("--wood-picker-qa") { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.openComputerMatch() } }   // photo of the wood picker
         if QA.has("--legal-qa") {   // 0.49c G2: opens Pháp lý for the UI test / photo

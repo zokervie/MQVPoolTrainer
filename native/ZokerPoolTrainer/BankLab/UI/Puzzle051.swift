@@ -27,7 +27,12 @@ enum DailyPuzzle {
     }
     /// "In tờ thế bí": an A5 PDF for a pool hall wall — logo word, "Thế bí của ngày", the number, a QR code that opens the app on today's puzzle
     /// (`zokerpool://daily`). The layout is not drawn.
-    static func flyerPDF(day: Int64) -> Data {
+    /// The two texts are looked up by the CALLER on the main thread (the L10n cache is not thread-safe), so the PDF itself may be drawn on any queue.
+    static func flyerTexts() -> (title: String, caption: String) { (L10n.tr("Thế bí của ngày"), L10n.tr("Quét mã để chơi thế bí hôm nay")) }
+    /// 0.57 stability: no GPU is needed — the QR bitmap is rendered by Core Image's SOFTWARE renderer (a CI runner VM without Metal made the default
+    /// `CIContext()` stall, which left the "tờ dán" test waiting for a PDF that never arrived).
+    static func flyerPDF(day: Int64, texts: (title: String, caption: String)? = nil) -> Data {
+        let texts = texts ?? flyerTexts()
         let page = CGRect(x: 0, y: 0, width: 419.5, height: 595.3)
         return UIGraphicsPDFRenderer(bounds: page).pdfData { ctx in
             ctx.beginPage()
@@ -37,18 +42,18 @@ enum DailyPuzzle {
                 (text as NSString).draw(at: CGPoint(x: (page.width - w) / 2, y: y), withAttributes: a)
             }
             draw("ZOKER POOL", Wood.titleFont(46), ZDesign.Color.gold, y: 40)
-            draw(L10n.tr("Thế bí của ngày"), .systemFont(ofSize: 26, weight: .bold), .white, y: 130)
+            draw(texts.title, .systemFont(ofSize: 26, weight: .bold), .white, y: 130)
             draw("#\(BLDailyNumber(day))", .systemFont(ofSize: 44, weight: .heavy), ZDesign.Color.gold, y: 175)
             let filter = CIFilter(name: "CIQRCodeGenerator"); filter?.setValue(Data("zokerpool://daily".utf8), forKey: "inputMessage"); filter?.setValue("M", forKey: "inputCorrectionLevel")
             if let out = filter?.outputImage {
                 let scaled = out.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-                let ci = CIContext(); if let cg = ci.createCGImage(scaled, from: scaled.extent) {
+                let ci = CIContext(options: [.useSoftwareRenderer: true]); if let cg = ci.createCGImage(scaled, from: scaled.extent) {
                     let size: CGFloat = 220, rect = CGRect(x: (page.width - size) / 2, y: 260, width: size, height: size)
                     UIColor.white.setFill(); ctx.fill(rect.insetBy(dx: -12, dy: -12))
                     UIImage(cgImage: cg).draw(in: rect)
                 }
             }
-            draw(L10n.tr("Quét mã để chơi thế bí hôm nay"), .systemFont(ofSize: 15, weight: .medium), UIColor(white: 0.85, alpha: 1), y: 520)
+            draw(texts.caption, .systemFont(ofSize: 15, weight: .medium), UIColor(white: 0.85, alpha: 1), y: 520)
         }
     }
     /// The share picture, 1080 × 1350: logo word, number, the dots as coloured circles, the streak. The layout is NOT drawn.
