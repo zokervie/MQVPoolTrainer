@@ -44,14 +44,11 @@ enum DailyPuzzle {
             draw("ZOKER POOL", Wood.titleFont(46), ZDesign.Color.gold, y: 40)
             draw(texts.title, .systemFont(ofSize: 26, weight: .bold), .white, y: 130)
             draw("#\(BLDailyNumber(day))", .systemFont(ofSize: 44, weight: .heavy), ZDesign.Color.gold, y: 175)
-            let filter = CIFilter(name: "CIQRCodeGenerator"); filter?.setValue(Data("zokerpool://daily".utf8), forKey: "inputMessage"); filter?.setValue("M", forKey: "inputCorrectionLevel")
-            if let out = filter?.outputImage {
-                let scaled = out.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-                let ci = CIContext(options: [.useSoftwareRenderer: true]); if let cg = ci.createCGImage(scaled, from: scaled.extent) {
-                    let size: CGFloat = 220, rect = CGRect(x: (page.width - size) / 2, y: 260, width: size, height: size)
-                    UIColor.white.setFill(); ctx.fill(rect.insetBy(dx: -12, dy: -12))
-                    UIImage(cgImage: cg).draw(in: rect)
-                }
+            // 0.58: the QR is drawn from our own encoder (QRCode058.swift), never through CoreImage: on the CI runner CIContext.createCGImage did not return in 85 s
+            if let qr = QRCode("zokerpool://daily") {
+                let size: CGFloat = 220, rect = CGRect(x: (page.width - size) / 2, y: 260, width: size, height: size), cell = size / CGFloat(qr.size + 2)
+                UIColor.white.setFill(); ctx.fill(rect.insetBy(dx: -12, dy: -12)); UIColor.black.setFill()
+                for r in 0..<qr.size { for c in 0..<qr.size where qr.modules[r][c] { ctx.fill(CGRect(x: rect.minX + CGFloat(c + 1) * cell, y: rect.minY + CGFloat(r + 1) * cell, width: cell + 0.3, height: cell + 0.3)) } }
             }
             draw(texts.caption, .systemFont(ofSize: 15, weight: .medium), UIColor(white: 0.85, alpha: 1), y: 520)
         }

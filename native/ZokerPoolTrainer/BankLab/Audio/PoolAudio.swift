@@ -65,7 +65,8 @@ final class PoolAudio {
     private var observers: [NSObjectProtocol] = []
     private let requestedBufferDuration = 256.0 / 48_000.0
 
-    var sampleCount: Int { read { groups.reduce(0) { $0 + $1.count } } }
+    /// The recordings loaded (the QA probe expects the 7 assets): the ±3 % pitch copies of 0.57 I4 are derived, not assets, and do not count.
+    var sampleCount: Int { read { groups.reduce(0) { $0 + $1.filter { !$0.pitched }.count } } }
     var scheduled: Int { read { scheduledCount } }
     var started: Bool { read { engineStarted } }
     var isRunning: Bool { read { engine.isRunning } }

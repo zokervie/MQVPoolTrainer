@@ -36,3 +36,6 @@ build/lan-checks/RingChallengeTests
 # 0.58 T1–T4: auto-advance, achievement record, medal tiers, match tally.
 xcrun swiftc -warnings-as-errors BankLab/UI/Achievements058.swift Tests/AchievementsTests.swift -o build/lan-checks/AchievementsTests
 build/lan-checks/AchievementsTests
+# 0.58: our own QR encoder (no CoreImage on the flyer path) is read back by an independent decoder.
+xcrun swiftc -warnings-as-errors BankLab/UI/QRCode058.swift Tests/QRCodeTests.swift -o build/lan-checks/QRCodeTests
+build/lan-checks/QRCodeTests

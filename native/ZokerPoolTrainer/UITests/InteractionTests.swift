@@ -1039,7 +1039,14 @@ final class InteractionTests: XCTestCase {
             let more = app.buttons["PuzzleListButton"]
             expectation(for: NSPredicate(format: "exists == true AND hittable == true"), evaluatedWith: more); waitForExpectations(timeout: 15 * slow)
             more.tap()
-            XCTAssertTrue(app.cells["Puzzle-" + key].waitForExistence(timeout: 10 * slow)); app.cells["Puzzle-" + key].tap()
+            XCTAssertTrue(app.cells["Puzzle-" + key].waitForExistence(timeout: 10 * slow))
+            // CI 170 evidence: "System gesture gate timed out" swallowed this tap and the list stayed open for 2 minutes. A lost tap is not a
+            // slow app: tap again while the list is still up and the puzzle has not changed (the timeout below stays the same).
+            for _ in 0..<4 where self.text(scene, "puzzle") != key {
+                if app.cells["Puzzle-" + key].exists { app.cells["Puzzle-" + key].tap() }
+                let until = Date().addingTimeInterval(8 * slow)
+                while Date() < until, self.text(scene, "puzzle") != key { RunLoop.current.run(until: Date().addingTimeInterval(0.25)) }
+            }
             wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == key }
         }
         XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 30 * slow), "after two unsolved puzzles an easier one is offered: fails=\(text(scene, "puzzleFails")) puzzle=\(text(scene, "puzzle")) tries=\(text(scene, "puzzleTries"))")
