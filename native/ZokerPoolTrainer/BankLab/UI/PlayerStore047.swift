@@ -144,6 +144,7 @@ struct PlayerData: Codable, Equatable {
     var chapterUndo: [String: Int] = [:]            // chapter key → take-backs used (BLChapterUndoLeft)
     var titlesSeen: [String: Int] = [:]             // chapter key → highest title index already celebrated
     var chapterResets: [String: Int] = [:]          // chapter key → times "Chơi lại chương từ đầu" was used
+    var codesSent = 0, codesReceived = 0, codesSolved = 0   // 0.55 R5: puzzle codes (this device only, never sent anywhere)
     var chapterRescue: [String: Int] = [:]          // 0.56 K2: chapter key → times the rescue power bar was accepted (no "Tay sạch" afterwards)
     init(now: Date, day: Int64) { metrics = UsageMetrics(installedAt: now, installDay: day) }
     // Missing fields (older / newer files) fall back to defaults instead of failing the whole file.
@@ -178,6 +179,9 @@ struct PlayerData: Codable, Equatable {
         titlesSeen = try c.decodeIfPresent([String: Int].self, forKey: .titlesSeen) ?? [:]
         chapterResets = try c.decodeIfPresent([String: Int].self, forKey: .chapterResets) ?? [:]
         chapterRescue = try c.decodeIfPresent([String: Int].self, forKey: .chapterRescue) ?? [:]
+        codesSent = try c.decodeIfPresent(Int.self, forKey: .codesSent) ?? 0
+        codesReceived = try c.decodeIfPresent(Int.self, forKey: .codesReceived) ?? 0
+        codesSolved = try c.decodeIfPresent(Int.self, forKey: .codesSolved) ?? 0
         eye = try c.decodeIfPresent(Double.self, forKey: .eye) ?? 1000
         predictDay = try c.decodeIfPresent(Int64.self, forKey: .predictDay) ?? -1
         predictCount = try c.decodeIfPresent(Int.self, forKey: .predictCount) ?? 0
@@ -409,6 +413,10 @@ final class PlayerStore {
         recordRound(drill: id, stars: old, average: average, made: made)
         return newBest
     }
+    func noteCodeSent() { data.codesSent += 1; save() }
+    func noteCodeReceived() { data.codesReceived += 1; save() }
+    func noteCodeSolved() { data.codesSolved += 1; save() }
+    func codeCounts() -> (Int, Int, Int) { (data.codesSent, data.codesReceived, data.codesSolved) }
     func rescueUsed(_ chapterKey: String) -> Int { data.chapterRescue[chapterKey] ?? 0 }
     func noteRescue(_ chapterKey: String) { data.chapterRescue[chapterKey] = rescueUsed(chapterKey) + 1; save() }
     func noteUndo(_ chapterKey: String) { data.chapterUndo[chapterKey] = undoUsed(chapterKey) + 1; save() }
@@ -519,4 +527,12 @@ final class PlayerStore {
         lines += extra
         return lines.joined(separator: "\n")
     }
+}
+
+/// 0.55 R1: a background "Kiểm thế" may only publish its result when the layout is still the one it started from.
+struct CheckGate {
+    private var current = 0
+    mutating func bump() { current += 1 }                 // the layout changed
+    mutating func begin() -> Int { current += 1; return current }   // a check starts: its ticket
+    func accepts(_ ticket: Int) -> Bool { ticket == current }
 }

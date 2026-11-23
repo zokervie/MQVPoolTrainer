@@ -1155,6 +1155,10 @@ final class InteractionTests: XCTestCase {
         let codeLabel = app.staticTexts["UserPuzzleCode"]
         XCTAssertTrue(codeLabel.waitForExistence(timeout: 10 * slow))
         let code = codeLabel.label
+        XCTAssertTrue(app.staticTexts["UserPuzzleBeta"].exists, "0.55 R2: the Thử nghiệm label")
+        let shareLine = app.staticTexts["UserPuzzleShareLine"].label
+        XCTAssertTrue(shareLine.hasPrefix("Zoker Pool · Thế bí của tôi (Vào lỗ): ") && shareLine.contains(code) && shareLine.hasSuffix("bạn giải được không?"), "0.55 R3: \(shareLine)")
+        XCTAssertTrue(app.staticTexts["UserPuzzleTally"].label.contains("Mã đã gửi: 1"), "0.55 R5: one code sent so far: \(app.staticTexts["UserPuzzleTally"].label)")
         XCTAssertNotNil(code.range(of: "^[0-9A-Z]{5}-[0-9A-Z]{5}-[0-9A-Z]{5}$", options: .regularExpression), "XXXXX-XXXXX-XXXXX: \(code)")
         app.terminate()
         // the receiving device
@@ -1164,6 +1168,10 @@ final class InteractionTests: XCTestCase {
         let field = app2.textFields["UserPuzzleCodeField"]
         XCTAssertTrue(field.waitForExistence(timeout: 10 * slow)); field.tap(); field.typeText(code)
         app2.alerts.firstMatch.buttons["Kiểm tra và chơi"].tap()
+        let ready = app2.alerts["UserPuzzleReady"]
+        XCTAssertTrue(ready.waitForExistence(timeout: 120 * slow), "0.55 R4: what the check found, before playing")
+        XCTAssertTrue(ready.label.contains("lời giải"), ready.label)
+        ready.buttons["Chơi"].tap()
         let scene = app2.otherElements["PoolScene"]
         XCTAssertTrue(scene.waitForExistence(timeout: 120 * slow), "the editor closes when the re-check passes; status: \(app2.staticTexts["UserPuzzleStatus"].label) code: \(code)")
         wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == "user" }

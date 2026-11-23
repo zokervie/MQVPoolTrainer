@@ -405,6 +405,7 @@ extension TrainingController {
         if let day = s.dailyDay { puzzleSession = s; dailyShotFinished(s, day: day, d: d, passed: passed, events: events); return }
         if passed, let user = s.userSpec {   // a friend's puzzle: no stars, no book; a line to challenge back
             s.solved = true
+            PlayerStore.shared.noteCodeSolved()   // 0.55 R5
             let line = String(format: L10n.tr("Tôi giải mã %@ trong %d cơ"), UserPuzzleController.pretty(s.userCode), s.tries)
             statusLabel.text = L10n.tr("Giải được") + " · " + String(format: L10n.tr("%d lần thử"), s.tries); userChallengeLine = line; _ = user
             puzzleSession = s; syncPuzzleBar()

@@ -1052,5 +1052,13 @@
 "Đóng": "Close",
 "Hủy": "Cancel",
 "Bài này khó. Dùng thanh lực trợ giúp? (mất dấu Tay sạch)": "This one is hard. Use the power bar as help? (you lose the Clean hands seal)",
-"Tự đánh tiếp": "Keep playing without it"
+"Tự đánh tiếp": "Keep playing without it",
+"Thử nghiệm": "Beta",
+"Đặt thế bí cho bạn · Thử nghiệm": "Make a puzzle for a friend · Beta",
+"bạn giải được không?": "can you solve it?",
+"Dán": "Paste",
+"Chơi": "Play",
+"Thế đã được kiểm lại trên máy này.": "The puzzle was checked again on this device.",
+"Mã đã gửi: %d · mã đã nhận và chơi: %d · mã giải được: %d": "Codes sent: %d · codes received and played: %d · codes solved: %d",
+"%d lời giải · dễ nhất vào %d %%": "%d solutions · the easiest is made %d %% of the time"
 }

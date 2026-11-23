@@ -51,8 +51,14 @@ final class UserPuzzleController: UIViewController {
     private let status = UILabel(), codeLabel = UILabel()
     private var checkButton: UIButton!, sendButton: UIButton!, spinner = UIActivityIndicatorView(style: .medium)
     private var checked: (spec: BLPuzzleSpec, code: String)?
+    private var gate = CheckGate()   // 0.55 R1
+    private let tally = UILabel(), beta = UILabel(), shareNote = UILabel()
     var onPlay: ((BLPuzzleSpec, String) -> Void)?
-    static var lastCode = "", lastCheck = ""
+    static var lastCode = "", lastCheck = "", lastShare = ""
+    /// 0.55 R3: the line sent to a friend — name, kind, code, a question; no aim line and no solution.
+    static func shareLine(style: String, code: String) -> String {
+        "Zoker Pool · " + L10n.tr("Thế bí của tôi") + " (\(style)): " + code + " — " + L10n.tr("bạn giải được không?")
+    }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
 
     static func styleIndex(_ s: Int) -> Int { s == Int(BL_PUZZLE_REACH) ? 1 : (s == Int(BL_PUZZLE_HIDE) ? 2 : 0) }
@@ -61,6 +67,11 @@ final class UserPuzzleController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad(); view.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.06, alpha: 1); view.accessibilityIdentifier = "UserPuzzle"
         let title = Wood.titleLabel(L10n.tr("Đặt thế bí cho bạn"), size: 26); title.textColor = ZDesign.Color.gold; title.layer.shadowOpacity = 0
+        beta.text = L10n.tr("Thử nghiệm"); beta.font = .systemFont(ofSize: 10, weight: .bold); beta.textColor = .black; beta.backgroundColor = ZDesign.Color.gold
+        beta.textAlignment = .center; beta.layer.cornerRadius = 4; beta.clipsToBounds = true; beta.accessibilityIdentifier = "UserPuzzleBeta"
+        beta.widthAnchor.constraint(equalToConstant: 76).isActive = true
+        tally.font = .systemFont(ofSize: 10); tally.textColor = UIColor(white: 0.7, alpha: 1); tally.numberOfLines = 0; tally.accessibilityIdentifier = "UserPuzzleTally"
+        shareNote.font = .systemFont(ofSize: 10); shareNote.textColor = UIColor(white: 0.85, alpha: 1); shareNote.numberOfLines = 0; shareNote.accessibilityIdentifier = "UserPuzzleShareLine"
         style.selectedSegmentIndex = 0; style.accessibilityIdentifier = "UserPuzzleStyle"; style.addAction(UIAction { [weak self] _ in self?.changed() }, for: .valueChanged)
         status.textColor = .white; status.font = .systemFont(ofSize: 14, weight: .semibold); status.numberOfLines = 0; status.accessibilityIdentifier = "UserPuzzleStatus"
         codeLabel.textColor = ZDesign.Color.gold; codeLabel.font = .monospacedSystemFont(ofSize: 18, weight: .bold); codeLabel.numberOfLines = 0; codeLabel.accessibilityIdentifier = "UserPuzzleCode"
@@ -79,7 +90,7 @@ final class UserPuzzleController: UIViewController {
         sendButton.addAction(UIAction { [weak self] _ in self?.send() }, for: .touchUpInside)
         enter.addAction(UIAction { [weak self] _ in self?.enterCode() }, for: .touchUpInside)
         close.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) }, for: .touchUpInside)
-        let side = UIStackView(arrangedSubviews: [title, style, add, remove, checkButton, spinner, status, sendButton, codeLabel, enter, close]); side.axis = .vertical; side.spacing = 8
+        let side = UIStackView(arrangedSubviews: [title, beta, style, add, remove, checkButton, spinner, status, sendButton, codeLabel, shareNote, enter, close, tally]); side.axis = .vertical; side.spacing = 8
         board.translatesAutoresizingMaskIntoConstraints = false; side.translatesAutoresizingMaskIntoConstraints = false
         let scroll = UIScrollView(); scroll.translatesAutoresizingMaskIntoConstraints = false; scroll.addSubview(side)
         view.addSubview(board); view.addSubview(scroll)
@@ -96,8 +107,13 @@ final class UserPuzzleController: UIViewController {
             board.balls = withUnsafePointer(to: p.spec.balls) { b in b.withMemoryRebound(to: BLDrillBall.self, capacity: Int(BL_DRILL_MAX_BALLS)) { q in (0..<Int(p.spec.ballCount)).map { (q[$0].x, q[$0].y) } } }
         }
         status.text = L10n.tr("Kéo bi để xếp thế, rồi bấm Kiểm thế.")
+        showTally()
     }
-    private func changed() { checked = nil; sendButton.isEnabled = false; codeLabel.text = ""; status.text = L10n.tr("Kéo bi để xếp thế, rồi bấm Kiểm thế.") }
+    private func showTally() {
+        let (sent, received, solved) = PlayerStore.shared.codeCounts()
+        tally.text = String(format: L10n.tr("Mã đã gửi: %d · mã đã nhận và chơi: %d · mã giải được: %d"), sent, received, solved)
+    }
+    private func changed() { gate.bump(); checked = nil; sendButton.isEnabled = false; codeLabel.text = ""; shareNote.text = ""; status.text = L10n.tr("Kéo bi để xếp thế, rồi bấm Kiểm thế.") }
     /// Layout → code → spec (what the receiver gets), or nil with the reason shown.
     private func buildSpec() -> (BLPuzzleSpec, String)? {
         let xs = board.balls.map { $0.x }, ys = board.balls.map { $0.y }
@@ -112,15 +128,22 @@ final class UserPuzzleController: UIViewController {
         spec.style = currentStyle
         return (spec, code)
     }
+    private func setEditing(_ on: Bool) {
+        board.isUserInteractionEnabled = on
+        for v in view.subviews.flatMap({ $0.subviews }) where v is UIStackView { (v as? UIStackView)?.arrangedSubviews.forEach { if $0 is UIButton && $0 !== checkButton || $0 is UISegmentedControl { ($0 as? UIControl)?.isEnabled = on } } }
+        sendButton.isEnabled = on && checked != nil
+    }
     private func check() {
         guard var (spec, code) = buildSpec() else { Self.lastCheck = "invalid"; return }
         spinner.startAnimating(); checkButton.isEnabled = false; status.text = L10n.tr("Đang kiểm thế…")
+        let ticket = gate.begin(); setEditing(false)   // 0.55 R1: no dragging while the check runs, and a stale result is never published
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             var routes = [BLPuzzleSolution](repeating: BLPuzzleSolution(), count: Int(BL_PUZZLE_MAX_SOLUTIONS))
             let n = Int(BLDrillQuickFamilies(&spec.spec, &routes, Int32(BL_PUZZLE_MAX_SOLUTIONS)))
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                self.spinner.stopAnimating(); self.checkButton.isEnabled = true
+                self.spinner.stopAnimating(); self.checkButton.isEnabled = true; self.setEditing(true)
+                guard self.gate.accepts(ticket) else { return }   // the layout changed meanwhile
                 guard n > 0 else { self.status.text = L10n.tr("Chưa tìm thấy lời giải, dời một bi."); Self.lastCheck = "none"; return }
                 withUnsafeMutablePointer(to: &spec.solutions) { s in s.withMemoryRebound(to: BLPuzzleSolution.self, capacity: Int(BL_PUZZLE_MAX_SOLUTIONS)) { for i in 0..<n { $0[i] = routes[i] } } }
                 spec.solutionCount = Int32(n)
@@ -134,14 +157,23 @@ final class UserPuzzleController: UIViewController {
     private func send() {
         guard let (_, code) = checked else { return }
         let pretty = Self.pretty(code); codeLabel.text = pretty; Self.lastCode = code
-        let line = L10n.tr("Thế bí của tôi") + ": " + pretty
+        PlayerStore.shared.noteCodeSent(); showTally()
+        let styleName = [L10n.tr("Vào lỗ"), L10n.tr("Chạm bi 1"), L10n.tr("Giấu bi")][max(0, min(2, style.selectedSegmentIndex))]
+        let line = Self.shareLine(style: styleName, code: pretty); Self.lastShare = line; shareNote.text = line
         let share = UIActivityViewController(activityItems: [line], applicationActivities: nil)
         share.popoverPresentationController?.sourceView = sendButton; share.popoverPresentationController?.sourceRect = sendButton.bounds
         present(share, animated: true)
     }
     private func enterCode() {
         let alert = UIAlertController(title: L10n.tr("Nhập mã thế bí"), message: L10n.tr("15 ký tự, ví dụ XXXXX-XXXXX-XXXXX"), preferredStyle: .alert)
-        alert.addTextField { $0.placeholder = "XXXXX-XXXXX-XXXXX"; $0.autocapitalizationType = .allCharacters; $0.accessibilityIdentifier = "UserPuzzleCodeField" }
+        alert.addTextField { field in
+            field.placeholder = "XXXXX-XXXXX-XXXXX"; field.autocapitalizationType = .allCharacters; field.accessibilityIdentifier = "UserPuzzleCodeField"
+            // 0.55 R4: "Dán" reads the clipboard only when the player taps it
+            var c = UIButton.Configuration.plain(); c.title = L10n.tr("Dán"); c.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8)
+            let paste = UIButton(configuration: c); paste.accessibilityIdentifier = "UserPuzzlePaste"
+            paste.addAction(UIAction { [weak field] _ in if let s = UIPasteboard.general.string { field?.text = s } }, for: .touchUpInside)
+            paste.sizeToFit(); field.rightView = paste; field.rightViewMode = .always
+        }
         alert.addAction(UIAlertAction(title: L10n.tr("Kiểm tra và chơi"), style: .default) { [weak self, weak alert] _ in self?.receive(alert?.textFields?.first?.text ?? "") })
         alert.addAction(UIAlertAction(title: L10n.tr("Đóng"), style: .cancel)); present(alert, animated: true)
     }
@@ -150,17 +182,29 @@ final class UserPuzzleController: UIViewController {
         var spec = BLPuzzleSpec()
         guard BLUserPuzzleDecode(text, &spec) != 0 else { status.text = L10n.tr("Mã không đúng."); Self.lastCheck = "badcode"; return }
         spinner.startAnimating(); status.text = L10n.tr("Đang kiểm thế…")
+        let ticket = gate.begin(); setEditing(false)
         let code = text.filter { $0 != "-" && $0 != " " }.uppercased()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             var routes = [BLPuzzleSolution](repeating: BLPuzzleSolution(), count: Int(BL_PUZZLE_MAX_SOLUTIONS))
             let n = Int(BLDrillQuickFamilies(&spec.spec, &routes, Int32(BL_PUZZLE_MAX_SOLUTIONS)))
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                self.spinner.stopAnimating()
+                self.spinner.stopAnimating(); self.setEditing(true)
+                guard self.gate.accepts(ticket) else { return }
                 guard n > 0 else { self.status.text = L10n.tr("Thế này không giải được, mã bị từ chối."); Self.lastCheck = "refused"; return }
                 withUnsafeMutablePointer(to: &spec.solutions) { s in s.withMemoryRebound(to: BLPuzzleSolution.self, capacity: Int(BL_PUZZLE_MAX_SOLUTIONS)) { for i in 0..<n { $0[i] = routes[i] } } }
                 spec.solutionCount = Int32(n); Self.lastCheck = "received:\(n)"
-                self.dismiss(animated: true) { self.onPlay?(spec, code) }
+                // 0.55 R4: before playing, what the check found
+                let best = routes.prefix(n).map { Int($0.percent) }.max() ?? 0
+                let ready = UIAlertController(title: String(format: L10n.tr("%d lời giải · dễ nhất vào %d %%"), n, best), message: L10n.tr("Thế đã được kiểm lại trên máy này."), preferredStyle: .alert)
+                ready.view.accessibilityIdentifier = "UserPuzzleReady"
+                ready.addAction(UIAlertAction(title: L10n.tr("Chơi"), style: .default) { [weak self] _ in
+                    guard let self = self else { return }
+                    PlayerStore.shared.noteCodeReceived(); self.showTally()
+                    self.dismiss(animated: true) { self.onPlay?(spec, code) }
+                })
+                ready.addAction(UIAlertAction(title: L10n.tr("Đóng"), style: .cancel))
+                self.present(ready, animated: true)
             }
         }
     }
