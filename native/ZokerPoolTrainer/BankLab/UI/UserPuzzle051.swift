@@ -137,7 +137,10 @@ final class UserPuzzleController: UIViewController {
         guard var (spec, code) = buildSpec() else { Self.lastCheck = "invalid"; return }
         spinner.startAnimating(); checkButton.isEnabled = false; status.text = L10n.tr("Đang kiểm thế…")
         let ticket = gate.begin(); setEditing(false)   // 0.55 R1: no dragging while the check runs, and a stale result is never published
+        let race = QA.has("--user-puzzle-race-qa")   // QA: a change "slips through" 0.5 s into a deliberately slow check
+        if race { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.changed() } }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            if race { Thread.sleep(forTimeInterval: 2.5) }
             var routes = [BLPuzzleSolution](repeating: BLPuzzleSolution(), count: Int(BL_PUZZLE_MAX_SOLUTIONS))
             let n = Int(BLDrillQuickFamilies(&spec.spec, &routes, Int32(BL_PUZZLE_MAX_SOLUTIONS)))
             DispatchQueue.main.async {

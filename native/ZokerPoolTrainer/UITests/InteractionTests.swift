@@ -465,7 +465,7 @@ final class InteractionTests: XCTestCase {
     /// (QA flags are compiled out of Release). Written 18/11; NOT RUN yet (Simulator broken on the Mac at the time).
     func testFreshInstallLaunchFlowIntroLobbyTutorialTable() {
         let app = XCUIApplication()
-        app.launchArguments = ["--intro-lobby-qa", "--fresh-intro", "--fresh-tutorial", "--fresh-player-qa", "--tutorial-stroke-qa",
+        app.launchArguments = ["--intro-lobby-qa", "--intro-hold-qa", "--fresh-intro", "--fresh-tutorial", "--fresh-player-qa", "--tutorial-stroke-qa",
                                "--l10n-real", "--fresh-language", "-AppleLanguages", "(vi)", "-AppleLocale", "vi_VN"]
         app.launch()
         let scene = app.otherElements["PoolScene"]
@@ -1134,6 +1134,18 @@ final class InteractionTests: XCTestCase {
         }
         XCTAssertTrue(scores.allSatisfy { (0...100).contains($0) }, "scores 0…100: \(scores)")
         attachUpright("predict-the-path")
+    }
+    /// 0.55 R1 (deterministic): a change lands while the check runs → the old result is dropped, Gửi stays off, no routes are announced.
+    func testStaleCheckResultNeverEnablesSend() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--user-puzzle-qa", "--user-puzzle-race-qa"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyUserPuzzle"].waitForExistence(timeout: 60)); app.buttons["LobbyUserPuzzle"].tap()
+        let status = app.staticTexts["UserPuzzleStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 15 * slow))
+        app.buttons["UserPuzzleCheck"].tap()
+        expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: app.buttons["UserPuzzleCheck"]); waitForExpectations(timeout: 240 * slow)   // the (slow) check finished and offered its result
+        XCTAssertFalse(app.buttons["UserPuzzleSend"].isEnabled, "the result of the old layout must not enable Gửi")
+        XCTAssertFalse(status.label.contains("lời giải"), "no routes announced for a layout that was changed: \(status.label)")
+        XCTAssertTrue(app.buttons["UserPuzzleCheck"].isEnabled, "the editor is usable again")
     }
     /// 0.51 N3: arrange → Kiểm thế finds routes → Gửi gives a 15-character code → a receiver types it, the layout is rebuilt and re-checked, then played.
     /// An invalid arrangement is refused (a "Hit ball 1" puzzle needs a grey ball).

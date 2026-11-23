@@ -236,7 +236,9 @@ final class IntroDirector0441 {
         // A main-thread stall (cold shader compile, first frame on a new install) must not eat the film: the timeline
         // freezes while no frame is shown, so every beat is actually seen. Stalls still count in maxFrameMs.
         if dtWall > 0.1 { start += dtWall - 1.0 / 60 }
-        let t = now - start
+        var t = now - start
+        // 0.53 stability: --intro-hold-qa freezes the film at 1 s until the tap, so a slow cold-start UI test always sees the intro FIRST and alone
+        if QA.has("--intro-hold-qa"), t > 1.0 { start = now - 1.0; t = 1.0 }
         if frames > 2 { maxFrameMs = max(maxFrameMs, dtWall * 1000) }; frames += 1
         if mode == "logo" {
             if t >= Self.stingSeconds { finish() }
