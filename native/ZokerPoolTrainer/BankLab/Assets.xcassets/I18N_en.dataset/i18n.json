@@ -1060,5 +1060,9 @@
 "Chơi": "Play",
 "Thế đã được kiểm lại trên máy này.": "The puzzle was checked again on this device.",
 "Mã đã gửi: %d · mã đã nhận và chơi: %d · mã giải được: %d": "Codes sent: %d · codes received and played: %d · codes solved: %d",
-"%d lời giải · dễ nhất vào %d %%": "%d solutions · the easiest is made %d %% of the time"
+"%d lời giải · dễ nhất vào %d %%": "%d solutions · the easiest is made %d %% of the time",
+"Luyện mắt · tư duy · đường bi": "Train your eye · mind · ball paths",
+"Tiếng bi tách trái–phải": "Ball sounds panned left–right",
+"Bật": "On",
+"Tắt": "Off"
 }

@@ -21,6 +21,8 @@ enum Prefs {
     static func featureFlag(_ name: String) -> String { "ff047." + name }
     /// 0.47 M1: stroke input. Absent = automatic (power bar for a new player, < 50 shots); 1 = power bar; 0 = swipe B.
     static let powerBarMode = "powerBarMode047"
+    /// 0.57 I4: ball clicks panned left/right by where they happen on the table, ±3 % pitch variety. Default on.
+    static let ballStereo = "ballStereo057"
     /// 0.47 M4: in-play effects (pocket sparks, strike haptic by power, light camera shake on a hard break).
     static let playFX = "playFX047"
     // Legacy progress (read once by the PlayerStore migration, then left untouched for rollback)

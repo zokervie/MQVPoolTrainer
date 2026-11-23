@@ -361,6 +361,7 @@ final class CustomizeController:UIViewController {
         usage.accessibilityIdentifier="CopyUsage";target.addArrangedSubview(usage)
         header("Âm thanh")
         slider("Âm lượng tiếng bi",Prefs.tuneVolume,0,1)
+        segmented("Tiếng bi tách trái–phải",["Bật","Tắt"],(UserDefaults.standard.object(forKey:Prefs.ballStereo) as? Bool ?? true) ? 0:1){UserDefaults.standard.set($0==0,forKey:Prefs.ballStereo)}   // 0.57 I4
         // 0.46 M2: Tiếng Việt + English; the five machine-translated drafts only with Phòng thí nghiệm on.
         languageHolder.axis = .vertical;languageHolder.spacing=4;target.addArrangedSubview(languageHolder)
         buildLanguagePicker()

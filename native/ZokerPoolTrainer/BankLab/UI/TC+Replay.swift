@@ -138,6 +138,12 @@ extension TrainingController {
         }
     }
     func audioPan(_ x:Double,_ y:Double)->Double{
+        // 0.57 I4: pan by the impact's x across the table width, −0.8…+0.8, signed by which way the camera looks (screen left stays left)
+        if UserDefaults.standard.object(forKey:Prefs.ballStereo) as? Bool ?? true {
+            let half=(engine.settings["tableWidth"]?.doubleValue ?? 1.27)/2
+            let a=scn.projectPoint(SCNVector3(-0.3,0.03,Float(y))).x,b=scn.projectPoint(SCNVector3(0.3,0.03,Float(y))).x
+            return max(-0.8,min(0.8,(x/half)*0.8))*(b>=a ? 1:-1)
+        }
         let point=scn.projectPoint(SCNVector3(Float(x),0.03,Float(y)))
         return max(-1,min(1,Double(point.x/max(1,Float(scn.bounds.width)))*2-1))
     }

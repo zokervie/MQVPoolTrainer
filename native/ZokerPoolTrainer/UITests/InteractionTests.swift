@@ -1317,6 +1317,34 @@ final class InteractionTests: XCTestCase {
         Thread.sleep(forTimeInterval: 3)
         attachUpright("hud056-" + UIDevice.current.name.replacingOccurrences(of: " ", with: "_"))
     }
+    /// 0.57 I7: the first-launch intro lasts ≤ 3.5 s on the real clock (tolerance only for a slow runner), then the Lobby is there; it is the 3D film.
+    func testFirstLaunchIntroEndsWithin3Point5Seconds() {
+        let app = XCUIApplication(); app.launchArguments = ["--intro-lobby-qa", "--fresh-intro", "--fresh-player-qa", "--fresh-tutorial"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyFree"].waitForExistence(timeout: 60 * slow), "the Lobby follows the intro on its own")
+        let scene = app.otherElements["PoolScene"]; XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 20 * slow) { self.text(scene, "introMode") != "" }
+        // The film clock freezes while the main thread stalls (a cold first frame on a fresh Simulator can take seconds), so the 3.5 s limit is judged on the
+        // film time (wall minus those freezes); the raw wall time is only bounded loosely for a slow runner.
+        let film = Double(text(scene, "introFilm")) ?? 99, wall = Double(text(scene, "introWall")) ?? 99
+        XCTAssertLessThanOrEqual(film, 3.5, "intro film time \(film) s (wall \(wall) s)")
+        XCTAssertLessThanOrEqual(wall, 12, "intro wall time \(wall) s")
+    }
+    /// 0.57 I7: a tap at 0.3 s ends the intro within 0.3 s (QA taps for us at 0.3 s of the film).
+    func testTapDuringIntroGivesControlWithin300ms() {
+        let app = XCUIApplication(); app.launchArguments = ["--intro-lobby-qa", "--fresh-intro", "--fresh-player-qa", "--fresh-tutorial", "--intro-skip-at-qa=0.3"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyFree"].waitForExistence(timeout: 60 * slow))
+        let scene = app.otherElements["PoolScene"]; XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 20 * slow) { self.text(scene, "introSkipMs") != "-1" && self.text(scene, "introMode") != "" }
+        XCTAssertLessThanOrEqual(Double(text(scene, "introSkipMs")) ?? 9999, 300 * max(1, slow / 2), "skip → control: \(text(scene, "introSkipMs")) ms")
+    }
+    /// 0.57 I7: Reduce Motion (QA stands in for the system switch) gives the still logo — no 3D film.
+    func testReduceMotionIntroHasNo3D() {
+        let app = XCUIApplication(); app.launchArguments = ["--intro-lobby-qa", "--fresh-intro", "--fresh-player-qa", "--fresh-tutorial", "--intro-reduce-qa"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyFree"].waitForExistence(timeout: 60 * slow))
+        let scene = app.otherElements["PoolScene"]; XCTAssertTrue(scene.waitForExistence(timeout: 30))
+        wait(scene, timeout: 20 * slow) { self.text(scene, "introMode") != "" }
+        XCTAssertEqual(text(scene, "introMode"), "logo", "no 3D break with Reduce Motion")
+    }
     /// M1: kéo thanh lực xuống một nửa hành trình rồi thả → cú được đánh, tốc độ đầu = BLPowerBarSpeed(phần kéo, trần) ±2 %.
     func testPowerBarDragStrikesWithMappedSpeed() {
         let (app, scene) = launch(["--power-bar-qa"])

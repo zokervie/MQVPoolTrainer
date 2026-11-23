@@ -18,3 +18,6 @@ xcrun swiftc -warnings-as-errors BankLab/UI/AppFlow047.swift Tests/AppFlowTests.
 build/lan-checks/AppFlowTests
 xcrun swiftc -warnings-as-errors BankLab/UI/Prefs047.swift BankLab/UI/FeatureFlags047.swift BankLab/UI/AppFlow047.swift Tests/PrefsTests.swift -o build/lan-checks/PrefsTests
 build/lan-checks/PrefsTests
+# 0.57 I1/I3: intro timeline, cue draw-back, FOV punch, music duck, particle budget.
+xcrun swiftc -warnings-as-errors BankLab/UI/IntroTiming057.swift Tests/IntroTimingTests.swift -o build/lan-checks/IntroTimingTests
+build/lan-checks/IntroTimingTests

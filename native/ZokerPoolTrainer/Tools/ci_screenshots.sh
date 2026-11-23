@@ -180,7 +180,7 @@ rec_pid=$!
 sleep 1
 xcrun simctl launch "$device_id" com.maiquocviet.BankLabS --intro-qa
 # 0.44.1 M5: stills at 0.5 · 1 · 2 · 3 · 4.5 s of the new on-table intro (+ the in-app probe's own stills and summary).
-i=0; for t in 0.5 0.5 1.0 1.0 1.5; do sleep "$t"; i=$((i+1)); xcrun simctl io "$device_id" screenshot "build/screenshots/intro-$i.png" 2>/dev/null; done
+i=0; for t in 0.4 0.5 0.6 0.6 0.5; do sleep "$t"; i=$((i+1)); xcrun simctl io "$device_id" screenshot "build/screenshots/intro-$i.png" 2>/dev/null; done
 sleep 3
 kill -INT "$rec_pid" 2>/dev/null; wait "$rec_pid" 2>/dev/null
 intro_data=$(xcrun simctl get_app_container "$device_id" com.maiquocviet.BankLabS data 2>/dev/null)

@@ -12,6 +12,7 @@ final class PoolAudio {
         let removedOnset: Double
         let duration: Double
         var tier = 1, pack = 0
+        var pitched = false   // 0.57 I4: a ±3 % pitch copy (ball–ball clicks)
     }
     private struct Voice {
         let node: AVAudioPlayerNode
@@ -107,6 +108,10 @@ final class PoolAudio {
                     }
                 }
             }
+            // 0.57 I4: ±3 % pitch copies of the ball–ball clicks (resampled once here; no per-hit DSP), picked by the normal rotation
+            if groups.indices.contains(1) {
+                groups[1] = groups[1].flatMap { s in [s] + [0.97, 1.03].compactMap { Self.pitchCopy(s, rate: $0, format: format) } }
+            }
             buildGraph()
             start()
         }
@@ -182,6 +187,7 @@ final class PoolAudio {
             let wantPack = UserDefaults.standard.object(forKey: Self.packKey) as? Int ?? 0
             var samples = self.groups[type].filter { $0.pack == wantPack }
             if samples.isEmpty { samples = self.groups[type] }
+            if !(UserDefaults.standard.object(forKey: Prefs.ballStereo) as? Bool ?? true) { let plain = samples.filter { !$0.pitched }; if !plain.isEmpty { samples = plain } }   // 0.57 I4 switch
             let wantTier: Int = type == 3 ? (impact < 1.6 ? 0 : (impact < 3.6 ? 1 : (impact < 5.8 ? 2 : 3)))
                 : (type == 1 ? (impact < 0.8 ? 0 : (impact < 2.2 ? 1 : 2)) : (impact < 0.9 ? 0 : 1))
             if let nearest = samples.map({ abs($0.tier - wantTier) }).min() { samples = samples.filter { abs($0.tier - wantTier) == nearest } }
@@ -386,6 +392,16 @@ final class PoolAudio {
         }
     }
 
+    private static func pitchCopy(_ s: Sample, rate: Double, format: AVAudioFormat) -> Sample? {
+        guard let src = s.buffer.floatChannelData?[0], s.buffer.frameLength > 4 else { return nil }
+        let n = max(2, Int(Double(s.buffer.frameLength) / rate))
+        guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)), let dst = out.floatChannelData?[0] else { return nil }
+        out.frameLength = AVAudioFrameCount(n)
+        let last = Int(s.buffer.frameLength) - 1
+        for i in 0..<n { let p = Double(i) * rate, k = min(last - 1, Int(p)), f = Float(p - Double(k)); dst[i] = src[k] * (1 - f) + src[min(last, k + 1)] * f }
+        var copy = Sample(buffer: out, removedOnset: s.removedOnset, duration: Double(n) / format.sampleRate)
+        copy.tier = s.tier; copy.pack = s.pack; copy.pitched = true; return copy
+    }
     private enum DecodeError: Error { case invalidWAV, unsupportedPCM, emptyPCM }
     private static func decode(_ data: Data, policy: Policy, format: AVAudioFormat) throws -> Sample {
         func text(_ start: Int, _ count: Int) -> String {

@@ -32,9 +32,9 @@ int main(){
     bool scratch=false;for(auto&e:a)if(e.a==0)scratch=true;
     check(!scratch,"cue ball stays on the table");
     check(!a.empty()&&a[0].b!=2&&a[0].b!=3&&a[0].b>=0,"first drop is a corner pocket");
-    // Intro timeline (IntroDirector0441.simTime): strike at 1.6 s, 1× for 0.125 s, 0.5 s of wall time at 0.25×, then 1×.
-    const double wall=a.empty()?0:1.6+0.625+(a[0].time-0.25);
-    check(wall>=1.8&&wall<=3.6,"first drop lands inside the intro's follow-the-ball window");
+    // Intro timeline (0.57, IntroTiming): strike at 0.95 s, solver time runs 1:1 with the wall clock, the title window starts at 2.15 s.
+    const double wall=a.empty()?0:0.95+a[0].time;
+    check(wall>=1.9&&wall<=2.15,"first drop lands at 1.95 s, before the title (2.15 s)");
     if(fails){std::cerr<<"FAIL IntroBreak: "<<fails<<"\n";return 1;}
     std::cout<<"PASS IntroBreak: "<<a.size()<<" pocket event(s) reproduced (first: ball "<<a[0].a<<", pocket "<<a[0].b<<", "<<a[0].time<<" s; intro wall time "<<wall<<" s), deterministic\n";
 }
