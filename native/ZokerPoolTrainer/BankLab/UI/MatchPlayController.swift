@@ -9,6 +9,7 @@ final class MatchPlayState {
     var rules: BLMatch?
     /// 0.40 Đấu với máy: level 0…5 of the computer (player 2); nil = two humans. Feature flag "vsComputer" (IAP-ready).
     var computerLevel: Int?
+    var rackSerial = 0, rackTallied = -1   // 0.58 T4: one tally per rack
     var computerThinking = false, computerFailures = 0, computerTurnKey = "", computerShots = 0, computerStarted = 0.0
     var computerAim: ComputerAim?
     /// The human's cue/elevation/tip before the computer took the table; restored when the turn comes back (0.40c).
@@ -910,6 +911,7 @@ extension TrainingController {
         if (result["accepted"] as? NSNumber)?.boolValue == true {
             applyMatchResult(result)
             scoreHighlight(wonRack: matchInt("winner", fallback: -1) == shooter, shooter: shooter, isBreak: wasBreak)   // 0.44 #11
+            noteMatchTally058(winner: matchInt("winner", fallback: -1))   // 0.58 T4
         }
         else {
             // Never continue an unadjudicated match or silently label it legal.
@@ -939,6 +941,7 @@ extension TrainingController {
     func applyMatchResult(_ result: [String:Any]) {
         updateMatchState()
         if (result["rerack"] as? NSNumber)?.boolValue == true, let rules = matchPlay.rules {
+            matchPlay.rackSerial += 1
             engine.loadLayout(rules.rack(seed: UInt64.random(in: 1...UInt64.max)))
             startRackIntro()
             table.resetPocketPresentation()
@@ -1879,5 +1882,16 @@ extension TrainingController {
             }
             matchPlay.predictorVerified += 1
         }
+    }
+}
+
+extension TrainingController {
+    /// 0.58 T4: a won/lost rack counts once, in the right pocket of the tally: machine (by level) · people (same device / Wi-Fi) · online.
+    func noteMatchTally058(winner: Int) {
+        guard winner >= 0, matchPlay.rackTallied != matchPlay.rackSerial else { return }
+        matchPlay.rackTallied = matchPlay.rackSerial
+        let me = matchPlay.session.role == .none ? 0 : matchPlay.session.localPlayer
+        let kind: MatchTally.Kind = matchPlay.computerLevel.map { .machine(level: $0) } ?? (matchPlay.session.transport == .internet ? .online : .people)
+        PlayerStore.shared.recordMatch(kind, won: winner == me)
     }
 }

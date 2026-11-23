@@ -12,7 +12,7 @@ build/lan-checks/NearbyLobbyTests
 xcrun swiftc -warnings-as-errors BankLab/UI/L10nDefault0441.swift Tests/L10nDefaultTests.swift -o build/lan-checks/L10nDefaultTests
 build/lan-checks/L10nDefaultTests
 # 0.45 M5: player progress file (player.json, .bak recovery, legacy stars → stable drill ids) and the launch flow.
-xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/DailyLoop.h BankLab/UI/PlayerStore047.swift BankLab/UI/DrillIDs047.swift Tests/PlayerStoreTests.swift -o build/lan-checks/PlayerStoreTests
+xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/DailyLoop.h BankLab/UI/PlayerStore047.swift BankLab/UI/Achievements058.swift BankLab/UI/DrillIDs047.swift Tests/PlayerStoreTests.swift -o build/lan-checks/PlayerStoreTests
 build/lan-checks/PlayerStoreTests
 xcrun swiftc -warnings-as-errors BankLab/UI/AppFlow047.swift Tests/AppFlowTests.swift -o build/lan-checks/AppFlowTests
 build/lan-checks/AppFlowTests
@@ -30,3 +30,9 @@ build/lan-checks/PushedChromeTests
 # 0.58 L4: the bridge policy glue (wanted tip, solve through the C core).
 xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/CueClearance.h BankLab/UI/RailBridge058.swift Tests/RailBridgeTests.swift -o build/lan-checks/RailBridgeTests
 build/lan-checks/RailBridgeTests
+# 0.58 P2: Thách bạn — 15-character ring challenge (C core + Swift wrapper).
+xcrun swiftc -warnings-as-errors -import-objc-header Tests/RingChallengeBridge.h BankLab/UI/RingChallenge058.swift Tests/RingChallengeTests.swift -o build/lan-checks/RingChallengeTests
+build/lan-checks/RingChallengeTests
+# 0.58 T1–T4: auto-advance, achievement record, medal tiers, match tally.
+xcrun swiftc -warnings-as-errors BankLab/UI/Achievements058.swift Tests/AchievementsTests.swift -o build/lan-checks/AchievementsTests
+build/lan-checks/AchievementsTests

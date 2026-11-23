@@ -33,6 +33,7 @@ extension TrainingController {
     }
     /// The line shown when a ring is opened: warm-up progress or the shot requirement.
     func ladderIntro(_ d: Drill) {
+        ladderRoundStartedAt = Date(); roundShots = []
         guard let spec = d.spec, spec.tier > 0 else { return }
         let ladder = Mastery.ladderName(of: d.id), warm = PlayerStore.shared.warmMade(ladder)
         if spec.tier == 1 && !Mastery.warmDone(warm) {
@@ -71,6 +72,7 @@ extension TrainingController {
             notifyStatus(statusLabel.text ?? ""); lessonScores = []; lessonPasses = 0; rerack(0); return
         }
         lessonScores.append(passed ? 100 : 0); if passed { lessonPasses += 1 }
+        roundShots.append(passed)
         let n = lessonScores.count
         statusLabel.text = String(format: L10n.tr("Cú %d/5"), n) + " · " + (passed ? L10n.tr("ĐẠT") : L10n.tr("Chưa đạt")) + missLine
         scoreLabel.text = L10n.tr("Lượt 5 cú") + " · " + String(format: L10n.tr("đạt %d / %d"), lessonPasses, n)
@@ -84,17 +86,40 @@ extension TrainingController {
         let newBest = store.recordLadderRound(id: d.id, stars: stars, made: made, average: Double(made) * 20)
         lessonScores = []; lessonPasses = 0
         let after = chapter.map { Mastery.percent($0) } ?? 0
+        // 0.58 T2: the round is kept (stars, %, take-backs, rescue, longest run, seconds, date): best + the last 20 per ring, and per chapter
+        var run = 0, longest = 0; for v in roundShots { run = v ? run + 1 : 0; longest = max(longest, run) }
+        let attempt = AchievementAttempt(stars: stars, percent: after, undoUsed: chapter.map { store.undoUsed($0.key) } ?? 0, usedPowerBar: chapter.map { store.rescueUsed($0.key) > 0 } ?? false,
+                                         longestRun: longest, seconds: Date().timeIntervalSince(ladderRoundStartedAt ?? Date()), date: Date().timeIntervalSince1970)
+        store.recordAchievement(d.id, attempt)
+        if let c = chapter, !c.key.isEmpty { var ca = attempt; ca.stars = Mastery.titleIndex(after); store.recordAchievement("chapter-" + c.key, ca) }
+        ladderRoundStartedAt = Date(); roundShots = []
         let next = ladderNextRing(d), nextOpened = next.map { !nextOpenBefore && Mastery.ringOpen($0) } ?? false
         var message = String(format: L10n.tr("%d/5 cú vào vòng"), made) + "\n" + (newBest ? L10n.tr("Kỷ lục mới của vòng này") + "\n" : "")
         if nextOpened { message += L10n.tr("Đã mở vòng kế tiếp") + "\n" }
         message += "\(after) %" + (chapter != nil ? " · " + L10n.tr(Mastery.titles[Mastery.titleIndex(after)]) : "")
+        if let line = ringChallengeResultLine(drill: d, made: made) { message += "\n" + line }   // 0.58 P2
+        let nextRingOpen = next.map { Mastery.ringOpen($0) } ?? false
+        let chapterFinished = chapter.map { c in c.drills.filter { Mastery.tier($0) > 0 }.allSatisfy { store.ladderStars($0) >= 3 } } ?? false
+        let decision = AutoAdvance.decide(stars: stars, nextRingOpen: nextRingOpen, chapterFinished: chapterFinished)   // 0.58 T1
+        if case .autoNext = decision { message += "\n" + L10n.tr("Tự lên vòng sau 3 s — chạm để huỷ") }
         let alert = UIAlertController(title: L10n.tr("Vòng") + " \(tier) · " + Drill.starText(stars), message: message, preferredStyle: .alert)
         alert.view.accessibilityIdentifier = "LadderRound"
-        alert.addAction(UIAlertAction(title: L10n.tr("Tập lại lượt mới"), style: .default) { [weak self] _ in self?.beginDrill(index, guided: false) })
+        var autoTimer: Timer?
+        let cancelAuto = { autoTimer?.invalidate(); autoTimer = nil }
         if let nextId = next, Mastery.ringOpen(nextId), let nextIndex = Chapters.index(of: nextId) {
-            alert.addAction(UIAlertAction(title: L10n.tr("Vòng nhỏ hơn"), style: .default) { [weak self] _ in self?.beginDrill(nextIndex, guided: false) })
+            let go = decision == .hold && stars < 3 ? L10n.tr("Vòng nhỏ hơn") : L10n.tr("Lên vòng tiếp ▶")
+            alert.addAction(UIAlertAction(title: go, style: .default) { [weak self] _ in cancelAuto(); self?.beginDrill(nextIndex, guided: false) })
+            if case .autoNext(let after) = decision {   // 0.58 T1: starts by itself after 3 s; a tap on the card cancels
+                autoTimer = Timer.scheduledTimer(withTimeInterval: after, repeats: false) { [weak self, weak alert] _ in
+                    guard let alert = alert, alert.presentingViewController != nil else { return }
+                    alert.dismiss(animated: true) { self?.beginDrill(nextIndex, guided: false) }
+                }
+                AlertTapCancel058.attach(to: alert) { cancelAuto() }
+            }
         }
-        alert.addAction(UIAlertAction(title: L10n.tr("Đóng"), style: .cancel) { [weak self] _ in self?.lessonActive = false; self?.celebrateTitleIfNew(chapter) })
+        alert.addAction(UIAlertAction(title: stars >= 3 ? L10n.tr("Đánh lại lấy điểm cao hơn") : L10n.tr("Tập lại lượt mới"), style: .default) { [weak self] _ in cancelAuto(); self?.beginDrill(index, guided: false) })
+        alert.addAction(UIAlertAction(title: L10n.tr("Thách bạn"), style: .default) { [weak self] _ in self?.shareRingChallenge(d, stars: stars, made: made) })   // 0.58 P2
+        alert.addAction(UIAlertAction(title: L10n.tr("Đóng"), style: .cancel) { [weak self] _ in cancelAuto(); self?.lessonActive = false; self?.celebrateTitleIfNew(chapter); if decision == .chapterEnd { self?.presentChapterMedal(chapter) } })
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.present(alert, animated: true) }
         _ = before
     }
@@ -119,12 +144,26 @@ extension TrainingController {
     func shareMasteryCard(_ c: Chapter, present: Bool = true) {
         let pct = Mastery.percent(c)
         let image = Mastery.cardImage(player: UserDefaults.standard.string(forKey: "playerName0") ?? L10n.tr("Bạn"), title: L10n.tr(Mastery.titles[Mastery.titleIndex(pct)]),
-                                       nickname: L10n.tr(Mastery.nickname), percent: pct, seal: Mastery.cleanSeal(c))
+                                       nickname: L10n.tr(Mastery.nickname), percent: pct, seal: Mastery.cleanSeal(c), tier: MedalTier.forTitle(Mastery.titleIndex(pct)))
         masteryCardBytes = image.pngData()?.count ?? 0
         guard present else { return }
         let share = UIActivityViewController(activityItems: [image], applicationActivities: nil)
         share.popoverPresentationController?.sourceView = view
         share.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
         topPresenter.present(share, animated: true)
+    }
+}
+
+/// 0.58 T1: lets a tap on the result card cancel the auto-advance (the recogniser keeps its target weakly, so the alert owns it).
+final class AlertTapCancel058: NSObject {
+    private static var key = 0
+    private let run: () -> Void
+    init(_ run: @escaping () -> Void) { self.run = run }
+    @objc func fire() { run() }
+    static func attach(to alert: UIAlertController, _ run: @escaping () -> Void) {
+        let owner = AlertTapCancel058(run)
+        let tap = UITapGestureRecognizer(target: owner, action: #selector(fire)); tap.cancelsTouchesInView = false
+        alert.view.addGestureRecognizer(tap)
+        objc_setAssociatedObject(alert, &key, owner, .OBJC_ASSOCIATION_RETAIN)
     }
 }

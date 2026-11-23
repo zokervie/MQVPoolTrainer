@@ -230,6 +230,14 @@ import Foundation
         var dict = try JSONSerialization.jsonObject(with: oldJSON) as! [String: Any]; dict.removeValue(forKey: "realTable"); dict.removeValue(forKey: "examKeysMigrated")
         let decoded = try JSONDecoder().decode(PlayerData.self, from: JSONSerialization.data(withJSONObject: dict))
         try check(decoded.realTable.isEmpty && !decoded.examKeysMigrated, "files from ≤ 0.49 decode with the new fields empty")
+        // 0.58 T2/T4: achievements and the match tally survive a restart; files without them decode empty
+        let h58 = PlayerStore(directory: root.appendingPathComponent("h58"), now: t0, timeZone: hanoi)
+        let at = AchievementAttempt(stars: 3, percent: 12, undoUsed: 1, usedPowerBar: false, longestRun: 3, seconds: 41, date: 1_700_000_000)
+        try check(h58.recordAchievement("force-near-1", at), "first attempt is the best")
+        h58.recordMatch(.machine(level: 3), won: true); h58.recordMatch(.online, won: false)
+        let h58b = PlayerStore(directory: root.appendingPathComponent("h58"), now: t0, timeZone: hanoi)
+        try check(h58b.data.achievements.best("force-near-1") == at && h58b.data.matchTally.machine[3]?.won == 1 && h58b.data.matchTally.online.lost == 1, "achievements + tally persist")
+        try check(decoded.achievements.entries.isEmpty && decoded.matchTally.total.played == 0, "older files decode with no achievements")
         print("PASS PlayerStore: \(checks) checks (round trip, .bak recovery, legacy stars → ids, streak/level/record, usage, 0.47 rounds/tests/tips)")
     }
 }

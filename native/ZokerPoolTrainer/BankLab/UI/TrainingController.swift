@@ -214,6 +214,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     struct ShotStep{var balls:[BallState];var setup:ShotSetup?}
     /// 0.58 L1: one shelf per drill (scope = drill id); a new drill, chapter, variant or leaving the screen clears it.
     var railBridge=RailBridge(),bridgeApplying=false   // 0.58 L4
+    var ringChallengePlaying:RingChallenge.Info?   // 0.58 P2
+    var ladderRoundStartedAt:Date?,roundShots:[Bool]=[]   // 0.58 T2
     var shotShelf=UndoShelf<ShotStep>()
     var shotBack:[ShotStep]{get{shotShelf.back}set{shotShelf.back=newValue}}
     var shotForward:[ShotStep]{get{shotShelf.forward}set{shotShelf.forward=newValue}}

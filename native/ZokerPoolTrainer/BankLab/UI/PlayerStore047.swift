@@ -146,6 +146,9 @@ struct PlayerData: Codable, Equatable {
     var chapterResets: [String: Int] = [:]          // chapter key → times "Chơi lại chương từ đầu" was used
     var codesSent = 0, codesReceived = 0, codesSolved = 0   // 0.55 R5: puzzle codes (this device only, never sent anywhere)
     var chapterRescue: [String: Int] = [:]          // 0.56 K2: chapter key → times the rescue power bar was accepted (no "Tay sạch" afterwards)
+    // 0.58 T2/T4
+    var achievements = AchievementBook()            // per ring / chapter: best + last 20 attempts (stars, %, take-backs, rescue, run, seconds, date)
+    var matchTally = MatchTally()                   // match results kept apart: machine by level · people · online
     init(now: Date, day: Int64) { metrics = UsageMetrics(installedAt: now, installDay: day) }
     // Missing fields (older / newer files) fall back to defaults instead of failing the whole file.
     init(from decoder: Decoder) throws {
@@ -190,6 +193,8 @@ struct PlayerData: Codable, Equatable {
         puzzleReviewDone = try c.decodeIfPresent([String: [Int]].self, forKey: .puzzleReviewDone) ?? [:]
         practiceTrips = try c.decodeIfPresent(Int.self, forKey: .practiceTrips) ?? 0
         practiceReturnSolved = try c.decodeIfPresent(Int.self, forKey: .practiceReturnSolved) ?? 0
+        achievements = try c.decodeIfPresent(AchievementBook.self, forKey: .achievements) ?? AchievementBook()
+        matchTally = try c.decodeIfPresent(MatchTally.self, forKey: .matchTally) ?? MatchTally()
     }
 }
 
@@ -413,6 +418,10 @@ final class PlayerStore {
         recordRound(drill: id, stars: old, average: average, made: made)
         return newBest
     }
+    /// 0.58 T2: a finished round of a ring / exam of a chapter. True when it is the new best.
+    @discardableResult func recordAchievement(_ key: String, _ attempt: AchievementAttempt) -> Bool { let best = data.achievements.record(key, attempt); save(); return best }
+    /// 0.58 T4
+    func recordMatch(_ kind: MatchTally.Kind, won: Bool) { data.matchTally.record(kind, won: won); save() }
     func noteCodeSent() { data.codesSent += 1; save() }
     func noteCodeReceived() { data.codesReceived += 1; save() }
     func noteCodeSolved() { data.codesSolved += 1; save() }

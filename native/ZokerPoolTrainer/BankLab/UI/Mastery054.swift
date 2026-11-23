@@ -52,7 +52,7 @@ enum Mastery {
     }
 
     /// "Khoe": 1080×1350, wood frame and Petemoss like the menu. Name · title · nickname · % · "Tay sạch" seal · logo. No aim lines, no solutions.
-    static func cardImage(player: String, title: String, nickname: String, percent: Int, seal: Bool) -> UIImage {
+    static func cardImage(player: String, title: String, nickname: String, percent: Int, seal: Bool, tier: MedalTier? = nil) -> UIImage {
         let size = CGSize(width: 1080, height: 1350)
         return UIGraphicsImageRenderer(size: size).image { ctx in
             let c = ctx.cgContext
@@ -73,6 +73,7 @@ enum Mastery {
             draw("“" + nickname + "”", Wood.titleFont(84), Wood.inkSoft, y: 660)
             draw("\(percent) %", .systemFont(ofSize: 220, weight: .heavy), Wood.ink, y: 800)
             if seal { draw("✓ " + L10n.tr("Tay sạch"), .systemFont(ofSize: 74, weight: .bold), UIColor(red: 0.1, green: 0.4, blue: 0.2, alpha: 1), y: 1100) }
+            if let tier = tier { MedalArt.image(tier: tier, size: 230, ribbon: seal).draw(in: CGRect(x: 64, y: 1010, width: 230, height: 230)) }   // 0.58 T3: the share card shows the chapter medal
             draw("zokerpool", .systemFont(ofSize: 44, weight: .medium), Wood.inkSoft, y: 1230)
         }
     }

@@ -136,7 +136,9 @@ final class ChaptersController: UITableViewController {
         tableView.accessibilityIdentifier = "Chapters"
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Xong", style: .done, target: self, action: #selector(close))
         let book = UIBarButtonItem(title: "Sổ mẹo", style: .plain, target: self, action: #selector(openTipBook))
-        book.accessibilityIdentifier = "TipBook"; navigationItem.leftBarButtonItem = book
+        book.accessibilityIdentifier = "TipBook"
+        let achievements = UIBarButtonItem(title: L10n.tr("Thành tích"), style: .plain, target: self, action: #selector(openAchievements)); achievements.accessibilityIdentifier = "AchievementsOpen"   // 0.58 T2
+        navigationItem.leftBarButtonItems = [book, achievements]
     }
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
@@ -146,6 +148,7 @@ final class ChaptersController: UITableViewController {
         tableView.reloadData()
     }
     @objc private func close() { dismiss(animated: true) }
+    @objc private func openAchievements() { navigationController?.pushViewController(AchievementsController(style: .plain), animated: true) }
     @objc private func openTipBook() { navigationController?.pushViewController(TipBookController(), animated: true) }
 
     // 0.54: a chapter's rows. Ring-ladder chapters show one card per ladder (3 rings with their best stars), the exam, "Bài cũ", the chapter settings.
