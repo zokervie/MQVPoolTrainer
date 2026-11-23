@@ -349,7 +349,7 @@ final class TipCardController: UIViewController {
 /// Sổ mẹo: every tip already shown (and the chapters still to come, locked).
 final class TipBookController: UITableViewController {
     override func viewDidLoad() {
-        super.viewDidLoad(); title = "Sổ mẹo"
+        super.viewDidLoad(); title = "Sổ mẹo"; addPushedClose()
         tableView.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
         tableView.rowHeight = UITableView.automaticDimension; tableView.estimatedRowHeight = 60
     }

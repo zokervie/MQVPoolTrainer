@@ -927,6 +927,24 @@ final class InteractionTests: XCTestCase {
         for _ in 0..<6 where !locked.exists { app.tables["Puzzles"].swipeUp() }
         XCTAssertTrue(locked.exists, "a locked room says how many stars are missing")
     }
+    /// 0.58 L3: Sổ lời giải and Đo cục bộ (pushed in Thế bí) each have a visible "Đóng"; it returns to Thế bí, and Xong returns to the table.
+    func testPuzzleBookAndStatsCanBeClosed() {
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa"]; app.launch()
+        XCTAssertTrue(app.buttons["LobbyPuzzles"].waitForExistence(timeout: 60)); app.buttons["LobbyPuzzles"].tap()
+        XCTAssertTrue(app.tables["Puzzles"].waitForExistence(timeout: 10 * slow))
+        for (opener, screen) in [("PuzzleBookOpen", "PuzzleBook"), ("PuzzleStatsOpen", "PuzzleStats")] {
+            XCTAssertTrue(app.buttons[opener].waitForExistence(timeout: 5 * slow), "\(opener) is in the Thế bí bar"); app.buttons[opener].tap()
+            XCTAssertTrue(app.tables[screen].waitForExistence(timeout: 10 * slow), "\(screen) opens")
+            let close = app.buttons["PushedClose"]
+            XCTAssertTrue(close.waitForExistence(timeout: 5 * slow) && close.isHittable, "\(screen) has a visible Đóng")
+            close.tap()
+            XCTAssertTrue(app.tables["Puzzles"].waitForExistence(timeout: 10 * slow), "Đóng returns to Thế bí")
+            XCTAssertFalse(app.tables[screen].exists)
+        }
+        app.buttons["Xong"].tap()
+        XCTAssertTrue(app.otherElements["PoolScene"].waitForExistence(timeout: 10 * slow), "Xong returns to the table")
+        XCTAssertFalse(app.tables["Puzzles"].exists)
+    }
     /// T2/T3/T4: the task line, a miss shows a real measurement, retry is instant and keeps the session, a hint takes one from the jar.
     func testPuzzleMissThenInstantRetryAndHintFromTheJar() {
         let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--puzzle-miss-qa"]; app.launch()

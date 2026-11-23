@@ -139,7 +139,7 @@ extension Drill { static func starText3(_ n: Int) -> String { String(repeating: 
 final class PuzzleStatsController: UITableViewController {
     private var lines: [(String, String)] = []
     override func viewDidLoad() {
-        super.viewDidLoad(); title = L10n.tr("Đo cục bộ"); tableView.accessibilityIdentifier = "PuzzleStats"
+        super.viewDidLoad(); title = L10n.tr("Đo cục bộ"); tableView.accessibilityIdentifier = "PuzzleStats"; addPushedClose()
         tableView.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
         let d = PlayerStore.shared.data
         let solved = d.puzzleStars.filter { $0.value > 0 }.count
@@ -167,7 +167,7 @@ final class PuzzleStatsController: UITableViewController {
 final class PuzzleBookController: UITableViewController {
     private let keys = PlayerStore.shared.data.puzzleBook.keys.sorted()
     override func viewDidLoad() {
-        super.viewDidLoad(); title = L10n.tr("Sổ lời giải"); tableView.accessibilityIdentifier = "PuzzleBook"
+        super.viewDidLoad(); title = L10n.tr("Sổ lời giải"); tableView.accessibilityIdentifier = "PuzzleBook"; addPushedClose()
         tableView.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1); tableView.rowHeight = UITableView.automaticDimension; tableView.estimatedRowHeight = 70
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { max(1, keys.count) }

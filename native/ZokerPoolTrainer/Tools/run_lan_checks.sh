@@ -24,3 +24,6 @@ build/lan-checks/IntroTimingTests
 # 0.58 L1: the take-back shelf never crosses drills or chapters.
 xcrun swiftc -warnings-as-errors BankLab/UI/UndoShelf058.swift Tests/UndoShelfTests.swift -o build/lan-checks/UndoShelfTests
 build/lan-checks/UndoShelfTests
+# 0.58 L3: pushed screens have a readable "Đóng".
+xcrun swiftc -warnings-as-errors BankLab/UI/PushedChrome058.swift Tests/PushedChromeTests.swift -o build/lan-checks/PushedChromeTests
+build/lan-checks/PushedChromeTests
