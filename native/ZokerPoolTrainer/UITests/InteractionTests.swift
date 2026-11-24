@@ -823,6 +823,23 @@ final class InteractionTests: XCTestCase {
         wait(scene, timeout: 60 * slow) { (scene.value as? String ?? "").contains("status=Quãng đường bi cái") }   // the QA shot has finished
         XCTAssertEqual(field(scene, "midShotLayout"), 0, "layout passes between frames of the shot: \(scene.value as? String ?? "")")
     }
+    /// 0.58c: the same rule through the REAL stroke path (power bar drag + release), which is what the owner's device measurement used
+    /// (2 UIKit layout passes mid-shot while the programmatic QA shot above shows 0). Simulator only — device frame timing NOT RUN.
+    func testNoUIKitLayoutPassAfterPowerBarStroke() {
+        let (app, scene) = launch(["--power-bar-qa", "--layout-trace-qa"])
+        let bar = app.descendants(matching: .any)["PowerBar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 10 * slow), "power bar on the right")
+        let f = bar.frame, travel = (f.height - 20) * 0.9
+        let origin = bar.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+        let from = origin.withOffset(CGVector(dx: f.width / 2, dy: 30))
+        let to = origin.withOffset(CGVector(dx: f.width / 2, dy: 30 + travel * 0.5 * 2.5))
+        from.press(forDuration: 0.2, thenDragTo: to)
+        wait(scene, timeout: 10 * slow) { self.field(scene, "shotSpeed") > 0 }
+        wait(scene, timeout: 60 * slow) { (scene.value as? String ?? "").contains(";moving=0;") && self.field(scene, "shotSpeed") > 0 && self.text(scene, "status") != "" }
+        Thread.sleep(forTimeInterval: 1.0)   // let the finish tick refresh the probe
+        let probe = scene.value as? String ?? ""
+        XCTAssertEqual(field(scene, "midShotLayout"), 0, "layout passes between frames of a power-bar shot — why: \(text(scene, "midShotWhy")) cause: \(text(scene, "layoutCause")) probe: \(probe.prefix(600))")
+    }
     /// 0.49b X7: the Tiến bộ screen lists the app's and the real-table results side by side ("Trong app / Bàn thật").
     func testProgressShowsRealTableColumn() {
         continueAfterFailure = false
