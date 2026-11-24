@@ -33,6 +33,11 @@ package_path="$stage_dir/ZokerPoolTrainer-${version}-Build${build_number}.ipa"
 (cd "$stage_dir" && /usr/bin/zip -q -r "$package_path" Payload)
 mv -f "$package_path" "$output_path"
 /usr/bin/unzip -tq "$output_path"
+# 0.58c: the wood-menu font and its licence must be inside the .app (Wood.titleFont silently fell back to the system font
+# whenever they were left out of Copy Bundle Resources). Fails the build instead of shipping an IPA without them.
+for needed in Petemoss-Regular.ttf OFL.txt; do
+  /usr/bin/unzip -l "$output_path" | grep -q "Payload/[^/]*\.app/$needed\$" || { echo "IPA thiếu $needed (Copy Bundle Resources)" >&2; exit 1; }
+done
 ipa_bytes=$(stat -f%z "$output_path")
 awk -v bytes="$ipa_bytes" 'BEGIN { printf "Dung lượng IPA: %.2f MB\n", bytes/1000000 }'
 if [ "$ipa_bytes" -gt 100000000 ]; then
