@@ -1109,8 +1109,9 @@ final class InteractionTests: XCTestCase {
         // day +40: number > 0 whatever the release epoch is
         let (app, scene) = launchDaily(day: 40, fresh: true)
         XCTAssertTrue(scene.waitForExistence(timeout: 30))
-        wait(scene, timeout: 400 * slow) { self.text(scene, "dailyLocked") == "1" }
-        XCTAssertEqual(text(scene, "dailyTries"), "6", "six tries, then locked")
+        // 0.58c: the wait used to be 400 s × slow, longer than the 15-minute test allowance, so a stuck run died without ever printing the probe.
+        wait(scene, timeout: min(400 * slow, 480)) { self.text(scene, "dailyLocked") == "1" }
+        XCTAssertEqual(text(scene, "dailyTries"), "6", "six tries, then locked — probe: \(scene.value as? String ?? "")")
         XCTAssertTrue(app.alerts["DailyResult"].waitForExistence(timeout: 20 * slow) || app.alerts.firstMatch.waitForExistence(timeout: 5), "the result card")
         var share = text(scene, "dailyShare")   // the probe refreshes a little after the card shows: poll
         let deadline = Date().addingTimeInterval(20 * slow)
