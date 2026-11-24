@@ -420,6 +420,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
             if args.contains("--nearby-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+(args.contains("--lan-host-qa") ? 6:2)){[weak self] in self?.openNearbyLobby(tab:args.contains("--lan-host-qa") ? 0:1)}}   // 0.44-mm Nearby Play screen (QA guest opens Tìm phòng)
             if args.contains("--ux018-match-nine-qa"){startMatch(rule:"nineBall",network:false)}
             if args.contains("--ux018-match-rotation-qa"){startMatch(rule:"rotation15",network:false)}
+            if args.contains("--point-chip-qa"){   // 0.58d item 4: the rules publish a score: the shooter's chip moves by exactly that, the other chip stays
+                func publish(_ scores:[Int],_ shot:Int,_ delay:Double){DispatchQueue.main.asyncAfter(deadline:.now()+delay){[weak self] in guard let self=self,self.matchPlay.active else{return}
+                    self.matchPlay.state["scores"]=scores.map{NSNumber(value:$0)};self.matchPlay.state["shotCount"]=NSNumber(value:shot);self.updateScoreboard()}}
+                publish([0,0],0,2);publish([7,0],1,5)
+                // the second score waits for the test to say it has read the first (a fixed delay raced the slow iPad launch): the test creates this file on the host
+                let flag="/tmp/zoker-chip-step2";try? FileManager.default.removeItem(atPath:flag)
+                Timer.scheduledTimer(withTimeInterval:0.3,repeats:true){t in if FileManager.default.fileExists(atPath:flag){t.invalidate();publish([7,3],2,0)}}
+            }
             // 0.40b: the computer breaks a 9-ball rack by itself (owner: "đến lượt máy cứ chờ"); CI waits for cpuShots ≥ 2.
             if args.contains("--computer-qa") {
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}

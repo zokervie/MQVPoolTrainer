@@ -610,7 +610,8 @@ final class InteractionTests: XCTestCase {
         let status=app.buttons["MatchStatus"]
         XCTAssertTrue(status.waitForExistence(timeout:5 * slow))
         XCTAssertTrue(status.label.contains("Rotation"))
-        XCTAssertTrue(status.label.contains("/61"))
+        XCTAssertFalse(status.label.contains("/61"), "0.58d: the points left the bottom line")
+        XCTAssertTrue(app.staticTexts["PointChip0"].waitForExistence(timeout:5 * slow) && (app.staticTexts["PointChip0"].label.contains("/61")), "0.58d: the target 61 is on the point chip")
         XCTAssertEqual(field(scene,"ballCount"),15)
         XCTAssertEqual(field(scene,"coach"),0)
     }
@@ -1096,6 +1097,28 @@ final class InteractionTests: XCTestCase {
         app.buttons["PuzzleStatsOpen"].tap()
         XCTAssertTrue(app.tables["PuzzleStats"].waitForExistence(timeout: 10 * slow))
         XCTAssertTrue(app.staticTexts["Thế đã giải"].exists)
+    }
+    /// 0.58d item 4: 15 Ball Rotation shows its points in two chips under the top board ("7 /61"); when the rules publish a score only the shooter's chip moves,
+    /// by exactly the value, and the other stays. Real pocketing on the table is NOT covered here (the rules engine settles scores in C++ tests).
+    func testRotationPointChipsFollowTheScore() {
+        let (app, _) = launch(["--ux018-match-rotation-qa", "--point-chip-qa"])
+        let chip0 = app.staticTexts["PointChip0"], chip1 = app.staticTexts["PointChip1"]
+        XCTAssertTrue(chip0.waitForExistence(timeout: 60 * slow) && chip1.waitForExistence(timeout: 10 * slow), "both point chips exist in a 15 Ball match")
+        func value(_ e: XCUIElement) -> String { e.value as? String ?? "" }
+        let deadline = Date().addingTimeInterval(30 * slow)
+        while value(chip0) != "7" && Date() < deadline { Thread.sleep(forTimeInterval: 0.3) }
+        XCTAssertEqual(value(chip0), "7", "shooter's chip moved by exactly the score")
+        XCTAssertEqual(value(chip1), "0", "the other chip did not move")
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "point-chips-7-0"; shot.lifetime = .keepAlways; add(shot)
+        let tag = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? "sim"   // also a plain file on the host Mac for the before/after photos (best effort)
+        try? app.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "/tmp/zoker-chips-\(tag)-7-0.png"))
+        FileManager.default.createFile(atPath: "/tmp/zoker-chip-step2", contents: Data())   // tells the app to publish the second score
+        let d2 = Date().addingTimeInterval(30 * slow)
+        while value(chip1) != "3" && Date() < d2 { Thread.sleep(forTimeInterval: 0.3) }
+        XCTAssertEqual(value(chip1), "3"); XCTAssertEqual(value(chip0), "7", "now the second chip scored; the first stays")
+        XCTAssertLessThanOrEqual(chip0.frame.maxX, chip1.frame.minX, "the two chips do not overlap")
+        let shot2 = XCTAttachment(screenshot: app.screenshot()); shot2.name = "point-chips-7-3"; shot2.lifetime = .keepAlways; add(shot2)
+        try? app.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "/tmp/zoker-chips-\(tag)-7-3.png"))
     }
     /// 0.51 N1: the daily puzzle gives 6 tries, then locks with the share line; a new (QA-set) date opens a new one; today's stays locked on relaunch.
     func testDailyPuzzleLocksAfterSixTriesAndReopensTomorrow() {

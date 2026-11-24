@@ -384,6 +384,7 @@ extension TrainingController {
         }
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
+        if matchPlay.active, matchPlay.state["rule"] as? String == "rotation15" { updatePointChips() }   // 0.58d: the points follow the balls as they drop (text only, no layout)
         if shotActive && shotKind==1 {qaJumpSeen=true}
         let tutState:String=firstShotCoach?.state ?? "none",tutLog:String=firstShotCoach?.log.joined(separator:">") ?? ""
         let camScene:Int=cameraPlan048.map{$0.sceneIndex(at:replayClock)} ?? -1

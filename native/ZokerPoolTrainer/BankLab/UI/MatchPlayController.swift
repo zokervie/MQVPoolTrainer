@@ -575,7 +575,7 @@ extension TrainingController {
         }
         set(12, "R\(matchPlay.raceTo) · V\(matchPlay.rackNo)", rounded(10, .bold), style.centreText, plate: style.centre)
         view.bringSubviewToFront(board)
-        updateGroupStrips()
+        updateGroupStrips(); updatePointChips()   // 0.58d: 15 Ball points sit in two chips under the board (they used to be a small line at the bottom)
     }
     /// Display name for a plate: upper case; long names keep the given name whole and shorten the rest to initials
     /// ("Nguyễn Văn Anh" → "N.V. ANH"); the computer's level is abbreviated ("Máy · Quarter Pro" → "MÁY · QP").
@@ -715,8 +715,7 @@ extension TrainingController {
         else if matchPlay.safety { detail = "Đã gọi đánh an toàn" }
         else if matchPlay.calledBall > 0 { detail = "Gọi bi \(matchPlay.calledBall) · lỗ \(matchPlay.calledPocket + 1)" }
         else if matchBool("requiresCall") { detail = "Tự động: bi đi thẳng vào lỗ được tính · băng/combo: bấm Call" }
-        if let scores = matchPlay.state["scores"] as? [Int], scores.count == 2, matchPlay.state["rule"] as? String == "rotation15" { detail += " · \(scores[0])–\(scores[1])/61" }
-        if let groups = matchPlay.state["groups"] as? [Int], groups.count == 2, matchPlay.state["rule"] as? String == "eightBall", groups[player] >= 0 { detail += groups[player] == 0 ? " · bi trơn" : " · bi sọc" }
+               if let groups = matchPlay.state["groups"] as? [Int], groups.count == 2, matchPlay.state["rule"] as? String == "eightBall", groups[player] >= 0 { detail += groups[player] == 0 ? " · bi trơn" : " · bi sọc" }
         return "\(name) · \(room) · \(seat)\n\(detail)"
     }
 
