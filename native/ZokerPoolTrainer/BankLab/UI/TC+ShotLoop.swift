@@ -49,7 +49,7 @@ extension TrainingController {
     func loadDrill(_ index:Int){
         guard matchAllowsEditing else{return}
         guard !presentationBusy,localTurn else{return}
-        if puzzleSession != nil && !Drill.all[index].id.hasPrefix("p-"){puzzleSession=nil;syncPuzzleBar()}   // 0.50: leaving a puzzle ends its session
+        if puzzleSession != nil && !(Drill.all[index].id.hasPrefix("p-") || Drill.all[index].id.hasPrefix("m-p-")){puzzleSession=nil;syncPuzzleBar()}   // 0.50: leaving a puzzle ends its session. 0.58d: a MIRRORED puzzle is "m-p-…" (retry used to end its session)
         drillIndex=index;drillVariant=0;roundResults=[];roundSmallMade=0;roundCoachUsed=false;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
         PlayerStore.shared.noteDrillOpened(drill.id)   // 0.45 M5: attempt time starts when the drill is on the table
         table.target(coachOn || inTrainingMode ? drill.goal:nil)
