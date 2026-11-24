@@ -408,6 +408,7 @@ final class IntroDirector0441 {
         finished = true
         Self.lastWall = CACurrentMediaTime() - startedAt; Self.lastFilm = CACurrentMediaTime() - start; Self.lastMode = mode; if skipAt > 0 { Self.lastSkipMs = (CACurrentMediaTime() - skipAt) * 1000 }
         tc.introFinishCount += 1
+        tc.publishIntroProbe()
         link?.invalidate(); link = nil
         audio.stop(); haptics.stop(); teardown3D()
         overlay.removeFromSuperview()
@@ -419,6 +420,21 @@ final class IntroDirector0441 {
 }
 
 extension TrainingController {
+    /// 0.58c (CI 172: testIntroPlaysBeforeLobbyAndTapSkips "finish ran exactly once" and testFirstLaunchIntroEndsWithin3Point5Seconds
+    /// waiting 80 s for introMode). `finish()` runs once (guarded, and the intro is started once), but the full probe string is only
+    /// rewritten by the next shot-loop tick, and while the intro owned the table the tick only refreshed flow/flowLog. On a slow runner
+    /// the Lobby is up before that tick, so the test read the pre-intro `introDone=0` / no `introMode` for ever. The intro now writes its
+    /// own keys into the probe at the moment it finishes (QA launches only), whatever the tick does next.
+    func publishIntroProbe() {
+        guard QA.has("--intro-lobby-qa") || QA.has("--visual-qa") || QA.has("--keep-lobby-qa") else { return }
+        let keys = ["introDone", "introMode", "introFilm", "introWall", "introSkipMs"]
+        let kept = (scn.accessibilityValue ?? "").components(separatedBy: ";").filter { part in !keys.contains { part.hasPrefix($0 + "=") } }
+        let fresh = ["introDone=\(introFinishCount)", "introMode=\(IntroDirector0441.lastMode)",
+                     "introFilm=\(String(format: "%.2f", IntroDirector0441.lastFilm))",
+                     "introWall=\(String(format: "%.2f", IntroDirector0441.lastWall))",
+                     "introSkipMs=\(Int(IntroDirector0441.lastSkipMs))"]
+        scn.accessibilityValue = (kept + fresh).joined(separator: ";") + ";"
+    }
     static let introSeenKey = Prefs.introSeen     // kept from 0.43 so a player who saw it does not see the long one again
     /// nil = no intro on this launch. First launch: the 6 s film; later: the ≤ 1.2 s logo. Setting `introEnabled043`
     /// (Tuỳ chỉnh) is respected. QA launches skip it except --intro-qa (probe) and --intro-lobby-qa (UI test).
