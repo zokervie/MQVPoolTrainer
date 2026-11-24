@@ -39,5 +39,8 @@ build/lan-checks/AchievementsTests
 # 0.58: our own QR encoder (no CoreImage on the flyer path) is read back by an independent decoder.
 xcrun swiftc -warnings-as-errors BankLab/UI/QRCode058.swift Tests/QRCodeTests.swift -o build/lan-checks/QRCodeTests
 build/lan-checks/QRCodeTests
+# 0.58c item 5: camera policy around the own stroke (Wi-Fi) and the aim camera once per turn.
+xcrun swiftc -warnings-as-errors BankLab/UI/MatchCameraPolicy058c.swift Tests/MatchCameraPolicyTests.swift -o build/lan-checks/MatchCameraPolicyTests
+build/lan-checks/MatchCameraPolicyTests
 # 0.58c: Petemoss + OFL.txt stay in Copy Bundle Resources (and UIAppFonts); the IPA step re-checks the packed .ipa.
 python3 Tools/check_bundle_fonts.py

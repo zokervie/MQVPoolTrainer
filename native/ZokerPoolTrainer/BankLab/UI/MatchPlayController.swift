@@ -68,6 +68,8 @@ final class MatchPlayState {
     /// 0.58c: dimmed "Mất kết nối · đang tìm lại" layer over the table while the link is down and this device cannot play on.
     var linkOverlay: LinkLostOverlay?
     var lastLoggedBlock: String?
+    /// 0.58c item 5: aim camera once per turn; hold the own angle while the own stroke runs (MatchCameraPolicy058c).
+    var lastAimTurnKey = "", holdingOwnShot = false
 }
 
 /// 0.58c (owner, real devices on weak Wi-Fi: both phones changed network, the table froze on the old position and nothing
@@ -359,6 +361,7 @@ extension TrainingController {
         matchPlay.rules = BLMatch(rule: rule)
         matchPlay.rules?.threeBallBreak = UserDefaults.standard.bool(forKey: Prefs.threeBallBreak)   // 0.49c G8: tournament option, off by default
         matchPlay.rules?.reset(breaker: 0)
+        matchPlay.lastAimTurnKey = ""; matchPlay.holdingOwnShot = false; placementPose = nil   // 0.58c item 5
         matchPlay.forfeitWinner = nil
         matchPlay.shotID = 0; matchPlay.elapsed = 0
         matchPlay.playout.reset()
@@ -611,14 +614,30 @@ extension TrainingController {
         // kept the state from while the room was waiting. Any change of turn now refreshes every control once.
         if localTurn != wasLocal { DispatchQueue.main.async { [weak self] in self?.updateControls() } }
         updateScoreboard()
-        table.spectatorPivot = !localTurn
+        // 0.58c item 5b (owner, Wi-Fi: after every own stroke the camera flew to another angle). Losing input permission
+        // because the OWN stroke started is not "the opponent is playing": keep the angle, ease back along the same line of
+        // sight, and show the spectator view only once the balls stopped and the turn really passed.
+        let networked = matchPlay.session.role != .none
+        let motion = matchPlay.session.role == .guest ? (matchPlay.session.latestSnapshot?.isMoving == true)
+            : (shotActive || BLShotCameraBusy(shotCameraState))
+        let outcome = MatchCameraPolicy.decide(wasLocal: wasLocal, isLocal: localTurn, currentPlayer: matchInt("currentPlayer"),
+                                               localPlayer: matchPlay.session.localPlayer, networked: networked, motion: motion,
+                                               holdingOwnShot: matchPlay.holdingOwnShot, cameraIsAim: table.cameraMode == 2 && !observationCamera)
+        let wasHolding = matchPlay.holdingOwnShot
+        matchPlay.holdingOwnShot = outcome.holdingOwnShot
+        table.spectatorPivot = !localTurn && !outcome.holdingOwnShot
         // 0.29: when the turn comes to this device, it is already in the ready-to-shoot aim view.
-        if localTurn && !wasLocal && !shotActive && replayIndex == nil && table.cameraMode != 2 {
-            aimCameraYaw = 0; shotCameraAnchor = nil; selectCamera(2)
+        if outcome.action == .restoreAim && !shotActive && replayIndex == nil && !isPlacingBalls {
+            if matchPlay.session.role == .none { aimCameraYaw = 0; shotCameraAnchor = nil; selectCamera(2) }
+            else { restoreAimCamera(transition: 0.45) }   // the pre-stroke aim pose (saved at the strike), not the pulled-back one
+        }
+        if outcome.action == .holdAndZoomOut && table.cameraMode == 2 {
+            // Same yaw, same pivot: only the distance grows (the eye slides along the aim axis), eased by the camera transition.
+            beginCameraTransition(0.6); table.zoom = MatchCameraPolicy.zoomAfterOwnShot(table.zoom)
         }
         // 0.42 item 6 (owner: watching the opponent's turn followed every aim twitch — dizzy). Tuỳ chỉnh → Camera lượt
         // đối thủ: 0 broadcast (fixed high side view of the whole table, default), 1 top, 2 follow the opponent's cue.
-        if !localTurn && wasLocal && replayIndex == nil {
+        if outcome.action == .spectator && replayIndex == nil {
             switch UserDefaults.standard.object(forKey: "spectatorCam042") as? Int ?? 0 {
             case 1: beginCameraTransition(0.6); selectCamera(1)
             case 2: break
@@ -628,6 +647,9 @@ extension TrainingController {
                 table.orbit = -0.20   // yaw 0 in placeCamera: from the long side, the whole table across a landscape screen
             }
         }
+        // The pulled-back eye must not become the remembered aim view (it would compound at every stroke).
+        if wasHolding, outcome.action == .spectator, let saved = savedAimCamera { cameraMemory[2] = saved }
+        matchEnsureAimCameraForTurn()
         matchPlay.banner.isHidden = locked || menuOpen
         matchPlay.banner.setTitle(matchStatusText().replacingOccurrences(of: "\n", with: "  ·  "), for: .normal)
         presentPendingChoiceIfNeeded()
@@ -648,6 +670,18 @@ extension TrainingController {
         guideOn = false
         wakeRendering()
         if matchPlay.session.role != .guest { publishMatchSnapshot() }
+    }
+    /// 0.58c item 5a (owner, 9 Ball Pass & play: the camera opened high and skewed, "Toàn cảnh" was needed to get the usual view).
+    /// On entering a match, on every new turn and once the cue ball is placed, the camera goes to the default aim view behind the
+    /// cue ball along the cue. Not while the rack is being built, the balls move, a stroke is held, or the cue ball is being placed.
+    func matchEnsureAimCameraForTurn() {
+        guard matchPlay.active, localTurn, !shotActive, replayIndex == nil, !isPlacingBalls, matchPlay.placementDraft == nil,
+              !table.rackIntroPlaying, !BLShotCameraBusy(shotCameraState), !matchPlay.holdingOwnShot, !locked else { return }
+        let key = "\(matchPlay.rackNo)-\(matchInt("shotCount"))-\(matchInt("currentPlayer"))-\(matchBool("ballInHand") ? 1 : 0)"
+        guard MatchCameraPolicy.wantsAimCamera(turnKey: key, lastKey: matchPlay.lastAimTurnKey, localTurn: true, busy: false) else { return }
+        let first = matchPlay.lastAimTurnKey.isEmpty
+        matchPlay.lastAimTurnKey = key
+        if first || table.cameraMode != 2 || observationCamera { restoreAimCamera(transition: first ? 0.2 : 0.45) }
     }
     func matchToggleNumbers() {
         matchPlay.showNumbers.toggle()
@@ -792,7 +826,7 @@ extension TrainingController {
         // Automated QA launches (UI tests, probes) skip the intro so timing-based checks stay deterministic.
         guard !ProcessInfo.processInfo.arguments.contains(where: { $0 == "--visual-qa" || $0.hasPrefix("--ux") || $0.hasSuffix("-qa") }) else { return }
         renderUntil = ProcessInfo.processInfo.systemUptime + 4
-        table.playRackIntro(balls) { [weak self] in self?.wakeRendering(); self?.updateControls() }
+        table.playRackIntro(balls) { [weak self] in self?.wakeRendering(); self?.updateControls(); self?.matchEnsureAimCameraForTurn() }
         for (delay, impact) in [(1.0, 0.35), (1.35, 0.5), (1.7, 0.3)] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self = self, self.table.rackIntroPlaying, UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true else { return }
@@ -1113,7 +1147,8 @@ extension TrainingController {
         if let draft = matchPlay.placementDraft, let cue = draft.first(where: { $0.id == 0 }) {
             guard matchCuePositionValid(draft) else { notifyStatus("Vị trí vướng bi / ngoài vùng đặt hợp lệ"); return true }
             submitMatchAction(.placeCue, placement: LANPlacement(x: cue.x, y: cue.y))
-            if let pose = placementPose { applyCamera(pose) }; placementPose = nil
+            // 0.58c item 5a: back to the aim view, not to whatever pose was captured before the top-down placement view.
+            placementPose = nil; restoreAimCamera(transition: 0.45)
             if matchPlay.session.role == .guest {
                 // Only the authoritative snapshot confirms this placement.
                 notifyStatus("Đang xác nhận vị trí với máy chủ")
@@ -1150,7 +1185,7 @@ extension TrainingController {
         guard matchPlay.active else { return false }
         matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
         isPlacingBalls = false; table.placementBlocked = false
-        if let pose = placementPose { applyCamera(pose) }; placementPose = nil
+        placementPose = nil; restoreAimCamera(transition: 0.45)   // 0.58c item 5a
         refresh(); updateControls(); syncMatchControls(); return true
     }
 

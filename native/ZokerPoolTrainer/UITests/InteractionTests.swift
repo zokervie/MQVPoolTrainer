@@ -800,6 +800,24 @@ final class InteractionTests: XCTestCase {
         b.tap()
         wait(scene, timeout: 10 * slow) { self.field(scene, "editing") == 0 }
     }
+    /// 0.58c item 5a: entering a 9-ball match (Pass & play) and placing the cue ball behind the head string both end in the aim
+    /// camera (mode 2) without any touch on the camera buttons ("Toàn cảnh" was needed before).
+    func testMatchEntryAndPlacementEndInTheAimCamera() {
+        let (app, scene) = launch(["--ux018-match-nine-qa"])
+        wait(scene, timeout: 30 * slow) { self.field(scene, "mode") == 2 && self.field(scene, "moving") == 0 }
+        XCTAssertEqual(field(scene, "mode"), 2, "match entry: aim camera with no touch — \(scene.value as? String ?? "")")
+        let b = app.buttons["PlaceBallButton"]
+        XCTAssertTrue(b.waitForExistence(timeout: 20 * slow))
+        if b.isEnabled {
+            b.tap()
+            wait(scene, timeout: 10 * slow) { self.field(scene, "editing") == 1 }
+            XCTAssertEqual(field(scene, "mode"), 1, "placing uses the top-down view")
+            b.tap()
+            wait(scene, timeout: 10 * slow) { self.field(scene, "editing") == 0 }
+            Thread.sleep(forTimeInterval: 1.0)   // the camera transition (0.45 s) must have finished
+            XCTAssertEqual(field(scene, "mode"), 2, "after placing: aim camera again — \(scene.value as? String ?? "")")
+        }
+    }
     /// 0.49c G3: the bar is small, magnifies ×2.5 while held (the load still matches the core mapping), and a switch next to "Đặt bi" turns it off/on.
     func testPowerBarIsSmallZoomsWhenHeldAndHasASwitch() {
         let (app, scene) = launch(["--power-bar-qa"])
