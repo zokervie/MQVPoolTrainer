@@ -186,6 +186,52 @@ import Foundation
         try check(ledger.firstTime(shot: 10, event: drop), "the next shot plays its own drop")
         var other = drop; other.a = 6
         try check(ledger.firstTime(shot: 10, event: other), "another ball dropping is a different sound")
-        print("PASS LAN wire: \(checks) production codec/authority/roundtrip validation checks; two-device transport NOT_RUN")
+        // 0.58c: every refusal has a named reason (log + "never swallow a stroke"); allows == (denyReason == nil).
+        var live = state; live.revision = 9; live.isMoving = false; live.isPaused = false; live.currentPlayer = 1
+        var cmd9 = command; cmd9.expectedRevision = 9
+        try check(LANAuthorityGate.denyReason(cmd9, snapshot: live, matchID: match, expectedPlayer: 1) == nil, "denyReason nil when allowed")
+        live.isPaused = true
+        try check(LANAuthorityGate.denyReason(cmd9, snapshot: live, matchID: match, expectedPlayer: 1) == "snapshot-paused", "paused snapshot is named")
+        live.isPaused = false; live.isMoving = true
+        try check(LANAuthorityGate.denyReason(cmd9, snapshot: live, matchID: match, expectedPlayer: 1) == "table-moving", "moving table is named")
+        live.isMoving = false; live.currentPlayer = 0
+        try check(LANAuthorityGate.denyReason(cmd9, snapshot: live, matchID: match, expectedPlayer: 1)?.hasPrefix("not-your-turn") == true, "wrong turn is named")
+        live.currentPlayer = 1
+        try check(LANAuthorityGate.denyReason(cmd9, snapshot: live, matchID: match, expectedPlayer: 1, consumedRevision: 9)?.hasPrefix("revision-consumed") == true,
+                  "consumed revision is named")
+
+        // 0.58c: ten alternating turns, as the gate sees them. The guest's command consumes its revision; the host publishes at least one
+        // newer revision (shot start) before its own turn, so the guest's NEXT command (made on a fresher snapshot) is never "consumed".
+        var revision: UInt64 = 10, consumed: UInt64?, epoch: UInt64 = 10, processed = Set<String>(), accepted = 0
+        for turn in 0..<10 {
+            let player = turn % 2 == 0 ? 1 : 0
+            var snap = state; snap.revision = revision; snap.isMoving = false; snap.currentPlayer = player; snap.matchID = match
+            var c = LANCommand(matchID: match, expectedRevision: revision, player: player, action: .strike, shot: shot)
+            c.id = UUID().uuidString
+            if player == 1 {
+                if LANAuthorityGate.denyReason(c, snapshot: snap, matchID: match, expectedPlayer: 1, alreadyProcessed: processed,
+                                               consumedRevision: consumed, epochRevision: epoch) == nil {
+                    accepted += 1; consumed = c.expectedRevision; processed.insert(c.id)
+                }
+            } else { accepted += 1; processed.insert(c.id) }   // the host's own stroke is judged by the live rules, not by this gate
+            revision += 3; epoch = revision   // shot start + moving snapshots + final snapshot
+        }
+        try check(accepted == 10, "10 alternating turns: every stroke goes through (got \(accepted))")
+
+        // 0.58c: unreliable packets keep their own ordering and the flag survives the wire; old peers (no flag) decode as reliable.
+        var lossy = LANEnvelope(roomCode: "123456", matchID: match, sequence: 5, kind: .snapshot); lossy.snapshot = state; lossy.unreliable = true
+        let lossyBack = try LANWireCodec.decode(try LANWireCodec.encode(lossy))
+        try check(lossyBack.unreliable == true, "unreliable flag roundtrips")
+        let plain = try LANWireCodec.decode(try LANWireCodec.encode(LANEnvelope(roomCode: "123456", matchID: match, sequence: 6, kind: .ping)))
+        try check(plain.unreliable == nil, "a reliable packet carries no flag")
+
+        // 0.58c: a backed-up send queue drops snapshots a newer one has overtaken.
+        let staleGate = LANStaleGate()
+        staleGate.noteQueued(10); staleGate.noteQueued(11)
+        try check(staleGate.isStale(10) && !staleGate.isStale(11), "older queued snapshot is stale, newest is not")
+        LANLog.log("test", "log line")
+        try check(LANLog.lines.last?.contains("log line") == true, "LANLog keeps timestamped lines")
+
+        print("PASS LAN wire:\(checks) production codec/authority/roundtrip validation checks; two-device transport NOT_RUN")
     }
 }

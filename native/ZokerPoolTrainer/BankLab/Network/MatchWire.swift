@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Bounded wire data. 0.44: the guest runs the SAME deterministic solver from `LANShotStart` (lockstep) and the host's
 /// snapshots verify it; if they ever disagree the guest falls back to presenting the host snapshots.
@@ -207,6 +208,9 @@ struct LANEnvelope: Codable {
     var message: String? = nil
     var aim: LANAim? = nil
     var shotStart: LANShotStart? = nil
+    /// 0.58c: sent with MC `.unreliable` (moving snapshots, aim). Such packets are ordered on their own counter so a
+    /// late one can never make the receiver drop a reliable packet that carries a lower sequence. nil = reliable.
+    var unreliable: Bool? = nil
 }
 
 /// The same gate used by the live host and protocol regression harness.
@@ -214,7 +218,14 @@ enum LANAuthorityGate {
     static func allows(_ command: LANCommand, snapshot: LANSnapshot, matchID: String,
                        expectedPlayer: Int, alreadyProcessed: Set<String> = [],
                        consumedRevision: UInt64? = nil, epochRevision: UInt64? = nil) -> Bool {
-        // 0.44 (owner: "đã hiện lực mà không ra cơ" in Wi‑Fi play). Exact revision equality rejected a stroke whenever the
+        denyReason(command, snapshot: snapshot, matchID: matchID, expectedPlayer: expectedPlayer,
+                   alreadyProcessed: alreadyProcessed, consumedRevision: consumedRevision, epochRevision: epochRevision) == nil
+    }
+    /// 0.58c: nil = allowed; otherwise a short reason for the log and for the "never swallow a shot" message.
+    static func denyReason(_ command: LANCommand, snapshot: LANSnapshot, matchID: String,
+                           expectedPlayer: Int, alreadyProcessed: Set<String> = [],
+                           consumedRevision: UInt64? = nil, epochRevision: UInt64? = nil) -> String? {
+        // 0.44 (owner: "đã hiện lực mà không ra cơ" in Wi-Fi play). Exact revision equality rejected a stroke whenever the
         // host re-published something cosmetic (aim angle, pause flag, audio events) between the guest's last snapshot
         // and the command. The host now passes the revision at which the current game state (balls, turn, rules, motion)
         // began: any revision inside that epoch describes the same table, so the command is still valid.
@@ -224,13 +235,23 @@ enum LANAuthorityGate {
         } else {
             revisionOK = command.expectedRevision == snapshot.revision
         }
-        guard command.isValid, snapshot.isValid, (0...1).contains(expectedPlayer),
-              UUID(uuidString: matchID) != nil, snapshot.matchID == matchID,
-              command.matchID == matchID, command.player == expectedPlayer,
-              revisionOK, !snapshot.isPaused,
-              consumedRevision.map({ command.expectedRevision > $0 }) ?? true,
-              !alreadyProcessed.contains(command.id) else { return false }
-        return command.action == .concede || (!snapshot.isMoving && snapshot.currentPlayer == expectedPlayer)
+        if !command.isValid { return "command-invalid" }
+        if !snapshot.isValid { return "snapshot-invalid" }
+        if !(0...1).contains(expectedPlayer) { return "player-range" }
+        if UUID(uuidString: matchID) == nil || snapshot.matchID != matchID || command.matchID != matchID { return "match-id" }
+        if command.player != expectedPlayer { return "wrong-player" }
+        if !revisionOK {
+            let epochText = epochRevision.map { String($0) } ?? "-"
+            return "revision(cmd \(command.expectedRevision) snap \(snapshot.revision) epoch \(epochText))"
+        }
+        if snapshot.isPaused { return "snapshot-paused" }
+        if let consumed = consumedRevision, command.expectedRevision <= consumed { return "revision-consumed(\(consumed))" }
+        if alreadyProcessed.contains(command.id) { return "duplicate-command" }
+        if command.action != .concede {
+            if snapshot.isMoving { return "table-moving" }
+            if snapshot.currentPlayer != expectedPlayer { return "not-your-turn(current \(snapshot.currentPlayer))" }
+        }
+        return nil
     }
     static func acceptsSnapshot(_ value: LANSnapshot, matchID: String, lastRevision: UInt64?,
                                 awaitingFullSync: Bool) -> Bool {
@@ -238,6 +259,30 @@ enum LANAuthorityGate {
         guard let previous = lastRevision else { return true }
         return value.revision > previous || (awaitingFullSync && value.revision == previous)
     }
+}
+
+/// 0.58c: timestamped network log (os_log + a ring buffer the QA harness and the "Mất kết nối" overlay can read).
+/// One line per event: MCSession state, remoteReady/isConnected, why input is blocked, why the gate refused, send time.
+enum LANLog {
+    private static let logger = Logger(subsystem: "vn.zoker.pool", category: "lan")
+    private static let lock = NSLock()
+    private static var ring: [String] = []
+    static var echo = ProcessInfo.processInfo.arguments.contains("--lan-log")
+    static func log(_ tag: String, _ message: @autoclosure () -> String) {
+        let line = String(format: "%.3f [%@] ", ProcessInfo.processInfo.systemUptime, tag) + message()
+        lock.lock(); ring.append(line); if ring.count > 600 { ring.removeFirst(ring.count - 600) }; lock.unlock()
+        logger.notice("\(line, privacy: .public)")
+        if echo { print("LANLOG " + line) }
+    }
+    static var lines: [String] { lock.lock(); defer { lock.unlock() }; return ring }
+}
+
+/// 0.58c: tracks the newest queued snapshot so a background sender can drop stale ones when the queue backs up.
+final class LANStaleGate {
+    private let lock = NSLock()
+    private var newest: UInt64 = 0
+    func noteQueued(_ sequence: UInt64) { lock.lock(); newest = max(newest, sequence); lock.unlock() }
+    func isStale(_ sequence: UInt64) -> Bool { lock.lock(); defer { lock.unlock() }; return sequence < newest }
 }
 
 enum LANWireError: Error { case tooLarge, incompatibleVersion, malformedEnvelope }

@@ -65,6 +65,57 @@ final class MatchPlayState {
     var scoreboardBuilt = false
     var bannerConfigured = false
     var lastStatus = ""
+    /// 0.58c: dimmed "Mất kết nối · đang tìm lại" layer over the table while the link is down and this device cannot play on.
+    var linkOverlay: LinkLostOverlay?
+    var lastLoggedBlock: String?
+}
+
+/// 0.58c (owner, real devices on weak Wi-Fi: both phones changed network, the table froze on the old position and nothing
+/// said why). Dims the table, counts the seconds of the automatic reconnect, and offers Thử lại / Rời phòng. When the
+/// automatic window ends it says so plainly instead of staying silent.
+final class LinkLostOverlay: UIView {
+    let titleLabel = UILabel(), detailLabel = UILabel()
+    let retryButton = UIButton(type: .system), leaveButton = UIButton(type: .system)
+    var onRetry: (() -> Void)?, onLeave: (() -> Void)?
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        accessibilityIdentifier = "linkLostOverlay"
+        backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        titleLabel.font = .systemFont(ofSize: 20, weight: .bold); titleLabel.textColor = .white
+        titleLabel.textAlignment = .center; titleLabel.numberOfLines = 2; titleLabel.accessibilityIdentifier = "linkLostTitle"
+        detailLabel.font = .systemFont(ofSize: 14); detailLabel.textColor = UIColor.white.withAlphaComponent(0.85)
+        detailLabel.textAlignment = .center; detailLabel.numberOfLines = 4
+        retryButton.setTitle("Thử lại", for: .normal); retryButton.accessibilityIdentifier = "linkLostRetry"
+        leaveButton.setTitle("Rời phòng", for: .normal); leaveButton.accessibilityIdentifier = "linkLostLeave"
+        for button in [retryButton, leaveButton] {
+            button.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+            button.setTitleColor(.white, for: .normal)
+            button.backgroundColor = UIColor.white.withAlphaComponent(0.22); button.layer.cornerRadius = 10
+            button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 22, bottom: 10, right: 22)
+        }
+        retryButton.addAction(UIAction { [weak self] _ in self?.onRetry?() }, for: .touchUpInside)
+        leaveButton.addAction(UIAction { [weak self] _ in self?.onLeave?() }, for: .touchUpInside)
+        let buttons = UIStackView(arrangedSubviews: [retryButton, leaveButton]); buttons.axis = .horizontal; buttons.spacing = 14
+        let stack = UIStackView(arrangedSubviews: [titleLabel, detailLabel, buttons])
+        stack.axis = .vertical; stack.spacing = 12; stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: centerXAnchor), stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            stack.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, multiplier: 0.8)
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+    /// `seconds` since the link dropped; `window` = how long the app keeps trying on its own.
+    func update(seconds: Int, window: Int, expired: Bool) {
+        if expired {
+            titleLabel.text = "Hết thời gian tự nối lại"
+            detailLabel.text = "Đã thử \(seconds) s mà chưa thấy bạn chơi. Kiểm tra cả hai máy cùng Wi-Fi rồi bấm Thử lại, hoặc Rời phòng."
+        } else {
+            titleLabel.text = "Mất kết nối · đang tìm lại (\(seconds) s)"
+            detailLabel.text = "Trận tạm dừng, thế bi được giữ nguyên. Tự nối lại tối đa \(window) s; hai máy cần còn mở ứng dụng."
+        }
+    }
 }
 
 extension TrainingController {
@@ -80,8 +131,22 @@ extension TrainingController {
     /// 0.41 (owner: "đến lượt ai nấy đánh, tránh chờ đợi"): the host holds the rules and the solver, so it keeps
     /// playing its own turns while the guest is away (screen off, other app). The guest resyncs in full on return.
     var matchHostSolo: Bool {
+        // 0.58c (owner, real devices on weak Wi-Fi: the host's stroke vanished right after the guest's). This used to also
+        // need `awaySince`, which the 0.5 s watcher sets late — in that gap the host was locked out without a word. Once the
+        // room has been linked, a dropped link never takes the host's own turn away.
         matchPlay.active && matchPlay.session.role == .host && !matchPlay.session.isConnected &&
-            matchPlay.everConnected && matchPlay.awaySince != nil
+            (matchPlay.everConnected || matchPlay.session.hasEverConnected)
+    }
+    /// 0.58c: why the local player cannot stroke although the rules say it is their turn (nil = nothing blocks).
+    /// Written to the log whenever it changes and shown in the banner, so a stroke is never refused in silence.
+    var matchBlockReason: String? {
+        guard matchPlay.active, matchPlay.session.role != .none, matchInt("winner", fallback: -1) < 0,
+              matchInt("currentPlayer") == matchPlay.session.localPlayer else { return nil }
+        if matchHostSolo { return nil }
+        if shotActive || BLShotCameraBusy(shotCameraState) { return nil }   // our own shot is running: not a block
+        if let reason = matchPlay.session.inputBlockReason { return reason }
+        if matchPlay.session.role == .guest, matchPlay.session.latestSnapshot?.isMoving == true { return "Đang đồng bộ lượt…" }
+        return nil
     }
     var matchAllowsInput: Bool {
         guard matchPlay.active else { return true }
@@ -156,6 +221,11 @@ extension TrainingController {
                 self.syncMatchControls()
                 if session.role == .host { self.publishMatchSnapshot(force: true) }
             }
+        }
+        session.onBlocked = { [weak self] text in
+            guard let self = self else { return }
+            LANLog.log("ui", "stroke blocked: \(text)")
+            self.notifyStatus(text); self.syncMatchControls()
         }
         session.onError = { [weak self] text in
             guard let self = self else { return }
@@ -522,7 +592,7 @@ extension TrainingController {
         UIApplication.shared.isIdleTimerDisabled = false; matchPlay.awaySince = nil; matchPlay.everConnected = false
         matchPlay.remoteAim = nil; matchRestoreLocalCue()
         matchPlay.session.leave()
-        matchPlay.rules = nil; matchPlay.state = [:]
+        matchPlay.rules = nil; matchPlay.state = [:]; matchPlay.linkOverlay?.isHidden = true
         matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
         matchPlay.guestBalls = []; matchPlay.snapshots = []
         matchPlay.banner.isHidden = true
@@ -595,6 +665,7 @@ extension TrainingController {
             }
             return "\(room) · Chủ phòng tạm vắng \(away) s\nChờ nối lại · bạn được xử thắng sau \(left) s"
         }
+        if let blocked = matchBlockReason { return "\(room) · \(blocked)\n\(matchPlay.lastStatus)" }
         if matchSimulationPaused { return "\(room) · TẠM DỪNG\n\(matchPlay.lastStatus)" }
         let winner = matchInt("winner", fallback: -1)
         if matchPlay.matchWinner >= 0 { return "\(name) · \(room)\n\(matchPlay.names[matchPlay.matchWinner]) thắng trận \(matchPlay.frames.max() ?? 0)–\(matchPlay.frames.min() ?? 0) · chạm để chơi trận mới" }
@@ -1685,11 +1756,45 @@ extension TrainingController {
         matchPlay.localCueVisual = nil
         table.selectCue(local.0); table.cueElevation = local.1
     }
+    /// 0.58c: dim layer + countdown + Thử lại / Rời phòng while the link is down and this device cannot play on
+    /// (the host on its own turn keeps playing and sees only the banner).
+    func updateLinkOverlay() {
+        let session = matchPlay.session
+        let lost = matchPlay.active && session.role != .none && matchPlay.matchWinner < 0 && !session.isConnected &&
+            (matchPlay.everConnected || session.hasEverConnected) && !matchAllowsInput && !shotActive
+        let away = matchPlay.awaySince.map { ProcessInfo.processInfo.systemUptime - $0 } ?? 0
+        guard lost, away >= 2 else { matchPlay.linkOverlay?.isHidden = true; return }
+        let overlay: LinkLostOverlay
+        if let existing = matchPlay.linkOverlay { overlay = existing } else {
+            overlay = LinkLostOverlay(frame: view.bounds)
+            overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            overlay.onRetry = { [weak self] in
+                LANLog.log("ui", "overlay: Thử lại"); self?.matchPlay.session.reconnect(); self?.updateLinkOverlay()
+            }
+            overlay.onLeave = { [weak self] in
+                LANLog.log("ui", "overlay: Rời phòng"); self?.matchPlay.linkOverlay?.isHidden = true; self?.leaveMatch()
+            }
+            view.addSubview(overlay); matchPlay.linkOverlay = overlay
+        }
+        var expired = false
+        if case .failed = session.lobby.phase { expired = true }
+        if away >= NearbyLobby.giveUpAfter { expired = true }
+        overlay.update(seconds: Int(away), window: Int(NearbyLobby.giveUpAfter), expired: expired)
+        overlay.isHidden = false
+        view.bringSubviewToFront(overlay)
+    }
     /// Every 0.5 s while a network match runs: track absence, foul an absent player's turn, award the match.
     func matchNetworkWatch() {
         let session = matchPlay.session
         guard matchPlay.active, session.role != .none else { matchPlay.awaySince = nil; return }
         UIApplication.shared.isIdleTimerDisabled = true   // the screen never auto-locks mid-match (owner: "màn hình tắt")
+        let blocked = matchBlockReason
+        if blocked != matchPlay.lastLoggedBlock {
+            matchPlay.lastLoggedBlock = blocked
+            LANLog.log("ui", "matchAllowsInput=\(matchAllowsInput) blockReason=\(blocked ?? "none") connected=\(session.isConnected) solo=\(matchHostSolo) turn=\(matchInt("currentPlayer")) local=\(session.localPlayer) shotActive=\(shotActive)")
+            syncMatchControls()
+        }
+        updateLinkOverlay()
         if session.isConnected {
             if matchPlay.awaySince != nil { notifyStatus("Đối thủ đã quay lại · tiếp tục trận"); syncMatchControls() }
             matchPlay.everConnected = true; matchPlay.awaySince = nil; matchPlay.awayTurnKey = ""

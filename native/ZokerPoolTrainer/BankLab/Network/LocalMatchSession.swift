@@ -105,6 +105,18 @@ final class LocalMatchSession: NSObject {
     private var scannedCodes: [MCPeerID: String] = [:]
     private var lastError = ""
     private var lastErrorAt = -Double.infinity
+    /// 0.58c: JSON encode + MCSession.send run here, never on the main thread (weak Wi-Fi can block `send`).
+    private let sendQueue = DispatchQueue(label: "vn.zoker.lan.send", qos: .userInitiated)
+    private let staleGate = LANStaleGate()
+    private var receivedUnreliableSequence: UInt64 = 0
+    /// 0.58c: true once this room has been fully linked (hello both ways) — lets the host keep playing its own turn
+    /// when the link drops, before the 0.5 s watcher has even noticed.
+    private(set) var hasEverConnected = false
+    private var lastHelloRetry = 0.0
+    private(set) var sendSlowCount = 0
+    /// 0.58c: why the last host command or guest command was refused (shown to the player, never swallowed).
+    var onBlocked: ((String) -> Void)?
+    private var lastDiscoveryRebuild = 0.0
 
     override init() {
         let defaults = UserDefaults.standard
@@ -223,6 +235,7 @@ final class LocalMatchSession: NSObject {
         latestSnapshot = nil; revision = 0; sendSequence = 0; receivedSequence = 0
         processedCommands.removeAll(); acceptedByGuest.removeAll()
         consumedRevision = nil; awaitingCommandID = nil; awaitingRevision = nil; epochRevision = 0
+        receivedUnreliableSequence = 0; hasEverConnected = false
         deliveredEventShot = -1; deliveredEventIndex = -1; isApplyingCommand = false
         backgrounded = false; protocolBlocked = false
         lastPublished = -Double.infinity
@@ -276,7 +289,7 @@ final class LocalMatchSession: NSObject {
         authoritative.matchID = matchID
         authoritative.revision = revision
         latestSnapshot = authoritative
-        if isConnected { send(kind: .snapshot, snapshot: authoritative) }
+        if isConnected { send(kind: .snapshot, snapshot: authoritative, unreliable: !force && authoritative.isMoving) }
         return true
     }
 
@@ -302,21 +315,52 @@ final class LocalMatchSession: NSObject {
         let now = ProcessInfo.processInfo.systemUptime
         guard role != .none, isConnected, aim.isValid, now - lastAimSent >= 0.066 else { return false }
         lastAimSent = now
-        return send(kind: .aim, aim: aim)
+        return send(kind: .aim, aim: aim, unreliable: true)
     }
 
     /// Host: true means applied by onCommand. Guest: true means queued; only snapshots confirm state.
     @discardableResult func submitCommand(_ command: LANCommand) -> Bool {
         requireMain()
-        guard isConnected, command.isValid, command.player == localPlayer else { return false }
+        guard command.isValid, command.player == localPlayer else { return false }
+        guard isConnected else {
+            LANLog.log("gate", "submit refused: link-down (remoteReady \(remoteReady) linkUp \(linkUp) snapshotReady \(snapshotReady))")
+            onBlocked?(role == .host ? "Đang chờ khách nối lại…" : "Đang chờ chủ phòng nối lại…"); return false
+        }
         if role == .host { return receiveHostCommand(command, player: 0) }
-        guard awaitingCommandID == nil, let snapshot = latestSnapshot,
-              LANAuthorityGate.allows(command, snapshot: snapshot, matchID: matchID,
-                                     expectedPlayer: 1, alreadyProcessed: Set(acceptedByGuest)) else { return false }
+        guard awaitingCommandID == nil else { onBlocked?("Đang đồng bộ lượt…"); return false }
+        guard let snapshot = latestSnapshot else { onBlocked?("Đang đồng bộ lượt…"); return false }
+        if let denial = LANAuthorityGate.denyReason(command, snapshot: snapshot, matchID: matchID,
+                                                    expectedPlayer: 1, alreadyProcessed: Set(acceptedByGuest)) {
+            LANLog.log("gate", "guest submit refused: \(denial)")
+            onBlocked?(Self.blockedText(denial)); return false
+        }
         awaitingCommandID = command.id; awaitingRevision = command.expectedRevision
         let queued = send(kind: .command, command: command)
         if !queued { awaitingCommandID = nil; awaitingRevision = nil }
         return queued
+    }
+
+    fileprivate func invitationState() -> String {
+        "role \(role) bg \(backgrounded) blocked \(protocolBlocked) connectedPeers \(session?.connectedPeers.count ?? -1) pending \(pendingPeer?.displayName ?? "-") reserved \(reservedPeer?.displayName ?? "-") room \(roomCode) match \(matchID.prefix(8))"
+    }
+    /// Player-facing wording for a refusal reason (never a silent drop).
+    static func blockedText(_ reason: String) -> String {
+        if reason.hasPrefix("link-down") { return "Đang chờ khách nối lại…" }
+        if reason.hasPrefix("table-moving") || reason.hasPrefix("revision") || reason.hasPrefix("snapshot")
+            || reason.hasPrefix("no-snapshot") || reason.hasPrefix("already") { return "Đang đồng bộ lượt…" }
+        return "Chưa đánh được: " + reason
+    }
+    /// Why `submitCommand` would refuse right now (nil = it would go through). Used by the UI to disable the power bar
+    /// and say why, instead of letting a stroke vanish.
+    var inputBlockReason: String? {
+        guard role != .none else { return nil }
+        if !isConnected {
+            if role == .host { return hasEverConnected ? nil : "Đang chờ khách vào phòng…" }   // after the first link the host plays on alone
+            return "Đang chờ chủ phòng nối lại…"
+        }
+        if hasPendingCommand { return "Đang đồng bộ lượt…" }
+        if role == .guest, !snapshotReady { return "Đang đồng bộ lượt…" }
+        return nil
     }
 
     private func requireMain() { precondition(Thread.isMainThread, "LocalMatchSession APIs require main thread") }
@@ -343,7 +387,7 @@ final class LocalMatchSession: NSObject {
         remoteReady = false; snapshotReady = false
         pendingPeer = nil
         awaitingCommandID = nil; awaitingRevision = nil
-        receivedSequence = 0
+        receivedSequence = 0; receivedUnreliableSequence = 0
         stopDiscovery()
         session?.delegate = nil; session?.disconnect()
         if transport == .gameCenter {
@@ -379,6 +423,7 @@ final class LocalMatchSession: NSObject {
     }
     private func startDiscovery() {
         guard role != .none, !backgrounded, !protocolBlocked, transport == .nearby else { return }
+        LANLog.log("disc", "startDiscovery role \(role) advertiser \(advertiser == nil ? "new" : "reuse") browser \(browser == nil ? "new" : "reuse")")
         if role == .host {
             if advertiser == nil {
                 advertiser = MCNearbyServiceAdvertiser(peer: peerID,
@@ -430,7 +475,9 @@ final class LocalMatchSession: NSObject {
         if role == .guest, case .failed(.rejected) = lobby.phase { return }
         switch lobby.tick(now: now) {
         case .retry: startDiscovery(); onLobbyChanged?()
-        case .giveUp: describe(NearbyFailure.reconnectTimedOut.vietnamese); onLobbyChanged?()
+        case .giveUp:
+            LANLog.log("disc", "lobby GIVE UP (reconnect window \(NearbyLobby.giveUpAfter) s elapsed)")
+            describe(NearbyFailure.reconnectTimedOut.vietnamese); onLobbyChanged?()
         case .none: break
         }
         if session?.connectedPeers.count == 1 {
@@ -440,6 +487,12 @@ final class LocalMatchSession: NSObject {
                 return
             }
             if remoteReady && now - lastPing >= 2 { lastPing = now; send(kind: .ping) }
+            // 0.58c: linked at the MC level but no hello from the other side yet: the host repeats its hello every second.
+            if !remoteReady && role == .host && now - lastHelloRetry >= 1 {
+                lastHelloRetry = now
+                LANLog.log("link", "host hello retry (no guest hello yet)")
+                send(kind: .hello)
+            }
         } else if pendingPeer != nil && now - inviteStarted > 15 {
             // An unanswered question must not block the room: refuse once, never remember the player as declined.
             if lobby.pendingInvitation != nil { lobby.decide(accept: false, asked: false); onLobbyChanged?() }
@@ -447,6 +500,10 @@ final class LocalMatchSession: NSObject {
             restartSession()
         } else if now - retryAt > 5 {
             retryAt = now
+            // 0.58c (network changed under both phones): an advertiser/browser created on the old interface can stay silent
+            // forever. While unlinked, rebuild discovery from scratch every 5 s instead of re-starting stale objects.
+            LANLog.log("disc", "rebuild discovery · role \(role) advertiser \(advertiser != nil) browser \(browser != nil) pending \(pendingPeer != nil) lobby \(lobby.phase)")
+            stopDiscovery()
             startDiscovery()
         }
     }
@@ -487,33 +544,64 @@ final class LocalMatchSession: NSObject {
         describe("Đang nối lại phòng \(roomCode) · trận tạm dừng")
     }
 
+    /// 0.58c: the main thread only builds the (cheap) envelope and queues it. JSON encoding and the transport send run on
+    /// `sendQueue` (weak Wi-Fi can block `MCSession.send`). Unreliable snapshots that a newer one has overtaken in the
+    /// queue are dropped before they are encoded. Returns true = queued.
     @discardableResult private func send(kind: LANEnvelope.Kind, snapshot: LANSnapshot? = nil,
                                          command: LANCommand? = nil, message: String? = nil,
                                          events: [LANEvent]? = nil, shotID: Int? = nil, aim: LANAim? = nil,
-                                         shotStart: LANShotStart? = nil) -> Bool {
+                                         shotStart: LANShotStart? = nil, unreliable: Bool = false) -> Bool {
         guard linkUp else { return false }
         sendSequence += 1
-        var packet = LANEnvelope(roomCode: roomCode, matchID: matchID, sequence: sendSequence, kind: kind)
+        let sequence = sendSequence
+        var packet = LANEnvelope(roomCode: roomCode, matchID: matchID, sequence: sequence, kind: kind)
         packet.snapshot = snapshot; packet.command = command; packet.message = message
         packet.events = events; packet.shotID = shotID; packet.aim = aim; packet.shotStart = shotStart
+        let lossy = unreliable && transport == .nearby
+        if lossy { packet.unreliable = true }
         if kind == .hello { packet.role = role == .host ? "host" : "guest"; packet.game = game }
-        do {
-            let data = try LANWireCodec.encode(packet)
-            if transport == .gameCenter {
-                guard let match = gameCenterMatch else { return false }
-                try match.sendData(toAllPlayers: data, with: .reliable)
-            } else if transport == .internet {
-                guard let relay = relay else { return false }
-                relay.send(data)
-            } else {
-                guard let session = session else { return false }
-                try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+        let isSnapshot = kind == .snapshot
+        if isSnapshot { staleGate.noteQueued(sequence) }
+        let queuedAt = ProcessInfo.processInfo.systemUptime
+        let transport = self.transport
+        let mcSession = session, peers = session?.connectedPeers ?? []
+        let match = gameCenterMatch, relayLink = relay
+        let gate = staleGate
+        let token = generation
+        let commandID = command?.id
+        let sealed = packet
+        sendQueue.async { [weak self] in
+            if lossy && isSnapshot && gate.isStale(sequence) {
+                LANLog.log("send", "drop stale snapshot seq \(sequence)"); return
             }
-            return true
-        } catch {
-            report("Chưa gửi được trạng thái trận. Đang chờ kết nối ổn định.")
-            return false
+            do {
+                let data = try LANWireCodec.encode(sealed)
+                switch transport {
+                case .gameCenter:
+                    guard let match = match else { return }
+                    try match.sendData(toAllPlayers: data, with: .reliable)
+                case .internet:
+                    guard let relayLink = relayLink else { return }
+                    DispatchQueue.main.async { relayLink.send(data) }   // RelayLink state lives on main; this call does not block
+                case .nearby:
+                    guard let mcSession = mcSession, !peers.isEmpty else { return }
+                    try mcSession.send(data, toPeers: peers, with: lossy ? .unreliable : .reliable)
+                }
+                let took = ProcessInfo.processInfo.systemUptime - queuedAt
+                if took > 0.12 || kind == .command || kind == .hello || kind == .accepted {
+                    LANLog.log("send", "\(kind.rawValue) seq \(sequence) \(data.count)B \(lossy ? "unrel" : "rel") queued->sent \(Int(took * 1000)) ms")
+                }
+                if took > 0.12 { DispatchQueue.main.async { self?.sendSlowCount += 1 } }
+            } catch {
+                LANLog.log("send", "FAILED \(kind.rawValue) seq \(sequence): \(error)")
+                DispatchQueue.main.async {
+                    guard let self = self, self.generation == token else { return }
+                    if let id = commandID, self.awaitingCommandID == id { self.awaitingCommandID = nil; self.awaitingRevision = nil }
+                    self.report("Chưa gửi được trạng thái trận. Đang chờ kết nối ổn định.")
+                }
+            }
         }
+        return true
     }
 
     private func protocolFailure(_ message: String) {
@@ -527,10 +615,10 @@ final class LocalMatchSession: NSObject {
     private func receive(_ data: Data, from peer: MCPeerID?) {
         guard data.count <= LANEnvelope.maximumBytes,
               let packet = try? LANWireCodec.decode(data), packet.roomCode == roomCode,
-              packet.sequence > receivedSequence else { return }
+              packet.sequence > (packet.unreliable == true ? receivedUnreliableSequence : receivedSequence) else { return }
         guard transport != .nearby || reservedPeer == nil || reservedPeer == peer else { return }
         if packet.kind != .hello && packet.matchID != matchID { return }
-        receivedSequence = packet.sequence
+        if packet.unreliable == true { receivedUnreliableSequence = packet.sequence } else { receivedSequence = packet.sequence }
         lastReceived = ProcessInfo.processInfo.systemUptime
         switch packet.kind {
         case .hello:
@@ -546,7 +634,8 @@ final class LocalMatchSession: NSObject {
                 matchID = packet.matchID; game = peerGame
             }
             let wasReady = remoteReady
-            remoteReady = true
+            remoteReady = true; hasEverConnected = true
+            LANLog.log("link", "hello from \(packet.role ?? "?") · wasReady \(wasReady) · isConnected \(isConnected)")
             if !wasReady && transport == .nearby { lobby.linkUp(now: ProcessInfo.processInfo.systemUptime); onLobbyChanged?() }
             if role == .host {
                 describe("Đã nối \(peer?.displayName ?? peerName) · Chủ phòng")
@@ -554,6 +643,9 @@ final class LocalMatchSession: NSObject {
             } else {
                 // Online guests learn the match ID from the host's hello, then answer it.
                 if transport == .internet && !wasReady { send(kind: .hello) }
+                // 0.58c: the host repeats its hello every second until the guest's hello arrives, so the guest answers EVERY
+                // host hello (the host never answers a hello, so this cannot loop).
+                if transport == .nearby { send(kind: .hello) }
                 describe("Đang đồng bộ với \(peer?.displayName ?? peerName)")
             }
         case .snapshot:
@@ -611,11 +703,24 @@ final class LocalMatchSession: NSObject {
     }
 
     @discardableResult private func receiveHostCommand(_ command: LANCommand, player: Int) -> Bool {
-        guard role == .host, isConnected, !isApplyingCommand, let snapshot = latestSnapshot,
-              LANAuthorityGate.allows(command, snapshot: snapshot, matchID: matchID,
-                                     expectedPlayer: player, alreadyProcessed: Set(processedCommands),
-                                     consumedRevision: consumedRevision, epochRevision: epochRevision) else {
+        // 0.58c: the host IS the authority. Its own stroke is judged by the live rules in `onCommand`
+        // (applyMatchCommand checks turn, motion, cue position), never by a stored snapshot that may be stale, paused
+        // or already "consumed" by the guest's previous command. Only the guest's commands pass the snapshot gate.
+        var denial: String?
+        if role != .host { denial = "not-host" }
+        else if !isConnected { denial = "link-down(remoteReady \(remoteReady) linkUp \(linkUp) snapshotReady \(snapshotReady))" }
+        else if isApplyingCommand { denial = "already-applying" }
+        else if player == 1 {
+            if let snapshot = latestSnapshot {
+                denial = LANAuthorityGate.denyReason(command, snapshot: snapshot, matchID: matchID,
+                                                     expectedPlayer: player, alreadyProcessed: Set(processedCommands),
+                                                     consumedRevision: consumedRevision, epochRevision: epochRevision)
+            } else { denial = "no-snapshot" }
+        } else if processedCommands.contains(command.id) { denial = "duplicate-command" }
+        if let denial = denial {
+            LANLog.log("gate", "REFUSE player \(player) \(command.action.rawValue): \(denial) · rev \(revision) epoch \(epochRevision)")
             if player == 1 { send(kind: .rejected, message: "Lượt hoặc trạng thái đã đổi. Hãy chờ đồng bộ.") }
+            else { onBlocked?(Self.blockedText(denial)) }
             return false
         }
         isApplyingCommand = true
@@ -626,7 +731,7 @@ final class LocalMatchSession: NSObject {
             return false
         }
         processedCommands.append(command.id)
-        consumedRevision = command.expectedRevision
+        if player == 1 { consumedRevision = command.expectedRevision }   // the host's own commands never consume a guest revision
         if processedCommands.count > 256 { processedCommands.removeFirst(processedCommands.count - 256) }
         send(kind: .accepted, command: command)
         onAcceptedCommand?(command)
@@ -644,7 +749,7 @@ extension LocalMatchSession {
             if present {
                 // Sent whenever the other seat (re)connects: restart the handshake,
                 // because a relaunched peer numbers its packets from 1 again.
-                receivedSequence = 0; remoteReady = false; snapshotReady = false
+                receivedSequence = 0; receivedUnreliableSequence = 0; remoteReady = false; snapshotReady = false
                 lastReceived = ProcessInfo.processInfo.systemUptime
                 describe("Đang đồng bộ với \(peerName)")
                 // Host speaks first; a reconnecting guest that already knows the match also may.
@@ -827,11 +932,12 @@ extension LocalMatchSession: MCSessionDelegate {
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, session === self.session, self.role != .none else { return }
+            LANLog.log("mc", "state \(state.rawValue) peer \(peerID.displayName) remoteReady \(self.remoteReady) isConnected \(self.isConnected) role \(self.role) lobby \(self.lobby.phase)")
             switch state {
             case .connected:
                 guard self.reservedPeer == nil || self.reservedPeer == peerID else { session.disconnect(); return }
                 self.reservedPeer = peerID; self.pendingPeer = nil
-                self.receivedSequence = 0; self.remoteReady = false; self.snapshotReady = false
+                self.receivedSequence = 0; self.receivedUnreliableSequence = 0; self.remoteReady = false; self.snapshotReady = false
                 self.lastReceived = ProcessInfo.processInfo.systemUptime
                 self.advertiser?.stopAdvertisingPeer(); self.browser?.stopBrowsingForPeers()
                 self.describe("Đang đồng bộ với \(peerID.displayName)")
@@ -858,6 +964,10 @@ extension LocalMatchSession: MCSessionDelegate {
                     let token = self.generation
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                         guard let self = self, self.generation == token, !self.isConnected else { return }
+                        // 0.58c: the advertiser stopped itself when the link came up (and may sit on a dead interface after a
+                        // network change): build a fresh one.
+                        LANLog.log("disc", "restart discovery after drop · role \(self.role)")
+                        self.stopDiscovery()
                         self.startDiscovery()
                     }
                 }
@@ -896,8 +1006,11 @@ extension LocalMatchSession: MCNearbyServiceAdvertiserDelegate {
                   let info = (try? JSONSerialization.jsonObject(with: context)) as? [String: String],
                   info["code"] == self.roomCode, info["match"] == self.matchID,
                   info["version"] == String(LANEnvelope.protocolVersion) else {
+                let ctx = context.map { String(data: $0, encoding: .utf8) ?? "?" } ?? "nil"
+                LANLog.log("disc", "invitation from \(peerID.displayName) REFUSED · \(self?.invitationState() ?? "session gone") ctx \(ctx)")
                 invitationHandler(false, nil); return
             }
+            LANLog.log("disc", "invitation from \(peerID.displayName) accepted into pending")
             self.pendingPeer = peerID
             self.inviteStarted = ProcessInfo.processInfo.systemUptime
             // 0.44-mm: Nearby Play asks the host first (duplicates / declined peers never re-ask).
@@ -945,6 +1058,9 @@ extension LocalMatchSession: MCNearbyServiceBrowserDelegate {
                 self.lobby.roomFound(NearbyRoomAd(code: code, host: String(peerID.displayName.prefix(32)), game: info["game"] ?? "",
                                                   version: Int(info["version"] ?? "") ?? 0, matchID: match))
                 self.onLobbyChanged?(); return
+            }
+            if let self = self, browser === self.browser {
+                LANLog.log("disc", "foundPeer \(peerID.displayName) code \(info?["code"] ?? "-") match \((info?["match"] ?? "-").prefix(8)) · want room \(self.roomCode) match \(self.matchID.prefix(8)) · connected \(self.isConnected) pending \(self.pendingPeer?.displayName ?? "-")")
             }
             guard let self = self, browser === self.browser, self.role == .guest,
                   !self.backgrounded, !self.protocolBlocked, !self.isConnected, self.pendingPeer == nil,
