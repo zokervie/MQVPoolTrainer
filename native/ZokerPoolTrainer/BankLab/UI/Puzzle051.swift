@@ -9,7 +9,19 @@ enum DailyPuzzle {
         for a in QA.arguments where a.hasPrefix("--daily-day-qa=") { return Int(a.dropFirst("--daily-day-qa=".count)) ?? 0 }
         return 0
     }
-    static func now() -> Date { Date().addingTimeInterval(Double(dayOffset) * 86400) }
+    /// 0.58d QA: `--daily-fixed-day-qa=<day index>` pins "today" to that calendar day whatever the real date is. The puzzle of the day depends on
+    /// the weekday and the week (BLDailyPuzzle), so a test that walks "today + 40" tested a different puzzle every day it ran.
+    static var fixedDay: Int64? {
+        for a in QA.arguments where a.hasPrefix("--daily-fixed-day-qa=") { return Int64(a.dropFirst("--daily-fixed-day-qa=".count)) }
+        return nil
+    }
+    static func now() -> Date {
+        if let d = fixedDay {   // local noon of that day index, so the time zone cannot move it to a neighbouring day
+            let noon = Date(timeIntervalSince1970: Double(d) * 86400 + 43200)
+            return noon.addingTimeInterval(-Double(TimeZone.current.secondsFromGMT(for: noon)))
+        }
+        return Date().addingTimeInterval(Double(dayOffset) * 86400)
+    }
     static func today(_ s: PlayerStore = .shared) -> Int64 { s.day(now()) }
     static func puzzle(day: Int64) -> (index: Int, mirrored: Bool)? {
         var mirrored: Int32 = 0

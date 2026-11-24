@@ -610,7 +610,8 @@ final class InteractionTests: XCTestCase {
         let status=app.buttons["MatchStatus"]
         XCTAssertTrue(status.waitForExistence(timeout:5 * slow))
         XCTAssertTrue(status.label.contains("Rotation"))
-        XCTAssertTrue(status.label.contains("/61"))
+        XCTAssertFalse(status.label.contains("/61"), "0.58d: the points left the bottom line")
+        XCTAssertTrue(app.staticTexts["PointChip0"].waitForExistence(timeout:5 * slow) && (app.staticTexts["PointChip0"].label.contains("/61")), "0.58d: the target 61 is on the point chip")
         XCTAssertEqual(field(scene,"ballCount"),15)
         XCTAssertEqual(field(scene,"coach"),0)
     }
@@ -1097,17 +1098,46 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(app.tables["PuzzleStats"].waitForExistence(timeout: 10 * slow))
         XCTAssertTrue(app.staticTexts["Thế đã giải"].exists)
     }
+    /// 0.58d item 4: 15 Ball Rotation shows its points in two chips under the top board ("7 /61"); when the rules publish a score only the shooter's chip moves,
+    /// by exactly the value, and the other stays. Real pocketing on the table is NOT covered here (the rules engine settles scores in C++ tests).
+    func testRotationPointChipsFollowTheScore() {
+        let (app, _) = launch(["--ux018-match-rotation-qa", "--point-chip-qa"])
+        let chip0 = app.staticTexts["PointChip0"], chip1 = app.staticTexts["PointChip1"]
+        XCTAssertTrue(chip0.waitForExistence(timeout: 60 * slow) && chip1.waitForExistence(timeout: 10 * slow), "both point chips exist in a 15 Ball match")
+        func value(_ e: XCUIElement) -> String { e.value as? String ?? "" }
+        let deadline = Date().addingTimeInterval(30 * slow)
+        while value(chip0) != "7" && Date() < deadline { Thread.sleep(forTimeInterval: 0.3) }
+        XCTAssertEqual(value(chip0), "7", "shooter's chip moved by exactly the score")
+        XCTAssertEqual(value(chip1), "0", "the other chip did not move")
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "point-chips-7-0"; shot.lifetime = .keepAlways; add(shot)
+        let tag = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? "sim"   // also a plain file on the host Mac for the before/after photos (best effort)
+        try? app.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "/tmp/zoker-chips-\(tag)-7-0.png"))
+        FileManager.default.createFile(atPath: "/tmp/zoker-chip-step2", contents: Data())   // tells the app to publish the second score
+        let d2 = Date().addingTimeInterval(30 * slow)
+        while value(chip1) != "3" && Date() < d2 { Thread.sleep(forTimeInterval: 0.3) }
+        XCTAssertEqual(value(chip1), "3"); XCTAssertEqual(value(chip0), "7", "now the second chip scored; the first stays")
+        XCTAssertLessThanOrEqual(chip0.frame.maxX, chip1.frame.minX, "the two chips do not overlap")
+        let shot2 = XCTAttachment(screenshot: app.screenshot()); shot2.name = "point-chips-7-3"; shot2.lifetime = .keepAlways; add(shot2)
+        try? app.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "/tmp/zoker-chips-\(tag)-7-3.png"))
+    }
     /// 0.51 N1: the daily puzzle gives 6 tries, then locks with the share line; a new (QA-set) date opens a new one; today's stays locked on relaunch.
     func testDailyPuzzleLocksAfterSixTriesAndReopensTomorrow() {
+        // 0.58d: the day is PINNED (the puzzle of the day depends on the weekday: "today + 40" tested another puzzle each day it ran). Default 20803 = a
+        // Wednesday after the release epoch; ZOKER_DAILY_BASE=<day index> (TEST_RUNNER_ZOKER_DAILY_BASE with xcodebuild) runs the same walk on another day.
+        walkDailyPuzzle(base: Int(ProcessInfo.processInfo.environment["ZOKER_DAILY_BASE"] ?? "") ?? 20803)
+    }
+    /// 0.58d: day 20807 (a Sunday) serves a MIRRORED puzzle (m-p-5-05). Its retry used to end the puzzle session (loadDrill only knew the "p-" prefix), so the
+    /// second try never came and the daily puzzle stayed at 1/6 — found only because the real date moved the test onto that puzzle.
+    func testDailyPuzzleOfAMirroredDayStillGivesSixTries() { walkDailyPuzzle(base: 20807) }
+    private func walkDailyPuzzle(base: Int) {
         func launchDaily(day: Int, fresh: Bool) -> (XCUIApplication, XCUIElement) {
             let app = XCUIApplication()
-            app.launchArguments = ["--keep-lobby-qa"] + (fresh ? ["--fresh-player-qa"] : []) + ["--auto-shot-qa", "--puzzle-miss-qa", "--daily-autoretry-qa", "--daily-day-qa=\(day)"]
+            app.launchArguments = ["--keep-lobby-qa"] + (fresh ? ["--fresh-player-qa"] : []) + ["--auto-shot-qa", "--puzzle-miss-qa", "--daily-autoretry-qa", "--daily-fixed-day-qa=\(day)"]
             app.launch()
             XCTAssertTrue(app.buttons["LobbyDailyPuzzle"].waitForExistence(timeout: 60)); app.buttons["LobbyDailyPuzzle"].tap()
             return (app, app.otherElements["PoolScene"])
         }
-        // day +40: number > 0 whatever the release epoch is
-        let (app, scene) = launchDaily(day: 40, fresh: true)
+        let (app, scene) = launchDaily(day: base, fresh: true)
         XCTAssertTrue(scene.waitForExistence(timeout: 30))
         // 0.58c: the wait used to be 400 s × slow, longer than the 15-minute test allowance, so a stuck run died without ever printing the probe.
         wait(scene, timeout: min(400 * slow, 480)) { self.text(scene, "dailyLocked") == "1" }
@@ -1124,12 +1154,12 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(text(scene, "dailyShares"), "1", "Khoe counted (local measure)")
         app.terminate()
         // same day again: still locked, the result card shows instead of a puzzle
-        let (app2, scene2) = launchDaily(day: 40, fresh: false)
+        let (app2, scene2) = launchDaily(day: base, fresh: false)
         XCTAssertTrue(app2.alerts.firstMatch.waitForExistence(timeout: 30 * slow), "today is locked: the result card, not a puzzle")
         XCTAssertEqual(text(scene2, "puzzle"), "")
         app2.terminate()
         // tomorrow: a new puzzle, open
-        let (app3, scene3) = launchDaily(day: 41, fresh: false)
+        let (app3, scene3) = launchDaily(day: base + 1, fresh: false)
         wait(scene3, timeout: 60 * slow) { self.text(scene3, "puzzle") != "" }
         XCTAssertNotEqual(text(scene3, "puzzle"), "", "a new daily puzzle")
         XCTAssertEqual(text(scene3, "dailyLocked"), "0")

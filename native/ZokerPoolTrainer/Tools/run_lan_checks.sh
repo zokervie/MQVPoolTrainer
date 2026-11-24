@@ -47,3 +47,6 @@ xcrun swiftc -warnings-as-errors BankLab/UI/ResultNext058c.swift Tests/ResultNex
 build/lan-checks/ResultNextTests
 # 0.58c: Petemoss + OFL.txt stay in Copy Bundle Resources (and UIAppFonts); the IPA step re-checks the packed .ipa.
 python3 Tools/check_bundle_fonts.py
+# 0.58d item 4: the provisional 15 Ball score on the point chips.
+xcrun swiftc -warnings-as-errors BankLab/UI/PointChipsLogic058d.swift Tests/PointChipsTests.swift -o build/lan-checks/PointChipsTests
+build/lan-checks/PointChipsTests
