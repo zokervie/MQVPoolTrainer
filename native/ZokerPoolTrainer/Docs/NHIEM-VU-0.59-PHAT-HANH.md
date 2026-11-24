@@ -22,8 +22,8 @@ Thêm `BankLab/PrivacyInfo.xcprivacy` vào target app (Copy Bundle Resources):
 - Giữ 3 chuỗi quyền hiện có (Ảnh chỉ-thêm, Mạng nội bộ, Bạn bè Game Center). Kiểm bản tiếng Anh trong i18n.
 
 ## R3. Chính sách quyền riêng tư + hỗ trợ trong app
-- Trang: `Docs/web/privacy.html` (Việt + Anh, đã soạn). Hai chỗ chờ anh điền: `{{EMAIL_HO_TRO}}`, `{{NGAY_HIEU_LUC}}`. Nơi đăng: chờ anh duyệt (đề xuất Vercel).
-- Cài đặt → mục "Pháp lý · giấy phép": thêm hai dòng "Chính sách quyền riêng tư" và "Hỗ trợ" mở URL (`SFSafariViewController`). URL đặt trong một hằng số `LegalLinks` (một chỗ); khi chưa có URL thật thì ẨN hai dòng, không hiện link chết.
+- Trang đã đăng (25/11, Vercel project `zoker-pool`, nguồn `Docs/web/`): chính sách https://zoker-pool.vercel.app/privacy · hỗ trợ https://zoker-pool.vercel.app/ · email hỗ trợ zokervie@gmail.com (chủ dự án chọn).
+- Cài đặt → mục "Pháp lý · giấy phép": thêm hai dòng "Chính sách quyền riêng tư" và "Hỗ trợ" mở URL (`SFSafariViewController`). URL đặt trong một hằng số `LegalLinks` (một chỗ) = hai URL trên.
 - Màn Pháp lý: thêm ghi công font "Petemoss — © 2008-2021 The Petemoss Project Authors, SIL Open Font License 1.1" (đúng dòng bản quyền trong OFL.txt) (OFL.txt đã đóng gói). Giữ dòng âm thanh jtroan CC BY 3.0 + các mẫu CC0.
 
 ## R4. Tính năng mạng trước người duyệt
@@ -34,7 +34,7 @@ Thêm `BankLab/PrivacyInfo.xcprivacy` vào target app (Copy Bundle Resources):
 ## R5. Bảng tài nguyên phát hành
 - `Tools/release_assets.py`: liệt kê mọi file media/font trong `.app` của IPA, đối chiếu với `Docs/TAI-NGUYEN-PHAT-HANH.md` (file → nguồn → giấy phép → dòng ghi công trong app). File không có dòng → FAIL. Chạy sau bước IPA.
 - Nguồn đã biết: âm thanh `Tools/AudioSources/ATTRIBUTION.md` (4 CC0 + 1 CC BY 3.0); vân gỗ/nỉ/lưới bàn tự sinh (`Tools/generate_materials.py`, `generate_table_mesh.py`); font Petemoss OFL; logo/biểu tượng Zoker (chủ dự án).
-- **Cần chủ dự án xác nhận**: 24 ảnh tường `ZWall01–24` (thêm ở 0.42/0.44, ghi "owner photos"): từng ảnh do anh chụp / anh có quyền / tải từ đâu. Ảnh có người thật (cơ thủ) hoặc ảnh báo chí phải thay nếu không có quyền.
+- 24 ảnh tường `ZWall01–24`: chủ dự án xác nhận 25/11 là ảnh của chính anh được làm lại bằng AI (ChatGPT); người khác trong ảnh là nhân vật AI; biển hiệu là thương hiệu Zoker hư cấu. Ghi nguồn: "ảnh chủ dự án, chỉnh bằng AI". Giữ.
 
 ## R6. Số phiên bản
 - Hiện `MARKETING_VERSION = 0.48`, `CURRENT_PROJECT_VERSION = 29` (pbxproj). Bản TestFlight đầu: `MARKETING_VERSION = 1.0`, build tăng dần mỗi lần tải (lấy từ số run CI). Đồng bộ target UITests không cần.
