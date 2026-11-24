@@ -13,6 +13,7 @@
 #import "UI/Puzzle.h"        // 0.50 Thế bí (puzzles + hint jar; UI: docs/de-xuat/NHIEM-VU-0.50-THE-BI-GIAO-DIEN.md)
 #import "UI/PuzzleDaily.h"   // 0.51 thế bí của ngày, đoán đường bi, mã thế bí cho bạn (NHIEM-VU-0.51-NGAY-DOAN-BAN.md)
 #import "UI/Mastery.h"       // 0.54 thang vòng, % hoàn thiện chương, danh hiệu, quỹ lùi cú (NHIEM-VU-0.54-LAM-CHU-CHUONG.md)
+#import "UI/Mastery059.h"    // 0.59 thang 5 sao, quỹ lùi cú theo tỉ lệ, góc ngắm lệch, bộ 5 thế (Project: zoker-he-thong-bai-tap-va-ho-so-2026-11-24)
 #import "Core/BLDrillQuick.h"   // 0.51 N3 (quick route search for a friend's puzzle)
 #import "UI/StrokeResponse.h"
 #import "UI/ShotKindPolicy.h"
