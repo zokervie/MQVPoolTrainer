@@ -47,8 +47,9 @@ extension TrainingController {
     func ladderRequirement(_ spec: BLDrillSpec) -> String {
         spec.rails > 0 ? String(format: L10n.tr("Chạm đúng %d băng rồi dừng trong vòng"), Int(spec.rails)) : L10n.tr("Dừng trong vòng")
     }
-    func ladderShot(_ d: Drill, passed: Bool, railCount: Int) {
+    func ladderShot(_ d: Drill, passed shotPassed: Bool, railCount: Int) {
         guard var spec = d.spec else { return }
+        let passed = shotPassed || QA.has("--ring-pass-qa")   // 0.58c QA: every shot counts, so a ring closes with 3 stars
         let index = drillIndex, ladder = Mastery.ladderName(of: d.id), tier = Int(spec.tier), store = PlayerStore.shared
         var missLine = ""
         if spec.rails > 0 && !passed && railCount != Int(spec.rails) { missLine = " · " + String(format: L10n.tr("Sai số băng: %d"), abs(railCount - Int(spec.rails))) }
@@ -101,26 +102,35 @@ extension TrainingController {
         let nextRingOpen = next.map { Mastery.ringOpen($0) } ?? false
         let chapterFinished = chapter.map { c in c.drills.filter { Mastery.tier($0) > 0 }.allSatisfy { store.ladderStars($0) >= 3 } } ?? false
         let decision = AutoAdvance.decide(stars: stars, nextRingOpen: nextRingOpen, chapterFinished: chapterFinished)   // 0.58 T1
-        if case .autoNext = decision { message += "\n" + L10n.tr("Tự lên vòng sau 3 s — chạm để huỷ") }
+        if case .autoNext = decision { message += "\n" + L10n.tr("Tự lên vòng sau 1,5 s — bấm Ở lại để dừng") }
+        else if let nextId = next, !Mastery.ringOpen(nextId), stars < 3 { message += "\n" + L10n.tr("Vòng kế còn khoá: cần 3 sao ở vòng này") }   // 0.58c item 6: say what is missing
         let alert = UIAlertController(title: L10n.tr("Vòng") + " \(tier) · " + Drill.starText(stars), message: message, preferredStyle: .alert)
         alert.view.accessibilityIdentifier = "LadderRound"
         var autoTimer: Timer?
         let cancelAuto = { autoTimer?.invalidate(); autoTimer = nil }
+        var startAuto: (() -> Void)?
+        var goNext: UIAlertAction?
         if let nextId = next, Mastery.ringOpen(nextId), let nextIndex = Chapters.index(of: nextId) {
             let go = decision == .hold && stars < 3 ? L10n.tr("Vòng nhỏ hơn") : L10n.tr("Lên vòng tiếp ▶")
-            alert.addAction(UIAlertAction(title: go, style: .default) { [weak self] _ in cancelAuto(); self?.beginDrill(nextIndex, guided: false) })
-            if case .autoNext(let after) = decision {   // 0.58 T1: starts by itself after 3 s; a tap on the card cancels
-                autoTimer = Timer.scheduledTimer(withTimeInterval: after, repeats: false) { [weak self, weak alert] _ in
-                    guard let alert = alert, alert.presentingViewController != nil else { return }
-                    alert.dismiss(animated: true) { self?.beginDrill(nextIndex, guided: false) }
+            let action = UIAlertAction(title: go, style: .default) { [weak self] _ in cancelAuto(); self?.goToDrillAtAim(nextIndex) }
+            alert.addAction(action); goNext = action
+            if case .autoNext = decision {   // 0.58c item 6: 1.5 s AFTER the card is on screen (it used to count from its creation); "Ở lại" cancels
+                startAuto = { [weak self, weak alert] in
+                    autoTimer = Timer.scheduledTimer(withTimeInterval: ResultNext.ladderAutoNextSeconds, repeats: false) { _ in
+                        guard let alert = alert, alert.presentingViewController != nil else { return }
+                        alert.dismiss(animated: true) { self?.goToDrillAtAim(nextIndex) }
+                    }
                 }
                 AlertTapCancel058.attach(to: alert) { cancelAuto() }
             }
         }
-        alert.addAction(UIAlertAction(title: stars >= 3 ? L10n.tr("Đánh lại lấy điểm cao hơn") : L10n.tr("Tập lại lượt mới"), style: .default) { [weak self] _ in cancelAuto(); self?.beginDrill(index, guided: false) })
+        let again = UIAlertAction(title: stars >= 3 ? L10n.tr("Đánh lại lấy điểm cao hơn") : L10n.tr("Tập lại lượt mới"), style: .default) { [weak self] _ in cancelAuto(); self?.beginDrill(index, guided: false) }
+        alert.addAction(again)
         alert.addAction(UIAlertAction(title: L10n.tr("Thách bạn"), style: .default) { [weak self] _ in self?.shareRingChallenge(d, stars: stars, made: made) })   // 0.58 P2
-        alert.addAction(UIAlertAction(title: L10n.tr("Đóng"), style: .cancel) { [weak self] _ in cancelAuto(); self?.lessonActive = false; self?.celebrateTitleIfNew(chapter); if decision == .chapterEnd { self?.presentChapterMedal(chapter) } })
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.present(alert, animated: true) }
+        let stayTitle: String = { if case .autoNext = decision { return L10n.tr("Ở lại") }; return L10n.tr("Đóng") }()
+        alert.addAction(UIAlertAction(title: stayTitle, style: .cancel) { [weak self] _ in cancelAuto(); self?.lessonActive = false; self?.celebrateTitleIfNew(chapter); if decision == .chapterEnd { self?.presentChapterMedal(chapter) } })
+        alert.preferredAction = goNext ?? again   // the main button: on to the next ring when it is open, else the missing piece = this ring again
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.present(alert, animated: true) { startAuto?() } }
         _ = before
     }
     func ladderNextRing(_ d: Drill) -> String? {

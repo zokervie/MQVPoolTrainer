@@ -6,7 +6,7 @@ import Foundation
 /// T1 — what the result card of a scored ring does next.
 enum AutoAdvance {
     enum Decision: Equatable { case autoNext(after: Double), chapterEnd, hold }
-    static let delay = 3.0
+    static let delay = ResultNext.ladderAutoNextSeconds
     /// 3 stars or more opens the next ring and starts it after 3 s unless the player taps; the last ring of a chapter shows the medal card instead.
     static func decide(stars: Int, nextRingOpen: Bool, chapterFinished: Bool) -> Decision {
         guard stars >= 3 else { return .hold }

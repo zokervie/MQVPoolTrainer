@@ -1352,7 +1352,7 @@ final class InteractionTests: XCTestCase {
     }
     /// 0.54 M2: a ring: warm-up shots first (not scored, "Khởi động n/5" until 5 are made), then a scored round of 5 → the result card with 0…3 stars.
     func testRingWarmupThenScoredRound() {
-        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa"]; app.launch()
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--ring-pass-qa"]; app.launch()
         XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
         let ladder = app.cells["ChapterLadder-force-near"]
         XCTAssertTrue(ladder.waitForExistence(timeout: 10 * slow)); ladder.tap()
@@ -1369,6 +1369,39 @@ final class InteractionTests: XCTestCase {
         let card = app.alerts["LadderRound"]
         XCTAssertTrue(card.waitForExistence(timeout: 400 * slow), "after the warm-up, five scored shots close the round: \(scene.value as? String ?? "")")
         XCTAssertTrue(card.label.hasPrefix("Vòng 1"), card.label)
+        // 0.58c item 6: the QA shots are on aim → 3 stars → the next ring opens by itself 1.5 s after the card is up (no tap), camera at the aim view.
+        // The card goes away by itself (no tap) and the QA auto-shot keeps playing in the next ring: the shot counter keeps rising.
+        // (the probe shows only the short motion string while a shot runs, so "drill" cannot be read here.)
+        let shotsAtCard = field(scene, "shots")
+        let gone = NSPredicate(format: "exists == false")
+        expectation(for: gone, evaluatedWith: card); waitForExpectations(timeout: 20 * slow)
+        XCTAssertFalse(card.exists, "the result card closed by itself after 1.5 s")
+        wait(scene, timeout: 60 * slow) { self.field(scene, "shots") > shotsAtCard }
+        XCTAssertGreaterThan(field(scene, "shots"), shotsAtCard, "ring 2 is being played without touching the Lobby: \(scene.value as? String ?? "")")
+    }
+    /// 0.58c item 6: passing a chapter exam → the result box has a main "Tiếp: Chương …" button; one tap = straight into the next chapter's first drill
+    /// (no Lobby, no list), camera at the aim view.
+    func testExamPassGoesStraightToTheNextChapter() {
+        let exam = XCUIApplication()
+        exam.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--chapter-unlock-qa", "--auto-shot-qa", "--exam-pass-qa"]
+        exam.launch()
+        XCTAssertTrue(exam.buttons["LobbyDrills"].waitForExistence(timeout: 60)); exam.buttons["LobbyDrills"].tap()
+        XCTAssertTrue(exam.cells["ChapterExam-1"].waitForExistence(timeout: 10 * slow)); exam.cells["ChapterExam-1"].tap()
+        if exam.buttons["TipCardOK"].waitForExistence(timeout: 3 * slow) { exam.buttons["TipCardOK"].tap() }
+        let scene = exam.otherElements["PoolScene"]
+        wait(scene, timeout: 30 * slow) { self.text(scene, "test").hasPrefix("straight-speed:") || self.text(scene, "test") != "none" }
+        let box = exam.alerts["TestResult"]
+        XCTAssertTrue(box.waitForExistence(timeout: 300 * slow), "ten shots, then the result box: \(scene.value as? String ?? "")")
+        let next = box.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Tiếp: Chương")).firstMatch
+        XCTAssertTrue(next.exists, "a passed exam offers the main button: texts \(box.staticTexts.allElementsBoundByIndex.map { $0.label }) buttons \(box.buttons.allElementsBoundByIndex.map { $0.label })")
+        XCTAssertTrue(box.buttons["Làm lại"].exists && box.buttons["Về danh sách"].exists, "secondary buttons")
+        let drillBefore = text(scene, "drill")
+        next.tap()
+        wait(scene, timeout: 20 * slow) { self.text(scene, "drill") != drillBefore && self.text(scene, "test") == "none" }
+        XCTAssertNotEqual(text(scene, "drill"), drillBefore, "straight into the next chapter's drill")
+        XCTAssertFalse(exam.buttons["LobbyDrills"].exists, "no Lobby in between")
+        Thread.sleep(forTimeInterval: 1.0)
+        XCTAssertEqual(field(scene, "mode"), 2, "aim camera without touching it")
     }
     /// 0.56 K5 photo: the HUD in the standard room on whatever device the run targets (upright attachment, exported by Tools/run_hud_photos.sh).
     func testHudPhoto056() {

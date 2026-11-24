@@ -57,27 +57,58 @@ extension TrainingController {
         statusLabel.text = title + " · cú \(done + 1)/10"
     }
     func endTestRun(cancelled: Bool) {
-        guard let r = testRun else { return }
+        guard var r = testRun else { return }
         testRun = nil
+        if QA.has("--exam-pass-qa") { r.made = Int(BL_EXAM_SHOTS) }   // 0.58c QA: the auto shots do not always clear 7/10; the box is what is under test
         coaching = r.coachBefore; applyCoachVisibility()
         guard !cancelled else { return }
         let before = Chapters.openChapters()
         PlayerStore.shared.recordTest(kind: r.kind, made: r.made, shots: r.shot)
         let passed = BLExamPassed(Int32(r.made), Int32(r.shot)) != 0
-        var message = "Đạt \(r.made)/10."
+        var message = String(format: L10n.tr("Đạt %d/10."), r.made)
+        // 0.58c item 6: the result box always has a main button that moves on (or repeats), never only Close / Retake.
+        var primary: ResultNext.Primary = .retry
+        var nextChapter: Chapter?
         if r.kind == "weekly" {
-            message += "\nĐây là số tiến bộ thật: xem trên màn Tiến bộ."
+            message += "\n" + L10n.tr("Đây là số tiến bộ thật: xem trên màn Tiến bộ.")
         } else {
             let after = Chapters.openChapters()
             let opened = zip(before, after).enumerated().first { !$0.element.0 && $0.element.1 }.map { Chapters.all[$0.offset] }
-            message += passed ? (opened.map { "\nĐã mở chương \($0.number) · \($0.title)." } ?? "\nQua bài thi chương.") : "\nCần đạt từ 7/10 để mở chương sau."
+            let done = Chapters.all.first { Chapters.examKind($0.number) == r.kind }
+            if let done = done {
+                nextChapter = Chapters.all.first { $0.number > done.number && !$0.drills.isEmpty }
+                let nextOpen = nextChapter.flatMap { n in Chapters.all.firstIndex { $0.number == n.number }.map { after[$0] } } ?? false
+                primary = ResultNext.afterExam(passed: passed, next: nextChapter.map { ($0.number, nextOpen, !$0.drills.isEmpty) })
+                if passed, Mastery.hasLadders(done) {   // the title / medal of the chapter, when it has one
+                    let pct = Mastery.percent(done)
+                    message += "\n" + String(format: L10n.tr("Danh hiệu: %@ · %d %%"), L10n.tr(Mastery.titles[Mastery.titleIndex(pct)]), pct)
+                }
+            }
+            if passed {
+                message += opened.map { "\n" + String(format: L10n.tr("Đã mở chương %d · %@."), $0.number, $0.title) } ?? "\n" + L10n.tr("Qua bài thi chương.")
+                if primary == .retryUntilUnlocked, let n = nextChapter { message += "\n" + String(format: L10n.tr("Chương %d còn khoá: cần qua bài thi chương trước (7/10)."), n.number) }
+            } else {
+                message += "\n" + L10n.tr("Cần đạt từ 7/10 để mở chương sau.")
+            }
         }
         let alert = UIAlertController(title: (passed ? "Qua · " : "Chưa qua · ") + r.title, message: message, preferredStyle: .alert)
         alert.view.accessibilityIdentifier = "TestResult"
-        alert.addAction(UIAlertAction(title: "Thi lại", style: .default) { [weak self] _ in
-            var again = r; again.shot = 0; again.made = 0; self?.startTestRun(again) })
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        let retry = UIAlertAction(title: L10n.tr("Làm lại"), style: .default) { [weak self] _ in
+            var again = r; again.shot = 0; again.made = 0; self?.startTestRun(again) }
+        var main: UIAlertAction?
+        if case .goNext = primary, let n = nextChapter, let first = n.drills.first, let index = Chapters.index(of: first) {
+            main = UIAlertAction(title: String(format: L10n.tr("Tiếp: Chương %d · %@"), n.number, L10n.tr(n.title)), style: .default) { [weak self] _ in self?.goToDrillAtAim(index) }
+        }
+        if let main = main { alert.addAction(main); alert.addAction(retry); alert.preferredAction = main }
+        else { alert.addAction(retry); alert.preferredAction = retry }   // not passed / nothing further: repeating is the main button
+        alert.addAction(UIAlertAction(title: L10n.tr("Về danh sách"), style: .cancel) { [weak self] _ in self?.chooseDrill() })
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.topPresenter.present(alert, animated: true) }
+    }
+    /// 0.58c item 6: straight into a drill with the camera at the aim view (no Lobby, no list).
+    func goToDrillAtAim(_ index: Int) {
+        guard Drill.all.indices.contains(index) else { return }
+        beginDrill(index, guided: false)
+        restoreAimCamera(transition: 0.35)
     }
     /// 0.47 QA launch flags (Debug only through `QA`): `--chapter-unlock-qa` clears chapter 1's rungs so its exam is
     /// open; `--auto-shot-qa` plays every drill/test shot by itself at the drill's suggested aim (UI tests walk a

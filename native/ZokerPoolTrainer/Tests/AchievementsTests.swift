@@ -9,7 +9,7 @@ import Foundation
     }
     static func main() {
         // T1
-        check(AutoAdvance.decide(stars: 3, nextRingOpen: true, chapterFinished: false) == .autoNext(after: 3), "3 stars and an open next ring: auto-start after 3 s")
+        check(AutoAdvance.decide(stars: 3, nextRingOpen: true, chapterFinished: false) == .autoNext(after: 1.5), "3 stars and an open next ring: auto-start after 1.5 s")
         check(AutoAdvance.decide(stars: 2, nextRingOpen: true, chapterFinished: false) == .hold, "fewer than 3 stars: stay on the card")
         check(AutoAdvance.decide(stars: 3, nextRingOpen: false, chapterFinished: false) == .hold, "no open next ring: stay")
         check(AutoAdvance.decide(stars: 3, nextRingOpen: false, chapterFinished: true) == .chapterEnd && AutoAdvance.decide(stars: 3, nextRingOpen: true, chapterFinished: true) == .chapterEnd, "end of the chapter: the medal card")

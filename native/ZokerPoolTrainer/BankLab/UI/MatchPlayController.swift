@@ -87,8 +87,8 @@ final class LinkLostOverlay: UIView {
         titleLabel.textAlignment = .center; titleLabel.numberOfLines = 2; titleLabel.accessibilityIdentifier = "linkLostTitle"
         detailLabel.font = .systemFont(ofSize: 14); detailLabel.textColor = UIColor.white.withAlphaComponent(0.85)
         detailLabel.textAlignment = .center; detailLabel.numberOfLines = 4
-        retryButton.setTitle("Thử lại", for: .normal); retryButton.accessibilityIdentifier = "linkLostRetry"
-        leaveButton.setTitle("Rời phòng", for: .normal); leaveButton.accessibilityIdentifier = "linkLostLeave"
+        retryButton.setTitle(L10n.tr("Thử lại"), for: .normal); retryButton.accessibilityIdentifier = "linkLostRetry"
+        leaveButton.setTitle(L10n.tr("Rời phòng"), for: .normal); leaveButton.accessibilityIdentifier = "linkLostLeave"
         for button in [retryButton, leaveButton] {
             button.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
             button.setTitleColor(.white, for: .normal)
@@ -111,11 +111,11 @@ final class LinkLostOverlay: UIView {
     /// `seconds` since the link dropped; `window` = how long the app keeps trying on its own.
     func update(seconds: Int, window: Int, expired: Bool) {
         if expired {
-            titleLabel.text = "Hết thời gian tự nối lại"
-            detailLabel.text = "Đã thử \(seconds) s mà chưa thấy bạn chơi. Kiểm tra cả hai máy cùng Wi-Fi rồi bấm Thử lại, hoặc Rời phòng."
+            titleLabel.text = L10n.tr("Hết thời gian tự nối lại")
+            detailLabel.text = String(format: L10n.tr("Đã thử %d s mà chưa thấy bạn chơi. Kiểm tra cả hai máy cùng Wi-Fi rồi bấm Thử lại, hoặc Rời phòng."), seconds)
         } else {
-            titleLabel.text = "Mất kết nối · đang tìm lại (\(seconds) s)"
-            detailLabel.text = "Trận tạm dừng, thế bi được giữ nguyên. Tự nối lại tối đa \(window) s; hai máy cần còn mở ứng dụng."
+            titleLabel.text = String(format: L10n.tr("Mất kết nối · đang tìm lại (%d s)"), seconds)
+            detailLabel.text = String(format: L10n.tr("Trận tạm dừng, thế bi được giữ nguyên. Tự nối lại tối đa %d s; hai máy cần còn mở ứng dụng."), window)
         }
     }
 }

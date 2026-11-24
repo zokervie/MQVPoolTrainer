@@ -12,7 +12,7 @@ build/lan-checks/NearbyLobbyTests
 xcrun swiftc -warnings-as-errors BankLab/UI/L10nDefault0441.swift Tests/L10nDefaultTests.swift -o build/lan-checks/L10nDefaultTests
 build/lan-checks/L10nDefaultTests
 # 0.45 M5: player progress file (player.json, .bak recovery, legacy stars → stable drill ids) and the launch flow.
-xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/DailyLoop.h BankLab/UI/PlayerStore047.swift BankLab/UI/Achievements058.swift BankLab/UI/DrillIDs047.swift Tests/PlayerStoreTests.swift -o build/lan-checks/PlayerStoreTests
+xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/DailyLoop.h BankLab/UI/PlayerStore047.swift BankLab/UI/Achievements058.swift BankLab/UI/ResultNext058c.swift BankLab/UI/DrillIDs047.swift Tests/PlayerStoreTests.swift -o build/lan-checks/PlayerStoreTests
 build/lan-checks/PlayerStoreTests
 xcrun swiftc -warnings-as-errors BankLab/UI/AppFlow047.swift Tests/AppFlowTests.swift -o build/lan-checks/AppFlowTests
 build/lan-checks/AppFlowTests
@@ -34,7 +34,7 @@ build/lan-checks/RailBridgeTests
 xcrun swiftc -warnings-as-errors -import-objc-header Tests/RingChallengeBridge.h BankLab/UI/RingChallenge058.swift Tests/RingChallengeTests.swift -o build/lan-checks/RingChallengeTests
 build/lan-checks/RingChallengeTests
 # 0.58 T1–T4: auto-advance, achievement record, medal tiers, match tally.
-xcrun swiftc -warnings-as-errors BankLab/UI/Achievements058.swift Tests/AchievementsTests.swift -o build/lan-checks/AchievementsTests
+xcrun swiftc -warnings-as-errors BankLab/UI/Achievements058.swift BankLab/UI/ResultNext058c.swift Tests/AchievementsTests.swift -o build/lan-checks/AchievementsTests
 build/lan-checks/AchievementsTests
 # 0.58: our own QR encoder (no CoreImage on the flyer path) is read back by an independent decoder.
 xcrun swiftc -warnings-as-errors BankLab/UI/QRCode058.swift Tests/QRCodeTests.swift -o build/lan-checks/QRCodeTests
@@ -42,5 +42,8 @@ build/lan-checks/QRCodeTests
 # 0.58c item 5: camera policy around the own stroke (Wi-Fi) and the aim camera once per turn.
 xcrun swiftc -warnings-as-errors BankLab/UI/MatchCameraPolicy058c.swift Tests/MatchCameraPolicyTests.swift -o build/lan-checks/MatchCameraPolicyTests
 build/lan-checks/MatchCameraPolicyTests
+# 0.58c item 6: the result box's main button (exam) and the ring auto-next timing.
+xcrun swiftc -warnings-as-errors BankLab/UI/ResultNext058c.swift Tests/ResultNextTests.swift -o build/lan-checks/ResultNextTests
+build/lan-checks/ResultNextTests
 # 0.58c: Petemoss + OFL.txt stay in Copy Bundle Resources (and UIAppFonts); the IPA step re-checks the packed .ipa.
 python3 Tools/check_bundle_fonts.py

@@ -1090,5 +1090,20 @@
 "Luyện mắt · tư duy · đường bi": "Train your eye · mind · ball paths",
 "Tiếng bi tách trái–phải": "Ball sounds panned left–right",
 "Bật": "On",
-"Tắt": "Off"
+"Tắt": "Off",
+"Thử lại": "Try again",
+"Rời phòng": "Leave room",
+"Hết thời gian tự nối lại": "Automatic reconnect timed out",
+"Đã thử %d s mà chưa thấy bạn chơi. Kiểm tra cả hai máy cùng Wi-Fi rồi bấm Thử lại, hoặc Rời phòng.": "Tried for %d s without finding your opponent. Check that both devices are on the same Wi-Fi, then tap Try again, or Leave room.",
+"Mất kết nối · đang tìm lại (%d s)": "Connection lost · searching again (%d s)",
+"Trận tạm dừng, thế bi được giữ nguyên. Tự nối lại tối đa %d s; hai máy cần còn mở ứng dụng.": "Match paused, the balls stay where they are. Reconnecting automatically for up to %d s; both devices must keep the app open.",
+"Đạt %d/10.": "Passed %d/10.",
+"Danh hiệu: %@ · %d %%": "Title: %@ · %d %%",
+"Đã mở chương %d · %@.": "Chapter %d · %@ unlocked.",
+"Chương %d còn khoá: cần qua bài thi chương trước (7/10).": "Chapter %d is still locked: pass the previous chapter exam (7/10).",
+"Tiếp: Chương %d · %@": "Next: Chapter %d · %@",
+"Về danh sách": "Back to the list",
+"Ở lại": "Stay",
+"Tự lên vòng sau 1,5 s — bấm Ở lại để dừng": "Next ring starts in 1.5 s — tap Stay to stop",
+"Vòng kế còn khoá: cần 3 sao ở vòng này": "The next ring is locked: you need 3 stars on this ring"
 }

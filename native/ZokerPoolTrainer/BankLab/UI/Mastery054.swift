@@ -26,9 +26,11 @@ enum Mastery {
 
     /// Is this ring playable? (BLTierOpen on the stars of the ring before it.)
     static func ringOpen(_ id: String, _ s: PlayerStore = .shared) -> Bool {
-        let t = tier(id); guard t > 0, let index = Chapters.index(of: id) else { return true }
+        // 0.58c: BLLadderPrevious works on the CATALOGUE table's index. This used the index in Drill.all (the old lessons come first
+        // there), so the "ring before" was the wrong row and a ring that had earned its 3 stars never opened the next one.
+        let t = tier(id); guard t > 0, let index = (0..<DrillCatalog.count).first(where: { DrillCatalog.key(at: $0) == id }) else { return true }
         let previous = BLLadderPrevious(Int32(index))
-        return BLTierOpen(Int32(t), previous >= 0 ? Int32(s.ladderStars(Drill.all[Int(previous)].id)) : 0) != 0
+        return BLTierOpen(Int32(t), previous >= 0 ? Int32(s.ladderStars(DrillCatalog.key(at: Int(previous)))) : 0) != 0
     }
     static func percent(_ c: Chapter, _ s: PlayerStore = .shared) -> Int {
         let stars = c.drills.filter { tier($0) > 0 }.map { Int32(s.ladderStars($0)) }
