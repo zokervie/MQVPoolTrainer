@@ -35,8 +35,11 @@ mv -f "$package_path" "$output_path"
 /usr/bin/unzip -tq "$output_path"
 # 0.58c: the wood-menu font and its licence must be inside the .app (Wood.titleFont silently fell back to the system font
 # whenever they were left out of Copy Bundle Resources). Fails the build instead of shipping an IPA without them.
+# 0.58d: list ONCE into a variable. `unzip -l | grep -q` under pipefail failed at random: grep -q quits at the first hit, unzip then dies of
+# SIGPIPE and the pipeline reports failure although the file IS in the .ipa (local run: both files present, check said "thiếu OFL.txt"; CI 173 said Petemoss).
+ipa_listing=$(/usr/bin/unzip -l "$output_path")
 for needed in Petemoss-Regular.ttf OFL.txt; do
-  /usr/bin/unzip -l "$output_path" | grep -q "Payload/[^/]*\.app/$needed\$" || { echo "IPA thiếu $needed (Copy Bundle Resources)" >&2; exit 1; }
+  grep -Eq "Payload/[^/]*\.app/$needed\$" <<<"$ipa_listing" || { echo "IPA thiếu $needed (Copy Bundle Resources)" >&2; exit 1; }
 done
 ipa_bytes=$(stat -f%z "$output_path")
 awk -v bytes="$ipa_bytes" 'BEGIN { printf "Dung lượng IPA: %.2f MB\n", bytes/1000000 }'
