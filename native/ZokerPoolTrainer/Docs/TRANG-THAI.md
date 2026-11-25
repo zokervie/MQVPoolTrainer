@@ -1,4 +1,13 @@
-# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 16/11/2026)
+# TRẠNG THÁI DỰ ÁN — đọc file này ĐẦU TIÊN mỗi phiên (cập nhật 26/11/2026)
+
+## 0. Mới nhất (26/11/2026) — đọc trước, các mục dưới có chỗ đã cũ
+- **Thương hiệu:** Zokervie (tên app "Zokervie Billiards"). Bundle ID sẽ đổi `com.zokervie.billiards`: chờ anh cho phép sửa dòng kiểm trong workflow CI.
+- **Nhánh:** `cho/native-0.59-loi` (đầu nhánh: xem `git log`). Trên Mac còn `work/0.59` @ dcee5e7 chưa gộp. Swift của 60556b9 và 5d7d970 CHƯA biên dịch. CI 173 đỏ, 174 chưa chạy.
+- **Kế hoạch tổng:** `Docs/KE-HOACH-TOI-UU-1.0.md` (6 đợt, hai làn Mac / mây; 20 điểm chê → việc; máy đối thủ; công nghệ qua cổng thử). Chưa được anh duyệt.
+- **Việc 0.59:** `Docs/NHIEM-VU-0.59-THUONG-HIEU.md` (B1–B7), `Docs/NHIEM-VU-0.59-GOP-Y-173.md` (U1–U6), thiết kế sảnh / bao cơ / xem lại (Project `claude/zoker-sanh-bao-co-xem-lai-2026-11-26.md`).
+- **App Review:** `Docs/KIEM-DINH-APP-REVIEW.md`. **0.60:** `Docs/KE-HOACH-HIEU-CHUAN-0.60.md` + nhánh Carom riêng.
+- **Intro:** kịch bản C (6 giây), nguồn `Tools/Intro/`; nháp gửi anh ở `.handoff/intro/` trên Mac. Chờ anh duyệt nhịp, dòng chữ và nghe âm thanh.
+- **Chờ anh:** đẩy bundle mới nhất trong `.handoff/`; duyệt intro; duyệt kế hoạch 6 đợt; hai thay đổi CI (bundle ID, job chỉ biên dịch); xem 24 ảnh tường có rượu không (xếp hạng tuổi); tài khoản Apple Developer (đợt 3).
 
 Cách dùng: phiên mới chỉ cần đọc file này + tin nhắn mới nhất của anh. Cuối phiên cập nhật lại file này, và bản trong Project `claude/zoker-trang-thai.md`.
 
