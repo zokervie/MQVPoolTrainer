@@ -49,7 +49,7 @@ extension TrainingController {
     func loadDrill(_ index:Int){
         guard matchAllowsEditing else{return}
         guard !presentationBusy,localTurn else{return}
-        if puzzleSession != nil && !Drill.all[index].id.hasPrefix("p-"){puzzleSession=nil;syncPuzzleBar()}   // 0.50: leaving a puzzle ends its session
+        if puzzleSession != nil && !(Drill.all[index].id.hasPrefix("p-") || Drill.all[index].id.hasPrefix("m-p-")){puzzleSession=nil;syncPuzzleBar()}   // 0.50: leaving a puzzle ends its session. 0.58d: a MIRRORED puzzle is "m-p-…" (retry used to end its session)
         drillIndex=index;drillVariant=0;roundResults=[];roundSmallMade=0;roundCoachUsed=false;attempts=0;successes=0;lessonActive=false;lessonScores=[];lessonPasses=0;let drill=Drill.all[index]
         PlayerStore.shared.noteDrillOpened(drill.id)   // 0.45 M5: attempt time starts when the drill is on the table
         table.target(coachOn || inTrainingMode ? drill.goal:nil)
@@ -385,6 +385,7 @@ extension TrainingController {
         }
         if !cameraInitialCommit{SCNTransaction.flush();cameraInitialCommit=true}
         cameraTransition=max(0,cameraTransition-dt)
+        if matchPlay.active, matchPlay.state["rule"] as? String == "rotation15" { updatePointChips() }   // 0.58d: the points follow the balls as they drop (text only, no layout)
         if shotActive && shotKind==1 {qaJumpSeen=true}
         let tutState:String=firstShotCoach?.state ?? "none",tutLog:String=firstShotCoach?.log.joined(separator:">") ?? ""
         let camScene:Int=cameraPlan048.map{$0.sceneIndex(at:replayClock)} ?? -1
