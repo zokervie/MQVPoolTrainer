@@ -275,18 +275,18 @@ extension TrainingController {
         guard !shotActive, replayIndex == nil, !locked else { return }
         if matchPlay.active { openMatchActions(); return }
         let titles = ["Hai người · một máy", "Wi‑Fi gần nhau", "Online"]
-        let sheet = UIAlertController(title: scope.map { titles[$0] } ?? "Chơi theo luật", message: "8/9/10 Ball: luật WPA. 15 Ball: Rotation, chạm số nhỏ nhất trước, đạt 61 điểm. Wi-Fi: hai máy cùng mạng. Online: hai máy ở bất kỳ đâu (Wi-Fi/4G) qua máy chủ chuyển tiếp miễn phí; máy tạo phòng tính vật lý cho cả hai.", preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: scope.map { titles[$0] } ?? "Chơi theo luật", message: "8/9/10 Ball: luật WPA. 15 Ball: Rotation, chạm số nhỏ nhất trước, đạt 61 điểm. Wi-Fi: hai máy cùng mạng." + (ReleaseGate.online ? " Online: hai máy ở bất kỳ đâu (Wi-Fi/4G) qua máy chủ chuyển tiếp miễn phí; máy tạo phòng tính vật lý cho cả hai." : ""), preferredStyle: .actionSheet)
         let all = scope == nil
         for (rule, title) in matchDisciplines {
             if all || scope == 0 { sheet.addAction(UIAlertAction(title: title + " · chuyền máy", style: .default) { [weak self] _ in self?.setupMatch { self?.startMatch(rule: rule, network: false) } }) }
             if all || scope == 1 { sheet.addAction(UIAlertAction(title: title + " · tạo phòng Wi-Fi", style: .default) { [weak self] _ in self?.setupMatch { self?.startMatch(rule: rule, network: true) } }) }
-            if all || scope == 2 { sheet.addAction(UIAlertAction(title: title + " · tạo phòng Online", style: .default) { [weak self] _ in self?.setupMatch { self?.startMatch(rule: rule, network: true, online: true) } }) }
+            if (all || scope == 2) && ReleaseGate.online { sheet.addAction(UIAlertAction(title: title + " · tạo phòng Online", style: .default) { [weak self] _ in self?.setupMatch { self?.startMatch(rule: rule, network: true, online: true) } }) }
         }
         // 0.27: Game Center — friends, invitations, auto-match; no room code, no own server.
-        if all || scope == 2 { sheet.addAction(UIAlertAction(title: "Online · Game Center (bạn bè / ghép trận)", style: .default) { [weak self] _ in self?.chooseGameCenterMatch() }) }
+        if (all || scope == 2) && ReleaseGate.online { sheet.addAction(UIAlertAction(title: "Online · Game Center (bạn bè / ghép trận)", style: .default) { [weak self] _ in self?.chooseGameCenterMatch() }) }
         if all || scope == 1 { sheet.addAction(UIAlertAction(title: "Chơi gần · tạo / tìm phòng", style: .default) { [weak self] _ in self?.openNearbyLobby() }) }   // 0.44-mm
         if all || scope == 1 { sheet.addAction(UIAlertAction(title: "Vào phòng Wi-Fi bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom() }) }
-        if all || scope == 2 { sheet.addAction(UIAlertAction(title: "Vào phòng Online bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom(online: true) })
+        if (all || scope == 2) && ReleaseGate.online { sheet.addAction(UIAlertAction(title: "Vào phòng Online bằng mã", style: .default) { [weak self] _ in self?.joinMatchRoom(online: true) })
             sheet.addAction(UIAlertAction(title: "Máy chủ online…", style: .default) { [weak self] _ in self?.configureOnlineRelay() }) }
         sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel))
         presentSheet(sheet, source: menuButton)

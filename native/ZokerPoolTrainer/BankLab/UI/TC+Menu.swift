@@ -21,15 +21,15 @@ extension TrainingController {
             .init(title:"Bài tập",subtitle:"Bài chấm sao, tìm góc kick",icon:"star.circle",color:LobbyController.practice,actions:[
                 A(title:FeatureFlags.chapters ? "Bài tập · 6 chương":"Bài tập · 5 cấp",icon:"star.circle",id:"LobbyDrills",run:{[weak self] in self?.chooseDrill()}),
                 A(title:"Thế bí của ngày",icon:"calendar",id:"LobbyDailyPuzzle",run:{[weak self] in self?.openDailyPuzzle()}),
-                A(title:"Đặt thế bí cho bạn · Thử nghiệm",icon:"person.2.badge.plus",id:"LobbyUserPuzzle",run:{[weak self] in self?.openUserPuzzle()}),
+                A(title:"Đặt thế bí cho bạn",icon:"person.2.badge.plus",id:"LobbyUserPuzzle",run:{[weak self] in self?.openUserPuzzle()}),
                 A(title:"Đoán đường bi",icon:"scope",id:"LobbyPredict",run:{[weak self] in self?.openPredict()}),
                 A(title:"Thế bí · 9 phòng",icon:"puzzlepiece",id:"LobbyPuzzles",run:{[weak self] in self?.openPuzzles()}),
                 A(title:"Thử thách kick 1–3 băng",icon:"arrow.triangle.turn.up.right.diamond",id:"LobbyKick",run:{[weak self] in self?.chooseKick()})]),
             .init(title:"Đấu",subtitle:"8 · 9 · 10 Ball luật WPA, 15 Ball Rotation",icon:"trophy",color:LobbyController.match,actions:[
                 A(title:"Đấu với máy · 6 cấp",icon:"cpu",id:"LobbyComputer",run:{[weak self] in self?.openComputerMatch()}),
                 A(title:"Hai người · một máy",icon:"person.2",id:"LobbyLocal",run:{[weak self] in self?.openMatchMenu(scope:0)}),
-                A(title:"Wi‑Fi gần nhau",icon:"wifi",id:"LobbyWifi",run:{[weak self] in self?.openMatchMenu(scope:1)}),
-                A(title:"Online · Game Center",icon:"globe",id:"LobbyOnline",run:{[weak self] in self?.openMatchMenu(scope:2)})]),
+                A(title:"Wi‑Fi gần nhau",icon:"wifi",id:"LobbyWifi",run:{[weak self] in self?.openMatchMenu(scope:1)})]
+                + (ReleaseGate.online ? [A(title:"Online · Game Center",icon:"globe",id:"LobbyOnline",run:{[weak self] in self?.openMatchMenu(scope:2)})] : [])),
             .init(title:"Thư viện bàn · cơ",subtitle:"Bàn, nỉ, bi, gậy, không gian",icon:"books.vertical",color:LobbyController.gold,actions:[
                 A(title:"Thư viện bàn · cơ",icon:"books.vertical",id:"LobbyLibrary",run:{[weak self] in self?.openLibrary()})])]
         // Hồ sơ + tiện ích: hàng chip (0.39: Tuỳ chỉnh đứng đầu vì dùng nhiều nhất).
@@ -39,8 +39,8 @@ extension TrainingController {
                           let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
                           for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
                           sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));self.presentSheet(sheet,source:self.menuButton)}),
-                      A(title:"Tài khoản · Game Center",icon:"gamecontroller",id:"LobbyAccount",run:{[weak self] in self?.openAccount()}),
                       A(title:"Hướng dẫn",icon:"questionmark.circle",id:"LobbyHelp",run:{[weak self] in self?.help()})]
+        if ReleaseGate.online {lobby.footer.insert(A(title:"Tài khoản · Game Center",icon:"gamecontroller",id:"LobbyAccount",run:{[weak self] in self?.openAccount()}),at:lobby.footer.count-1)}   // 0.59: Release hides (App Review 2.1/2.5.19)
         if FeatureFlags.fadingFeedback && !PlayerStore.shared.weeklyTestDone() {lobby.footer.insert(A(title:"Bài kiểm tuần",icon:"flag.checkered",id:"LobbyWeeklyTest",run:{[weak self] in self?.startWeeklyTest()}),at:1)}   // 0.47 M5
         if FeatureFlags.challenge {lobby.footer.insert(A(title:"Nhập mã thách đấu",icon:"person.2.wave.2",id:"LobbyChallenge",run:{[weak self] in self?.enterChallengeCode()}),at:1)}   // 0.47 M6
         if FeatureFlags.progress {lobby.footer.insert(A(title:"Tiến bộ",icon:"chart.bar.xaxis",id:"LobbyProgress",run:{[weak self] in self?.openProgress()}),at:1)}   // 0.47 M3

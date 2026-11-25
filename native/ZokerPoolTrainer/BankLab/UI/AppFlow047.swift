@@ -44,6 +44,16 @@ final class AppFlow {
 
 /// QA launch arguments (`--*-qa`, `--fresh-*`). CI screenshots and XCTest run the Debug build (Verify-on-Mac.command);
 /// the IPA is Release (Build-Unsigned-IPA.command), where every QA argument reads as absent (0.45 M5.6).
+/// 0.59 App Review (2.1 completeness, 2.5.19 no dormant features): online play (relay + Game Center) needs an
+/// App Store account, the Game Center capability and a default relay host, none of which exist yet. Release builds
+/// therefore show no entry to it at all; Debug (UI tests, Mac session) and an explicit ZOKER_ONLINE build keep it.
+enum ReleaseGate {
+    #if DEBUG || ZOKER_ONLINE
+    static let online = true
+    #else
+    static let online = false
+    #endif
+}
 enum QA {
     #if DEBUG
     static let arguments = ProcessInfo.processInfo.arguments

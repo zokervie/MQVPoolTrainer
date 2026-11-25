@@ -941,6 +941,9 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(entry.waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Petemoss")).firstMatch.exists, "the font is credited")
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "SIL Open Font License 1.1")).firstMatch.exists, "with its licence")
+        // 0.59 R3 (App Review 5.1.1): privacy policy and support are reachable inside the app.
+        XCTAssertTrue(app.cells["LegalEntry-1"].staticTexts["Chính sách quyền riêng tư"].exists, "privacy policy row")
+        XCTAssertTrue(app.cells["LegalEntry-2"].staticTexts["Hỗ trợ · liên hệ"].exists, "support row")
         entry.tap()
         XCTAssertTrue(app.textViews["LegalLicenseText"].waitForExistence(timeout: 10 * slow))
         XCTAssertTrue((app.textViews["LegalLicenseText"].value as? String ?? "").contains("SIL OPEN FONT LICENSE Version 1.1"), "the original OFL.txt")

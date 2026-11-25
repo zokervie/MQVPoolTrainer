@@ -112,8 +112,14 @@ final class WoodPickerController: UIViewController {
 /// Pháp lý · giấy phép: credits and licences of third-party material shipped in the app.
 final class LegalController: UITableViewController {
     struct Entry { let title: String; let detail: String; let licenseFile: String? }
+    /// 0.59 R3 (App Review 5.1.1): public privacy policy and support pages, opened in Safari.
+    static let privacyURL = URL(string: "https://zoker-pool.vercel.app/privacy")!
+    static let supportURL = URL(string: "https://zoker-pool.vercel.app/")!
     static let entries: [Entry] = [
-        Entry(title: "Petemoss (phông chữ tiêu đề)", detail: "© 2008–2021 The Petemoss Project Authors · SIL Open Font License 1.1", licenseFile: "OFL")]
+        Entry(title: "Petemoss (phông chữ tiêu đề)", detail: "© 2008–2021 The Petemoss Project Authors · SIL Open Font License 1.1", licenseFile: "OFL"),
+        Entry(title: "Chính sách quyền riêng tư", detail: "Ứng dụng không thu thập dữ liệu cá nhân, không theo dõi. Mở trang chính sách đầy đủ.", licenseFile: nil),
+        Entry(title: "Hỗ trợ · liên hệ", detail: "zokervie@gmail.com · trang hỗ trợ", licenseFile: nil)]
+    static func link(_ row: Int) -> URL? { row == 1 ? privacyURL : (row == 2 ? supportURL : nil) }
     override func viewDidLoad() {
         super.viewDidLoad(); title = L10n.tr("Pháp lý · giấy phép")
         tableView.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1); tableView.accessibilityIdentifier = "Legal"
@@ -127,11 +133,12 @@ final class LegalController: UITableViewController {
         let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil); cell.backgroundColor = UIColor(white: 0.14, alpha: 1)
         cell.textLabel?.text = e.title; cell.textLabel?.textColor = .white; cell.textLabel?.numberOfLines = 0
         cell.detailTextLabel?.text = e.detail; cell.detailTextLabel?.textColor = UIColor(white: 0.75, alpha: 1); cell.detailTextLabel?.numberOfLines = 0
-        cell.accessoryType = e.licenseFile != nil ? .disclosureIndicator : .none; cell.accessibilityIdentifier = "LegalEntry-\(indexPath.row)"
+        cell.accessoryType = (e.licenseFile != nil || Self.link(indexPath.row) != nil) ? .disclosureIndicator : .none; cell.accessibilityIdentifier = "LegalEntry-\(indexPath.row)"
         return cell
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        if let url = Self.link(indexPath.row) { UIApplication.shared.open(url); return }
         guard let file = Self.entries[indexPath.row].licenseFile else { return }
         let text = Bundle.main.url(forResource: file, withExtension: "txt").flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? "OFL.txt"
         let page = UIViewController(); page.view.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1); page.title = "OFL.txt"

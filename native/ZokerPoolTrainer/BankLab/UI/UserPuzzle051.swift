@@ -70,6 +70,9 @@ final class UserPuzzleController: UIViewController {
         beta.text = L10n.tr("Thử nghiệm"); beta.font = .systemFont(ofSize: 10, weight: .bold); beta.textColor = .black; beta.backgroundColor = ZDesign.Color.gold
         beta.textAlignment = .center; beta.layer.cornerRadius = 4; beta.clipsToBounds = true; beta.accessibilityIdentifier = "UserPuzzleBeta"
         beta.widthAnchor.constraint(equalToConstant: 76).isActive = true
+        #if !DEBUG
+        beta.isHidden = true   // 0.59 App Review 2.2: no "beta/trial" labelling in the store build (UI tests run Debug)
+        #endif
         tally.font = .systemFont(ofSize: 10); tally.textColor = UIColor(white: 0.7, alpha: 1); tally.numberOfLines = 0; tally.accessibilityIdentifier = "UserPuzzleTally"
         shareNote.font = .systemFont(ofSize: 10); shareNote.textColor = UIColor(white: 0.85, alpha: 1); shareNote.numberOfLines = 0; shareNote.accessibilityIdentifier = "UserPuzzleShareLine"
         style.selectedSegmentIndex = 0; style.accessibilityIdentifier = "UserPuzzleStyle"; style.addAction(UIAction { [weak self] _ in self?.changed() }, for: .valueChanged)
