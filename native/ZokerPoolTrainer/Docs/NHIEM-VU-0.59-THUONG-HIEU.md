@@ -1,6 +1,6 @@
 # Nhiệm vụ 0.59 (phần 3) — Thương hiệu Zokervie, icon, intro, độ chói cơ (phiên Mac)
 
-Chủ dự án duyệt 25/11/2026: đổi thương hiệu sang **Zokervie**, logo v1 (chữ Z = hai thanh vàng + cây cơ, bi ngà trong khuyết tròn), intro do app tự dựng (không đóng gói video AI), sửa độ chói cơ, làm lại 24 tranh tường (không chặn ra mắt).
+Chủ dự án duyệt 25/11/2026 (bổ sung 15:10: duyệt hết, gồm bundle ID, tiếng intro và bản mẫu intro https://claude.ai/artifact/GQUDSprED9pyyYs3jeYqKY): đổi thương hiệu sang **Zokervie**, logo v1 (chữ Z = hai thanh vàng + cây cơ, bi ngà trong khuyết tròn), intro do app tự dựng (không đóng gói video AI), sửa độ chói cơ, làm lại 24 tranh tường (không chặn ra mắt).
 Làm cùng nhánh 0.59, mỗi mục một commit. Mọi mục: "chưa xác minh trên thiết bị" cho tới khi anh thử máy thật.
 
 ## Tài sản (đã có trong `Docs/brand/`)
@@ -18,7 +18,7 @@ Chữ ZOKERVIE: **Montserrat SemiBold** (SIL OFL 1.1, github.com/JulietaUla/Mont
 ## B1. Tên
 - `CFBundleDisplayName` = `Zokervie` (tên dưới icon; "Zokervie Billiards" quá dài cho màn hình chính).
 - Tên App Store dự kiến: `Zokervie Billiards`, phụ đề `Pool · Snooker · Carom Trainer` (đặt ở App Store Connect, không trong code).
-- **Bundle ID: CHƯA ĐỔI.** Hiện `com.maiquocviet.BankLabS` (có họ tên thật). Đề xuất `com.zokervie.billiards`, chờ chủ dự án duyệt; chỉ đổi khi duyệt, vì sau khi tạo bản ghi App Store thì không đổi được.
+- **Bundle ID: đổi thành `com.zokervie.billiards`** (anh duyệt 25/11 15:10). Hiện `com.maiquocviet.BankLabS`. Đổi cả target UITests thành `com.zokervie.billiards.UITests`. Đổi trước khi tạo bản ghi App Store (sau đó không đổi được). Kiểm: dữ liệu người thử cũ (UserDefaults theo bundle) sẽ mất khi cài bản mới — chấp nhận vì chưa phát hành.
 - `PRODUCT_NAME`/tên target giữ nguyên (đổi gây vỡ đường dẫn test, không lợi gì cho người dùng).
 
 ## B2. Icon app
@@ -62,7 +62,7 @@ Bản mẫu nhịp: video Gemini anh gửi 25/11 (10 s, chỉ để tham khảo,
 - Vật liệu: vàng chải (metalness ~0,9, roughness ~0,25, vân chải ngang) + ngà bóng có lớp phủ (clearcoat) — đúng hướng, dùng được.
 - Dòng phụ "PRECISION IN MOTION" của bản HTML: chưa duyệt, không đưa vào.
 
-### B4c. Tiếng intro (phiên mây đã làm, chờ anh nghe duyệt)
+### B4c. Tiếng intro (phiên mây đã làm, anh duyệt 25/11)
 `Tools/AudioSources/zokervie-intro-sfx-3s2.wav` (48 kHz, stereo, 3,2 s, đỉnh −1 dBFS, RMS ≈ −21 dBFS) do `Tools/AudioSources/intro_sfx_0590.py` tổng hợp hoàn toàn bằng code (không mẫu thu ngoài, tài sản tự tạo). Mốc tiếng khớp bảng trên: tiếng đập trầm 0,05 · tiếng căng 0,30–0,85 · chạm (cạch + bùm + gió ngược) 0,85 · 5 click 1,05–1,85 · trầm + chuông + nền ấm 1,90. Phát một file này thay cho IntroBoom/Jingle/Riser khi chạy intro mới; rung IntroHaptics đặt ở 0,85 (mạnh) và 1,90 (vừa). Thêm dòng vào `ATTRIBUTION.md`: "zokervie-intro-sfx-3s2.wav — tự tổng hợp (Zokervie), không giấy phép bên thứ ba".
 
 ## B5. Thay chữ và logo cũ trong app
@@ -90,7 +90,7 @@ Nguyên nhân (INFERRED, đọc code `TableScene.swift` ~1281): thân cơ `maple
 Làm lại chữ và logo trên ảnh theo Zokervie; giữ nguồn ảnh như đã xác nhận. Lên kế hoạch riêng.
 
 ## Không làm trong nhiệm vụ này
-Trang web/chính sách (phiên mây đổi trên Vercel), đăng ký nhãn hiệu (anh), bundle ID (chờ duyệt).
+Trang web/chính sách (phiên mây đổi trên Vercel), đăng ký nhãn hiệu (anh).
 
 ## Nghiệm thu
 Theo `Run-All-Checks.command` + test UI intro hiện có; báo PASS/FAIL/NOT RUN từng mục B1–B6; ảnh trước/sau B4, B6; IPA gửi anh. Code do phiên Mac viết sẽ được phiên mây review độc lập (không tự nghiệm thu).
