@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Zokervie logo">
+<defs>
+<mask id="m"><rect width="1000" height="1000" fill="#fff"/><circle cx="222" cy="702" r="114" fill="#000"/></mask>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7E3A8"/><stop offset=".18" stop-color="#E9BE62"/><stop offset=".55" stop-color="#D9A441"/><stop offset="1" stop-color="#B98A30"/></linearGradient>
+<linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C4912F"/><stop offset=".35" stop-color="#F7E3A8"/><stop offset="1" stop-color="#C4912F"/></linearGradient>
+<linearGradient id="cg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#B98A30"/><stop offset=".35" stop-color="#F2D58C"/><stop offset="1" stop-color="#B98A30"/></linearGradient>
+<linearGradient id="iv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DCCFAE"/><stop offset=".4" stop-color="#FFFBEF"/><stop offset="1" stop-color="#DCCFAE"/></linearGradient>
+<radialGradient id="ball" cx=".36" cy=".32" r=".75"><stop offset="0" stop-color="#FFFDF4"/><stop offset=".6" stop-color="#F3E8CB"/><stop offset="1" stop-color="#CDBB90"/></radialGradient>
+</defs>
+<rect width="1000" height="1000" fill="#0B1220"/>
+<g transform="translate(22 22)">
+<polygon points="230,220 704,220 564,360 90,360" fill="#D9A441"/>
+<polygon points="335,640 870,640 730,780 195,780" fill="#D9A441" mask="url(#m)"/>
+<g transform="translate(222 702) rotate(-45)"><polygon points="96,-24 140,-26 140,26 96,24" fill="#F7EFDC"/><polygon points="147,-27 570,-42 570,42 147,27" fill="#D9A441"/><path d="M563,-42 L730,-46 Q744,-46 744,-32 L744,32 Q744,46 730,46 L563,42 Z" fill="#D9A441"/></g>
+<circle cx="222" cy="702" r="92" fill="#F7EFDC"/>
+</g>
+</svg>
