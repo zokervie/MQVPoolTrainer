@@ -95,7 +95,10 @@ enum DrillCatalog {
             }
         }()
         let text = newText[key]
-        var d = Drill(title: overrideTitle ?? old?.title ?? text?.title ?? key, note: old?.note ?? text?.note ?? "", rails: kind == Int(BL_DRILL_GOAL) || kind == Int(BL_DRILL_SAFETY) ? 0 : Int(s.rails),
+        // 0.59: ladder rings ("force-near-2") had no text and showed their key to players (Sảnh → Bài hôm nay). Use the ladder's
+        // Vietnamese name + ring number. Progress is keyed by `id` (= key), never by the title, so nothing saved changes.
+        let ringTitle: String? = s.tier > 0 ? Mastery.ladderTitles[Mastery.ladderName(of: key)].map { "\($0) · Vòng \(Int(s.tier))" } : nil
+        var d = Drill(title: overrideTitle ?? old?.title ?? text?.title ?? ringTitle ?? key, note: old?.note ?? text?.note ?? "", rails: kind == Int(BL_DRILL_GOAL) || kind == Int(BL_DRILL_SAFETY) ? 0 : Int(s.rails),
                       kick: kind == Int(BL_DRILL_KICK), balls: balls, angle: s.angle, goal: goal, level: level,
                       system: old?.system ?? newSystem[key] ?? "")
         d.id = key; d.video = old?.video; d.tipTop = s.tipTop; d.spec = s; d.safety = kind == Int(BL_DRILL_SAFETY)

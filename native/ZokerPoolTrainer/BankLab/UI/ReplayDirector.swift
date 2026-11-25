@@ -17,9 +17,15 @@ struct ReplayCameraFrame {
 enum ReplayDirector {
     static let minimumCutInterval: Double = 2.2
 
-    static func endingRate(time: Double, duration: Double) -> Double {
-        guard time.isFinite, duration.isFinite, duration>0, time>=0, time<duration else{return 1}
-        return time>=max(0,duration-3) ? 0.48:1
+    /// 0.59 (owner: slow motion ran too long and got boring). Slow motion is spent on ONE moment only: the first object ball
+    /// that drops, from 0.55 s before to 0.20 s after it (≈ 1.5 s on screen at half speed). No pot = the whole replay at 1×.
+    /// The old rule (every replay's last 3 s at 0.48×, plus every pot) is gone.
+    static let keyRate: Double = 0.5
+    static let keyLead: Double = 0.55
+    static let keyTail: Double = 0.20
+    static func keyMomentRate(time: Double, keyTime: Double?) -> Double {
+        guard let key = keyTime, key.isFinite, time.isFinite else { return 1 }
+        return time >= key - keyLead && time <= key + keyTail ? keyRate : 1
     }
 
     private enum ViewStyle {
@@ -64,14 +70,10 @@ enum ReplayDirector {
             for index in segments.indices where segments[index].start <= clock + 1e-8 {
                 selected = index
             }
-            // Only object pots add approach slow motion; the final three seconds
-            // use a separate slowdown for every replay.
-            let pocketRate: Double = pots.contains {
-                clock >= $0.time - 0.70 && clock <= $0.time + 0.25
-            } ? 0.48 : 1.0
+            // 0.59: only the first object pot is slowed (keyMomentRate); `pots` is sorted by time.
             return ReplayDirector.camera(for: segments[selected], id: selected,
                                          balls: balls, angle: initialAngle,
-                                         slowMotion: min(pocketRate, ReplayDirector.endingRate(time:clock,duration:duration)))
+                                         slowMotion: ReplayDirector.keyMomentRate(time: clock, keyTime: pots.first?.time))
         }
     }
 

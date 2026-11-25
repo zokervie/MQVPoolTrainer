@@ -313,3 +313,48 @@ extension TrainingController {
     // 0.48 M2: the frame-by-frame action cameras (0.41–0.47) and their on/off slow motion were removed: every angle
     // now reads a path planned on the whole recording (Camera048.swift → BLCameraPlan).
 }
+
+// MARK: - 0.59 Xem lại một chạm (owner: "khó mở xem lại")
+// Since 0.53 B1 replay lives in Bàn (two taps) and 0.56 K1/K2 fixed the right column at four keys. Instead of a fifth key,
+// a gold "Xem lại cú" chip appears top-centre for 4 s after each practice / drill / free-table shot. Matches never get it
+// (finishShot returns early for matches; replay is disabled there). Weekly test: no chip (nothing between shots).
+// UI tests keep the old screen unless they pass --replay-chip-qa, so no automatic tap lands on it.
+extension TrainingController {
+    static let quickReplayChipTag = 5901
+    static var quickReplayChipToken = 0
+    private var quickReplayChip: UIButton? { view.viewWithTag(Self.quickReplayChipTag) as? UIButton }
+
+    func offerQuickReplay() {
+        guard !QA.anyFlag || QA.has("--replay-chip-qa") else { return }
+        guard testRun == nil, replayIndex == nil, !shotActive, !frames.isEmpty, !isPlacingBalls, presentedViewController == nil else { return }
+        let chip = quickReplayChip ?? makeQuickReplayChip()
+        Self.quickReplayChipToken += 1; let token = Self.quickReplayChipToken
+        view.bringSubviewToFront(chip); chip.isHidden = false; chip.alpha = 0
+        UIView.animate(withDuration: 0.2) { chip.alpha = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard Self.quickReplayChipToken == token else { return }
+            self?.hideQuickReplayChip()
+        }
+    }
+    func hideQuickReplayChip() {
+        guard let chip = quickReplayChip, !chip.isHidden else { return }
+        Self.quickReplayChipToken += 1
+        UIView.animate(withDuration: 0.2, animations: { chip.alpha = 0 }) { _ in chip.isHidden = true }
+    }
+    private func makeQuickReplayChip() -> UIButton {
+        var c = UIButton.Configuration.filled()
+        c.title = L10n.tr("Xem lại cú"); c.image = UIImage(systemName: "play.circle.fill"); c.imagePadding = 6
+        c.baseBackgroundColor = UIColor(red: 0.851, green: 0.643, blue: 0.255, alpha: 1)   // #D9A441
+        c.baseForegroundColor = UIColor(red: 0.043, green: 0.071, blue: 0.125, alpha: 1)   // #0B1220
+        c.cornerStyle = .capsule; c.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 18)
+        c.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { a in var a = a; a.font = UIFont.systemFont(ofSize: 15, weight: .semibold); return a }
+        let chip = UIButton(configuration: c); chip.tag = Self.quickReplayChipTag; chip.accessibilityIdentifier = "QuickReplayChip"
+        chip.translatesAutoresizingMaskIntoConstraints = false; chip.isHidden = true
+        chip.addAction(UIAction { [weak self] _ in self?.hideQuickReplayChip(); self?.replay() }, for: .touchUpInside)
+        view.addSubview(chip)
+        NSLayoutConstraint.activate([chip.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+                                     chip.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 64),
+                                     chip.heightAnchor.constraint(greaterThanOrEqualToConstant: 40)])
+        return chip
+    }
+}

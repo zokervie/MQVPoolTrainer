@@ -70,6 +70,7 @@ extension TrainingController {
         table.resetPocketPresentation();shotCameraAnchor=nil
     }
     func shoot(_ speed:Double){
+        hideQuickReplayChip()   // 0.59: the replay chip of the last shot never stays over a new shot
         // 0.41 (owner: "cú phá đầu tiên không thao tác được"): the first stroke of a rack only ended the rack intro and
         // was thrown away. The intro is presentation only (the solver already holds the rack): end it and play the shot.
         if table.rackIntroPlaying{table.skipRackIntro()}
@@ -511,6 +512,7 @@ extension TrainingController {
         else {statusLabel.text="\(passed ? "ĐẠT":"Chưa đạt") · \(railCount) băng / yêu cầu \(d.rails)"}
         hintLabel.text="Tập lại: trở về trước cú · Xem lại: phân tích đường bi"
         refresh();updateControls()
+        offerQuickReplay()   // 0.59: one-tap replay chip (TC+Replay.swift)
         if testRun != nil {}   // 0.47: a test without help shows nothing between shots
         else if Tuning.predictFirst && !timedOut {revealPrediction(events)}
         else if !timedOut && !scratch {scoreConsistency()}

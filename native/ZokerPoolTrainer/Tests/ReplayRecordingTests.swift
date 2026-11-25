@@ -30,13 +30,18 @@ import Foundation
         try invalid(ShotRecording(frames:[[ball]],frameTimes:[0],events:[],preparation:[begin,bad]))
         var reversed=begin;reversed.time=0.5
         try invalid(ShotRecording(frames:[[ball]],frameTimes:[0],events:[],preparation:[begin,end,reversed]))
-        try check(ReplayDirector.endingRate(time:-1,duration:10)==1,"preparation remains normal speed")
-        try check(ReplayDirector.endingRate(time:6.99,duration:10)==1,"early motion remains normal speed")
-        try check(ReplayDirector.endingRate(time:7,duration:10)==0.48,"last three seconds slow down")
-        try check(ReplayDirector.endingRate(time:0,duration:2)==0.48,"short shots slow without negative onset")
-        try check(ReplayDirector.endingRate(time:10,duration:10)==1,"end hold does not extend indefinitely")
+        // 0.59: slow motion only around the FIRST object pot (0.55 s before … 0.20 s after), never a blanket ending slowdown.
+        try check(ReplayDirector.keyMomentRate(time:8,keyTime:nil)==1,"no pot: the replay runs at 1x")
+        try check(ReplayDirector.keyMomentRate(time:4.5,keyTime:5)==0.5,"just before the pot is slowed")
+        try check(ReplayDirector.keyMomentRate(time:5.15,keyTime:5)==0.5,"the drop itself is slowed")
+        try check(ReplayDirector.keyMomentRate(time:4.4,keyTime:5)==1 && ReplayDirector.keyMomentRate(time:5.25,keyTime:5)==1,"outside the window: 1x")
+        try check(ReplayDirector.keyMomentRate(time:5,keyTime:.nan)==1,"a broken event time never slows the replay")
         let plan=ReplayDirector.Plan(duration:10,events:[],initialAngle:0)
-        try check(plan.frame(time:8,balls:[ball]).slowMotion==0.48,"director applies final slowdown without needing a pot")
-        print("PASS ReplayRecording: \(checks) checks; pre-roll archive compatibility, native clock isolation, final-three-second slowdown")
+        try check(plan.frame(time:8,balls:[ball]).slowMotion==1,"no pot: no ending slowdown any more")
+        let pot1:[String:NSNumber]=["kind":2,"a":3,"b":1,"time":4,"x":0,"y":0], pot2:[String:NSNumber]=["kind":2,"a":5,"b":2,"time":7,"x":0,"y":0]
+        let potPlan=ReplayDirector.Plan(duration:10,events:[impact,pot2,pot1],initialAngle:0)
+        try check(potPlan.frame(time:3.8,balls:[ball]).slowMotion==0.5,"first pot (by time, not log order) is the key moment")
+        try check(potPlan.frame(time:6.8,balls:[ball]).slowMotion==1,"a second pot is not slowed")
+        print("PASS ReplayRecording: \(checks) checks; pre-roll archive compatibility, native clock isolation, one slow-motion moment (first pot)")
     }
 }

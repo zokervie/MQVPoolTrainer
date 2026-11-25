@@ -34,7 +34,7 @@ extension TrainingController {
                 A(title:"Thư viện bàn · cơ",icon:"books.vertical",id:"LobbyLibrary",run:{[weak self] in self?.openLibrary()})])]
         // Hồ sơ + tiện ích: hàng chip (0.39: Tuỳ chỉnh đứng đầu vì dùng nhiều nhất).
         lobby.footer=[A(title:"Tuỳ chỉnh",icon:"slider.horizontal.3",id:"LobbyCustomize",run:{[weak self] in self?.openCustomize()}),
-                      A(title:"Nhật ký · tiến bộ",icon:"chart.line.uptrend.xyaxis",id:"LobbyJournal",run:{[weak self] in self?.layouts()}),
+                      A(title:"Thế bi · nhật ký",icon:"square.stack.3d.up",id:"LobbyJournal",run:{[weak self] in self?.layouts()}),   // 0.59: opens "Thế bi cá nhân" (+ Nhật ký luyện tập); the old name "Nhật ký · tiến bộ" read like a second "Tiến bộ"
                       A(title:"Cú đã lưu · video highlight",icon:"film.stack",id:"LobbyShots",run:{[weak self] in guard let self=self else{return}
                           let sheet=UIAlertController(title:"Thư viện cú đánh",message:nil,preferredStyle:.actionSheet)
                           for shot in SavedShot.all().reversed(){sheet.addAction(UIAlertAction(title:shot.name,style:.default){[weak self]_ in self?.playSaved(shot)})}
@@ -70,7 +70,7 @@ extension TrainingController {
     /// "Thêm cơ vào bao…" (all cues, tap one = it goes into its slot), change bag, and the physics settings.
     func showCueBag(){
         guard matchAllowsEditing || !matchIsCompetitive else{return}
-        let sheet=UIAlertController(title:"Bao "+CueBag.names[CueBag.active],message:"Cơ trong bao gắn với các phím Đánh · Jump · Massé · Break bên trái.",preferredStyle:.actionSheet)
+        let sheet=UIAlertController(title:"Bao "+CueBag.names[CueBag.active],message:"Chạm một cơ để đổi cơ của phím đó.",   /* 0.59: no Massé slot exists (roles 0…2) */preferredStyle:.actionSheet)
         for role in 0...2 {
             let cue=CueBag.cue(role)
             let action=UIAlertAction(title:CueLook.roles[role]+": "+cue.title,style:.default){[weak self]_ in self?.openLibrary(initialTab:1)}
@@ -78,7 +78,7 @@ extension TrainingController {
             sheet.addAction(action)
         }
         sheet.addAction(UIAlertAction(title:"＋ Thêm cơ vào bao…",style:.default){[weak self]_ in self?.openLibrary(initialTab:1)})
-        sheet.addAction(UIAlertAction(title:"Đổi bao (Thi đấu / Luyện tập / Dự phòng)…",style:.default){[weak self]_ in self?.openLibrary(initialTab:2)})
+        sheet.addAction(UIAlertAction(title:"Đổi bao…",   /* 0.59: the long title was cut off */style:.default){[weak self]_ in self?.openLibrary(initialTab:2)})
         sheet.addAction(UIAlertAction(title:"Thông số gậy (vật lý)…",style:.default){[weak self]_ in self?.equipment()})
         sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel))
         presentSheet(sheet,source:quickTable ?? menuButton)
