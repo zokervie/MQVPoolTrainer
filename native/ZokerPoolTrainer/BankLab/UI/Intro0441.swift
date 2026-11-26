@@ -398,7 +398,7 @@ final class IntroDirector0441 {
         let p = AVPlayer(playerItem: item)
         p.isMuted = !(UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true)
         p.actionAtItemEnd = .pause
-        let layer = AVPlayerLayer(player: p); layer.frame = overlay.bounds; layer.videoGravity = .resizeAspectFill
+        let layer = AVPlayerLayer(player: p); layer.frame = overlay.bounds; layer.videoGravity = .resizeAspect   // 0.59: whole frame, true proportions — balls stay round (owner: no distortion)
         overlay.layer.insertSublayer(layer, above: shade.layer)
         logo.isHidden = true; title.isHidden = true
         player = p; playerLayer = layer
