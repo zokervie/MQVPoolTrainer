@@ -71,7 +71,7 @@ def run(portable=False):
         if not portable:
             app = ROOT/'build/DerivedData/Build/Products/Release-iphoneos/ZokerPoolTrainer.app'
             info = plistlib.loads((app/'Info.plist').read_bytes())
-            assert info['CFBundleIdentifier']=='com.maiquocviet.BankLabS'
+            assert info['CFBundleIdentifier']=='com.zokervie.billiards'
             ipa = out/('ZokerPoolTrainer-'+info['CFBundleShortVersionString']+'-Build'+str(info['CFBundleVersion'])+'.ipa')
             with zipfile.ZipFile(ipa) as archive:
                 assert archive.testzip() is None

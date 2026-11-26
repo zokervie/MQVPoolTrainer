@@ -7,7 +7,7 @@ cd -- "$(dirname -- "$0")/.."
 out=${1:?thư mục kết quả}; shift || true
 mkdir -p "$out"
 app=build/Simulator/Build/Products/Debug-iphonesimulator/ZokerPoolTrainer.app
-bundle=com.maiquocviet.BankLabS
+bundle=com.zokervie.billiards
 device=${ZOKER_SIM:-$(xcrun simctl list devices booted -j | python3 -c "import json,sys;d=[x for v in json.load(sys.stdin)['devices'].values() for x in v if x['state']=='Booted'];print(d[0]['udid'] if d else '')")}
 [ -n "$device" ] || { echo "BLOCKED: chưa có Simulator đang chạy"; exit 2; }
 xcrun simctl install "$device" "$app"

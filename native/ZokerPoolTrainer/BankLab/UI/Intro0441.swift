@@ -185,7 +185,8 @@ final class IntroDirector0441 {
     private let haptics = IntroHaptics()   // 0.57 I2
     private var eventsSeen = 0, stopHapticDone = false, baseFov: CGFloat = 45
     private var balls: [BallState] = []
-    private(set) var mode = "none"   // "full" | "logo" (QA)
+    private(set) var mode = "none"   // "full" | "logo" (QA) | "video" (0.59 rendered film)
+    private var player: AVPlayer?, playerLayer: AVPlayerLayer?, filmEnd: NSObjectProtocol?, filmURL: URL?
     private var hiddenByIntro: [UIView] = []
     var onFinish: ((IntroDirector0441) -> Void)?
     var probeStills: [[String: Any]] = []
@@ -199,6 +200,9 @@ final class IntroDirector0441 {
         self.done = done
         let reduce = UIAccessibility.isReduceMotionEnabled || ProcessInfo.processInfo.isLowPowerModeEnabled || QA.has("--intro-reduce-qa")   // QA: stands in for the system switch
         mode = full && !reduce ? "full" : "logo"
+        // 0.59 (đợt 1): the rendered film "Cú đánh hai băng" (intro C, 1080p60, own sound) when it is in the bundle — 6 s the first time,
+        // its last 1.5 s afterwards, a tap skips. Reduce Motion / Low Power keep the 2D logo. QA launches keep the 3D director unless --intro-video-qa.
+        if !reduce, IntroFilm059.wanted, let url = IntroFilm059.url() { mode = "video"; filmURL = url }
         hiddenByIntro = tc.view.subviews.filter { $0 !== tc.scn && !$0.isHidden }
         hiddenByIntro.forEach { $0.isHidden = true }   // play UI hidden during the intro (only what was visible)
         overlay.frame = tc.view.bounds; overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -211,6 +215,7 @@ final class IntroDirector0441 {
         overlay.addSubview(shade)
         buildLogo()
         start = CACurrentMediaTime(); lastFrame = start; startedAt = start
+        if mode == "video", let url = filmURL { startFilm(url); return }
         if mode == "full" { setUp3D(tc) } else { showLogo(at: 0, duration: 0.25) }
         audio.play(full: mode == "full")
         let l = CADisplayLink(target: self, selector: #selector(step)); l.add(to: .main, forMode: .common); link = l
@@ -387,6 +392,35 @@ final class IntroDirector0441 {
         sweep.add(move, forKey: "sweep"); sweep.position.x = logo.bounds.width * 2
     }
 
+    // MARK: - 0.59 rendered film
+    private func startFilm(_ url: URL) {
+        let item = AVPlayerItem(url: url)
+        let p = AVPlayer(playerItem: item)
+        p.isMuted = !(UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true)
+        p.actionAtItemEnd = .pause
+        let layer = AVPlayerLayer(player: p); layer.frame = overlay.bounds; layer.videoGravity = .resizeAspectFill
+        overlay.layer.insertSublayer(layer, above: shade.layer)
+        logo.isHidden = true; title.isHidden = true
+        player = p; playerLayer = layer
+        filmEnd = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in self?.finish() }
+        let begin = full ? CMTime.zero : CMTime(seconds: max(0, IntroFilm059.seconds - IntroFilm059.stingSeconds), preferredTimescale: 600)
+        p.seek(to: begin, toleranceBefore: .zero, toleranceAfter: .zero) { [weak p] _ in p?.play() }
+        // Never stuck: whatever happens to the film, the intro ends.
+        DispatchQueue.main.asyncAfter(deadline: .now() + (full ? IntroFilm059.seconds : IntroFilm059.stingSeconds) + 2.0) { [weak self] in self?.finish() }
+        // Never a black screen: no playable film within 0.8 s → the 2D logo plays instead.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self, weak item] in
+            guard let self = self, !self.finished, self.mode == "video", item?.status != .readyToPlay else { return }
+            self.stopFilm(); self.mode = "logo"; self.logo.isHidden = false; self.title.isHidden = false
+            self.layoutLogo(); self.start = CACurrentMediaTime(); self.showLogo(at: 0, duration: 0.25)
+            let l = CADisplayLink(target: self, selector: #selector(self.step)); l.add(to: .main, forMode: .common); self.link = l
+        }
+    }
+    private func stopFilm() {
+        player?.pause(); playerLayer?.removeFromSuperlayer()
+        if let o = filmEnd { NotificationCenter.default.removeObserver(o) }
+        filmEnd = nil; player = nil; playerLayer = nil
+    }
+
     @objc func skip() {
         guard !finished else { return }
         if skipAt == 0 { skipAt = CACurrentMediaTime() }
@@ -410,6 +444,7 @@ final class IntroDirector0441 {
         tc.introFinishCount += 1
         tc.publishIntroProbe()
         link?.invalidate(); link = nil
+        stopFilm()   // 0.59
         audio.stop(); haptics.stop(); teardown3D()
         overlay.removeFromSuperview()
         hiddenByIntro.forEach { $0.isHidden = false }; hiddenByIntro = []
@@ -495,5 +530,19 @@ extension IntroDirector0441 {
         var sum = 0.0, lit = 0
         for i in 0..<(w * h) { let y = (0.2126 * Double(px[i * 4]) + 0.7152 * Double(px[i * 4 + 1]) + 0.0722 * Double(px[i * 4 + 2])) / 255; sum += y; if y > 0.10 { lit += 1 } }
         return (sum / Double(w * h), Double(lit) / Double(w * h))
+    }
+}
+
+/// 0.59 (đợt 1): intro C "Cú đánh hai băng" — Blender film 1920×1080 60 fps, 6.0 s, AAC stereo (Assets IntroFilmC059, 2.7 MB).
+/// The data set is copied once into Caches so AVPlayer gets a file URL.
+enum IntroFilm059 {
+    static let seconds = 6.0, stingSeconds = 1.5
+    static var wanted: Bool { !QA.anyQA || QA.has("--intro-video-qa") }
+    static func url() -> URL? {
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
+        let dest = caches.appendingPathComponent("intro-c-059.mp4")
+        if let size = try? dest.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 100_000 { return dest }
+        guard let data = NSDataAsset(name: "IntroFilmC059")?.data, data.count > 100_000 else { return nil }
+        do { try data.write(to: dest, options: .atomic); return dest } catch { return nil }
     }
 }

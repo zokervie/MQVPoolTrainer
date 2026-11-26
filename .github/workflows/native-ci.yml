@@ -101,7 +101,7 @@ jobs:
               assert z.testzip() is None
               p='Payload/ZokerPoolTrainer.app/'
               info=plistlib.loads(z.read(p+'Info.plist'))
-              assert info['CFBundleIdentifier']=='com.maiquocviet.BankLabS'
+              assert info['CFBundleIdentifier']=='com.zokervie.billiards'
               assert z.read(p+info['CFBundleExecutable'])[:4] in (b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca')
               assert not any('/_CodeSignature/' in n or n.endswith('embedded.mobileprovision') for n in z.namelist())
           digest=hashlib.sha256(ipa.read_bytes()).hexdigest()
