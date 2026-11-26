@@ -475,7 +475,7 @@ extension TrainingController {
     /// (Tuỳ chỉnh) is respected. QA launches skip it except --intro-qa (probe) and --intro-lobby-qa (UI test).
     func makeIntro() -> IntroDirector0441? {
         // 0.45 M5.6: QA arguments via `QA` (compiled out of Release builds).
-        let forced = QA.has("--intro-qa") || QA.has("--intro-lobby-qa")
+        let forced = QA.has("--intro-qa") || QA.has("--intro-lobby-qa") || QA.has("--intro-video-qa")
         if !forced && QA.anyQA { return nil }
         if QA.has("--fresh-intro") { UserDefaults.standard.removeObject(forKey: Prefs.introSeen) }
         guard forced || Prefs.flag(Prefs.introEnabled, true) else { return nil }
