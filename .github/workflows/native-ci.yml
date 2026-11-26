@@ -5,7 +5,8 @@
 name: Zoker native
 on:
   push:
-    branches: ['feature/zoker-native', 'ci/native-**', 'feature/native-0.18-integrated-play']
+    branches: ['feature/zoker-native', 'ci/native-**', 'ci/fast-**', 'feature/native-0.18-integrated-play']
+    # ci/fast-**: làn nhanh 0.59 — chỉ cổng Linux + IPA ứng viên (~25 phút), bỏ nghiệm thu đầy đủ và UI test. Dùng cho bản thử; bản nghiệm thu vẫn đi ci/native-**.
   workflow_dispatch:
     inputs:
       runner:
@@ -118,6 +119,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Nghiệm thu (run_acceptance.py)
+        if: ${{ !startsWith(github.ref_name, 'ci/fast-') }}
         env:
           # Số build tăng dần, nối tiếp build 24 của nhánh council.
           BUILD_NUMBER: ${{ github.run_number }}
@@ -129,7 +131,7 @@ jobs:
           REPORT=$(ls dist/ACCEPTANCE-*.json | tail -1)
           python3 -c "import json;r=json.load(open('$REPORT'));print('::notice title=acceptance::'+r['status']+' · '+', '.join(s['name']+'='+s['status'] for s in r['stages']))"
       - name: Chẩn đoán khi lỗi (bước hỏng + dòng lỗi thành annotation)
-        if: failure()
+        if: ${{ failure() && !startsWith(github.ref_name, 'ci/fast-') }}
         run: |
           REPORT=$(ls dist/ACCEPTANCE-*.json 2>/dev/null | tail -1)
           [ -n "$REPORT" ] || { echo "::error title=acceptance::không có báo cáo ACCEPTANCE"; exit 0; }
@@ -146,7 +148,7 @@ jobs:
               print(f"::error title={s['name']}::{msg}")
           PY
       - name: Đẩy ảnh chụp + báo cáo lên nhánh shots/native
-        if: always()
+        if: ${{ always() && !startsWith(github.ref_name, 'ci/fast-') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -202,6 +204,7 @@ jobs:
     # UI tests (XCTest gestures) split in two shards on two runners, in parallel with the acceptance job.
     name: UI test ${{ matrix.shard }}/2 (Simulator)
     needs: portable
+    if: ${{ !startsWith(github.ref_name, 'ci/fast-') }}
     runs-on: ${{ github.event.inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 100
     strategy:
