@@ -1263,7 +1263,7 @@ final class InteractionTests: XCTestCase {
         let code = codeLabel.label
         XCTAssertTrue(app.staticTexts["UserPuzzleBeta"].exists, "0.55 R2: the Thử nghiệm label")
         let shareLine = app.staticTexts["UserPuzzleShareLine"].label
-        XCTAssertTrue(shareLine.hasPrefix("Zoker Pool · Thế bí của tôi (Vào lỗ): ") && shareLine.contains(code) && shareLine.hasSuffix("bạn giải được không?"), "0.55 R3: \(shareLine)")
+        XCTAssertTrue(shareLine.hasPrefix("Zokervie · Thế bí của tôi (Vào lỗ): ") && shareLine.contains(code) && shareLine.hasSuffix("bạn giải được không?"), "0.55 R3: \(shareLine)")
         XCTAssertTrue(app.staticTexts["UserPuzzleTally"].label.contains("Mã đã gửi: 1"), "0.55 R5: one code sent so far: \(app.staticTexts["UserPuzzleTally"].label)")
         XCTAssertNotNil(code.range(of: "^[0-9A-Z]{5}-[0-9A-Z]{5}-[0-9A-Z]{5}$", options: .regularExpression), "XXXXX-XXXXX-XXXXX: \(code)")
         app.terminate()

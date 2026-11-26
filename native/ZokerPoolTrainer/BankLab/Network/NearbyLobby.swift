@@ -17,7 +17,7 @@ enum NearbyFailure: Equatable {
         case .roomFull: return "Phòng đã đủ 2 người"
         case .roomGone: return "Phòng không còn · hãy tìm lại"
         case .reconnectTimedOut: return "Mất kết nối quá lâu · trận vẫn được giữ, chọn Nối lại hoặc Rời phòng"
-        case .permissionDenied: return "Cần quyền Mạng cục bộ: Cài đặt → Zoker Pool → Mạng cục bộ"
+        case .permissionDenied: return "Cần quyền Mạng cục bộ: Cài đặt → Zokervie → Mạng cục bộ"
         }
     }
     var english: String {
@@ -27,7 +27,7 @@ enum NearbyFailure: Equatable {
         case .roomFull: return "The room already has two players"
         case .roomGone: return "The room is gone · search again"
         case .reconnectTimedOut: return "Connection lost for too long · the match is kept, Reconnect or Leave"
-        case .permissionDenied: return "Local Network permission needed: Settings → Zoker Pool → Local Network"
+        case .permissionDenied: return "Local Network permission needed: Settings → Zokervie → Local Network"
         }
     }
 }

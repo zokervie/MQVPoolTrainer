@@ -17,19 +17,23 @@ for name in sorted(maps):
 # Regenerate every rendition, even when the base branch already shipped the old icon.
 # The generated master is kept encoded in git; decoding must preserve its verified bytes.
 branding=root/'Tools/Branding'
-brand=json.loads((branding/'manifest.json').read_text())['master']
-data=base64.b64decode((branding/brand['encoded_file']).read_text(),validate=False)
-if len(data)!=brand['bytes'] or hashlib.sha256(data).hexdigest()!=brand['sha256']:
- raise SystemExit('Zoker Pool logo master checksum mismatch')
+manifest_brand=json.loads((branding/'manifest.json').read_text())
+def master(brand):
+ data=base64.b64decode((branding/brand['encoded_file']).read_text(),validate=False)
+ if len(data)!=brand['bytes'] or hashlib.sha256(data).hexdigest()!=brand['sha256']:
+  raise SystemExit('Zokervie icon master checksum mismatch: '+brand['file'])
+ image=Image.open(io.BytesIO(data));image.load()
+ if image.size!=(brand['width'],brand['height']) or image.mode!='RGB':
+  raise SystemExit('Zokervie icon master dimensions/mode mismatch: '+brand['file'])
+ return image
+large=master(manifest_brand['master'])
+small=master(manifest_brand['small_master']) if 'small_master' in manifest_brand else large   # 0.59 B2: home-screen sizes use the bolder small master
 icons=assets/'AppIcon.appiconset'
 entries=json.loads((icons/'Contents.json').read_text())['images']
-with Image.open(io.BytesIO(data)) as image:
- if image.size!=(brand['width'],brand['height']) or image.mode!='RGB':
-  raise SystemExit('Zoker Pool logo master dimensions/mode mismatch')
- for entry in entries:
-  size=round(float(entry['size'].split('x')[0])*float(entry['scale'][:-1]))
-  image.resize((size,size),Image.Resampling.LANCZOS).save(icons/entry['filename'])
-print('Prepared generated material/mesh assets and verified Z-Trainer 9-ball icon renditions.')
+for entry in entries:
+ size=round(float(entry['size'].split('x')[0])*float(entry['scale'][:-1]))
+ (large if size>=1024 else small).resize((size,size),Image.Resampling.LANCZOS).save(icons/entry['filename'])
+print('Prepared generated material/mesh assets and verified Zokervie icon renditions.')
 
 
 # Real pool audio is versioned as base64 for connector-safe transport; verify every decoded byte.

@@ -86,8 +86,8 @@ final class LobbyController: UIViewController {
                                      dim.leadingAnchor.constraint(equalTo: blur.leadingAnchor), dim.trailingAnchor.constraint(equalTo: blur.trailingAnchor),
                                      dim.topAnchor.constraint(equalTo: blur.topAnchor), dim.bottomAnchor.constraint(equalTo: blur.bottomAnchor)])
         let title = UILabel(); title.attributedText = {
-            let t = NSMutableAttributedString(string: "ZOKER POOL", attributes: [.font: UIFont.systemFont(ofSize: 24, weight: .heavy), .foregroundColor: UIColor.white, .kern: 2])
-            t.append(NSAttributedString(string: "  TRAINER", attributes: [.font: UIFont.systemFont(ofSize: 14, weight: .bold), .foregroundColor: Self.gold, .kern: 5]))
+            let t = NSMutableAttributedString(string: "ZOKERVIE", attributes: [.font: UIFont.systemFont(ofSize: 24, weight: .heavy), .foregroundColor: UIColor.white, .kern: 2])
+            t.append(NSAttributedString(string: "  BILLIARDS", attributes: [.font: UIFont.systemFont(ofSize: 14, weight: .bold), .foregroundColor: Self.gold, .kern: 5]))
             return t }()
         var rows: [UIView] = [title]
         if let d = daily { rows.append(makeDaily(d)) }

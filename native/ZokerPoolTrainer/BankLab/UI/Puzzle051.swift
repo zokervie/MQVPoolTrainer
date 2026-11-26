@@ -53,7 +53,7 @@ enum DailyPuzzle {
                 let a: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]; let w = (text as NSString).size(withAttributes: a).width
                 (text as NSString).draw(at: CGPoint(x: (page.width - w) / 2, y: y), withAttributes: a)
             }
-            draw("ZOKER POOL", Wood.titleFont(46), ZDesign.Color.gold, y: 40)
+            draw("ZOKERVIE", Wood.titleFont(46), ZDesign.Color.gold, y: 40)
             draw(texts.title, .systemFont(ofSize: 26, weight: .bold), .white, y: 130)
             draw("#\(BLDailyNumber(day))", .systemFont(ofSize: 44, weight: .heavy), ZDesign.Color.gold, y: 175)
             // 0.58: the QR is drawn from our own encoder (QRCode058.swift), never through CoreImage: on the CI runner CIContext.createCGImage did not return in 85 s
@@ -76,9 +76,9 @@ enum DailyPuzzle {
                 let a: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]; let w = (text as NSString).size(withAttributes: a).width
                 (text as NSString).draw(at: CGPoint(x: (size.width - w) / 2, y: y), withAttributes: a)
             }
-            draw("ZOKER POOL", Wood.titleFont(120), ZDesign.Color.gold, y: 150)
+            draw("ZOKERVIE", Wood.titleFont(120), ZDesign.Color.gold, y: 150)
             let solved = state.solved
-            draw("Zoker #\(BLDailyNumber(day))", .systemFont(ofSize: 84, weight: .heavy), .white, y: 420)
+            draw("Zokervie #\(BLDailyNumber(day))", .systemFont(ofSize: 84, weight: .heavy), .white, y: 420)
             draw(solved ? "\(state.grades.count)/\(DailyPuzzleState.maxTries)" : "X/\(DailyPuzzleState.maxTries)", .systemFont(ofSize: 150, weight: .heavy), solved ? .systemGreen : .systemOrange, y: 540)
             let r: CGFloat = 52, gap: CGFloat = 24, total = CGFloat(state.grades.count) * (2 * r) + CGFloat(max(0, state.grades.count - 1)) * gap
             var x = (size.width - total) / 2 + r

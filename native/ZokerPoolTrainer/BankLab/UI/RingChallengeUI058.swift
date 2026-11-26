@@ -5,7 +5,7 @@ import UIKit
 extension TrainingController {
     func shareRingChallenge(_ d: Drill, stars: Int, made: Int) {
         guard let code = RingChallenge.encode(ringKey: d.id, stars: stars, made: made) else { return }
-        let text = String(format: L10n.tr("Zoker Pool · Thách bạn ải %@ · mình %d/5 — vượt được không? %@"), d.title, made, RingChallenge.pretty(code))
+        let text = String(format: L10n.tr("Zokervie · Thách bạn ải %@ · mình %d/5 — vượt được không? %@"), d.title, made, RingChallenge.pretty(code))
         UIPasteboard.general.string = code
         PlayerStore.shared.noteCodeSent()
         let share = UIActivityViewController(activityItems: [text], applicationActivities: nil)

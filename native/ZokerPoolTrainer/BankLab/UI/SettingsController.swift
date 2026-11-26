@@ -127,7 +127,7 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
         let group=UIStackView(arrangedSubviews:parts);group.axis = .vertical;group.spacing=5;body.addArrangedSubview(group)
     }
     private func exportMarkdown(){
-        var lines=["# Zoker Pool — hiệu chỉnh bàn", "", "Ngày: "+ISO8601DateFormatter().string(from:Date()), "", "Thông số do người dùng chỉnh tay; chưa xác nhận bằng đo đạc độc lập.", "", "| Thông số | Khi mở | Hiện tại |", "| --- | ---: | ---: |"]
+        var lines=["# Zokervie — hiệu chỉnh bàn", "", "Ngày: "+ISO8601DateFormatter().string(from:Date()), "", "Thông số do người dùng chỉnh tay; chưa xác nhận bằng đo đạc độc lập.", "", "| Thông số | Khi mở | Hiện tại |", "| --- | ---: | ---: |"]
         for key in Set(originalValues.keys).union(values.keys).sorted(){
             lines.append("| \(key) | \(originalValues[key]?.stringValue ?? "—") | \(values[key]?.stringValue ?? "—") |")
         }

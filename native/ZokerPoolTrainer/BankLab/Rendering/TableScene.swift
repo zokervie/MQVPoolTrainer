@@ -1525,9 +1525,10 @@ final class TableScene {
                 emblem.draw(in:CGRect(x:10,y:12,width:ew,height:eh))
             }
             let base=UIFont.systemFont(ofSize:300,weight:.black)
-            let italic=base.fontDescriptor.withSymbolicTraits(.traitItalic).map{UIFont(descriptor:$0,size:300)} ?? base
-            ("ZOKER" as NSString).draw(at:CGPoint(x:600,y:20),withAttributes:[.font:italic,.foregroundColor:UIColor(white:0.97,alpha:1),.kern:10])
-            ("P O O L" as NSString).draw(at:CGPoint(x:640,y:360),withAttributes:[.font:UIFont.systemFont(ofSize:150,weight:.heavy),
+            // 0.59 B5: Zokervie wordmark (8 letters) at 210 pt fits 700…2040 px; descriptor BILLIARDS below.
+            let word=base.fontDescriptor.withSymbolicTraits(.traitItalic).map{UIFont(descriptor:$0,size:200)} ?? UIFont.systemFont(ofSize:200,weight:.black)
+            ("ZOKERVIE" as NSString).draw(at:CGPoint(x:700,y:70),withAttributes:[.font:word,.foregroundColor:UIColor(white:0.97,alpha:1),.kern:6])
+            ("B I L L I A R D S" as NSString).draw(at:CGPoint(x:720,y:360),withAttributes:[.font:UIFont.systemFont(ofSize:110,weight:.heavy),
                                                                                  .foregroundColor:UIColor(red:0.93,green:0.76,blue:0.36,alpha:1),.kern:28])
         }
         m.transparencyMode = .aOne;m.isDoubleSided=false

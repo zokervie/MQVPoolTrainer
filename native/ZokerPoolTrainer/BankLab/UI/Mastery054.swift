@@ -69,7 +69,7 @@ enum Mastery {
                 let w = (text as NSString).size(withAttributes: a).width
                 (text as NSString).draw(at: CGPoint(x: (size.width - min(w, size.width - 160)) / 2 , y: y), withAttributes: a)
             }
-            draw("ZOKER POOL", Wood.titleFont(120), Wood.ink, y: 130)
+            draw("ZOKERVIE", Wood.titleFont(120), Wood.ink, y: 130)
             draw(player, .systemFont(ofSize: 64, weight: .semibold), Wood.inkSoft, y: 330)
             draw(title, Wood.titleFont(130), Wood.ink, y: 470)
             draw("“" + nickname + "”", Wood.titleFont(84), Wood.inkSoft, y: 660)

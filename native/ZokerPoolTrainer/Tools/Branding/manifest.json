@@ -1,22 +1,21 @@
 {
   "schema_version": 1,
-  "brand_text": "Zoker Pool (Z + 9 ball)",
-  "description": "0.43: owner-supplied logo (gold Z + 9 ball, navy) 14/11/2026 — replaces the 0.37 Zoker Pool / Trainer icon.",
+  "brand_text": "Zokervie (logo v1: two 45° gold bars, gold cue, ivory ball in a round notch)",
+  "description": "0.59 B2 (owner approved rebrand 25/11/2026): Zokervie icon. Large master for the 1024 App Store icon, small master (thicker cue, bigger ball) for home-screen sizes. Replaces the 0.43 Zoker Pool Z + 9 ball icon. Source: Docs/brand/*.svg (drawn in-house).",
   "generation": {
-    "tool": "owner supplied",
-    "type": "owner artwork",
+    "tool": "Docs/brand SVG rendered in-house",
+    "type": "own artwork",
     "reference_images": false,
     "transparent_background": false,
-    "created_utc": "2026-11-14T09:10:00+00:00",
-    "original_local_path": "chat attachment 97EF6E64-105A-4EBF-BFEA-AB1E60AA68CD.png"
+    "created_utc": "2026-11-25T00:00:00+00:00"
   },
   "master": {
-    "file": "ZTrainerIcon.master.png",
-    "encoded_file": "ZTrainerIcon.master.png.b64",
-    "sha256": "33ccc97e02c4c485b79395ddbe00f4967b4f4132a676f624d98cbc252ba1688c",
-    "bytes": 1766608,
-    "width": 1254,
-    "height": 1254,
+    "file": "ZokervieIcon.master.png",
+    "encoded_file": "ZokervieIcon.master.png.b64",
+    "sha256": "8ce4cde5b34e88e669d5a28fb19699b8e4938fa97525ef5449595fa5fe2693ef",
+    "bytes": 22737,
+    "width": 1024,
+    "height": 1024,
     "mode": "RGB",
     "opaque": true,
     "format": "PNG"
@@ -31,5 +30,14 @@
     "ball": "Yellow-striped 9 ball, readable black 9",
     "background": "Opaque navy, full bleed",
     "status": "VISUALLY_INSPECTED"
+  },
+  "small_master": {
+    "file": "ZokervieIconSmall.master.png",
+    "encoded_file": "ZokervieIconSmall.master.png.b64",
+    "sha256": "a119e7e9e721b31331af02bf8bead181fdf70d1f9b4e193a4a37a85226379fd0",
+    "bytes": 23311,
+    "width": 1024,
+    "height": 1024,
+    "mode": "RGB"
   }
 }

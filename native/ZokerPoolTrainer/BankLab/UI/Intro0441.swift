@@ -338,7 +338,7 @@ final class IntroDirector0441 {
     private func buildLogo() {
         logo.image = UIImage(named: "ZokerLogo043"); logo.contentMode = .scaleAspectFit; logo.alpha = 0
         logo.clipsToBounds = true
-        title.text = "ZOKER POOL"; title.alpha = 0
+        title.text = "ZOKERVIE"; title.alpha = 0
         title.textColor = UIColor(red: 0.95, green: 0.78, blue: 0.38, alpha: 1)
         tagline.text = L10n.tr("Luyện mắt · tư duy · đường bi"); tagline.alpha = 0; tagline.textColor = UIColor(white: 0.9, alpha: 1)
         for v in [logo, title, tagline] { v.isUserInteractionEnabled = false; overlay.addSubview(v) }
@@ -350,7 +350,7 @@ final class IntroDirector0441 {
             let side = min(overlay.bounds.width, overlay.bounds.height) * 0.16, left = overlay.safeAreaInsets.left + 22, top = overlay.safeAreaInsets.top + 18
             logo.frame = CGRect(x: left, y: top, width: side, height: side); logo.layer.cornerRadius = side * 0.16
             title.textAlignment = .left; title.font = UIFont(name: "AvenirNext-HeavyItalic", size: side * 0.34) ?? .systemFont(ofSize: side * 0.34, weight: .black)
-            title.attributedText = NSAttributedString(string: "ZOKER POOL", attributes: [.kern: side * 0.04])
+            title.attributedText = NSAttributedString(string: "ZOKERVIE", attributes: [.kern: side * 0.04])
             title.frame = CGRect(x: logo.frame.maxX + 12, y: top + side * 0.1, width: overlay.bounds.width * 0.5, height: side * 0.45)
             tagline.textAlignment = .left; tagline.font = .systemFont(ofSize: max(11, side * 0.19), weight: .semibold)
             tagline.frame = CGRect(x: logo.frame.maxX + 12, y: title.frame.maxY, width: overlay.bounds.width * 0.5, height: side * 0.3)
@@ -358,7 +358,7 @@ final class IntroDirector0441 {
             let side = min(overlay.bounds.width, overlay.bounds.height) * 0.42
             logo.frame = CGRect(x: (overlay.bounds.width - side) / 2, y: overlay.bounds.height * 0.46 - side * 0.62, width: side, height: side); logo.layer.cornerRadius = side * 0.12
             title.textAlignment = .center; title.font = UIFont(name: "AvenirNext-HeavyItalic", size: side * 0.2) ?? .systemFont(ofSize: side * 0.2, weight: .black)
-            title.attributedText = NSAttributedString(string: "ZOKER POOL", attributes: [.kern: side * 0.035])
+            title.attributedText = NSAttributedString(string: "ZOKERVIE", attributes: [.kern: side * 0.035])
             title.frame = CGRect(x: 0, y: logo.frame.maxY + side * 0.06, width: overlay.bounds.width, height: side * 0.26)
             tagline.frame = .zero
         }

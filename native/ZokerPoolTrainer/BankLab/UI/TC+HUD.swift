@@ -189,7 +189,7 @@ extension TrainingController {
             panel.widthAnchor.constraint(equalToConstant:318),
             scroll.leadingAnchor.constraint(equalTo:panel.leadingAnchor,constant:10),scroll.trailingAnchor.constraint(equalTo:panel.trailingAnchor,constant:-10),
             scroll.topAnchor.constraint(equalTo:panel.topAnchor,constant:10),scroll.bottomAnchor.constraint(equalTo:panel.bottomAnchor,constant:-10)])
-        let brand=UILabel();text(brand,17,.white,.bold);brand.text="ZOKER POOL · Trainer";brand.font=Wood.titleFont(28);brand.textColor=Wood.burnt;brand.textAlignment = .center;brand.backgroundColor=Wood.cardTop;brand.layer.cornerRadius=10;brand.clipsToBounds=true;brand.layer.shadowColor=Wood.edgeGlow.cgColor   // 0.49c G2: title burnt into a light plank
+        let brand=UILabel();text(brand,17,.white,.bold);brand.text="ZOKERVIE";brand.font=Wood.titleFont(28);brand.textColor=Wood.burnt;brand.textAlignment = .center;brand.backgroundColor=Wood.cardTop;brand.layer.cornerRadius=10;brand.clipsToBounds=true;brand.layer.shadowColor=Wood.edgeGlow.cgColor   // 0.49c G2: title burnt into a light plank
         text(titleLabel,14,.white,.bold);text(statusLabel,12,.mint);text(scoreLabel,12,.white);text(hintLabel,12,.mint)
         for label in [titleLabel,statusLabel,scoreLabel,hintLabel]{label.numberOfLines=0}
         hintLabel.text=strokeHint

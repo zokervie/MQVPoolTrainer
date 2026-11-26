@@ -24,7 +24,7 @@ enum RingChallenge {
     }
     /// "Zoker Pool · Thách bạn ải <tên> · mình <N>/5 — vượt được không? <mã>" (the words are passed through L10n by the caller).
     static func shareLine(ringName: String, made: Int, code: String) -> String {
-        "Zoker Pool · Thách bạn ải \(ringName) · mình \(made)/5 — vượt được không? \(pretty(code))"
+        "Zokervie · Thách bạn ải \(ringName) · mình \(made)/5 — vượt được không? \(pretty(code))"
     }
     static func verdict(mine: Int, theirs: Int) -> Verdict { mine > theirs ? .win : (mine == theirs ? .draw : .lose) }
 }

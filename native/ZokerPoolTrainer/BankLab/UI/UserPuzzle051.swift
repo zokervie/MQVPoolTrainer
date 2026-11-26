@@ -57,7 +57,7 @@ final class UserPuzzleController: UIViewController {
     static var lastCode = "", lastCheck = "", lastShare = ""
     /// 0.55 R3: the line sent to a friend — name, kind, code, a question; no aim line and no solution.
     static func shareLine(style: String, code: String) -> String {
-        "Zoker Pool · " + L10n.tr("Thế bí của tôi") + " (\(style)): " + code + " — " + L10n.tr("bạn giải được không?")
+        "Zokervie · " + L10n.tr("Thế bí của tôi") + " (\(style)): " + code + " — " + L10n.tr("bạn giải được không?")
     }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
 

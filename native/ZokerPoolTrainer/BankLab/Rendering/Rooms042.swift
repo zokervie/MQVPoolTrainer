@@ -43,7 +43,7 @@ extension TableScene {
         } else {
             let logo=zLogo(height:h*0.72,material:face);logo.position=SCNVector3(Float(-width/2+h*0.55),0,0.02);group.addChildNode(logo)
         }
-        let text=SCNText(string:"ZOKER POOL",extrusionDepth:0.25)
+        let text=SCNText(string:"ZOKERVIE",extrusionDepth:0.25)
         text.font=UIFont(name:"AvenirNext-HeavyItalic",size:1) ?? UIFont.systemFont(ofSize:1,weight:.black)
         text.flatness=0.02;text.chamferRadius=0.035;text.materials=[face]
         let t=SCNNode(geometry:text);let (lo,hi)=t.boundingBox

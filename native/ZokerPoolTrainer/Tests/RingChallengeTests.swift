@@ -17,7 +17,7 @@ import Foundation
         var buf = [CChar](repeating: 0, count: 16)
         check(BLRingChallengeEncode(4000, 1, 1, &buf) != 0 && RingChallenge.decode(String(cString: buf)) == nil, "a ring number the app does not know → error")
         let line = RingChallenge.shareLine(ringName: "Vòng 2", made: 4, code: code)
-        check(line == "Zoker Pool · Thách bạn ải Vòng 2 · mình 4/5 — vượt được không? \(RingChallenge.pretty(code))", "share line wording: \(line)")
+        check(line == "Zokervie · Thách bạn ải Vòng 2 · mình 4/5 — vượt được không? \(RingChallenge.pretty(code))", "share line wording: \(line)")
         check(RingChallenge.verdict(mine: 5, theirs: 4) == .win && RingChallenge.verdict(mine: 4, theirs: 4) == .draw && RingChallenge.verdict(mine: 2, theirs: 4) == .lose, "comparison")
         print("PASS RingChallenge: \(checks) checks")
     }

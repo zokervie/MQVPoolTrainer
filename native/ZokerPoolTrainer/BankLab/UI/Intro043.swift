@@ -361,10 +361,10 @@ final class IntroOverlay: UIView, SCNSceneRendererDelegate {
         glow.startPoint = CGPoint(x: 0.5, y: 0.45); glow.endPoint = CGPoint(x: 1.1, y: 1.1); shade.layer.addSublayer(glow)
         logoView.image = UIImage(named: "ZokerLogo043"); logoView.contentMode = .scaleAspectFit; logoView.alpha = 0
         logoView.layer.cornerRadius = 18; logoView.clipsToBounds = true; addSubview(logoView)
-        title.text = "ZOKER POOL"; title.textAlignment = .center; title.alpha = 0
+        title.text = "ZOKERVIE"; title.textAlignment = .center; title.alpha = 0
         title.font = UIFont(name: "AvenirNext-HeavyItalic", size: 34) ?? UIFont.systemFont(ofSize: 34, weight: .black)
         title.textColor = UIColor(red: 0.95, green: 0.78, blue: 0.36, alpha: 1)
-        title.attributedText = NSAttributedString(string: "ZOKER POOL", attributes: [.kern: 6, .font: title.font as Any, .foregroundColor: title.textColor as Any])
+        title.attributedText = NSAttributedString(string: "ZOKERVIE", attributes: [.kern: 6, .font: title.font as Any, .foregroundColor: title.textColor as Any])
         addSubview(title)
         let side = min(bounds.width, bounds.height) * 0.42
         logoView.frame = CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2 - side * 0.12, width: side, height: side)

@@ -37,7 +37,7 @@ extension TrainingController {
     func shareChallenge(drill d: Drill, made: Int, stars: Int) {
         let seed = Int(PlayerStore.shared.day(Date()) & 0xFFF)   // layout variation: not used yet (same layout), kept in the code
         guard let code = ChallengeCode.encode(drillID: d.id, seed: seed, score: made * 20) else { return }
-        let text = L10n.tr("Thách bạn trong Zoker Pool") + ": " + d.title + " · " + L10n.tr("mình vào") + " \(made)/5. "
+        let text = L10n.tr("Thách bạn trong Zokervie") + ": " + d.title + " · " + L10n.tr("mình vào") + " \(made)/5. "
             + L10n.tr("Mã") + ": " + ChallengeCode.pretty(code) + " (" + L10n.tr("Sảnh → Nhập mã thách đấu") + ")"
         let card = challengeCardImage(title: d.title, made: made, stars: stars, code: ChallengeCode.pretty(code))
         let share = UIActivityViewController(activityItems: [text, card], applicationActivities: nil)
@@ -55,7 +55,7 @@ extension TrainingController {
                 let p = NSMutableParagraphStyle(); p.alignment = .center
                 (s as NSString).draw(in: CGRect(x: 20, y: y, width: 560, height: size * 1.4), withAttributes: [.font: UIFont.systemFont(ofSize: size, weight: weight), .foregroundColor: color, .paragraphStyle: p])
             }
-            draw("ZOKER POOL · " + L10n.tr("Thách bạn"), 24, 22, ZDesign.Color.gold, .heavy)
+            draw("ZOKERVIE · " + L10n.tr("Thách bạn"), 24, 22, ZDesign.Color.gold, .heavy)
             draw(title, 70, 26, .white)
             draw(Drill.starText(stars) + "   \(made)/5", 120, 34, .white, .heavy)
             draw(code, 190, 48, ZDesign.Color.gold, .black)
