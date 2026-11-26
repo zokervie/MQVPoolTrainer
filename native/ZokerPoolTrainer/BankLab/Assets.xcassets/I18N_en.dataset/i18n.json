@@ -1131,5 +1131,9 @@
 "Bài tiếp": "Next drill",
 "Cú đạt": "Made",
 "Điểm TB": "Avg score",
-"Thời gian": "Time"
+"Thời gian": "Time",
+"Intro thương hiệu khi mở app (lần đầu 6 s, sau đó 1,5 s; chạm để bỏ qua)": "Brand intro on launch (6 s the first time, 1.5 s after; tap to skip)",
+"Xem lại cú": "Replay shot",
+"Kiểu xem lại": "Replay style",
+"Nhanh": "Fast"
 }

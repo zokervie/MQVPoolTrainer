@@ -9,6 +9,7 @@ enum Prefs {
     static let language = "appLanguage042"
     static let introSeen = "intro043Seen"
     static let introEnabled = "introEnabled043"
+    static let replayMode = "replayMode059"   // 0.59: 0 Điện ảnh (slow-mo on the first pot) · 1 Nhanh (always 1×) · 2 Tắt (no gold "Xem lại cú" chip)
     static let oldIntroNoPost = "oldIntroNoPost"
     static let tutorialSeen = "tutorial044Seen"
     static let tutorialEnabled = "tutorialEnabled044"

@@ -326,6 +326,7 @@ extension TrainingController {
 
     func offerQuickReplay() {
         guard !QA.anyFlag || QA.has("--replay-chip-qa") else { return }
+        guard UserDefaults.standard.integer(forKey: Prefs.replayMode) != 2 else { return }   // Tuỳ chỉnh › Xem lại › Tắt
         guard testRun == nil, replayIndex == nil, !shotActive, !frames.isEmpty, !isPlacingBalls, presentedViewController == nil else { return }
         let chip = quickReplayChip ?? makeQuickReplayChip()
         Self.quickReplayChipToken += 1; let token = Self.quickReplayChipToken

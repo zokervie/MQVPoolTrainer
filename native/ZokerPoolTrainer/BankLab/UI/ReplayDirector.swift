@@ -23,8 +23,10 @@ enum ReplayDirector {
     static let keyRate: Double = 0.5
     static let keyLead: Double = 0.55
     static let keyTail: Double = 0.20
-    static func keyMomentRate(time: Double, keyTime: Double?) -> Double {
-        guard let key = keyTime, key.isFinite, time.isFinite else { return 1 }
+    /// Tuỳ chỉnh › Xem lại: only "Điện ảnh" (0) slows the key moment.
+    static var cinematicSetting: Bool { UserDefaults.standard.integer(forKey: Prefs.replayMode) == 0 }
+    static func keyMomentRate(time: Double, keyTime: Double?, cinematic: Bool = true) -> Double {
+        guard cinematic, let key = keyTime, key.isFinite, time.isFinite else { return 1 }
         return time >= key - keyLead && time <= key + keyTail ? keyRate : 1
     }
 
@@ -73,7 +75,7 @@ enum ReplayDirector {
             // 0.59: only the first object pot is slowed (keyMomentRate); `pots` is sorted by time.
             return ReplayDirector.camera(for: segments[selected], id: selected,
                                          balls: balls, angle: initialAngle,
-                                         slowMotion: ReplayDirector.keyMomentRate(time: clock, keyTime: pots.first?.time))
+                                         slowMotion: ReplayDirector.keyMomentRate(time: clock, keyTime: pots.first?.time, cinematic: ReplayDirector.cinematicSetting))
         }
     }
 
