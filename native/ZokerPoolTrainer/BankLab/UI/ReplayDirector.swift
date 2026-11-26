@@ -24,7 +24,7 @@ enum ReplayDirector {
     static let keyLead: Double = 0.55
     static let keyTail: Double = 0.20
     /// Tuỳ chỉnh › Xem lại: only "Điện ảnh" (0) slows the key moment.
-    static var cinematicSetting: Bool { UserDefaults.standard.integer(forKey: Prefs.replayMode) == 0 }
+    static var cinematicSetting: Bool { UserDefaults.standard.integer(forKey: "replayMode059") == 0 }   // = Prefs.replayMode (this file is also compiled alone by the replay test)
     static func keyMomentRate(time: Double, keyTime: Double?, cinematic: Bool = true) -> Double {
         guard cinematic, let key = keyTime, key.isFinite, time.isFinite else { return 1 }
         return time >= key - keyLead && time <= key + keyTail ? keyRate : 1
