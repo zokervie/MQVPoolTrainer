@@ -451,6 +451,14 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                         self.matchPlay.computerLevel=nil;self.matchPlay.computerThinking=false
                         self.syncMatchControls()}}   // only the match sync (as after the computer's shot): the button must follow it
             }
+            // 0.59 (bản 200): --rail-sight-qa=<cm from the near rail>,<aim pitch rad> — cue ball near the rail, aim camera behind it (before/after photos).
+            if let flag = args.first(where:{$0.hasPrefix("--rail-sight-qa=")}) {
+                let v = flag.dropFirst("--rail-sight-qa=".count).split(separator:",").compactMap{Double($0)}
+                DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self, v.count==2, !self.balls.isEmpty else{return}
+                    var layout=self.balls; layout[0].x=0; layout[0].y=1.27-0.028575-v[0]/100
+                    self.engine.loadLayout(layout.map{$0.dictionary}); self.angle = -Double.pi/2; self.aimCameraYaw=0
+                    self.table.cameraMode=2; self.table.aimPitch=Float(v[1]); self.refresh(); self.updateControls(); self.wakeRendering()}
+            }
             if args.contains("--training-drill-qa") {   // 0.53 C1: open a catalogue drill that has a mission ring
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
                     if let i=Drill.all.firstIndex(where:{$0.goal != nil && !($0.goal!.potOnly)}){self.loadDrill(i);self.syncPowerBar();self.applyCoachVisibility()}}
@@ -601,6 +609,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     @objc func resumed(){lastTime=0;spin.collapse();lockButton.releaseHold();setHold(false)}
     override func viewWillAppear(_ animated:Bool){
         super.viewWillAppear(animated);lastTime=0;displayLink?.isPaused=false
+        if !introStarted {installLaunchCover059()}   // 0.59 (bản 200: phím bấm hiện trên nền đen trước phim intro)
         scn?.isPlaying=false;scn?.rendersContinuously=false;wakeRendering()
     }
     override func viewWillDisappear(_ animated:Bool){
@@ -650,6 +659,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     let appFlow=AppFlow()
     override func viewDidAppear(_ animated:Bool){
         super.viewDidAppear(animated)
+        if let cover=view.viewWithTag(Self.launchCoverTag){view.bringSubviewToFront(cover)}   // 0.59: stays above anything added since
         if !shadersPrewarmed {shadersPrewarmed=true;prewarmShaders()}
         DispatchQueue.main.asyncAfter(deadline:.now()+6){[weak self] in if let self=self,!self.shotActive,!self.introRunning{_=DrillTableImage.image()}}   // 0.49c G1: the drill diagram's table picture is rendered once while idle (≈ 0,2 s), not when a card opens
         table.pacingOwner={[weak self] in
@@ -670,9 +680,10 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     /// --keep-lobby-qa / --intro-lobby-qa run the real first-launch path under QA.
     func configureAppFlow(){
         appFlow.startIntro={[weak self] in
-            guard let self=self,let director=self.makeIntro() else{return false}
+            guard let self=self,let director=self.makeIntro() else{self?.removeLaunchCover059();return false}
             self.intro=director
             director.run{[weak self] in self?.intro=nil;self?.appFlow.done(.intro)}
+            self.removeLaunchCover059()   // the intro overlay now covers the screen
             return true
         }
         appFlow.startLobby={[weak self] in
@@ -729,4 +740,23 @@ extension UIGestureRecognizer {
         let target=GestureAction(run);objc_setAssociatedObject(self,&gestureActionKey,target,.OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         addTarget(target,action:#selector(GestureAction.fire(_:)))
     }
+}
+
+// MARK: - 0.59 launch cover
+// Owner video, build 200: after the system launch screen the play HUD showed on an empty black scene for ~1–2 s before the
+// intro film, because the intro only starts in viewDidAppear (after shader prewarm). A dark cover in the intro's own colour
+// is put over the screen on the first appearance and removed as soon as the intro overlay is up, or when there is no intro.
+extension TrainingController {
+    static let launchCoverTag = 5902
+    func installLaunchCover059() {
+        guard view.viewWithTag(Self.launchCoverTag) == nil else { return }
+        // Same rule as makeIntro: QA launches without an intro flag and a switched-off intro get no cover.
+        let forced = QA.has("--intro-qa") || QA.has("--intro-lobby-qa") || QA.has("--intro-video-qa")
+        guard forced || (!QA.anyQA && Prefs.flag(Prefs.introEnabled, true)) else { return }
+        let cover = UIView(frame: view.bounds); cover.tag = Self.launchCoverTag
+        cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]; cover.isUserInteractionEnabled = true
+        cover.backgroundColor = UIColor(red: 0.02, green: 0.03, blue: 0.06, alpha: 1)   // = intro shade
+        view.addSubview(cover)
+    }
+    func removeLaunchCover059() { view.viewWithTag(Self.launchCoverTag)?.removeFromSuperview() }
 }

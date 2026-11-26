@@ -69,6 +69,8 @@ final class FirstShotCoach {
     /// Every state the coach went through, in order (QA + review CI 158: a fast CI could pass beat 2 between two polls).
     private(set) var log: [String] = []
     private let caption = UIView(), captionLabel = UILabel()
+    /// 0.59: other one-time tips wait while a tutorial caption is on screen (bản 200: two tips at once).
+    var captionShowing: Bool { caption.superview != nil && !caption.isHidden && caption.alpha > 0.01 }
     private let hand = UIImageView(), bHand = UIImageView(), aimDot = UIView(), ring = UIView()
     private var timer: Timer?
     private var hideWork: DispatchWorkItem?

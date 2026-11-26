@@ -607,6 +607,9 @@ extension TrainingController {
     /// Display name for a plate: upper case; long names keep the given name whole and shorten the rest to initials
     /// ("Nguyễn Văn Anh" → "N.V. ANH"); the computer's level is abbreviated ("Máy · Quarter Pro" → "MÁY · QP").
     static func scoreboardName(_ raw: String) -> String {
+        // 0.59 (bản 200): the default names are translated BEFORE upper-casing ("NGƯỜI 1" had no translation). Typed names stay as typed.
+        var raw = ["Người 1", "Người 2", "Máy"].contains(raw) ? L10n.tr(raw) : raw
+        if raw.hasPrefix("Máy · ") { raw = L10n.tr("Máy") + String(raw.dropFirst("Máy".count)) }
         let short = ["Beginner": "BEG", "Amateur": "AMA", "Quarter Pro": "QP", "Semi Pro": "SP", "Pro": "PRO", "AI": "AI",
                      "Tập sự": "TS", "Nghiệp dư": "ND", "CLB": "CLB", "Phong trào": "PT", "Chuyên nghiệp": "CN", "Đỉnh cao": "DC"]
         let parts = raw.components(separatedBy: " · ")
@@ -757,7 +760,7 @@ extension TrainingController {
         else if matchPlay.pushOut { detail = "Đã khai Push-out" }
         else if matchPlay.safety { detail = "Đã gọi đánh an toàn" }
         else if matchPlay.calledBall > 0 { detail = "Gọi bi \(matchPlay.calledBall) · lỗ \(matchPlay.calledPocket + 1)" }
-        else if matchBool("requiresCall") { detail = "Tự động: bi đi thẳng vào lỗ được tính · băng/combo: bấm Call" }
+        else if matchBool("requiresCall") { detail = "Bi vào thẳng tự tính · băng/combo: bấm Call" }
                if let groups = matchPlay.state["groups"] as? [Int], groups.count == 2, matchPlay.state["rule"] as? String == "eightBall", groups[player] >= 0 { detail += groups[player] == 0 ? " · bi trơn" : " · bi sọc" }
         return "\(name) · \(room) · \(seat)\n\(detail)"
     }

@@ -249,7 +249,7 @@ extension TrainingController {
                others.allSatisfy({hypot($0.x-last.x,$0.y-last.y)>2*r+0.002}) {fx=last.x;fy=last.y}
             if let i=state.firstIndex(where:{$0.id==0}){state[i].x=fx;state[i].y=fy;state[i].sunk=false}else{state.append(BallState(id:0,x:fx,y:fy))}
             engine.loadLayout(state.map{$0.dictionary});selectCamera(1)
-            table.placementBlocked = !placementValid();notifyStatus("Bi cái về chỗ vừa đánh (hoặc ô trống gần giữa bàn) · kéo để chỉnh · Xong để nhận · Hủy để phục hồi")
+            table.placementBlocked = !placementValid();notifyStatus("Bi cái về chỗ vừa đánh · kéo để chỉnh · Xong để nhận, Hủy để bỏ")
         }
         refresh();updateControls();syncQuickRail()
     }

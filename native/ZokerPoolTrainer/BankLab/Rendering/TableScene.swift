@@ -1982,6 +1982,11 @@ final class TableScene {
             let overBed=abs(eyeXZ.x)<0.635 && abs(eyeXZ.y)<1.27
             let minEyeY:Float = overBed ? TableScene.minAimEyeHeightBed:TableScene.minAimEyeHeightRail
             if radiusAim*sin(pitch)<minEyeY {pitch=asin(min(1,minEyeY/radiusAim))}
+            // 0.59 (bản 200): the eye above the wood was not enough — the SIGHT LINE must clear the rail too (AimRailSight).
+            if !QA.has("--rail-sight-off-qa") {   // QA: the "before" photo
+            pitch=Float(AimRailSight.clearPitch(ballX:Double(origin.x),ballZ:Double(origin.z),dirX:Double(d.x),dirZ:Double(d.z),
+                                                radius:Double(radiusAim),pitch:Double(pitch),maxPitch:Double(TableScene.aimPitchRange.upperBound)))
+            }
             let retreat:SIMD3<Float> = d*(radiusAim*cos(pitch))
             let lift=SIMD3<Float>(0,radiusAim*sin(pitch),0)
             let behind:SIMD3<Float> = origin-retreat

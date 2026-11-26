@@ -54,3 +54,43 @@ enum MatchCameraPolicy {
         localTurn && !busy && turnKey != lastKey
     }
 }
+
+/// 0.59 (bản 200, owner photo IMG_7966 + video 17:11): with the cue ball near a rail and the aim camera behind that rail, the rail top
+/// (36.3 mm nose → 40 mm cap, higher than the ball centre 28.6 mm) hid the lower half of the cue ball and the whole cue. The old guard
+/// only lifted the EYE above the wood (70 mm); it never checked the SIGHT LINE. This raises the aim pitch, only as much as needed, until
+/// the line from the eye to a point half a radius above the cloth on the ball's axis clears every rail it crosses (+2 mm).
+/// Pure (Foundation only): Tests/MatchCameraPolicyTests.swift. Geometry = TableScene cushion profile + CueClearance.h BLRailProfile.
+enum AimRailSight {
+    static let halfWidth = 0.635, halfLength = 1.27          // playing area (cushion noses)
+    static let outerWidth = 0.80, outerLength = 1.44         // outer edge of the wooden rail (TableScene.pocketWallLimit)
+    static let noseHeight = 0.03629, capHeight = 0.0400, capStart = 0.053
+    static let lookHeight = 0.014                            // half a ball radius: the upper ball, its centre and the tip contact stay in view
+    static let margin = 0.002, step = 0.005, pitchStep = 0.01
+    /// Height of the rail at a point of the table plane (0 over the cloth and outside the table).
+    static func obstacle(x: Double, z: Double) -> Double {
+        let outside = max(abs(x) - halfWidth, abs(z) - halfLength)
+        guard outside > 0, abs(x) <= outerWidth, abs(z) <= outerLength else { return 0 }
+        return outside < capStart ? noseHeight + (capHeight - noseHeight) * outside / capStart : capHeight
+    }
+    /// True when the sight line from an eye at `pitch` (distance `radius`, behind the ball against the aim direction) clears the rails.
+    static func clear(ballX: Double, ballZ: Double, dirX: Double, dirZ: Double, radius: Double, pitch: Double) -> Bool {
+        let h = radius * cos(pitch), eyeY = radius * sin(pitch)
+        guard h > step else { return true }
+        var s = step
+        while s <= h {
+            let height = obstacle(x: ballX - dirX * s, z: ballZ - dirZ * s)
+            if height > 0 && lookHeight + (eyeY - lookHeight) * s / h < height + margin { return false }
+            s += step
+        }
+        return true
+    }
+    /// The smallest pitch ≥ `pitch` with a clear sight line (never lowers the camera; capped at `maxPitch`).
+    static func clearPitch(ballX: Double, ballZ: Double, dirX: Double, dirZ: Double, radius: Double, pitch: Double, maxPitch: Double = 1.2) -> Double {
+        var p = pitch
+        while p < maxPitch {
+            if clear(ballX: ballX, ballZ: ballZ, dirX: dirX, dirZ: dirZ, radius: radius, pitch: p) { return p }
+            p += pitchStep
+        }
+        return maxPitch
+    }
+}

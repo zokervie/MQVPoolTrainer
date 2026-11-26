@@ -157,6 +157,9 @@ enum L10n {
         guard !installed else { return }; installed = true
         swap(UILabel.self, #selector(setter: UILabel.text), #selector(UILabel.l10n_setText(_:)))
         swap(UIButton.self, #selector(UIButton.setTitle(_:for:)), #selector(UIButton.l10n_setTitle(_:for:)))
+        // 0.59 (bản 200, owner screenshots): buttons built with UIButton.Configuration set `configuration.title`, which never
+        // passed through setTitle(_:for:) — the right column (Đặt bi · Camera · ngắm · Bàn · Xong · Toàn cảnh) stayed Vietnamese.
+        swap(UIButton.self, NSSelectorFromString("setConfiguration:"), #selector(UIButton.l10n_setConfiguration(_:)))
         swap(UIViewController.self, #selector(setter: UIViewController.title), #selector(UIViewController.l10n_setTitle(_:)))
         swap(UIAlertController.self, #selector(setter: UIAlertController.message), #selector(UIAlertController.l10n_setMessage(_:)))
         swap(UIAlertController.self, #selector(setter: UIAlertController.title), #selector(UIAlertController.l10n_alertSetTitle(_:)))
@@ -176,7 +179,16 @@ enum L10n {
     }
 }
 extension UILabel { @objc func l10n_setText(_ t: String?) { l10n_setText(t.map(L10n.tr)) } }
-extension UIButton { @objc func l10n_setTitle(_ t: String?, for state: UIControl.State) { l10n_setTitle(t.map(L10n.tr), for: state) } }
+extension UIButton {
+    @objc func l10n_setTitle(_ t: String?, for state: UIControl.State) { l10n_setTitle(t.map(L10n.tr), for: state) }
+    /// `configuration` setter: the title (and subtitle) go through L10n.tr; Vietnamese (and every QA launch) returns them unchanged.
+    @objc func l10n_setConfiguration(_ c: AnyObject?) {
+        guard L10n.code != "vi", var config = c as? UIButton.Configuration else { l10n_setConfiguration(c); return }
+        if let t = config.title { let tt = L10n.tr(t); if tt != t { config.title = tt } }
+        if let t = config.subtitle { let tt = L10n.tr(t); if tt != t { config.subtitle = tt } }
+        l10n_setConfiguration(config as AnyObject)
+    }
+}
 extension UIViewController { @objc func l10n_setTitle(_ t: String?) { l10n_setTitle(t.map(L10n.tr)) } }
 extension UIAlertController {
     @objc func l10n_setMessage(_ t: String?) { l10n_setMessage(t.map(L10n.tr)) }

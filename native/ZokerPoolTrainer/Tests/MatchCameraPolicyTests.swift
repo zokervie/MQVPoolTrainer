@@ -45,6 +45,27 @@ import Foundation
         check(!P.wantsAimCamera(turnKey: "1-0-0-0", lastKey: "1-0-0-0", localTurn: true, busy: false), "not twice for the same turn")
         check(P.wantsAimCamera(turnKey: "1-0-0-1", lastKey: "1-0-0-0", localTurn: true, busy: false), "ball-in-hand → placed is a new key")
         check(!P.wantsAimCamera(turnKey: "1-1-1-0", lastKey: "", localTurn: false, busy: false), "not while it is not our turn")
+        // 0.59: aim camera sight line over the rails (bản 200: the rail hid the cue ball and the cue).
+        typealias S = AimRailSight
+        let r = 0.4854, base = 0.325
+        check(S.clearPitch(ballX: 0, ballZ: 0, dirX: 0, dirZ: -1, radius: r, pitch: base) == base, "mid-table: pitch unchanged")
+        let low = 0.15   // the player dragged the aim camera down (IMG_7966 shows a low eye)
+        check(S.clearPitch(ballX: 0, ballZ: 1.17, dirX: 0, dirZ: -1, radius: r, pitch: base) == base, "10 cm from the rail at the default pitch is already clear")
+        let tenCm = S.clearPitch(ballX: 0, ballZ: 1.17, dirX: 0, dirZ: -1, radius: r, pitch: low)
+        let fourCm = S.clearPitch(ballX: 0, ballZ: 1.23, dirX: 0, dirZ: -1, radius: r, pitch: base)
+        let frozen = S.clearPitch(ballX: 0, ballZ: 1.27 - 0.028575, dirX: 0, dirZ: -1, radius: r, pitch: base)
+        let parallel = S.clearPitch(ballX: 0.60, ballZ: 0, dirX: 0, dirZ: -1, radius: r, pitch: base)
+        let away = S.clearPitch(ballX: 0, ballZ: 1.17, dirX: 0, dirZ: 1, radius: r, pitch: base)
+        check(tenCm > low, "10 cm from the near rail, low eye behind it → raised")
+        check(fourCm > base, "4 cm from the near rail at the default pitch → raised")
+        check(S.clear(ballX: 0, ballZ: 1.17, dirX: 0, dirZ: -1, radius: r, pitch: tenCm), "raised pitch really clears")
+        check(!S.clear(ballX: 0, ballZ: 1.17, dirX: 0, dirZ: -1, radius: r, pitch: tenCm - 0.02), "and it is the smallest one (±1 step)")
+        check(frozen > fourCm && frozen <= 1.2, "frozen to the rail needs more, still bounded")
+        check(parallel == base, "near a side rail but shooting along it → unchanged")
+        check(away == base, "shooting toward the near rail (eye over the cloth) → unchanged")
+        check(S.clearPitch(ballX: 0, ballZ: 1.17, dirX: 0, dirZ: -1, radius: r, pitch: 0.9) == 0.9, "never lowers a high camera")
+        check(S.obstacle(x: 0, z: 0) == 0 && S.obstacle(x: 0, z: 1.30) > 0.036 && S.obstacle(x: 0, z: 1.50) == 0, "rail height: cloth 0, rail 36–40 mm, floor 0")
+        print(String(format: "REPORT AimRailSight: low eye 10 cm from rail %.2f rad (%.0f°), 4 cm %.2f rad (%.0f°), frozen %.2f rad (%.0f°), default %.3f rad (%.0f°)", tenCm, tenCm * 57.3, fourCm, fourCm * 57.3, frozen, frozen * 57.3, base, base * 57.3))
         print("PASS MatchCameraPolicy: \(checks) checks (Wi-Fi own-stroke hold, spectator timing, aim camera once per turn)")
     }
 }

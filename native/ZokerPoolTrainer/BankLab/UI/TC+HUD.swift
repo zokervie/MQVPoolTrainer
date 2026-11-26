@@ -499,6 +499,10 @@ extension TrainingController {
         let key="cueTips059"
         guard !UserDefaults.standard.bool(forKey:key),cueIcons.count==Int(BL_CUE_ICONS),
               !ProcessInfo.processInfo.arguments.contains(where:{$0=="--visual-qa" || $0.hasPrefix("--ux") || $0.hasSuffix("-qa")}) else{return}
+        // 0.59 (bản 200): never on top of a tutorial caption — try again a little later (the key is set only when it really shows).
+        if firstShotCoach?.captionShowing == true || shotActive || presentationBusy {
+            DispatchQueue.main.asyncAfter(deadline:.now()+5){[weak self] in self?.showCueTipsOnce()};return
+        }
         UserDefaults.standard.set(true,forKey:key)
         notifyStatus(L10n.tr("Ba nút cơ: Chơi · Phá (cú phá đầu ván) · Nhảy. Dựng cơ chơi cao để đánh massé."))
         for (k,icon) in cueIcons.enumerated(){
