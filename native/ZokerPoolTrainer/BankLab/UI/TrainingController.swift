@@ -374,6 +374,9 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         table.cueElevation=(configured["experimental3D"]?.boolValue ?? false) ? (configured["cueElevationDegrees"]?.doubleValue ?? 0):0
         shotKind=ProcessInfo.processInfo.arguments.contains("--visual-qa") ? 0:(UserDefaults.standard.object(forKey:Prefs.shotKind) as? Int ?? (configured["cueType"]?.intValue ?? 0))
         applySquirtPolicy()
+        // 0.59 U5 (IMG_7952): the app opens with a level cue — a lift saved from the last session (massé, a forced rail clearance)
+        // is not brought back. Only a jump cue keeps its lift.
+        if shotKind != 1 {setLevelCueForTurn(shotKind==2 ? 2:0)}
         syncQuickRail()
         highGraphics=UserDefaults.standard.object(forKey:Prefs.highGraphics) as? Bool ?? false
         applyGraphics()
@@ -574,7 +577,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
         NotificationCenter.default.addObserver(self,selector:#selector(thermalChanged),name:ProcessInfo.thermalStateDidChangeNotification,object:nil);thermalChanged()
 
         stroke.sensitivity=UserDefaults.standard.double(forKey:Prefs.sensitivity);if stroke.sensitivity==0{stroke.sensitivity=1}
-        spin.changed={[weak self]x,y in self?.side=x;self?.top=y;if let me=self,!me.bridgeApplying{me.railBridge.playerChose(top:y)};self?.guideDirty=true;self?.wakeRendering();self?.updateSpinLoupe()}
+        spin.changed={[weak self]x,y in self?.side=x;self?.top=y;if let me=self,!me.bridgeApplying{me.railBridge.playerChose(top:y,touched:me.spin.changeByFinger)};self?.guideDirty=true;self?.wakeRendering();self?.updateSpinLoupe()}
         if ProcessInfo.processInfo.arguments.contains("--cue-contact-qa") {spin.select(side:-0.5,top:0.49)}
         if ProcessInfo.processInfo.arguments.contains("--spin-detail") {
             spinWidth.constant=190;spinHeight.constant=190;spin.alpha=0.97

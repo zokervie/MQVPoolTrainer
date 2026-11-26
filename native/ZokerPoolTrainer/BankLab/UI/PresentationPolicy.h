@@ -131,7 +131,7 @@ typedef struct {
 
 static inline BLRect BLRectMake(double x, double y, double w, double h) { BLRect r; r.x = x; r.y = y; r.w = w; r.h = h; return r; }
 static inline BLRect BLMirror(BLRect r, double x0, double w) { BLRect m = r; m.x = x0 + w - (r.x - x0) - r.w; return m; }
-#define BL_CUE_ICONS 2   // 0.53 B2: Cơ chơi (Đánh/Massé) · Cơ phá (Phá/Nhảy)
+#define BL_CUE_ICONS 3   // 0.59 U5: Chơi (Đánh/Massé) · Phá · Nhảy — ba nút riêng (trước: 2 nút, 0.53 B2)
 
 static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, int pad, int leftHanded, int practice, int expanded) {
     BLHUDFrames f;
@@ -174,10 +174,16 @@ static inline BLHUDFrames BLHUDLayout(double x0, double y0, double w, double h, 
 // Cue icon k (0 Đánh, 1 Jump, 2 Massé, 3 Break) in one row inside f.cues, left to right in that order (0.36);
 // same reading order in both hands, the row itself mirrors.
 static inline BLRect BLHUDCueIcon(BLHUDFrames f, int k) {   // 0.56 K3: icon 0 above B, icon 1 above the effect ball (follows the mirror)
-    return BLRectMake(k == 0 ? f.lock.x : f.spin.x, f.cues.y, f.cueIcon, f.cues.h);
+    // 0.59 U5: three equal buttons share the row above B + the effect ball (same width as the pair), the gap between them
+    // equals the gap B–ball. Button 0 sits on the outer side (above B) in both hands; the row mirrors.
+    const double gap = (f.spin.x > f.lock.x) ? f.spin.x - (f.lock.x + f.lock.w) : f.lock.x - (f.spin.x + f.spin.w);
+    const double w = (f.cues.w - (BL_CUE_ICONS - 1) * gap) / BL_CUE_ICONS;
+    const int mirrored = f.spin.x < f.lock.x;
+    const double x = mirrored ? f.cues.x + f.cues.w - (k + 1) * w - k * gap : f.cues.x + k * (w + gap);
+    return BLRectMake(x, f.cues.y, w, f.cues.h);
 }
-// Icon order -> shot kind (ShotKindPolicy: 0 play, 1 jump, 2 break, 3 massé) and its default elevation (deg).
-static inline int BLCueIconKind(int k) { return k == 1 ? 2 : 0; }   // default kind of the button (the elevation then moves it within its family)
+// Icon order -> shot kind (ShotKindPolicy: 0 play, 1 jump, 2 break, 3 massé): Chơi 0 · Phá 2 · Nhảy 1.
+static inline int BLCueIconKind(int k) { return k == 1 ? 2 : (k == 2 ? 1 : 0); }
 
 // 0.30 elevation fan: quarter circle, pivot at the bottom corner nearest the effect ball side opposite
 // (bottom-left for right hand). Touch angle above the horizontal = cue elevation, 0-90 deg, whole degrees.

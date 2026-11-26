@@ -211,4 +211,18 @@ static inline BLCueRailBridge BLCueRailBridgeSolve(double x, double y, double an
     return r;
 }
 
+// 0.59 U3 (anh 25/11, IMG_7920: bi cái còn cách băng mà nửa dưới bi bị khoá). The geometry above is not the cause
+// (Tests/CueClearanceTests.cpp, "U3" table: e.g. 10 cm off the rail a 0.55R draw needs ~16.5°, a stroke anyone can play);
+// the lock came from the 0.58 bridge ceiling (BL_RAIL_BRIDGE_COMFORT_DEG = 15°) being used to grey out and clamp TOUCHED tips.
+// Rule now: a tip the player touched is locked only when no stroke reaches it — it needs more than the stroke limit
+// (maxElevationDeg) or it sits under the rail nose (90°). Up to that limit the cue rises to what the rail demands (the fan
+// shows it). The 0.58 rule (move the tip up rather than raise the cue) stays for tips the app chose (reset, drill default).
+static inline double BLCueBridgeFan(double fanDeg, double neededDeg, double maxElevationDeg, int explicitPick) {
+    return (explicitPick && isfinite(neededDeg) && neededDeg <= maxElevationDeg + 1e-9) ? fmax(fanDeg, neededDeg) : fanDeg;
+}
+// The pad's lock: only what no stroke can reach.
+static inline int BLCueTipLocked(double neededDeg, double maxElevationDeg) {
+    return !(isfinite(neededDeg) && neededDeg <= maxElevationDeg + 1e-9);
+}
+
 #endif

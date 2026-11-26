@@ -99,10 +99,14 @@ static void checkHUD022(double x0, double y0, double w, double h, int pad) {
             // 0.56 K3: D = effect ball diameter; B is D × D on the same row and bottom; each cue button is D wide, 2/3 D tall, flush with the button below
             const double D = f.spin.w;
             assert(std::abs(f.lock.w - D) < 1e-9 && std::abs(f.lock.h - D) < 1e-9 && std::abs((f.lock.y + f.lock.h) - (f.spin.y + f.spin.h)) < 1e-9);
-            const BLRect c0 = BLHUDCueIcon(f, 0), c1 = BLHUDCueIcon(f, 1);
-            assert(std::abs(c0.w - D) < 1e-9 && std::abs(c0.h - 2 * D / 3) < 1e-9 && std::abs(c1.w - D) < 1e-9 && std::abs(c1.h - 2 * D / 3) < 1e-9);
-            assert(std::abs(c0.x - f.lock.x) < 1e-9 && std::abs(c1.x - f.spin.x) < 1e-9);   // right above B and above the effect ball
+            // 0.59 U5: three equal buttons (Chơi · Phá · Nhảy) span exactly the B + ball pair, same gaps, 2/3 D tall, ≥ 44 pt wide
+            const BLRect c0 = BLHUDCueIcon(f, 0), cl = BLHUDCueIcon(f, BL_CUE_ICONS - 1);
             const double hgap = left ? f.lock.x - (f.spin.x + f.spin.w) : f.spin.x - (f.lock.x + f.lock.w), vgap = f.lock.y - (c0.y + c0.h);
+            for (int k = 0; k < BL_CUE_ICONS; ++k) { const BLRect c = BLHUDCueIcon(f, k);
+                assert(std::abs(c.h - 2 * D / 3) < 1e-9 && c.w >= 44 && std::abs(c.w - c0.w) < 1e-9);
+                if (k) { const BLRect p = BLHUDCueIcon(f, k - 1); assert(std::abs((left ? p.x - (c.x + c.w) : c.x - (p.x + p.w)) - hgap) < 1e-9); } }
+            if (!left) assert(std::abs(c0.x - f.lock.x) < 1e-9 && std::abs((cl.x + cl.w) - (f.spin.x + f.spin.w)) < 1e-9);   // row = the pair's width
+            else       assert(std::abs((c0.x + c0.w) - (f.lock.x + f.lock.w)) < 1e-9 && std::abs(cl.x - f.spin.x) < 1e-9);
             assert(std::abs(vgap - hgap) < 1e-9);   // vertical gap = horizontal gap
         }
         else { assert(f.spin.w <= (pad ? 200 : 150) + 1e-9); }   // zoom, but not so big it hides the table
@@ -173,7 +177,7 @@ int main() {
     checkHUD022(0, 0, 568, 299, 0); checkHUD022(59, 0, 734, 372, 0); checkHUD022(59, 0, 814, 409, 0);
     checkHUD022(0, 24, 1180, 776, 1); checkHUD022(0, 24, 1376, 1000, 1);
     passed("0.33 HUD: effect ball with Jump/Đánh/Massé/Break around it bottom-left, column + wheel + fan right, mirror, no overlaps");
-    assert(BL_CUE_ICONS == 2 && BLCueIconKind(0) == 0 && BLCueIconKind(1) == 2);   // 0.53 B2: "Cơ chơi" (Đánh/Massé) and "Cơ phá" (Phá/Nhảy)
+    assert(BL_CUE_ICONS == 3 && BLCueIconKind(0) == 0 && BLCueIconKind(1) == 2 && BLCueIconKind(2) == 1);   // 0.59 U5: Chơi · Phá · Nhảy
     assert(BLFanDegrees(60, 64, 64, 64, 0) == 0 && BLFanDegrees(0, 0, 64, 64, 0) == 90 && BLFanDegrees(40, 24, 64, 64, 0) == 45);
     assert(BLFanDegrees(24, 24, 64, 64, 1) == 45 && BLFanDegrees(70, 64, 64, 64, 0) == 0 && BLFanDegrees(-5, 30, 64, 64, 0) == 90);
     passed("0.30 cue icons Đánh/Jump/Massé/Break (45°/70° presets) and elevation fan 0-90°");

@@ -58,6 +58,8 @@ final class MatchPlayState {
     var placementOrigin: [BallState]?
     var pendingChoiceKey = ""
     var banner = UIButton(type: .system)
+    /// 0.59 U6: "Push-out" straight on the HUD (9/10 Ball, the stroke right after a legal break); before it was hidden in the banner sheet.
+    let pushOutButton = UIButton(type: .system)
     // 0.29 race-to-N scoreboard (host authority; published in the rules JSON as raceTo/frames/names/rackNo/matchWinner).
     var raceTo = 5, frames = [0, 0], names = ["Người 1", "Người 2"], rackNo = 1, breaker = 0, matchWinner = -1
     var rackCounted = false
@@ -214,6 +216,30 @@ extension TrainingController {
         ])
         button.addAction(UIAction { [weak self] _ in self?.openMatchActions() }, for: .touchUpInside)
         button.isHidden = true
+        // 0.59 U6: gold Push-out pill right above the status strip; shown only when the rules allow it on this device's turn.
+        let push = matchPlay.pushOutButton
+        var pc = UIButton.Configuration.filled()
+        pc.title = L10n.tr("Push-out"); pc.baseBackgroundColor = ZDesign.Color.gold; pc.baseForegroundColor = .black
+        pc.cornerStyle = .capsule; pc.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16)
+        pc.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { a in var a = a; a.font = UIFont.systemFont(ofSize: 14, weight: .bold); return a }
+        push.configuration = pc
+        push.accessibilityIdentifier = "PushOutButton"
+        push.accessibilityHint = L10n.tr("Cú kế tiếp được đánh đi đâu cũng được; đối thủ chọn đánh tiếp hoặc trả lượt")
+        push.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(push)
+        NSLayoutConstraint.activate([
+            push.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+            push.bottomAnchor.constraint(equalTo: button.topAnchor, constant: -8),
+            push.heightAnchor.constraint(greaterThanOrEqualToConstant: 40)
+        ])
+        push.addAction(UIAction { [weak self] _ in
+            guard let self = self, !self.matchPlay.pushOut else { return }
+            self.submitMatchAction(.declarePushOut)   // offline/host: applied now; guest: the host's next snapshot carries pushOut
+            if self.matchPlay.pushOut {
+                self.notifyStatus(L10n.tr("Đã khai Push-out · cú này đánh đi đâu cũng được, đối thủ sẽ chọn đánh tiếp hoặc trả lượt"))
+            }
+        }, for: .touchUpInside)
+        push.isHidden = true
         let session = matchPlay.session
         session.onStateChanged = { [weak self, weak session] message in
             guard let self = self, let session = session else { return }
@@ -383,6 +409,7 @@ extension TrainingController {
         let rack = matchPlay.rules?.rack(seed: UInt64.random(in: 1...UInt64.max)) ?? []
         engine.loadLayout(rack)
         initial = balls; before = initial
+        cueForNextTurn()   // 0.59 U5: the opening break starts with the break cue (player can change it)
         startRackIntro()
         angle = Double.pi / 2
         guideOn = false; coaching = false; locked = false; isPlacingBalls = false
@@ -598,14 +625,14 @@ extension TrainingController {
         matchPlay.rules = nil; matchPlay.state = [:]; matchPlay.linkOverlay?.isHidden = true
         matchPlay.placementDraft = nil; matchPlay.placementOrigin = nil
         matchPlay.guestBalls = []; matchPlay.snapshots = []
-        matchPlay.banner.isHidden = true
+        matchPlay.banner.isHidden = true; matchPlay.pushOutButton.isHidden = true
         coachButton.accessibilityLabel = "Coach · Huấn luyện viên"
         localTurn = true; shotActive = false; isPlacingBalls = false
         clearShot(); applyCoachVisibility(); loadDrill(0)
     }
 
     func syncMatchControls() {
-        guard matchPlay.active else { matchPlay.banner.isHidden = true; matchPlay.scoreboard.isHidden = true; table.spectatorPivot = false; return }
+        guard matchPlay.active else { matchPlay.banner.isHidden = true; matchPlay.pushOutButton.isHidden = true; matchPlay.scoreboard.isHidden = true; table.spectatorPivot = false; return }
         let wasLocal = localTurn
         localTurn = matchAllowsInput
         // 0.39 (owner: Wi-Fi/online — after the friend joined, every key on both sides stayed grey and the break could
@@ -652,6 +679,7 @@ extension TrainingController {
         matchEnsureAimCameraForTurn()
         matchPlay.banner.isHidden = locked || menuOpen
         matchPlay.banner.setTitle(matchStatusText().replacingOccurrences(of: "\n", with: "  ·  "), for: .normal)
+        syncPushOutButton()
         presentPendingChoiceIfNeeded()
         coachButton.setTitle(matchPlay.showNumbers ? "123 ✓" : "123", for: .normal)
         coachButton.accessibilityLabel = "Bật tắt nút số băng · không có đường hướng dẫn"
@@ -682,6 +710,21 @@ extension TrainingController {
         let first = matchPlay.lastAimTurnKey.isEmpty
         matchPlay.lastAimTurnKey = key
         if first || table.cameraMode != 2 || observationCamera { restoreAimCamera(transition: first ? 0.2 : 0.45) }
+    }
+    /// 0.59 U6: the Push-out pill — this device's turn, the rules offer it (first stroke after a legal 9/10-ball break), no choice
+    /// pending, balls at rest. After the tap it stays on screen, dimmed, as "Push-out ✓" until the stroke is played.
+    func syncPushOutButton() {
+        let push = matchPlay.pushOutButton
+        let pending = !(matchPlay.state["pendingChoice"] as? String ?? "").isEmpty
+        let offered = matchPlay.active && matchAllowsInput && !shotActive && !pending && matchInt("winner", fallback: -1) < 0 &&
+            (matchBool("pushOutAvailable") || matchPlay.pushOut)
+        let hide = !offered || locked || menuOpen || isPlacingBalls || replayIndex != nil
+        if push.isHidden != hide { push.isHidden = hide }
+        guard !hide else { return }
+        push.configuration?.title = matchPlay.pushOut ? L10n.tr("Push-out ✓") : L10n.tr("Push-out")
+        push.isEnabled = !matchPlay.pushOut
+        push.accessibilityValue = matchPlay.pushOut ? L10n.tr("Đã khai") : ""
+        view.bringSubviewToFront(push)
     }
     func matchToggleNumbers() {
         matchPlay.showNumbers.toggle()
@@ -1094,6 +1137,7 @@ extension TrainingController {
         engine.loadLayout(rules.rack(seed: UInt64.random(in: 1...UInt64.max)))
         table.resetPocketPresentation(); clearShot()
         updateMatchState(); initial = balls; before = initial
+        cueForNextTurn()   // 0.59 U5: the break shot starts with the break cue
         startRackIntro()
         refresh(); updateControls(); syncMatchControls(); publishMatchSnapshot(force: true)
     }
@@ -1346,6 +1390,7 @@ extension TrainingController {
     func matchGuestTick(_ dt: Double) -> Bool {
         guard matchPlay.active else { return false }
         matchPlay.banner.isHidden = locked || menuOpen
+        if !matchPlay.pushOutButton.isHidden && (locked || menuOpen || shotActive) { matchPlay.pushOutButton.isHidden = true }   // 0.59 U6
         if matchPlay.session.role != .guest { return false }
         if lockstepTick(dt) { return true }
         guard let latest = matchPlay.snapshots.last else { return true }
@@ -1394,7 +1439,12 @@ extension TrainingController {
         return true
     }
     func matchChoiceTitle(_ choice: String) -> String {
-        ["accept":"Nhận bàn / tiếp tục", "pass":"Trả lượt cho người vừa đánh",
+        // 0.59 U6: after a Push-out the two choices read as what they are for the player who must decide.
+        if matchPlay.state["pendingChoice"] as? String == "push_out_choice" || matchPlay.state["reason"] as? String == "push_out_choice" {
+            if choice == "accept" { return "Đánh tiếp từ vị trí này" }
+            if choice == "pass" { return "Trả lượt · người vừa Push-out đánh" }
+        }
+        return ["accept":"Nhận bàn / tiếp tục", "pass":"Trả lượt cho người vừa đánh",
          "ballInHand":"Nhận bi cái trong tay", "spotAndPlay":"Đặt lại bi 8 và tiếp tục",
          "rerackSelf":"Xếp lại · tôi phá", "rerackOpponent":"Xếp lại · đối thủ phá"][choice] ?? choice
     }
@@ -1898,7 +1948,10 @@ extension TrainingController {
         guard matchPlay.pendingChoiceKey != key else { return }
         matchPlay.pendingChoiceKey = key
         let who = matchPlay.names[min(1, max(0, matchInt("currentPlayer")))]
-        let alert = UIAlertController(title: "\(who) chọn", message: matchReason(matchPlay.state["reason"] as? String ?? ""), preferredStyle: .alert)
+        // 0.59 U6: after a Push-out the question is asked plainly
+        let alert = kind == "push_out_choice"
+            ? UIAlertController(title: "\(who): đối thủ vừa Push-out", message: "Bạn đánh tiếp từ vị trí này, hay trả lượt cho người vừa Push-out?", preferredStyle: .alert)
+            : UIAlertController(title: "\(who) chọn", message: matchReason(matchPlay.state["reason"] as? String ?? ""), preferredStyle: .alert)
         for option in options {
             alert.addAction(UIAlertAction(title: matchChoiceTitle(option), style: .default) { [weak self] _ in
                 self?.submitMatchAction(.chooseOption, option: option)

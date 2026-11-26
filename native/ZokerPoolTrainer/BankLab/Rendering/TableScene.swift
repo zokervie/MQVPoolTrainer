@@ -848,6 +848,8 @@ final class TableScene {
         let n=SCNNode(geometry:g);n.name="cushion-shade";n.castsShadow=false;n.renderingOrder=1
         scene.rootNode.addChildNode(n)
     }
+    /// 0.59 U4: the largest radius a pocket part at (x, z) may have and still stay 5 mm inside the skirt's outer face (x ±0.80, z ±1.44).
+    static func pocketWallLimit(_ x:Float,_ z:Float)->Float{min(0.80-0.005-abs(x),1.44-0.005-abs(z))}
     private func pocket(_ x:Float,_ z:Float){
         let segments=96
         let aperture:Float = z==0 ? 0.066:0.074
@@ -864,7 +866,11 @@ final class TableScene {
         // 0.40b (owner: balls must stack in the pocket in arrival order, not all vanish at the bottom). A real drop pocket
         // cup is ~12 cm deep and ~18 cm wide (MEASURED on common club tables, ±2 cm; ASSUMED for the virtual WPA table):
         // three balls fit on the floor, the next three rest in the hollows above, the 7th+ show in the throat.
-        let profile:[(radius:Float,y:Float)]=[(aperture-0.0002,0),(0.056,-0.022),(0.088,-0.055),(0.094,-0.090),(0.090,Self.pocketFloor)]
+        // 0.59 U4 (IMG_7951, "mảnh tối thừa ở vách bàn gần chân"): the side pockets sit 0.706 m out and the cup (0.094 m) and the black
+        // base disc (0.108 m) reached x = 0.800 / 0.814 — through the skirt's outer face (x ±0.80, z ±1.44, TableFamily046): a dark
+        // (shaded side) or grey (lit side) oval on the apron below each side pocket. Every part of the pocket now stays 5 mm inside.
+        let wall=Self.pocketWallLimit(x,z)
+        let profile:[(radius:Float,y:Float)]=[(aperture-0.0002,0),(min(0.056,wall),-0.022),(min(0.088,wall),-0.055),(min(0.094,wall),-0.090),(min(0.090,wall),Self.pocketFloor)]
         for i in 0...segments {
             let a=Float(i)/Float(segments)*2*Float.pi,c=cos(a),s=sin(a)
             for (level,ring) in profile.enumerated(){
@@ -883,7 +889,7 @@ final class TableScene {
         leather.normal.wrapS = .repeat;leather.normal.wrapT = .repeat
         let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
         g.materials=[leather];scene.rootNode.addChildNode(SCNNode(geometry:g))
-        let floor=SCNCylinder(radius:0.090,height:0.002);floor.materials=[leather]
+        let floor=SCNCylinder(radius:CGFloat(min(0.090,wall)),height:0.002);floor.materials=[leather]
         let floorNode=SCNNode(geometry:floor);floorNode.name="pocket-floor";floorNode.position=SCNVector3(x,Self.pocketFloor-0.001,z)
         scene.rootNode.addChildNode(floorNode)
         // A narrow, connected satin casting follows the same lip instead of separate square caps.
@@ -897,7 +903,7 @@ final class TableScene {
         let rimGeometry=SCNGeometry(sources:[SCNGeometrySource(vertices:rim),SCNGeometrySource(normals:rimNormals)],elements:[SCNGeometryElement(indices:rimIndices,primitiveType:.triangles)])
         let casting=mat(UIColor(white:0.26,alpha:1),roughness:0.48,metal:0.65);casting.isDoubleSided=true
         rimGeometry.materials=[casting];scene.rootNode.addChildNode(SCNNode(geometry:rimGeometry))
-        let bottom=SCNCylinder(radius:0.108,height:0.008);bottom.radialSegmentCount=48;bottom.materials=[mat(.black)]
+        let bottom=SCNCylinder(radius:CGFloat(min(0.108,wall)),height:0.008);bottom.radialSegmentCount=48;bottom.materials=[mat(.black)]
         let node=SCNNode(geometry:bottom);node.position=SCNVector3(x,-0.255,z);scene.rootNode.addChildNode(node)
     }
     private func addMesh(_ name:String,material:SCNMaterial){
@@ -1536,13 +1542,16 @@ final class TableScene {
         n.position=SCNVector3(side*0.8015,-0.19,side*0.66);n.eulerAngles.y = side>0 ? .pi/2 : -.pi/2;scene.rootNode.addChildNode(n)
     }
     private func brandPlate(_ p:SCNVector3){
-        let g=SCNPlane(width:0.22,height:0.038),m=SCNMaterial();m.lightingModel = .constant
+        // 0.59 U4 (IMG_7951): the plate was an unlit near-black slab (lightingModel .constant, 4.5 % grey) — from the play camera a
+        // dark patch on the end skirt next to the leg, its gold text too small to read. Now a lit brushed-brass plate with dark lettering.
+        let g=SCNPlane(width:0.22,height:0.038),m=SCNMaterial();m.lightingModel = .physicallyBased
+        m.metalness.contents=0.55;m.roughness.contents=0.42
         m.diffuse.contents=texture(CGSize(width:1024,height:176)){c in
-            UIColor(white:0.045,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:1024,height:176))
+            UIColor(red:0.70,green:0.56,blue:0.32,alpha:1).setFill();c.fill(CGRect(x:0,y:0,width:1024,height:176))
             let style=NSMutableParagraphStyle();style.alignment = .center
             // 0.44.1: one Zoker name ("Z-REGENT 7"); the " · mặt 9 ft" note stays in the library list, not on the plate.
             let plate=(look.name.components(separatedBy:" · ").first ?? look.name).uppercased()
-            (plate as NSString).draw(in:CGRect(x:14,y:44,width:996,height:90),withAttributes:[.font:UIFont.systemFont(ofSize:64,weight:.bold),.foregroundColor:UIColor(red:0.92,green:0.83,blue:0.61,alpha:1),.paragraphStyle:style])
+            (plate as NSString).draw(in:CGRect(x:14,y:44,width:996,height:90),withAttributes:[.font:UIFont.systemFont(ofSize:64,weight:.bold),.foregroundColor:UIColor(red:0.16,green:0.10,blue:0.05,alpha:1),.paragraphStyle:style])
         };g.materials=[m];let n=SCNNode(geometry:g);n.name="table-nameplate";n.eulerAngles.x = 0;n.position=p;n.castsShadow=false;scene.rootNode.addChildNode(n)
     }
     private func ballTexture(_ id:Int)->UIImage{

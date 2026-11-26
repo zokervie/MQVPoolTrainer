@@ -68,6 +68,8 @@ final class SpinPad:UIControl {
     /// 0.35 (owner): jump cue — the upper half is locked (a jump needs a centre/low hit with the elevated cue).
     var maxTop=1.0 {didSet{if top>maxTop{select(side:side,top:maxTop)}else{setNeedsDisplay()}}}
     var changed:((Double,Double)->Void)?
+    /// 0.59 U3: true only while `changed` runs for a finger on the pad (false for reset/select).
+    private(set) var changeByFinger=false
     /// Điểm chạm có với tới được không (cơ phải qua được băng khi bi cái gần băng). nil = mọi điểm.
     var reachable:((Double,Double)->Bool)? {didSet{setNeedsDisplay()}}
     /// 0.44-mm ROOT CAUSE of the hitch at every stroke (owner: "giật khi chơi, replay mượt"): draw() asks 22×22 = 484
@@ -163,7 +165,7 @@ final class SpinPad:UIControl {
         y=min(y,maxTop)
         if let reachable=reachable,!reachable(x,y),let clampTop=clampTop {y=min(maxTop,clampTop(x,y))}
         side=x;top=y;accessibilityValue=String(format:"Ngang %.0f%%, dọc %.0f%%",x*100,y*100)
-        changed?(x,y);setNeedsDisplay()
+        changeByFinger=true;changed?(x,y);changeByFinger=false;setNeedsDisplay()   // 0.59 U3: the listener can tell a finger from a reset/select
     }
     override func touchesBegan(_ touches:Set<UITouch>,with event:UIEvent?){
         guard isEnabled,finger==nil,let t=touches.first else{return}

@@ -45,11 +45,12 @@ static inline int BLShotKindForElevation(int shotKind, double elevationDegrees) 
 #define BL_PLAY_MASSE_DOWN 33.0
 #define BL_BREAK_JUMP_UP 22.0
 #define BL_JUMP_BREAK_DOWN 18.0
+// 0.59 U5 (anh 25/11): ba nút riêng Chơi · Phá · Nhảy. Phá và Nhảy KHÔNG còn đổi lẫn nhau theo độ nâng
+// (Phá nâng qua băng vẫn là cơ phá; Nhảy hạ thấp vẫn là cơ nhảy). Massé vẫn = cơ chơi dựng cao.
+// BL_BREAK_JUMP_UP / BL_JUMP_BREAK_DOWN giữ lại cho dữ liệu cũ, không dùng ở đây.
 static inline int BLCueMergedKind(int shotKind, double deg) {
     if (shotKind == 0 && deg >= BL_PLAY_MASSE_UP) return 3;
     if (shotKind == 3 && deg < BL_PLAY_MASSE_DOWN) return 0;
-    if (shotKind == 2 && deg >= BL_BREAK_JUMP_UP) return 1;
-    if (shotKind == 1 && deg < BL_JUMP_BREAK_DOWN) return 2;
     return shotKind;
 }
 

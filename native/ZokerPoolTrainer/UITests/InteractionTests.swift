@@ -314,22 +314,23 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(field(scene,"locked"),0,"effect ball must not latch the lock by default")
     }
 
-    /// 0.53 B2: two cue buttons in a row above the effect ball: "Cơ chơi" (Đánh, Massé from elevation) and "Cơ phá" (Phá, Nhảy from elevation).
-    func testTwoCueButtonsPlayAndBreak() {
+    /// 0.59 U5: three cue buttons in a row above B + the effect ball: Chơi (Đánh, Massé from elevation) · Phá · Nhảy.
+    func testThreeCueButtonsPlayBreakJump() {
         let (app,scene)=launch(["--ux017-qa"])
-        XCTAssertFalse(app.buttons["CueIconJump"].exists || app.buttons["CueIconMasse"].exists, "Jump and Massé are no longer separate buttons")
-        for (id,kind) in [("CueIconBreak",2.0),("CueIconPlay",0.0)] {
+        XCTAssertFalse(app.buttons["CueIconMasse"].exists, "Massé is the raised play cue, no button of its own")
+        for (id,kind) in [("CueIconBreak",2.0),("CueIconJump",1.0),("CueIconPlay",0.0)] {
             let icon=app.buttons[id];XCTAssertTrue(icon.waitForExistence(timeout:5 * slow),id)
             for _ in 0..<3 { icon.tap(); if poll(6 * slow,{self.field(scene,"kind")==kind}) {break} }
             settle(scene,"kind",kind)
         }
-        XCTAssertEqual(app.buttons["CueIconPlay"].label, "Gậy Cơ chơi")
+        XCTAssertEqual(app.buttons["CueIconPlay"].label, "Gậy Chơi")
         let effect=app.descendants(matching:.any)["Điểm chạm đầu cơ"].firstMatch
         let e=effect.frame
-        let row=["CueIconPlay","CueIconBreak"].map{app.buttons[$0].frame}
+        let row=["CueIconPlay","CueIconBreak","CueIconJump"].map{app.buttons[$0].frame}
         for f in row{XCTAssertLessThanOrEqual(f.maxY,e.minY+1,"cue row above effect ball")}
-        XCTAssertGreaterThanOrEqual(row[1].minX,row[0].maxX-1,"Cơ chơi left of Cơ phá")
-        XCTAssertEqual(row[0].midY,row[1].midY,accuracy:1,"one horizontal row")
+        XCTAssertGreaterThanOrEqual(row[1].minX,row[0].maxX-1,"Chơi left of Phá")
+        XCTAssertGreaterThanOrEqual(row[2].minX,row[1].maxX-1,"Phá left of Nhảy")
+        XCTAssertEqual(row[0].midY,row[1].midY,accuracy:1,"one horizontal row");XCTAssertEqual(row[1].midY,row[2].midY,accuracy:1)
         // 0.35: Nút số / Chỉ dẫn / Bảng only with Coach
         XCTAssertFalse(app.buttons["NumbersToggle"].isHittable,"numbers only with Coach")
         XCTAssertFalse(app.buttons["GuideToggle"].isHittable,"guide button only with Coach")
@@ -1310,15 +1311,16 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(place.frame.width, retry.frame.width, accuracy: 1)
         XCTAssertFalse(app.buttons["PowerBarSwitch"].exists, "no switch")
     }
-    /// 0.56 K3: D = the effect ball; B is D × D beside it; each cue button is D wide, 2/3 D tall, flush above B / the ball.
+    /// 0.56 K3 + 0.59 U5: D = the effect ball; B is D × D beside it; three equal cue buttons, 2/3 D tall, span B + the ball.
     func testLeftClusterGeometry() {
         let (app, _) = launch(["--ux017-qa"])
-        let ball = app.descendants(matching: .any)["Điểm chạm đầu cơ"].firstMatch, play = app.buttons["CueIconPlay"], brk = app.buttons["CueIconBreak"]
-        XCTAssertTrue(ball.waitForExistence(timeout: 10 * slow) && play.exists && brk.exists)
+        let ball = app.descendants(matching: .any)["Điểm chạm đầu cơ"].firstMatch, play = app.buttons["CueIconPlay"], brk = app.buttons["CueIconBreak"], jump = app.buttons["CueIconJump"]
+        XCTAssertTrue(ball.waitForExistence(timeout: 10 * slow) && play.exists && brk.exists && jump.exists)
         let d = ball.frame.width
-        XCTAssertEqual(play.frame.width, d, accuracy: 2, "cue buttons are D wide"); XCTAssertEqual(brk.frame.width, d, accuracy: 2)
-        XCTAssertEqual(play.frame.height, d * 2 / 3, accuracy: 2, "…and 2/3 D tall")
-        XCTAssertEqual(brk.frame.minX, ball.frame.minX, accuracy: 2, "Cơ phá is right above the effect ball")
+        XCTAssertEqual(play.frame.width, brk.frame.width, accuracy: 2, "equal widths"); XCTAssertEqual(brk.frame.width, jump.frame.width, accuracy: 2)
+        XCTAssertGreaterThanOrEqual(play.frame.width, 44, "touch target")
+        XCTAssertEqual(play.frame.height, d * 2 / 3, accuracy: 2, "…2/3 D tall")
+        XCTAssertEqual(jump.frame.maxX, ball.frame.maxX, accuracy: 2, "the row ends above the effect ball's outer edge")
         XCTAssertLessThanOrEqual(play.frame.maxY, ball.frame.minY + 1)
     }
     /// 0.56 K2: in chapter 2 with 8 take-backs left and 3 missed rounds the rescue card appears once; "Dùng" shows the bar for that drill; chapter 1 never asks.

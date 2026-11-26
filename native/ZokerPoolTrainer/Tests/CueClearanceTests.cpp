@@ -76,5 +76,46 @@ int main() {
         assert(solve(0.03, -0.3, 45).top < -0.29);   // high enough fan: the asked draw is kept
         std::cout << "REPORT rail bridge frozen: tip +" << solve(0, 0, 0).top << "R at " << solve(0, 0, 0).elevation << "deg (was centre at 90)\n";
     }
+    // ---- 0.59 U3 (IMG_7920): ball off the rail, lower half locked. Geometry table first, then the lock rule. ----
+    {
+        // Independent check of the rail model, point by point (each rail profile point alone, plain scan of θ in 0.01° steps):
+        // the cue's underside h_c + d·tanθ − r(d)/cosθ must be ≥ the point's height. Must agree with BLCueMinimumElevation within 1°.
+        auto handE = [&](double gap, double t) {
+            const double back = R * std::sqrt(1 - t * t), hc = R * (1 + t), d1 = std::fmax(0.0015, gap + (W / 2 - frozen) - back);
+            double need = 0;
+            for (int i = 0; i < BL_RAIL_PROFILE_COUNT; ++i) {
+                const double d = d1 + BLRailProfile[i][0], h = i == 0 ? R * (1 + nose) : BLRailProfile[i][1];
+                double deg = 90;
+                for (int k = 0; k < 8975; ++k) { const double th = k * 0.01 * M_PI / 180;
+                    if (hc + d * std::tan(th) - BLCueShaftRadius(d) / std::cos(th) >= h) { deg = k * 0.01; break; } }
+                need = std::fmax(need, deg);
+            }
+            return need; };
+        std::printf("REPORT U3 needed elevation (deg) by gap to rail × tip:  t=0   -0.30  -0.55  -0.70\n");
+        for (double gap : {0.02, 0.05, 0.10, 0.15, 0.20, 0.30}) {
+            std::printf("REPORT U3   %4.0f cm:", gap * 100);
+            for (double t : {0.0, -0.30, -0.55, -0.70}) {
+                const double e = minE(frozen - gap, 0, a, 0, t), h = handE(gap, t);
+                assert(std::fabs(e - h) < 1.0 || (e > 89 && h > 60));   // the model is the plain geometry, nothing extra
+                std::printf("  %5.1f", e);
+            }
+            std::printf("\n");
+        }
+        // Off the rail (≥ 5 cm) every tip up to 0.7R is playable with a stroke ≤ 45°: never locked.
+        for (double gap : {0.05, 0.10, 0.20, 0.40}) for (double t : {0.0, -0.3, -0.55, -0.7})
+            assert(!BLCueTipLocked(minE(frozen - gap, 0, a, 0, t), 45));
+        // …but several of them need more than the 0.58 comfort ceiling (15°): that ceiling must not lock a touched tip.
+        assert(minE(frozen - 0.10, 0, a, 0, -0.55) > BL_RAIL_BRIDGE_COMFORT_DEG);
+        // Frozen to the rail, centre and below: under the nose — truly locked.
+        assert(BLCueTipLocked(minE(frozen, 0, a, 0, 0), 45) && BLCueTipLocked(minE(frozen, 0, a, 0, -0.5), 45));
+        // A touched tip raises the bridge fan to what it needs (≤ limit), so the bridge no longer moves it.
+        const double need = minE(frozen - 0.10, 0, a, 0, -0.55), fan = BLCueBridgeFan(0, need, 45, 1);
+        assert(std::fabs(fan - need) < 1e-12 && BLCueBridgeFan(0, need, 45, 0) == 0 && BLCueBridgeFan(0, 90, 45, 1) == 0 && BLCueBridgeFan(30, 20, 45, 1) == 30);
+        const BLCueRailBridge touched = BLCueRailBridgeSolve(frozen - 0.10, 0, a, 0, -0.55, fan, 45, 0.7, W, L, R, nose, nullptr, nullptr, 0);
+        const BLCueRailBridge chosenByApp = BLCueRailBridgeSolve(frozen - 0.10, 0, a, 0, -0.55, 0, 45, 0.7, W, L, R, nose, nullptr, nullptr, 0);
+        assert(!touched.moved && touched.top == -0.55 && std::fabs(touched.elevation - need) < 1e-9);
+        assert(chosenByApp.moved && chosenByApp.top > -0.55);   // 0.58 rule kept when the app picked the tip
+        std::printf("REPORT U3 10 cm off the rail, touched draw -0.55R: cue %.1f° (was moved up to %+.2fR at ≤ 15°)\n", touched.elevation, chosenByApp.top);
+    }
     std::cout << "PASS CueClearance\n";
 }

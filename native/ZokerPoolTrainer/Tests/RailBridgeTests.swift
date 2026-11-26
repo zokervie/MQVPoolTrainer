@@ -25,6 +25,13 @@ import Foundation
         solve(&s, gap: 0, fan: 45)
         check(s.top < 0 || s.top > -0.3 - 1e-9, "a high fan can keep a lower tip frozen to the rail")
         check(s.cap >= 45 - 1e-9, "the pad's reachable limit follows the fan")
+        // 0.59 U3: a tip the player touched 10 cm off the rail (draw -0.55R needs ~16.5°) is kept, the cue rises; the app's own default still moves up
+        var t = RailBridge(); t.playerChose(top: -0.55, touched: true); solve(&t, gap: 0.10)
+        check(!t.moved && t.top == -0.55 && t.elevation > 15 && t.elevation <= 45, "touched draw 10 cm off the rail: kept at \(t.elevation)°")
+        var u = RailBridge(); u.playerChose(top: -0.55); solve(&u, gap: 0.10)
+        check(u.moved && u.top > -0.55, "the same tip set by the app (not a finger) still moves up at ≤ 15°")
+        var f = RailBridge(); f.playerChose(top: 0, touched: true); solve(&f, gap: 0)
+        check(f.moved && f.top > 0.4, "frozen to the rail a touched centre is out of reach (under the nose): the tip still goes up")
         print("PASS RailBridge: \(checks) checks")
     }
 }

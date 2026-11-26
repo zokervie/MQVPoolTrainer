@@ -35,7 +35,9 @@ extension TrainingController {
         let preset=UserDefaults.standard.dictionary(forKey:"cuePreset017-\(kind)") as? [String:Double]
         // 0.41 (owner: "chọn cơ Break bị mặc định có độ dốc"): the break cue always starts level. Its saved preset could
         // hold a lift forced over the rail on an earlier shot; the clearance still raises the stroke when needed.
-        setElevation(kind==2 ? 0:(preset?["elevation"] ?? (kind==1 ? 45:(kind==3 ? 70:0))))
+        // 0.59 U5 (anh 25/11, IMG_7952: cơ chơi 15° giữa bàn): the play cue and the break cue always start level; a lift saved in
+        // the preset (often a forced rail clearance from an earlier shot) is not brought back. Only the jump cue keeps its lift.
+        setElevation(kind==0 || kind==2 ? 0:(preset?["elevation"] ?? (kind==1 ? 45:70)))
         spin.select(side:preset?["side"] ?? 0,top:preset?["top"] ?? 0)
         syncQuickRail()
     }
@@ -84,11 +86,12 @@ extension TrainingController {
         let limit=maxStrokeElevation
         let others=balls.filter{$0.id != 0 && !$0.sunk};obstacleXs=others.map{$0.x};obstacleYs=others.map{$0.y}
         if spin.reachable==nil {
-            spin.reachable={[weak self] x,y in guard let self=self else{return true};return self.cueClearance(side:x,top:y)<=self.railBridge.cap}
+            // 0.59 U3: the pad locks only what no stroke reaches (BLCueTipLocked vs the stroke limit); the 15° bridge ceiling no longer greys touched tips
+            spin.reachable={[weak self] x,y in guard let self=self else{return true};return BLCueTipLocked(self.cueClearance(side:x,top:y),self.maxStrokeElevation)==0}
             spin.reachableSnapshot={[weak self] in
                 guard let self=self else{return {_,_ in true}}
                 // Identical to cueClearance(side:top:) <= maxStrokeElevation, with the solver read once per draw.
-                let limit=self.railBridge.cap   // 0.58 L4: the bridge's own ceiling for this fan
+                let limit=self.maxStrokeElevation   // 0.59 U3 (was railBridge.cap, the 15° bridge ceiling)
                 guard let c=self.cue,!c.sunk else{return {_,_ in 0<=limit}}
                 let angle=self.angle,g=self.geometry,obstacleXs=self.obstacleXs,obstacleYs=self.obstacleYs
                 return {s,t in
@@ -99,7 +102,7 @@ extension TrainingController {
             spin.clampTop={[weak self] x,y in
                 guard let self=self,let c=self.cue else{return y}
                 var xs=self.obstacleXs,ys=self.obstacleYs
-                return BLCueClampTopBalls(c.x,c.y,self.angle,x,y,self.geometry.width,self.geometry.length,self.geometry.radius,self.geometry.nose,self.railBridge.cap,self.spin.maximumOffset,&xs,&ys,Int32(xs.count))
+                return BLCueClampTopBalls(c.x,c.y,self.angle,x,y,self.geometry.width,self.geometry.length,self.geometry.radius,self.geometry.nose,self.maxStrokeElevation,self.spin.maximumOffset,&xs,&ys,Int32(xs.count))
             }
         }
         // 0.58 L4 "cơ trên băng": near a rail / ball behind, keep the cue as low as it can go and move the TIP up (rule: BLCueRailBridgeSolve);
@@ -178,12 +181,31 @@ extension TrainingController {
         let tip=Drill.all[drillIndex].tipTop
         if tip != 0 {spin.select(side:0,top:tip)}
     }
+    /// 0.59 U5: put a level cue in the hand WITHOUT the input guards (turn change, new rack): play (0) or break (2), 0°.
+    /// The rail/ball clearance still raises the stroke itself when the cue really has to go over something.
+    func setLevelCueForTurn(_ kind:Int){
+        let k=kind==2 ? 2:0
+        shotKind=k;UserDefaults.standard.set(k,forKey:"shotKind017")
+        var settings=engine.settings;settings["cueType"]=NSNumber(value:k);settings["cueElevationDegrees"]=0;settings["experimental3D"]=false;shotKindPhysics(k,&settings)
+        engine.settings=settings;table.masseLook=false;table.selectCue(k);table.cueElevation=0;spin.maximumOffset=tipLimit(elevated:false)
+        guideDirty=true;syncQuickRail()
+    }
+    /// 0.59 U5 (anh 25/11): the cue for the next stroke. Rules match: the break shot of a rack picks the break cue (the player can
+    /// still change it); after a Phá or Nhảy stroke the next one is the play cue, level. In a match a raised play cue (massé) is
+    /// also put level. Training keeps a play cue the player raised on purpose; Phá/Nhảy go back to Chơi there too.
+    func cueForNextTurn(){
+        let cpuTurn=matchPlay.computerLevel != nil && matchInt("currentPlayer")==1
+        if matchPlay.active && localTurn && !cpuTurn && matchBool("breakShot") {
+            if shotKind != 2 || table.cueElevation != 0 {setLevelCueForTurn(2)}
+            return
+        }
+        if shotKind==1 || shotKind==2 || (matchPlay.active && (shotKind==3 || table.cueElevation>0)) {setLevelCueForTurn(0)}
+    }
     func resetShotInputsAndAim(){
         spin.reset();side=0;top=0;applyDrillTip()
-        if shotKind==1 {
-            shotKind=0;var settings=engine.settings;settings["cueType"]=0;settings["cueElevationDegrees"]=0;settings["experimental3D"]=false;shotKindPhysics(0,&settings)
-            engine.settings=settings;table.selectCue(0);table.cueElevation=0;spin.maximumOffset=0.7;UserDefaults.standard.set(0,forKey:"shotKind017")
-        }
+        cueForNextTurn()
+        // 0.59 U5: after the first stroke ever (tutorial hints come first), name the three cue buttons once
+        DispatchQueue.main.asyncAfter(deadline:.now()+4){[weak self] in guard let self=self,!self.shotActive,!self.presentationBusy else{return};self.showCueTipsOnce()}
         if let c=cue,!c.sunk,let target=matchPreferredAimTarget(in:balls) {
             let old=angle;angle=atan2(target.y-c.y,target.x-c.x);aimCameraYaw+=old-angle
         }
