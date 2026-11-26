@@ -82,6 +82,11 @@ struct Config {
     // Optional research response; zero preserves v0.9 behaviour.
     double railSpeedSensitivity=0;
     bool coupledCushions=false; // Native app enables A1; legacy regressions remain selectable.
+    // 0.60 pocket catch (corner): hole centre sits cornerHoleOffset outside the corner along each axis, radius cornerHoleRadius.
+    // 0.42–0.59 values .035/.066 (source not recorded). Physics060 retunes them against published pocket sizes (see bench_pocket).
+    double cornerHoleOffset=.035,cornerHoleRadius=.066,sideHoleOffset=.071,sideHoleRadius=.058;
+    // 0.60 pocket jaws (facings): restitution / grip used on the 8 jaw segments only; <0 keeps the rail values (0.42–0.59).
+    double jawRestitution=-1,jawGrip=-1;
     // 0.52 — cushion model switch. 0 = the model above (A1, default everywhere). 1 = Mathavan–Jackson–Parkin 2010:
     // impulse integration with sliding friction at the rail contact and at the table contact (grounded balls only;
     // airborne contacts keep model 0). OFF by default: not enabled for players until checked on a device.
@@ -126,7 +131,7 @@ struct Config {
 };
 struct Rotation {double x=0,y=0,z=0,w=1;};
 struct Ball { int id=0;V2 p{},v{},w{};double spin=0;bool sunk=false;int rails=0;Rotation rotation{}; double height=0,vertical=0; };
-struct Segment {V2 a,b;int rail;};
+struct Segment {V2 a,b;int rail;bool jaw=false;};
 struct Event {int kind;int a,b;double time;V2 p;double impact=0;}; // 0 cushion, 1 ball, 2 pocket
 struct PredictionSample {int id;double time;V2 p;bool sunk;double height=0;};
 /// Kết quả đầy đủ của một cú mô phỏng trên bản sao (Coach: phản thực tế, không đụng world thật).

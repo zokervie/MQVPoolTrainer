@@ -30,7 +30,7 @@ void World::buildRails(){
     segments.clear();double x=config.width/2,y=config.length/2;
     // Standard pool reference: mouth is measured tip-to-tip, not hole diameter.
     double c=.1143/std::sqrt(2.0),g=.127/2,d=.065;
-    auto add=[&](V2 a,V2 b,int n){segments.push_back({a,b,n});};
+    auto add=[&](V2 a,V2 b,int n){segments.push_back({a,b,n,std::abs(std::abs(b.x)-std::abs(a.x))>1e-9&&std::abs(std::abs(b.y)-std::abs(a.y))>1e-9});};
     for(int s:{-1,1}){
         int r=s<0?0:1;
         add({s*x,-y+c},{s*x,-g},r);add({s*x,g},{s*x,y-c},r);
@@ -215,9 +215,10 @@ void World::cushionResponse(Ball&b,const Config&config,V2 n,int rail){
 bool World::pocket(Ball&b){
     if(b.sunk)return true;
     double x=config.width/2,y=config.length/2;
-    std::array<V2,6> holes={V2{-x-.035,-y-.035},V2{x+.035,-y-.035},V2{-x-.071,0},V2{x+.071,0},V2{-x-.035,y+.035},V2{x+.035,y+.035}};
+    const double co=config.cornerHoleOffset,so=config.sideHoleOffset;
+    std::array<V2,6> holes={V2{-x-co,-y-co},V2{x+co,-y-co},V2{-x-so,0},V2{x+so,0},V2{-x-co,y+co},V2{x+co,y+co}};
     for(int i=0;i<6;i++){
-        double rad=(i==2||i==3)?.058:.066;
+        double rad=(i==2||i==3)?config.sideHoleRadius:config.cornerHoleRadius;
         if((b.p-holes[i]).length()<rad){const double impact=b.v.length();b.sunk=true;b.v={};b.w={};b.spin=0;events.push_back({2,b.id,i,time,b.p,impact});return true;}
     }
     // Safety recovery beyond the catch basins; counted separately from a made pocket.

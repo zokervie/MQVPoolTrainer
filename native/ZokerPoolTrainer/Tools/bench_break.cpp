@@ -16,6 +16,8 @@ int main(int argc,char**argv){
     const bool appLike=true;
     const double aimSigmaDeg=argc>1?std::atof(argv[1]):0.0, jitterMm=argc>2?std::atof(argv[2]):0.4;   // human aim error, loose-rack gap
     const int seeds=argc>3?std::atoi(argv[3]):8;
+    const double rackShift=argc>6?std::atof(argv[6]):0.0,railK=argc>7?std::atof(argv[7]):0.0;
+    const double holeOff=argc>4?std::atof(argv[4]):.035,holeR=argc>5?std::atof(argv[5]):.066;   // 0.60 pocket trial
     const Discipline ds[3]={Discipline::EightBall,Discipline::NineBall,Discipline::TenBall};const char* dn[3]={"8-ball","9-ball","10-ball"};
     const double xs[]={0,-.15,.15,-.30,.30,-.45,.45};const double speeds[]={7.0,9.0,11.0};const double tops[]={-.2,0,.2};
     std::printf("discipline,rack,x,speed,top,n,made%%,balls,scratch%%,legal%%,4rail%%,cueR_m,spread_m,settle_s\n");
@@ -24,10 +26,12 @@ int main(int argc,char**argv){
         for(int seed=1;seed<=seeds;++seed){
             Rules rules(ds[d]);auto balls=rules.rack(1000+seed);balls[0].p={x,-.90};
             std::mt19937_64 rng(7*seed+loose);std::uniform_real_distribution<double> j(-jitterMm/1000,jitterMm/1000);std::normal_distribution<double> aim(0,aimSigmaDeg*M_PI/180);
+            for(auto&b:balls)if(b.id!=0)b.p.y+=rackShift;   // 0.60 trial: Pooltool racks 5 cm deeper
             if(loose)for(auto&b:balls)if(b.id!=0){b.p.x+=j(rng);b.p.y+=j(rng);}
             V2 head{};for(auto&b:balls)if(b.id==(ds[d]==Discipline::EightBall?balls[1].id:1))head=b.p;
             if(ds[d]==Discipline::EightBall){double best=1e9;for(auto&b:balls)if(b.id&&b.p.y<best){best=b.p.y;head=b.p;}}
             World w;if(appLike){w.config.coupledCushions=true;w.config.cueType=2;w.config.squirtEnabled=false;w.config.spinDecay=11;}
+            w.config.cornerHoleOffset=holeOff;if(argc>9){w.config.jawRestitution=std::atof(argv[8]);w.config.jawGrip=std::atof(argv[9]);}w.config.railSpeedSensitivity=railK;w.config.cornerHoleRadius=holeR;
             w.reset(balls);w.strike(std::atan2(head.y-balls[0].p.y,head.x-balls[0].p.x)+aim(rng),sp,0,top);
             int n=0;for(;n<960*30&&w.moving();++n)w.step();
             std::set<int> made,railed;bool scratch=false;
