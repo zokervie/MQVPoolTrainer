@@ -331,13 +331,22 @@ extension TrainingController {
         roundFinished047(d,round:round,stars:stars,average:average)   // 0.47 M2/M3/M5/M6: streak, record, summary, challenge
         lessonScores=[];lessonPasses=0
         let next=FeatureFlags.chapters && Chapters.locate(d.id) != nil ? Chapters.nextRung(after:d.id):Drill.all.indices.first{$0>index && Drill.all[$0].level>0}   // 0.47 M0: next rung of the ladder
-        let alert=UIAlertController(title:(cleared ? "Qua bài · ":"Chưa qua · ")+Drill.starText(stars),
-            message:"\(d.title)\nĐiểm trung bình \(average)/100.\n"+(cleared ? "Bài đã được đánh dấu hoàn thành.":String(format:L10n.tr("Cần đạt ít nhất %d/5 cú. Gợi ý: bật Coach để xem điểm va băng và một thay đổi cho cú sau."),passMade))+(newBadges.isEmpty ? "":"\n"+L10n.tr("Huy hiệu mới")+": "+newBadges.map{L10n.tr($0.title)}.joined(separator:" · ")),preferredStyle:.alert)
-        alert.addAction(UIAlertAction(title:"Tập lại lượt mới",style:.default){[weak self]_ in self?.beginDrill(index,guided:false)})
-        if let next=next {alert.addAction(UIAlertAction(title:"Bài tiếp theo",style:.default){[weak self]_ in self?.beginDrill(next,guided:false)})}
-        if cleared{puzzleRoundClearedFromHint(alert)}   // 0.50 T4: a lesson started from a puzzle hint refills the jar and offers "Quay lại thế bí"
-        roundAlertExtras047(alert,drill:d,round:round,index:index)   // 0.47: Bài hôm nay tiếp theo · chuỗi ngày · Xem chi tiết · Thách bạn
-        alert.addAction(UIAlertAction(title:"Đóng",style:.cancel){[weak self]_ in self?.lessonActive=false})
-        DispatchQueue.main.asyncAfter(deadline:.now()+(round.newRecord && FeatureFlags.progress ? 1.7:1.2)){[weak self] in self?.present(alert,animated:true)}   // 0.47 M3: "Kỷ lục mới" (≤ 1,5 s) first
+        // 0.59 (đợt 1): ZCard instead of the system alert — big stars, three numbers (made · average · time), one hint line, then Tập lại / Bài tiếp / Thách bạn.
+        let draft=ZCardDraft()
+        if !newBadges.isEmpty{draft.message=L10n.tr("Huy hiệu mới")+": "+newBadges.map{L10n.tr($0.title)}.joined(separator:" · ")}
+        if cleared{puzzleRoundClearedFromHint(draft)}   // 0.50 T4: a lesson started from a puzzle hint refills the jar and offers "Quay lại thế bí"
+        roundAlertExtras047(draft,drill:d,round:round,index:index)   // 0.47: Bài hôm nay tiếp theo · Xem chi tiết · Thách bạn; its message lines are the notes
+        let lastAttempts=PlayerStore.shared.data.attempts.filter{$0.drill==d.id}.suffix(5)
+        let seconds=Int(lastAttempts.reduce(0){$0+$1.seconds}.rounded())
+        let hintLine=cleared ? L10n.tr("Bài đã được đánh dấu hoàn thành."):String(format:L10n.tr("Cần đạt ít nhất %d/5 cú. Gợi ý: bật Coach để xem điểm va băng và một thay đổi cho cú sau."),passMade)
+        let model=ZCardController.Model(cleared:cleared,stars:stars,
+            numbers:[("\(PlayerStore.shared.data.rounds.last?.made ?? 0)/5","Cú đạt"),("\(average)","Điểm TB"),(lastAttempts.isEmpty ? "–":String(format:"%d:%02d",seconds/60,seconds%60),"Thời gian")],
+            hint:d.title+" · "+hintLine,notes:draft.noteLines,
+            retry:{[weak self] in self?.beginDrill(index,guided:false)},
+            next:next.map{n in {[weak self] in self?.beginDrill(n,guided:false)}},
+            challenge:draft.challengeAction,extras:draft.items,
+            close:{[weak self] in self?.lessonActive=false})
+        let card=ZCardController(model)
+        DispatchQueue.main.asyncAfter(deadline:.now()+(round.newRecord && FeatureFlags.progress ? 1.7:1.2)){[weak self] in self?.present(card,animated:true)}   // 0.47 M3: "Kỷ lục mới" (≤ 1,5 s) first
     }
 }

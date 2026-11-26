@@ -709,10 +709,10 @@ final class InteractionTests: XCTestCase {
         let scene = app.otherElements["PoolScene"]
         XCTAssertTrue(scene.waitForExistence(timeout: 30))
         wait(scene, timeout: 60 * slow) { self.text(scene, "drill") == "first-shot" && self.text(scene, "lesson") == "1" }
-        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 120 * slow), "five QA shots close the round")
-        // The result alert is checked, not dismissed: tapping its buttons made XCTest's interruption handler recurse for
+        XCTAssertTrue(app.staticTexts["RoundResultTitle"].waitForExistence(timeout: 120 * slow), "five QA shots close the round")
+        // The result card is checked, not dismissed: tapping its buttons made XCTest's interruption handler recurse for
         // 15 min (the alert carries 4–5 actions; the next launch below replaces this app instance anyway).
-        XCTAssertTrue(app.alerts.firstMatch.label.contains("Qua bài"), "five on-aim QA shots clear the drill: \(app.alerts.firstMatch.label)")
+        XCTAssertTrue(app.staticTexts["RoundResultTitle"].label.contains("Qua bài"), "five on-aim QA shots clear the drill: \(app.staticTexts["RoundResultTitle"].label)")
         app.terminate()
 
         let exam = XCUIApplication()
@@ -891,8 +891,8 @@ final class InteractionTests: XCTestCase {
         if app.buttons["TipCardOK"].waitForExistence(timeout: 5 * slow) { app.buttons["TipCardOK"].tap() }
         let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bắt đầu · 5 cú")).firstMatch
         XCTAssertTrue(start.waitForExistence(timeout: 5 * slow)); start.tap()
-        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 180 * slow), "five QA shots close the round")
-        XCTAssertTrue(app.alerts.firstMatch.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Huy hiệu mới")).firstMatch.exists, "the round message names the new badge")
+        XCTAssertTrue(app.staticTexts["RoundResultTitle"].waitForExistence(timeout: 180 * slow), "five QA shots close the round")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Huy hiệu mới")).firstMatch.exists, "the round card names the new badge")
     }
     /// 0.49c G2: Petemoss is in the bundle (Vietnamese glyphs), "Đấu với máy" opens as a solid wood picker with Vietnamese level names on
     /// equal-size cards, and Pháp lý credits the font with its licence.
@@ -1038,7 +1038,7 @@ final class InteractionTests: XCTestCase {
         app.alerts.firstMatch.buttons["Ra bàn tập"].tap()
         wait(scene, timeout: 30 * slow) { self.text(scene, "lesson") == "1" }
         XCTAssertEqual(text(scene, "hintJar"), "2", "the hint cost one")
-        let back = app.alerts.firstMatch.buttons["Quay lại thế bí"]
+        let back = app.buttons["RoundResult-Quay lại thế bí"]
         XCTAssertTrue(back.waitForExistence(timeout: 180 * slow), "a cleared round offers the way back")
         back.tap()
         wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == "p-1-01" }

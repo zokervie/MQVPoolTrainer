@@ -214,7 +214,7 @@ extension TrainingController {
         a.addAction(UIAlertAction(title: "Đóng", style: .cancel)); topPresenter.present(a, animated: true)
     }
     /// Extra choices on the round result: next drill of today's three.
-    func roundAlertExtras047(_ alert: UIAlertController, drill d: Drill, round: PlayerStore.RoundResult, index: Int) {
+    func roundAlertExtras047(_ alert: ZCardDraft, drill d: Drill, round: PlayerStore.RoundResult, index: Int) {
         if FeatureFlags.progress {   // M3: result = stars, time, made rate; difficulty of the drill
             let last = PlayerStore.shared.data.attempts.filter { $0.drill == d.id }.suffix(5)
             let seconds = Int(last.reduce(0) { $0 + $1.seconds }.rounded()), made = last.filter { $0.made }.count
@@ -225,7 +225,7 @@ extension TrainingController {
         if feedbackMode == Int32(BL_FEEDBACK_SUMMARY) && BLFeedbackSummaryDue(feedbackMode, Int32(feedbackDetails.count), 1) != 0 {
             let detail = feedbackDetails
             alert.message = (alert.message ?? "") + "\n" + L10n.tr("Tóm tắt 5 cú: chi tiết ẩn trong lúc đánh, bấm Xem chi tiết")
-            alert.addAction(UIAlertAction(title: "Xem chi tiết", style: .default) { [weak self] _ in self?.feedbackDetails = detail; self?.showFeedbackDetails() })
+            alert.add("Xem chi tiết") { [weak self] in self?.feedbackDetails = detail; self?.showFeedbackDetails() }
         }
         if FeatureFlags.challenge {   // M6: side by side with the challenger, then challenge someone else
             let made = PlayerStore.shared.data.rounds.last?.made ?? 0, stars = PlayerStore.shared.data.rounds.last?.stars ?? 0
@@ -234,7 +234,7 @@ extension TrainingController {
                     + (made * 20 > c.score ? " · " + L10n.tr("Bạn thắng!") : (made * 20 == c.score ? " · " + L10n.tr("Hoà") : ""))
                 challengePlaying = nil
             }
-            alert.addAction(UIAlertAction(title: "Thách bạn", style: .default) { [weak self] _ in self?.shareChallenge(drill: d, made: made, stars: stars) })
+            alert.challengeAction = { [weak self] in self?.shareChallenge(drill: d, made: made, stars: stars) }
         }
         if FeatureFlags.dailyDrill {
             let picks = DailyDrills.today()
@@ -242,7 +242,7 @@ extension TrainingController {
                 let streak = PlayerStore.shared.streakShown()
                 alert.message = (alert.message ?? "") + "\nBài hôm nay: \(picks.filter { DailyDrills.done($0) }.count)/\(picks.count) · \(streak) ngày liên tiếp"
                 if let next = DailyDrills.nextUndone(), next != index {
-                    alert.addAction(UIAlertAction(title: "Bài hôm nay tiếp theo", style: .default) { [weak self] _ in self?.beginDrill(next, guided: false) })
+                    alert.add("Bài hôm nay tiếp theo") { [weak self] in self?.beginDrill(next, guided: false) }
                 }
             }
         }

@@ -389,13 +389,13 @@ extension TrainingController {
         endPuzzle(); beginDrill(index, guided: false)
     }
     /// Called by the round alert after a cleared lesson that was started from a hint: the jar gets one back and the puzzle can be resumed.
-    func puzzleRoundClearedFromHint(_ alert: UIAlertController) {
+    func puzzleRoundClearedFromHint(_ alert: ZCardDraft) {
         guard let back = puzzleReturn else { return }
         let now = Date().timeIntervalSince1970; var jar = currentHintJar(now: now)
         BLHintJarEarn(&jar, now); PlayerStore.shared.saveHintJar(count: Int(jar.count), refillFrom: jar.refillFrom)
-        alert.addAction(UIAlertAction(title: L10n.tr("Quay lại thế bí"), style: .default) { [weak self] _ in
+        alert.add("Quay lại thế bí") { [weak self] in
             self?.puzzleReturn = nil; self?.beginPuzzle(back.index, mirrored: back.mirrored, carry: back)
-        })
+        }
     }
     // MARK: T5 shot result
     /// Called from finishShot after the drill judging (`passed`) for a puzzle drill.
