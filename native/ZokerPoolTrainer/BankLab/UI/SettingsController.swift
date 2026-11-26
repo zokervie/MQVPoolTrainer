@@ -272,6 +272,7 @@ final class CustomizeController:UIViewController {
         slider("Độ chói bi",TableScene.tuneBall,0.6,1.3)
         slider("Độ đậm bóng bi",TableScene.tuneShadow,0.4,1.3)
         toggle("Bóng bi thật, tròn mềm (tắt nếu máy nóng/yếu)",Prefs.tuneRealShadow,true)
+        toggle("Ánh sáng quán: sáng giữa bàn, tối dần ra mép (thử 0.60)","clubLight060",true)
         header("Bàn")
         // 0.40b (owner: cloth colours as icons like the sample card, inside Tuỳ chỉnh).
         swatches("Màu nỉ · Z-Weave 300 (60% len · 40% nylon)",TableScene.clothColors.map{name,color in (name,Self.clothSwatch(color))},

@@ -278,8 +278,15 @@ final class TableScene {
     /// 0.38: guide fades with skill (controller sets it from the recent pass rate).
     var guideOpacity:CGFloat=1{didSet{guideRoot.opacity=guideOpacity;for n in aimGuideNodes{n.opacity=guideOpacity}}}
     static func tune(_ key:String)->CGFloat{CGFloat(UserDefaults.standard.object(forKey:key) as? Double ?? 1)}
+    /// 0.60 thử đồ hoạ (26/11, owner: "em quyết"): "Ánh sáng quán" — the club lamp lights the bed and falls off toward the
+    /// rails and the room, instead of the 0.35b near-flood (inner 42° / outer 112°) that made the cloth one flat colour.
+    /// Only the two spot cones change; centre brightness, shadows, physics untouched. Tuỳ chỉnh → Hình ảnh switches it off.
+    static var clubLight:Bool{UserDefaults.standard.object(forKey:"clubLight060") as? Bool ?? true}
+    static var spotCone:(inner:CGFloat,outer:CGFloat){clubLight ? (30,78):(42,112)}
     func applyTuning(){
         light.intensity=52*Self.tune(Self.tuneLight);roomKey?.intensity=light.intensity
+        let cone=Self.spotCone;light.spotInnerAngle=cone.inner;light.spotOuterAngle=cone.outer
+        roomKey?.spotInnerAngle=cone.inner;roomKey?.spotOuterAngle=cone.outer
         light.shadowColor=UIColor(white:0,alpha:min(0.9,0.50*Self.tune(Self.tuneShadow)))
         contactShadows.values.forEach{$0.opacity=min(1,Self.tune(Self.tuneShadow))*(Self.realShadows ? 0.75:1)}
         applyQuality()   // 0.39: "Bóng bi thật" switch takes effect at once (quality key includes it)
@@ -464,7 +471,7 @@ final class TableScene {
         scene.rootNode.addChildNode(ambient)
         // Emit below the visible fixture, so its housing does not block the key light.
         let key=SCNNode();key.position=SCNVector3(0,2.30,0);light=SCNLight();light.type = .spot
-        light.intensity=52*Self.tune(Self.tuneLight);light.temperature=5000;light.spotInnerAngle=42;light.spotOuterAngle=112   // 0.35b: cooler LED like the reference club, less glare
+        light.intensity=52*Self.tune(Self.tuneLight);light.temperature=5000;light.spotInnerAngle=Self.spotCone.inner;light.spotOuterAngle=Self.spotCone.outer   // 0.35b (cones: 0.60 clubLight): cooler LED like the reference club, less glare
         light.castsShadow=true;light.shadowMode = .forward;light.shadowRadius=3.0   // 0.39: 0.19-style soft round penumbra; 0.40b: 4 → 3 (owner: "mềm nhưng rõ, không lem")
         light.shadowColor=UIColor(white:0,alpha:min(0.9,0.50*Self.tune(Self.tuneShadow)));light.shadowBias=0.002
         key.name="premium-club-key";key.light=light;key.look(at:SCNVector3(0,0,0),up:SCNVector3(0,0,1),localFront:SCNVector3(0,0,-1));scene.rootNode.addChildNode(key)
