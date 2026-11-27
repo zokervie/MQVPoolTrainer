@@ -47,7 +47,7 @@ LANPair = `Tools/run_lan_pair_qa.sh`: hai Simulator tự đấu 9 bi qua máy ch
 | ZB-028 | S3 | Sảnh: chữ bị cắt "Vs computer · 6 leve", hàng dưới bị cắt | Video 200 | MỞ — sảnh mới | — |
 | ZB-029 | S3 | Camera xem lại/quan sát bị băng che | Video 200 giây 46 | MỞ | — |
 | ZB-031 | S3 | Thân cơ chói khi ngắm sát | IPA 173, ảnh IMG_7921, duyệt 25/11 (B6) | MỞ 2 ngày | — |
-| ZB-035 | S3 | Test chập chờn trên CI: chạm intro 1.230 ms; bước chụp màn hình quá giờ | CI 45831722610 | MỞ — chạy lại trên Mac thì PASS | — |
+| ZB-035 | S2 | Hạ tầng test UI trên CI không bền: chập chờn (CI 45831722610, 45927685914: 26 test đỏ rồi còn 1 sau chạy lại) và một test treo 58 phút làm shard 2 hết 100 phút, chỉ xong 2/38 (testChapterOneLadderAndExam, XCTest quay vòng "Alert (First Match)"; allowance 900 s của xcodebuild không kích hoạt) | CI 45831722610, 45927685914 | ĐÃ SỬA (chờ CI) — Tools/ui_test_supervisor.py: giết test treo, chạy tiếp phần còn lại, chạy lại riêng từng test lỗi 1 lần (qua = FLAKY có cảnh báo, trần 6; trượt lại = đỏ), 3 shard, ngân sách 80 phút; cổng: Tests/ui_supervisor_selftest.py (Linux gate) + thử giết test thật trên Mac. Gốc treo của test cụ thể vẫn cần điều tra nếu FLAKY lặp lại | Tests/ui_supervisor_selftest.py |
 | ZB-019 | S4 | Mốc kim cương khó thấy ở góc tổng quan | Video 202 (ChatGPT #9) | MỞ | — |
 | ZB-022 | S4 | Nhãn "B" và "123" không tự giải thích cho người mới | ChatGPT | MỞ | — |
 | ZB-030 | S4 | Intro: khung hình letterbox và tiếng chưa xem trên máy | 26/11 | Chờ máy thật | — |

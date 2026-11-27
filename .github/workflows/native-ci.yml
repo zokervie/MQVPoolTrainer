@@ -41,6 +41,8 @@ jobs:
           python-version: '3.12'
       - name: Danh sách bộ test khớp file
         run: python3 Tools/check_suite_lists.py
+      - name: Giám sát UI test tự kiểm (treo, thử lại, giới hạn thời gian)
+        run: python3 Tests/ui_supervisor_selftest.py
       - name: Sinh tài nguyên
         run: |
           python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
@@ -201,16 +203,17 @@ jobs:
           echo "::notice title=release::$TAG · $LINK"
 
   mac-ui:
-    # UI tests (XCTest gestures) split in two shards on two runners, in parallel with the acceptance job.
-    name: UI test ${{ matrix.shard }}/2 (Simulator)
+    # UI tests (XCTest gestures) split in three shards on three runners, in parallel with the acceptance job.
+    # Tools/ui_test_supervisor.py kills a hung test, resumes the rest, re-runs each failed test once alone (FLAKY vs FAILED).
+    name: UI test ${{ matrix.shard }}/3 (Simulator)
     needs: portable
     if: ${{ !startsWith(github.ref_name, 'ci/fast-') }}
     runs-on: ${{ github.event.inputs.runner || 'macos-15-intel' }}
-    timeout-minutes: 100
+    timeout-minutes: 90   # the supervisor budget (UI_BUDGET 4800 s = 80 min) ends first, so artifacts are always uploaded
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     defaults:
       run:
         working-directory: native/ZokerPoolTrainer
@@ -234,13 +237,14 @@ jobs:
         run: python3 -m pip install -q numpy==2.3.5 scipy==1.17.0 Pillow==12.3.0 'matplotlib>=3.10,<4'
       - name: Tài nguyên
         run: python3 Tools/prepare_ci_assets.py
-      - name: UI test shard ${{ matrix.shard }}/2
+      - name: UI test shard ${{ matrix.shard }}/3
         env:
-          UI_SHARD: ${{ matrix.shard }}/2
+          UI_SHARD: ${{ matrix.shard }}/3
+          UI_BUDGET: '4800'
         run: |
           set -o pipefail
           mkdir -p build
-          bash Tools/run_ui_tests.sh   # job limit 100 min; per-test limits in run_ui_tests.sh
+          bash Tools/run_ui_tests.sh   # job limit 90 min; watchdog limits in Tools/ui_test_supervisor.py
       - name: Tóm tắt test trượt
         if: failure()
         run: |
@@ -249,7 +253,9 @@ jobs:
         if: always()
         with:
           name: zoker-ui-tests-${{ github.run_number }}-${{ matrix.shard }}
-          path: native/ZokerPoolTrainer/build/ui-tests-shard*.log
+          path: |
+            native/ZokerPoolTrainer/build/ui-tests-shard*.log
+            native/ZokerPoolTrainer/build/ui-summary-shard*.json
           retention-days: 14
       - name: Giữ bằng chứng khi trượt (xcresult có ảnh chụp lúc lỗi, nhật ký app)
         if: failure()

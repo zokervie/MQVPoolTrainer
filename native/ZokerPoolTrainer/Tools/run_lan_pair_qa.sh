@@ -38,6 +38,14 @@ env "${ENVS[@]}" xcrun simctl launch --terminate-running-process --console-pty "
 sleep 2
 env "${ENVS[@]}" xcrun simctl launch --terminate-running-process --console-pty "$GUEST" $BUNDLE --lan-join-qa --visual-qa ${ZOKER_QA_EXTRA:-} > build/lan-pair/guest.log 2>&1 &
 
+# 2b. optional recording for the night tour: video of both Simulators + a screenshot every 3 s (ZOKER_QA_RECORD_DIR)
+RECPIDS=""
+if [ -n "${ZOKER_QA_RECORD_DIR:-}" ]; then
+  mkdir -p "$ZOKER_QA_RECORD_DIR"
+  xcrun simctl io "$HOST" recordVideo --codec=h264 --force "$ZOKER_QA_RECORD_DIR/host.mp4" > /dev/null 2>&1 & RECPIDS="$!"
+  xcrun simctl io "$GUEST" recordVideo --codec=h264 --force "$ZOKER_QA_RECORD_DIR/guest.mp4" > /dev/null 2>&1 & RECPIDS="$RECPIDS $!"
+  ( i=0; while true; do sleep 3; i=$((i+3)); xcrun simctl io "$HOST" screenshot "$ZOKER_QA_RECORD_DIR/host-t$(printf %04d $i).png" 2>/dev/null; xcrun simctl io "$GUEST" screenshot "$ZOKER_QA_RECORD_DIR/guest-t$(printf %04d $i).png" 2>/dev/null; done ) & RECPIDS="$RECPIDS $!"
+fi
 # 3. wait for the shots, then judge the guest report
 GJ="$(xcrun simctl get_app_container "$GUEST" $BUNDLE data)/Documents/perf-qa/lan-pair-guest.json"
 HJ="$(xcrun simctl get_app_container "$HOST" $BUNDLE data)/Documents/perf-qa/lan-pair-host.json"
@@ -48,6 +56,7 @@ for _ in $(seq 1 "$SECONDS_MAX"); do
   [ "$done_shots" -ge "$SHOTS" ] && sleep 12 && break
 done
 cp "$GJ" build/lan-pair/guest.json 2>/dev/null || true; cp "$HJ" build/lan-pair/host.json 2>/dev/null || true
+[ -n "$RECPIDS" ] && { kill -INT $RECPIDS 2>/dev/null; wait $RECPIDS 2>/dev/null; }
 xcrun simctl terminate "$HOST" $BUNDLE 2>/dev/null || true; xcrun simctl terminate "$GUEST" $BUNDLE 2>/dev/null || true
 python3 - <<'PY'
 import json, sys
