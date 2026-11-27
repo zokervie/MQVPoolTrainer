@@ -163,6 +163,9 @@ final class LocalMatchSession: NSObject {
         // 0.44-mm QA only: two Simulators meet on a fixed code (--lan-host-qa with ZOKER_QA_ROOM=6 digits).
         if !internet, ProcessInfo.processInfo.arguments.contains("--lan-host-qa"), let qa = ProcessInfo.processInfo.environment["ZOKER_QA_ROOM"],
            qa.utf8.count == 6, qa.utf8.allSatisfy({ (48...57).contains($0) }) { roomCode = qa }
+        // 0.59 QA (two Simulators through a local relay, Tools/run_lan_pair_qa.sh): a fixed 8-character online code
+        if internet, ProcessInfo.processInfo.arguments.contains("--lan-host-qa"), let qa = ProcessInfo.processInfo.environment["ZOKER_QA_ROOM"],
+           OnlineRoomCode.isValid(qa) { roomCode = qa }
         relayToken = internet ? OnlineRelayConfig.token(for: roomCode, role: "host") : ""
         matchID = UUID().uuidString
         if !internet { lobby.host(mode: game); onLobbyChanged?() }

@@ -108,6 +108,11 @@ extension TrainingController {
     /// Host: open room ZOKER_QA_ROOM, wait for the guest, break at 7 m/s, report. Guest: join, watch, report its lockstep.
     func startLANQA() {
         let args = ProcessInfo.processInfo.arguments
+        // 0.59: MultipeerConnectivity cannot pair two Simulators (0.44-mm), so the pair test goes through a LOCAL relay
+        // (wrangler dev on the Mac, ZOKER_QA_RELAY=ws://127.0.0.1:8787). Same guest path: snapshots, lockstep, audio.
+        if let relay = ProcessInfo.processInfo.environment["ZOKER_QA_RELAY"], args.contains("--lan-host-qa") || args.contains("--lan-join-qa") {
+            OnlineRelayConfig.set(relay); startLANPairQA(host: args.contains("--lan-host-qa")); return
+        }
         if args.contains("--lan-host-qa") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                 guard let self = self else { return }
@@ -149,5 +154,91 @@ extension TrainingController {
                 report(150)
             }
         }
+    }
+
+    /// 0.59 two-Simulator pair test (Tools/run_lan_pair_qa.sh). Both devices: whoever has the turn shoots at 4 m/s once the
+    /// balls rest, ZOKER_QA_SHOTS strokes in all. The guest writes lan-pair-guest.json with the counters of
+    /// LANPairQA (sound played twice, own-stroke cue angle, break cue on a normal turn, self-contradicting status, rewind).
+    func startLANPairQA(host: Bool) {
+        guard let code = ProcessInfo.processInfo.environment["ZOKER_QA_ROOM"] else { return }
+        let total = Int(ProcessInfo.processInfo.environment["ZOKER_QA_SHOTS"] ?? "") ?? 6
+        LANPairQA.active = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + (host ? 1.5 : 4.0)) { [weak self] in
+            guard let self = self else { return }
+            if host { self.startMatch(rule: "nineBall", network: true, online: true) }
+            else { self.prepareGuestMatch(); _ = self.matchPlay.session.joinRoom(code: code, internet: true); self.setMenu(false); self.syncMatchControls(); self.updateControls() }
+            var restSince: Double? = nil
+            func tick(_ left: Int) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    guard let self = self else { return }
+                    let m = self.matchPlay, now = ProcessInfo.processInfo.systemUptime
+                    LANPairQA.noteStatus(self.matchStatusText())
+                    let moving = self.shotActive || (m.session.latestSnapshot?.isMoving ?? false) || m.predictor != nil
+                    if moving { restSince = nil } else if restSince == nil { restSince = now }
+                    let mine = m.session.isConnected && self.matchAllowsInput && self.localTurn && !self.isPlacingBalls && m.placementDraft == nil
+                    if mine, LANPairQA.shots < total, let rest = restSince, now - rest > 2.0, !self.locked, m.matchWinner < 0 {
+                        if !(m.state["pendingChoice"] as? String ?? "").isEmpty {
+                            let options = m.state["choiceOptions"] as? [String] ?? []
+                            if let first = options.first { self.submitMatchAction(.chooseOption, option: first) }
+                        } else {
+                            LANPairQA.shots += 1; restSince = nil
+                            self.locked = true; self.shoot(4.0)
+                            if self.shotActive { self.spin.collapse(); self.setHold(false) } else { self.locked = false }
+                        }
+                    }
+                    var report = LANPairQA.report()
+                    report["role"] = host ? "host" : "guest"; report["connected"] = m.session.isConnected
+                    report["lockstepShots"] = m.lockstepShots; report["fallbacks"] = m.lockstepFallbacks
+                    report["shotID"] = m.shotID; report["secondsLeft"] = left / 2; report["status"] = self.matchStatusText()
+                    self.writeQA(host ? "lan-pair-host" : "lan-pair-guest", report)
+                    if left > 0 { tick(left - 1) }
+                }
+            }
+            tick(Int(ProcessInfo.processInfo.environment["ZOKER_QA_SECONDS"] ?? "") .map { $0 * 2 } ?? 480)
+        }
+    }
+}
+
+/// 0.59 QA counters for the two-Simulator pair test (zero cost unless LANPairQA.active).
+enum LANPairQA {
+    static var active = false
+    static var shots = 0
+    private static var heard = Set<String>()
+    static var soundRepeats = 0, soundsPlayed = 0
+    static var strikeAngleErrorMaxDeg = 0.0, ownStrikes = 0
+    static var breakCueOnNormalTurn = 0
+    static var statusContradictions: [String] = []
+    static var rewinds = 0
+    private static var lastClock: [Int: Double] = [:]
+    /// One impact = shot + kind + event time (10 ms). Heard twice = played again.
+    static func sound(shot: Int, kind: Int, time: Double) {
+        guard active else { return }
+        soundsPlayed += 1
+        let key = "\(shot):\(kind):\(Int((time * 100).rounded()))"
+        if !heard.insert(key).inserted { soundRepeats += 1 }
+    }
+    static func strike(animAngle: Double, shotAngle: Double, own: Bool) {
+        guard active, own else { return }
+        var d = animAngle - shotAngle
+        while d > Double.pi { d -= 2 * Double.pi }
+        while d < -Double.pi { d += 2 * Double.pi }
+        ownStrikes += 1; strikeAngleErrorMaxDeg = max(strikeAngleErrorMaxDeg, abs(d) * 180 / Double.pi)
+    }
+    /// The picture clock of one shot never runs backwards by more than 150 ms (playout jitter control stays well under).
+    static func clock(shot: Int, time: Double) {
+        guard active else { return }
+        if let last = lastClock[shot], time < last - 0.15 { rewinds += 1 }
+        lastClock[shot] = max(lastClock[shot] ?? time, time)
+    }
+    static func noteStatus(_ text: String) {
+        guard active else { return }
+        let bad = (text.contains("Lượt của bạn") && text.contains("Hết lượt") && !text.contains("Cú của")) ||
+                  (text.contains("Đang xem đối thủ") && text.contains("chạm Đặt bi"))
+        if bad, statusContradictions.count < 10, !statusContradictions.contains(text) { statusContradictions.append(text) }
+    }
+    static func report() -> [String: Any] {
+        ["shots": shots, "soundsPlayed": soundsPlayed, "soundRepeats": soundRepeats, "ownStrikes": ownStrikes,
+         "strikeAngleErrorMaxDeg": strikeAngleErrorMaxDeg, "breakCueOnNormalTurn": breakCueOnNormalTurn,
+         "statusContradictions": statusContradictions, "rewinds": rewinds]
     }
 }

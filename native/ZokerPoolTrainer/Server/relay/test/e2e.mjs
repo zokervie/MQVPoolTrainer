@@ -10,7 +10,7 @@ const token = () => randomBytes(16).toString("hex");
 const code = Array.from(randomBytes(8), (b) => "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"[b % 32]).join("");
 
 function open(role, tok, roomCode = code) {
-  const ws = new WS(`${base}/v1/rooms/${roomCode}?role=${role}&token=${tok}&v=1`);
+  const ws = new WS(`${base}/v1/rooms/${roomCode}?role=${role}&token=${tok}&v=2`);
   ws.binaryType = "arraybuffer";
   const inbox = [];
   const waiters = [];

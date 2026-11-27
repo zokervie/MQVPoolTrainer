@@ -2,7 +2,9 @@
 // The relay never reads game data. It only pairs one host and one guest per
 // room code and forwards their bounded binary frames to each other.
 
-export const PROTOCOL_VERSION = 1;
+// 0.59 (pair test, sổ lỗi ZB-036): the app moved to protocol 2 in 0.44 (lockstep shotStart) and the relay still asked
+// for 1, so every online room closed with "Cần cập nhật ứng dụng". test/core.test.js now reads the app's value.
+export const PROTOCOL_VERSION = 2;
 // Same bound as LANEnvelope.maximumBytes in the app.
 export const MAX_FRAME_BYTES = 131072;
 // 8 symbols, no 0/O/1/I: 32^8 ≈ 1.1e12 codes, read aloud without ambiguity.

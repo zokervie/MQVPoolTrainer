@@ -49,6 +49,15 @@ final class MatchPlayState {
     var audioEvents: [LANEvent] = []
     var playedEvents = Set<Int>()
     var pocketLedger = PocketSoundLedger()   // 0.53 A3.2: one drop sound per (shot, ball, pocket) across both audio paths
+    /// 0.59 (ZB-004, pair test: 20 of 32 impacts played twice on the guest): one sound per (shot, kind, event time to 10 ms)
+    /// across BOTH audio paths (lockstep predictor and host snapshots), whatever index each path gives the event.
+    var heardSounds = Set<String>()
+    static let dedupeOffQA = ProcessInfo.processInfo.arguments.contains("--sound-dedupe-off-qa")   // QA: the "before" run of the pair test
+    func firstHearing(shot: Int, kind: Int, time: Double) -> Bool {
+        if Self.dedupeOffQA { return true }
+        if heardSounds.count > 4000 { heardSounds.removeAll() }
+        return heardSounds.insert("\(shot):\(kind):\(Int((time * 100).rounded()))").inserted
+    }
     var audioShotID = -1
     var lastGuestShot = -1
     var lastGuestTurn = -1
@@ -718,6 +727,7 @@ extension TrainingController {
         if matchPlay.localCueVisual != nil { matchRestoreLocalCue() }
         let cueBefore = (shotKind, table.cueElevation)
         cueForNextTurn()
+        if !matchBool("breakShot") && shotKind == 2 { LANPairQA.breakCueOnNormalTurn += 1 }
         if cueBefore.0 != shotKind || cueBefore.1 != table.cueElevation { updateControls() }
         if first || table.cameraMode != 2 || observationCamera { restoreAimCamera(transition: first ? 0.2 : 0.45) }
     }
@@ -1451,12 +1461,15 @@ extension TrainingController {
                 return ball
             }
         }
+        if latest.isMoving || matchPlay.snapshots.count > 1 { LANPairQA.clock(shot: latest.shotID, time: matchPlay.guestClock) }
         while let event = matchPlay.audioEvents.first, event.time <= matchPlay.guestClock {
             matchPlay.audioEvents.removeFirst(); matchPlay.playedEvents.insert(event.index)
             if !latest.isPaused, UserDefaults.standard.object(forKey: "poolAudioEnabled") as? Bool ?? true,
-               matchPlay.pocketLedger.firstTime(shot: matchPlay.audioShotID, event: event) {
+               matchPlay.pocketLedger.firstTime(shot: matchPlay.audioShotID, event: event),
+               matchPlay.firstHearing(shot: matchPlay.audioShotID, kind: event.kind, time: event.time) {
                 poolAudio.play(kind: event.kind, impact: event.impact,
                                pan: audioPan(event.x, event.y), eventAge: max(0, matchPlay.guestClock - event.time))
+                LANPairQA.sound(shot: matchPlay.audioShotID, kind: event.kind, time: event.time)
             }
         }
         if latest.isMoving, !latest.isPaused, matchPlay.session.isConnected { wakeRendering() }
@@ -2033,6 +2046,9 @@ extension TrainingController {
                                elevation: shown.elevation, cueType: shown.cueType, fromPull: shown.pull, lead: 0.1)
             matchPlay.predictorDelay = 0.1
         }
+        if LANPairQA.active, matchInt("currentPlayer") == matchPlay.session.localPlayer {
+            LANPairQA.strike(animAngle: Self.strikeAnim?.angle ?? start.angle + Double.pi, shotAngle: start.angle, own: true)   // no cue at all counts as 180°
+        }
         wakeRendering()
     }
     func lockstepOwnsShot(_ shotID: Int) -> Bool {
@@ -2078,13 +2094,16 @@ extension TrainingController {
                 for (offset, event) in fresh.enumerated() {
                     if let wire = matchEvent(event, index: matchPlay.predictorEvents + offset),
                        !matchPlay.pocketLedger.firstTime(shot: matchPlay.predictorShot, event: wire) { continue }
+                    guard matchPlay.firstHearing(shot: matchPlay.predictorShot, kind: event["kind"]?.intValue ?? 1, time: event["time"]?.doubleValue ?? 0) else { continue }
                     poolAudio.play(kind: event["kind"]?.intValue ?? 1, impact: event["impact"]?.doubleValue ?? 0.3,
                                    pan: audioPan(event["x"]?.doubleValue ?? 0, event["y"]?.doubleValue ?? 0),
                                    eventAge: max(0, world.elapsed - (event["time"]?.doubleValue ?? world.elapsed)))
+                    LANPairQA.sound(shot: matchPlay.predictorShot, kind: event["kind"]?.intValue ?? 1, time: event["time"]?.doubleValue ?? 0)
                 }
             }
             matchPlay.predictorEvents += fresh.count
         }
+        LANPairQA.clock(shot: matchPlay.predictorShot, time: world.elapsed)
         table.update(world.presentationBallStates, dt: dt)
         matchPlay.guestBalls = world.ballStates
         wakeRendering()

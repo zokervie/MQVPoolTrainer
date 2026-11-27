@@ -7,7 +7,7 @@ struct CueStrikeAnim {
     var fromPull: Double, lead: Double
 }
 extension TrainingController {
-    private static var strikeAnim: CueStrikeAnim?
+    private(set) static var strikeAnim: CueStrikeAnim?   // 0.59: read by the pair test (LANPairQA)
     /// `lead`: seconds of forward stroke before contact (0 when the balls already move); `fromPull`: back-swing start.
     func beginCueStrikeAnim(origin: BallState, angle: Double, side: Double, top: Double, elevation: Double, cueType: Int,
                             fromPull: Double, lead: Double) {
