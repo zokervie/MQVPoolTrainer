@@ -1086,12 +1086,15 @@ final class InteractionTests: XCTestCase {
             XCTAssertTrue(app.cells["Puzzle-" + key].waitForExistence(timeout: 10 * slow))
             // CI 170 evidence: "System gesture gate timed out" swallowed this tap and the list stayed open for 2 minutes. A lost tap is not a
             // slow app: tap again while the list is still up and the puzzle has not changed (the timeout below stays the same).
-            for _ in 0..<4 where self.text(scene, "puzzle") != key {
+            // CI 182 (shard 1, twice, alone too): loading the SECOND unsolved puzzle offers the easier one in the same breath, and a modal
+            // alert hides PoolScene from XCTest, so on a slow runner `puzzle` is never readable. The offer IS the proof that the puzzle loaded.
+            let loaded = { self.text(scene, "puzzle") == key || app.alerts.firstMatch.exists }
+            for _ in 0..<4 where !loaded() {
                 if app.cells["Puzzle-" + key].exists { app.cells["Puzzle-" + key].tap() }
                 let until = Date().addingTimeInterval(8 * slow)
-                while Date() < until, self.text(scene, "puzzle") != key { RunLoop.current.run(until: Date().addingTimeInterval(0.25)) }
+                while Date() < until, !loaded() { RunLoop.current.run(until: Date().addingTimeInterval(0.25)) }
             }
-            wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == key }
+            if !app.alerts.firstMatch.exists { wait(scene, timeout: 30 * slow) { self.text(scene, "puzzle") == key } }
         }
         XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 30 * slow), "after two unsolved puzzles an easier one is offered: fails=\(text(scene, "puzzleFails")) puzzle=\(text(scene, "puzzle")) tries=\(text(scene, "puzzleTries"))")
         app.alerts.firstMatch.buttons["Đóng"].tap()
