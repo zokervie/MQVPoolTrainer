@@ -16,6 +16,11 @@ FAKE = textwrap.dedent('''\
     plan = json.load(open(os.environ["FAKE_PLAN"])); counts_path = os.environ["FAKE_COUNTS"]
     counts = json.load(open(counts_path)) if os.path.exists(counts_path) else {}
     tests = [a.split("/")[-1] for a in sys.argv if a.startswith("-only-testing:")]
+    if "build-for-testing" in sys.argv:
+        how = plan.get("__build", "ok")
+        if how == "fail": print("error: Swift compile failed", flush=True); sys.exit(65)
+        if how == "quiet": time.sleep(6)   # a long silent compile: must not be taken for a hang
+        print("** TEST BUILD SUCCEEDED **", flush=True); sys.exit(0)
     def mark(t):
         counts[t] = counts.get(t, 0) + 1; json.dump(counts, open(counts_path, "w")); return counts[t]
     for t in tests:
@@ -38,10 +43,10 @@ def run(plan, extra=(), shard="", swift=SWIFT):
     with tempfile.TemporaryDirectory() as d:
         d = Path(d); (d / "T.swift").write_text(swift)
         fake = d / "fakexcb"; fake.write_text(FAKE); fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
-        (d / "plan.json").write_text(json.dumps({"test" + k: v for k, v in plan.items()}))
+        (d / "plan.json").write_text(json.dumps({(k if k.startswith("__") else "test" + k): v for k, v in plan.items()}))
         env = dict(os.environ, FAKE_PLAN=str(d / "plan.json"), FAKE_COUNTS=str(d / "counts.json"))
         cmd = [sys.executable, str(SUP), "--swift", str(d / "T.swift"), "--xcodebuild", str(fake), "--out", str(d / "out"),
-               "--derived", str(d / "dd"), "--no-device", "--quiet", "--test-max", "3", "--stall", "4", "--budget", "60", *extra]
+               "--derived", str(d / "dd"), "--no-device", "--quiet", "--test-max", "3", "--stall", "4", "--build-stall", "30", "--budget", "60", *extra]
         if shard: cmd += ["--shard", shard]
         p = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=200)
         tag = "-shard" + shard.split("/")[0] if shard else ""
@@ -83,6 +88,12 @@ check("flaky cap exceeded -> exit 1", code == 1 and s["flaky"] == 3, (code, s["f
 
 code, s, _ = run({}, extra=["--budget", "0"])
 check("no budget -> NOT RUN, exit 1", code == 1 and s["notrun"] == 7, (code, s["notrun"]))
+
+code, s, _ = run({"__build": "quiet"})
+check("silent 6 s build (longer than --stall 4) is not killed", code == 0 and s["passed"] == 7, (code, s and s["passed"]))
+
+code, s, _ = run({"__build": "fail"})
+check("build fails twice -> every test NOT RUN, exit 1", code == 1 and s["notrun"] == 7 and len(s["notes"]) == 2, (code, s and (s["notrun"], s["notes"])))
 
 code, s, out = run({"A": "pass"}, shard="2/3")
 check("shard 2/3 runs only B E", s and sorted(s["results"]) == ["testB", "testE"], s and sorted(s["results"]))

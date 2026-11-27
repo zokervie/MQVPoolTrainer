@@ -5,8 +5,10 @@ Why: CI run 45927685914 shard 2 sat 58 minutes inside ONE test (testChapterOneLa
 "Alert (First Match)") although xcodebuild was given a 900 s per-test allowance - the allowance did not fire, so the
 job died at its 100-minute limit with 2 of 38 tests done and no evidence. A supervisor outside xcodebuild fixes that:
 
- 1. one xcodebuild invocation per attempt, watched by a watchdog: a test running longer than --test-max, no output for
-    --stall seconds, or the shard budget exhausted -> the process group is killed;
+ 0. the app and the UI tests are built ONCE (build-for-testing) with its own generous limits: CI 45960233732 shard 3 had a
+    quiet 10-minute Swift compile on a slow Intel runner and the first version of this watchdog killed it as "stalled";
+ 1. then one xcodebuild test-without-building per attempt, watched by a watchdog: a test running longer than --test-max,
+    no output for --stall seconds, or the shard budget exhausted -> the process group is killed;
  2. the test that was running at the kill is marked HUNG, the Simulator is rebooted, and the REMAINING tests continue
     in a new attempt (nothing is lost);
  3. every failed or hung test is re-run once, alone, on a clean Simulator. Pass on re-run = FLAKY (reported as a
@@ -15,7 +17,7 @@ job died at its 100-minute limit with 2 of 38 tests done and no evidence. A supe
 
 Exit code 0 only when nothing failed, hung or was left unrun and flaky <= --max-flaky.
 """
-import argparse, json, os, re, signal, subprocess, sys, threading, time
+import argparse, copy, json, os, re, signal, subprocess, sys, threading, time
 from pathlib import Path
 
 START = re.compile(r"Test Case '-\[\S+\.InteractionTests (test\w+)\]' started")
@@ -110,6 +112,8 @@ def main():
     ap.add_argument("--out", default="build")
     ap.add_argument("--test-max", type=float, default=720, help="seconds one test may run before it is killed")
     ap.add_argument("--stall", type=float, default=600, help="seconds without any output before kill")
+    ap.add_argument("--build-max", type=float, default=3000, help="seconds the one-time build may take")
+    ap.add_argument("--build-stall", type=float, default=1500, help="seconds of silence tolerated while building")
     ap.add_argument("--budget", type=float, default=4200, help="seconds for the whole shard (phase 1 + retries)")
     ap.add_argument("--max-flaky", type=int, default=6)
     ap.add_argument("--no-device", action="store_true", help="self-test: skip Simulator handling")
@@ -146,11 +150,11 @@ def main():
 
     attempt_no = [0]
 
-    def command(batch):
+    def command(batch, action="test-without-building"):
         attempt_no[0] += 1
         result_path = Path(cfg.out).resolve() / f"ui-tests{tag}-a{attempt_no[0]}-{time.strftime('%H%M%S')}.xcresult"
         dest = "platform=iOS Simulator,id=%s" % device if device else "platform=iOS Simulator,name=fake"
-        return ([cfg.xcodebuild, "test", "-project", cfg.project, "-scheme", cfg.scheme, "-configuration", "Debug",
+        return ([cfg.xcodebuild, action, "-project", cfg.project, "-scheme", cfg.scheme, "-configuration", "Debug",
                  "-destination", dest, "-derivedDataPath", str(Path(cfg.derived).resolve()),
                  "-resultBundlePath", str(result_path), "-parallel-testing-enabled", "NO",
                  "-maximum-concurrent-test-simulator-destinations", "1", "-destination-timeout", "120",
@@ -162,6 +166,20 @@ def main():
     final = {}   # name -> {"status","seconds","note"}
     notes = []
     fresh_simulator()
+
+    # Phase 0: build once. Two tries (a runner can lose the compiler service); silence is normal here.
+    bcfg = copy.copy(cfg); bcfg.stall = cfg.build_stall; bcfg.test_max = cfg.build_max
+    built = False
+    for n_try in (1, 2):
+        log.write(f"\n=== build-for-testing (try {n_try}) ===\n")
+        b = run_attempt(command([], "build-for-testing"), log, bcfg, min(deadline, time.time() + cfg.build_max))
+        if b.exit_code == 0 and not b.reason:
+            built = True; break
+        notes.append(f"build try {n_try} failed (exit {b.exit_code}) {b.reason}".strip())
+    if not built:
+        for t in tests:
+            final[t] = {"status": "notrun", "seconds": 0, "note": "the build failed"}
+        deadline = 0   # skip phases 1 and 2
 
     # Phase 1: everything, resuming after each kill.
     pending = list(tests); stuck = 0
