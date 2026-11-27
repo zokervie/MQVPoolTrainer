@@ -95,6 +95,13 @@ check("silent 6 s build (longer than --stall 4) is not killed", code == 0 and s[
 code, s, _ = run({"__build": "fail"})
 check("build fails twice -> every test NOT RUN, exit 1", code == 1 and s["notrun"] == 7 and len(s["notes"]) == 2, (code, s and (s["notrun"], s["notes"])))
 
+code, s, _ = run({"A": "fail", "B": "fail", "C": "fail", "D": "fail", "E": "fail", "F": "fail"}, extra=["--unhealthy-after", "4"])
+check("first 4 tests all fail -> unhealthy runner, exit 75, no retries, rest NOT RUN",
+      code == 75 and s["unhealthy"] and s["notrun"] >= 3 and "flaky" in s and s["flaky"] == 0, (code, s and (s["unhealthy"], s["notrun"], s["flaky"])))
+
+code, s, _ = run({"C": "fail", "D": "fail", "E": "fail", "F": "fail"}, extra=["--unhealthy-after", "4"])
+check("a streak of failures after passes is NOT a sick runner (normal retry path)", code == 1 and not s["unhealthy"] and s["failed"] == 4, (code, s and (s["unhealthy"], s["failed"])))
+
 code, s, out = run({"A": "pass"}, shard="2/3")
 check("shard 2/3 runs only B E", s and sorted(s["results"]) == ["testB", "testE"], s and sorted(s["results"]))
 
