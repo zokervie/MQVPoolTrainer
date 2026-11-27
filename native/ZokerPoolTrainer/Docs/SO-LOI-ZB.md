@@ -13,15 +13,18 @@ Bản sao cho chủ dự án xem: Project `claude/zoker-so-loi-zb.md` (cập nh�
 
 ## Đang mở hoặc chờ máy thật
 
+LANPair = `Tools/run_lan_pair_qa.sh`: hai Simulator tự đấu 9 bi qua máy chủ chuyển tiếp chạy trên Mac, 8 kiểm phía khách. Chạy trên Mac, CHƯA nằm trong CI (cần anh cho sửa workflow). Màn hình Mac phải thức (script tự giữ bằng caffeinate).
+
 | Mã | Mức | Lỗi | Nguồn | Trạng thái | Test giữ cửa |
 |---|---|---|---|---|---|
-| ZB-003 | S1 | Máy khách Wi-Fi: cơ đổi hướng lúc ra tay (theo hướng ngắm cũ của đối thủ); bi chạy trước khi đầu cơ chạm | Video 202 A 11,9 s, B 12,2 s (anh + ChatGPT #2), VERIFIED khung hình | ĐÃ SỬA ff8b028 | Chưa — cần 2 Simulator (đợt kế) |
-| ZB-004 | S1 | Máy khách: tiếng va chạm của cú mình phát lại ~5 s sau, khi đã đổi lượt | Video 202 A 13,5–21,0 s (ChatGPT #1), VERIFIED: dạng sóng trùng 99–100 % | ĐÃ SỬA ff8b028 | Chưa — 2 Simulator |
-| ZB-005 | S1 | Máy khách: sau cú vào bi 9, bi cái giật lùi rồi chạy lại "kỳ cục" | Video 202 B 12,8–18,5 s (anh) | ĐÃ SỬA ff8b028 (INFERRED cùng gốc ZB-004: đồng hồ phát lại tụt sau) | Chưa — 2 Simulator |
-| ZB-002 | S2 | Máy khách: nút Break sáng suốt trận, cơ ngóc 7–10° ở cú thường | Video 202 A+B | ĐÃ SỬA ff8b028 | Chưa — 2 Simulator |
+| ZB-036 | S1 | Chơi Online hỏng hoàn toàn từ 0.44: app gửi giao thức 2, máy chủ chuyển tiếp chỉ nhận 1 → mọi phòng đóng với "Cần cập nhật ứng dụng" | LANPair 27/11 (em), VERIFIED | ĐÃ SỬA e7c9e2b (relay nhận 2). Nếu anh đã deploy relay thì cần deploy lại | ✅ relay core.test.js so số giao thức với MatchWire.swift |
+| ZB-003 | S1 | Máy khách Wi-Fi: cơ đổi hướng lúc ra tay (theo hướng ngắm cũ của đối thủ); bi chạy trước khi đầu cơ chạm | Video 202 A 11,9 s, B 12,2 s (anh + ChatGPT #2), VERIFIED khung hình | ĐÃ SỬA ff8b028 | ✅ LANPair: lệch góc cơ 0,00° trên 4 cú của khách |
+| ZB-004 | S1 | Máy khách: tiếng va chạm phát lại (cùng cú nghe hai lần) | Video 202 A 13,5–21,0 s (ChatGPT #1), VERIFIED dạng sóng trùng 99–100 % | ff8b028 chỉ sửa MỘT PHẦN (IPA 204 còn lỗi); sửa hết ở e7c9e2b (chống lặp theo cú/loại/thời điểm) | ✅ LANPair: trước 20/81 tiếng lặp, sau 0/61 |
+| ZB-005 | S1 | Máy khách: sau cú vào bi 9, bi cái giật lùi rồi chạy lại | Video 202 B 12,8–18,5 s (anh) | ĐÃ SỬA ff8b028 (INFERRED cùng gốc ZB-004) | ✅ LANPair: đồng hồ hình không lùi (0 lần / 7 cú) |
+| ZB-002 | S2 | Máy khách: nút Break sáng suốt trận, cơ ngóc 7–10° ở cú thường | Video 202 A+B | ĐÃ SỬA ff8b028 | ✅ LANPair: 0 lượt thường cầm cơ phá |
 | ZB-001 | S2 | Máy tiếng Anh còn chữ Việt / câu lai ("ván mới sau seconds lát", "Tạo room", "KẾT THÚC VÁN", "Mã …") | Video 202 + ảnh IMG_7969 | ĐÃ SỬA ff8b028 | ✅ L10nSweepTests (1.416 câu, 0 lọt) + UI test viLeaks=0 |
 | ZB-006 | S2 | Góc ngắm thấp: cán cơ thành khối đen lấp nửa màn, che bi cái | Video 202 A 2–11 s, 39–46 s (anh + ChatGPT #5) | ĐÃ SỬA ff8b028 (mắt camera ≥ đường cơ + 7°) | 🟡 test logic MatchCameraPolicy; thiếu ảnh chuẩn |
-| ZB-011 | S2 | "Watching opponent · Ball in hand · tap Place ball" — bảo người đang xem bấm đặt bi | Video 202 A 50,4 s (ChatGPT #11) | ĐÃ SỬA ff8b028 | Chưa |
+| ZB-011 | S2 | "Watching opponent · Ball in hand · tap Place ball" | Video 202 A 50,4 s (ChatGPT #11) | ĐÃ SỬA ff8b028 | ✅ LANPair: 0 dòng tự mâu thuẫn |
 | ZB-018 | S2 | Camera bỏ mất phần kết cú (bi ra khỏi khung) rồi báo Ball in hand | Video 202 A 46,5–50,4 s (ChatGPT #8) | MỞ | — |
 | ZB-020 | S2 | Menu con (Nearby play…) nền đen trơn, nút và chữ hệ thống, không theo bộ thiết kế Z | Anh 27/11 + ảnh IMG_7969 | MỞ — làm lại cả hệ menu con, bản riêng | — |
 | ZB-023 | S2 | Luật 3 lỗi 9/10 bi: cần kiểm 2 ca (kết thúc ván hợp lệ / lỗi lần 3) trên cả 2 máy | Video 202 B (ChatGPT, UNVERIFIED là lỗi) | MỞ — kiểm chứng | — |
@@ -30,7 +33,7 @@ Bản sao cho chủ dự án xem: Project `claude/zoker-so-loi-zb.md` (cập nh�
 | ZB-007 | S3 | Cơ mờ thành hình nón xám trong suốt đè lên bi | Video 202 B 0–12 s | MỞ (cùng họ B6 "thân cơ chói khi ngắm sát", IPA 173, từ 25/11) | — |
 | ZB-008 | S3 | Dải sáng mờ chạy ngang nửa dưới màn hình ở góc ngắm thấp | Video 202 B 1–4 s | MỞ — chưa rõ nguyên nhân (INFERRED: mặt băng gần) | — |
 | ZB-009 | S3 | Thẻ kết thúc ván: pháo giấy đè tỉ số; "NGƯỜI 1" bị cắt mép khi trượt vào | Video 202 B 19–21 s | ĐÃ SỬA ff8b028 | Chưa ảnh chuẩn |
-| ZB-010 | S3 | Dòng trạng thái "Your turn · Turn over" tự mâu thuẫn | Video 202 A 37–45 s (ChatGPT #10) | ĐÃ SỬA ff8b028 ("Cú của đối thủ · Hết lượt") | Chưa |
+| ZB-010 | S3 | "Your turn · Turn over" tự mâu thuẫn | Video 202 A 37–45 s (ChatGPT #10) | ĐÃ SỬA ff8b028 ("Cú của đối thủ · Hết lượt") | ✅ LANPair |
 | ZB-012 | S3 | "Đang đồng bộ lượt…" hiện lúc bi đang lăn, đọc như chờ mạng | Video 202 A 12–16 s | ĐÃ SỬA ff8b028 ("Chờ bi dừng…") | Chưa |
 | ZB-013 | S3 | Cảnh báo 2 lỗi: sai câu ("more foul loses the game"), dòng dưới bị cắt | Video 202 B 0–4 s | 🟡 câu đã sửa ff8b028; chữ cắt còn MỞ | — |
 | ZB-014 | S3 | Tiếng đầu cơ đi trước hình chạm ~0,1 s | Video 202 (ChatGPT #3), UNVERIFIED (clip 30 khung/s) | MỞ — cần đo | — |
