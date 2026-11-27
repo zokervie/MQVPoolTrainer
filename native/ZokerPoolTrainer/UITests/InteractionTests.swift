@@ -386,6 +386,10 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(englishScene.waitForExistence(timeout: 60))
         wait(englishScene, timeout: 20 * slow) { (englishScene.value as? String ?? "").contains(";lang=") }
         XCTAssertTrue((englishScene.value as? String ?? "").contains(";lang=en;"), "an English device keeps English")
+        // 0.59 (owner, video bản 202): nothing Vietnamese reaches the English table screen (L10n leak recorder, --l10n-real)
+        Thread.sleep(forTimeInterval: 2)
+        let leaks = (englishScene.value as? String ?? "").components(separatedBy: ";").first { $0.hasPrefix("viLeaks=") } ?? "viLeaks=?"
+        XCTAssertEqual(leaks, "viLeaks=0", "Vietnamese text on the English screen (see L10N-LEAK lines in the app log)")
     }
     /// 0.44.1 M4: first launch through the real Lobby (--keep-lobby-qa keeps it under QA): "Tập tự do" → beat 1
     /// within 2 s → drag the aim onto the gold dot → beat 2 → stroke → "Vào rồi!" or "Thử lại nhé". No tap is required

@@ -11,6 +11,10 @@ build/lan-checks/NearbyLobbyTests
 # 0.44.1: first-launch language follows the device, falls back to Vietnamese.
 xcrun swiftc -warnings-as-errors BankLab/UI/L10nDefault0441.swift Tests/L10nDefaultTests.swift -o build/lan-checks/L10nDefaultTests
 build/lan-checks/L10nDefaultTests
+# 0.59 (owner, video bản 202): every Vietnamese literal of the app comes out English, no "ván mới sau seconds lát" mix.
+python3 Tools/i18n/sweep_literals.py > build/lan-checks/l10n-literals.json
+xcrun swiftc -warnings-as-errors BankLab/UI/L10nCore059.swift BankLab/UI/L10nTable059.swift Tests/L10nSweepTests.swift -o build/lan-checks/L10nSweepTests
+build/lan-checks/L10nSweepTests BankLab/Assets.xcassets/I18N_en.dataset/i18n.json build/lan-checks/l10n-literals.json Tools/i18n/sweep_allow.txt
 # 0.45 M5: player progress file (player.json, .bak recovery, legacy stars → stable drill ids) and the launch flow.
 xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/DailyLoop.h BankLab/UI/PlayerStore047.swift BankLab/UI/Achievements058.swift BankLab/UI/ResultNext058c.swift BankLab/UI/DrillIDs047.swift Tests/PlayerStoreTests.swift -o build/lan-checks/PlayerStoreTests
 build/lan-checks/PlayerStoreTests

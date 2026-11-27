@@ -1987,6 +1987,8 @@ final class TableScene {
             pitch=Float(AimRailSight.clearPitch(ballX:Double(origin.x),ballZ:Double(origin.z),dirX:Double(d.x),dirZ:Double(d.z),
                                                 radius:Double(radiusAim),pitch:Double(pitch),maxPitch:Double(TableScene.aimPitchRange.upperBound)))
             }
+            // 0.59 (bản 202): the eye never sits on or under the cue line (the butt filled the screen).
+            pitch=Float(AimRailSight.cueClearPitch(cueElevationDegrees:cueElevation,pitch:Double(pitch),maxPitch:Double(TableScene.aimPitchRange.upperBound)))
             let retreat:SIMD3<Float> = d*(radiusAim*cos(pitch))
             let lift=SIMD3<Float>(0,radiusAim*sin(pitch),0)
             let behind:SIMD3<Float> = origin-retreat

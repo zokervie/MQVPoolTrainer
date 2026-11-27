@@ -93,4 +93,14 @@ enum AimRailSight {
         }
         return maxPitch
     }
+
+    /// 0.59 (owner, video bản 202: the cue butt filled half the screen and covered the cue ball). The aim camera may be dragged
+    /// down to 0.02 rad, i.e. level with (or under) a raised cue, so the cue ran through the lens. The eye stays at least
+    /// `cueGap` above the cue line: pitch ≥ cue elevation + 0.12 rad (≈ 7°). Never lowers a high camera; capped at `maxPitch`.
+    static let cueGap = 0.12
+    /// A steep cue (jump/massé, ≥ 30°) rises far above the eye within the camera distance, so it never crosses the lens.
+    static func cueClearPitch(cueElevationDegrees: Double, pitch: Double, maxPitch: Double = 1.2) -> Double {
+        guard cueElevationDegrees < 30 else { return pitch }
+        return min(maxPitch, max(pitch, max(0, cueElevationDegrees) * .pi / 180 + cueGap))
+    }
 }

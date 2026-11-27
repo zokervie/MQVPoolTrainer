@@ -12,7 +12,7 @@ LIT = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 def catalog():
     keys = set()
-    src = open(os.path.join(ROOT, 'BankLab/UI/L10n042.swift'), encoding='utf-8').read()
+    src = ''.join(open(os.path.join(ROOT, f), encoding='utf-8').read() for f in ('BankLab/UI/L10n042.swift', 'BankLab/UI/L10nTable059.swift'))   # 0.59: table moved
     for m in re.finditer(r'^\s*"((?:[^"\\]|\\.)*)"\s*:\s*\["', src, re.M): keys.add(m.group(1))
     d = os.path.join(ROOT, 'BankLab/Assets.xcassets/I18N_en.dataset/i18n.json')
     keys |= set(json.load(open(d, encoding='utf-8')).keys())

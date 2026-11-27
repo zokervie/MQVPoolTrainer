@@ -40,8 +40,9 @@ final class BroadcastCard: UIView {
             name.textAlignment = seat == 0 ? .left : .right
             name.textColor = winner == seat ? Self.gold : UIColor(white: 0.92, alpha: winner < 0 || winner == seat ? 1 : 0.6)
             panel.addSubview(name)
-            name.transform = CGAffineTransform(translationX: seat == 0 ? -w : w, y: 0)
-            UIView.animate(withDuration: 0.45, delay: 0.08, usingSpringWithDamping: 0.78, initialSpringVelocity: 0.4) { name.transform = .identity }
+            // 0.59 (bản 202: "NGƯỜI 1" cut by the panel edge while sliding in) — a short slide + fade that stays inside the card
+            name.transform = CGAffineTransform(translationX: seat == 0 ? -24 : 24, y: 0); name.alpha = 0
+            UIView.animate(withDuration: 0.4, delay: 0.08, usingSpringWithDamping: 0.85, initialSpringVelocity: 0.4) { name.transform = .identity; name.alpha = 1 }
             let score = UILabel(frame: CGRect(x: w / 2 + (seat == 0 ? -56 : 6), y: rowY - 4, width: 50, height: 52))
             score.text = "\(scores[seat])"; score.textAlignment = .center
             score.font = .monospacedDigitSystemFont(ofSize: 40, weight: .black)
@@ -97,8 +98,9 @@ final class BroadcastCard: UIView {
     }
     private func burst(isFinal: Bool, around rect: CGRect) {
         emitter.removeFromSuperlayer()
-        emitter.emitterPosition = CGPoint(x: rect.midX, y: isFinal ? rect.minY - 10 : rect.midY)
-        emitter.emitterShape = isFinal ? .line : .circle; emitter.emitterSize = CGSize(width: isFinal ? rect.width : 40, height: 1)
+        // 0.59 (bản 202: the rack-end burst sat on the 0–1 score): every burst starts above the card, never over the numbers
+        emitter.emitterPosition = CGPoint(x: rect.midX, y: rect.minY - 10)
+        emitter.emitterShape = .line; emitter.emitterSize = CGSize(width: isFinal ? rect.width : rect.width * 0.5, height: 1)
         emitter.renderMode = .additive
         let colors: [UIColor] = isFinal ? [Self.gold, .white, UIColor(red: 0.3, green: 0.6, blue: 1, alpha: 1), UIColor(red: 1, green: 0.35, blue: 0.3, alpha: 1)] : [Self.gold, .white]
         emitter.emitterCells = colors.map { color in

@@ -1,0 +1,1 @@
+# 0.59: Vietnamese literals that are never shown in English (one per line, \n for a line break). Keep empty if possible.

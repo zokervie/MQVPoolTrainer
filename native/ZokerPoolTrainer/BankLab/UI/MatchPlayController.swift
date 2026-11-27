@@ -149,7 +149,7 @@ extension TrainingController {
         if matchHostSolo { return nil }
         if shotActive || BLShotCameraBusy(shotCameraState) { return nil }   // our own shot is running: not a block
         if let reason = matchPlay.session.inputBlockReason { return reason }
-        if matchPlay.session.role == .guest, matchPlay.session.latestSnapshot?.isMoving == true { return "Đang đồng bộ lượt…" }
+        if matchPlay.session.role == .guest, matchPlay.session.latestSnapshot?.isMoving == true { return "Chờ bi dừng…" }   // 0.59 (bản 202): was "Đang đồng bộ lượt…" while the balls visibly rolled — read as a network wait
         return nil
     }
     var matchAllowsInput: Bool {
@@ -712,6 +712,13 @@ extension TrainingController {
         guard MatchCameraPolicy.wantsAimCamera(turnKey: key, lastKey: matchPlay.lastAimTurnKey, localTurn: true, busy: false) else { return }
         let first = matchPlay.lastAimTurnKey.isEmpty
         matchPlay.lastAimTurnKey = key
+        // 0.59 (owner, video bản 202, Wi-Fi guest): "Break" stayed lit and the cue raised for every later shot. On the guest the
+        // stroke ends on the host, so the local end-of-shot reset (resetShotInputsAndAim → cueForNextTurn) never ran. Every new
+        // turn of this device now picks its cue the same way, after the opponent's cue picture is handed back.
+        if matchPlay.localCueVisual != nil { matchRestoreLocalCue() }
+        let cueBefore = (shotKind, table.cueElevation)
+        cueForNextTurn()
+        if cueBefore.0 != shotKind || cueBefore.1 != table.cueElevation { updateControls() }
         if first || table.cameraMode != 2 || observationCamera { restoreAimCamera(transition: first ? 0.2 : 0.45) }
     }
     /// 0.59 U6: the Push-out pill — this device's turn, the rules offer it (first stroke after a legal 9/10-ball break), no choice
@@ -752,11 +759,22 @@ extension TrainingController {
         if winner >= 0 { return "\(name) · \(room)\n\(matchPlay.names[winner]) thắng ván · ván mới sau giây lát" }
         let player = matchInt("currentPlayer")
         let seat = matchPlay.session.role == .none ? "Lượt \(matchPlay.names[min(1, max(0, player))])" : (player == matchPlay.session.localPlayer ? "Lượt của bạn" : "Đang xem đối thủ")
-        var detail = matchReason(matchPlay.state["reason"] as? String ?? "")
+        let reasonKey = matchPlay.state["reason"] as? String ?? ""
+        var detail = matchReason(reasonKey)
+        // 0.59 (bản 202, ChatGPT review #10: "Your turn · Turn over"): a reason that ended a turn belongs to the player who just shot
+        if ["turn_passed", "scratch", "ball_off_table", "wrong_ball_first", "no_rail_after_contact", "bad_cue_ball_placement", "illegal_break_four_rails"].contains(reasonKey) {
+            let previous = 1 - min(1, max(0, player))
+            let who = matchPlay.session.role == .none ? "Cú của \(matchPlay.names[previous])" : (previous == matchPlay.session.localPlayer ? "Cú của bạn" : "Cú của đối thủ")
+            detail = "\(who) · \(detail)"
+        }
+        let ownTurn = matchPlay.session.role == .none || player == matchPlay.session.localPlayer
         if let warnings = matchPlay.state["twoFoulWarning"] as? [Bool], warnings.indices.contains(player), warnings[player] {
             detail = "2 lỗi liên tiếp · lỗi nữa thua ván"
         } else if !(matchPlay.state["pendingChoice"] as? String ?? "").isEmpty { detail = "Chạm để chọn quyền nhận / trả bàn" }
-        else if matchBool("ballInHand") { detail = matchBool("headStringOnly") ? "Đặt bi cái sau vạch đầu bàn" : "Bi cái trong tay · chạm Đặt bi" }
+        else if matchBool("ballInHand") {
+            // 0.59 (ChatGPT review #11: "Watching opponent · Ball in hand · tap Place ball"): only the shooter is told to place
+            detail = !ownTurn ? "Đối thủ có bi cái trong tay" : matchBool("headStringOnly") ? "Đặt bi cái sau vạch đầu bàn" : "Bi cái trong tay · chạm Đặt bi"
+        }
         else if matchPlay.pushOut { detail = "Đã khai Push-out" }
         else if matchPlay.safety { detail = "Đã gọi đánh an toàn" }
         else if matchPlay.calledBall > 0 { detail = "Gọi bi \(matchPlay.calledBall) · lỗ \(matchPlay.calledPocket + 1)" }
@@ -1355,7 +1373,7 @@ extension TrainingController {
             matchPlay.playedEvents.formUnion(snapshot.events.map { $0.index })
             matchPlay.audioEvents.removeAll()
             matchPlay.pendingAimSync = true
-        } else if !lockstepOwnsShot(snapshot.shotID) { queueMatchAudio(snapshot.events) }
+        } else if !lockstepOwnsShot(snapshot.shotID) { queueMatchAudio(snapshot.events, dropStale: !isFirst) }
         if let previous = matchPlay.snapshots.last,
            snapshot.elapsed < previous.elapsed || (!snapshot.isMoving && !previous.isMoving) {
             matchPlay.snapshots.removeAll()
@@ -1380,10 +1398,13 @@ extension TrainingController {
     func resyncCameraNeeded(_ snapshot: LANSnapshot) -> Bool {
         snapshot.isMoving && (matchPlay.needsFullSync || matchPlay.snapshots.isEmpty)
     }
-    func queueMatchAudio(_ events: [LANEvent]) {
+    func queueMatchAudio(_ events: [LANEvent], dropStale: Bool = false) {
         let queued = Set(matchPlay.audioEvents.map { $0.index })
+        // 0.59: from a snapshot (its clock is this shot's), an impact more than 0.5 s older than the picture is never played
+        // late — it would sound like a new hit
+        let stale = dropStale ? matchPlay.guestClock - 0.5 : -Double.infinity
         matchPlay.audioEvents.append(contentsOf: events.filter {
-            !matchPlay.playedEvents.contains($0.index) && !queued.contains($0.index)
+            !matchPlay.playedEvents.contains($0.index) && !queued.contains($0.index) && $0.time >= stale
         })
         matchPlay.audioEvents.sort { $0.time == $1.time ? $0.index < $1.index : $0.time < $1.time }
         if matchPlay.audioEvents.count > 512 { matchPlay.audioEvents.removeFirst(matchPlay.audioEvents.count - 512) }
@@ -1939,7 +1960,7 @@ extension TrainingController {
             let player = matchInt("currentPlayer"), warningID = "\(player)-\(matchInt("shotCount"))"
             if warnings.indices.contains(player), warnings[player], matchPlay.warningAcknowledged != warningID {
                 matchPlay.warningAcknowledged = warningID
-                notifyStatus("⚠︎ \(matchPlay.names[player]): đã 2 lỗi liên tiếp · lỗi nữa thua ván (9/10 Ball)")
+                notifyStatus("⚠︎ \(matchPlay.names[player]): đã 2 lỗi liên tiếp · thêm một lỗi nữa là thua ván này")
             }
         }
         let kind = matchPlay.state["pendingChoice"] as? String ?? ""
@@ -1998,6 +2019,14 @@ extension TrainingController {
         matchPlay.predictorDelay = 0.1   // 0.53 A3.1: the same 0.1 s cue lead on every path, also when no aim packet arrived (balls never move before the cue)
         matchPlay.guestRecord = GuestShotRecord(start: start, shooter: matchInt("currentPlayer"), isBreak: matchBool("breakShot"),
                                                 first: world.ballStates)
+        // 0.59 (owner, video bản 202 + ChatGPT review #2: on the guest's OWN stroke the cue came in from the side, along the
+        // opponent's last aim, and the cue ball left before the tip reached it). The host also publishes the guest's own shots
+        // here; then the cue is this device's own cue along the struck angle, not the stale remote aim.
+        if matchInt("currentPlayer") == matchPlay.session.localPlayer, let origin = start.balls.first(where: { $0.id == 0 }) {
+            beginCueStrikeAnim(origin: matchRenderBall(origin), angle: start.angle, side: start.side, top: start.top,
+                               elevation: table.cueElevation, cueType: engine.settings["cueType"]?.intValue ?? 0, fromPull: pull, lead: 0.1)
+            matchPlay.predictorDelay = 0.1
+        } else
         // The opponent's cue closes onto the ball first (same 0.1 s lead as the snapshot path), then the balls move.
         if let shown = matchPlay.remoteShown ?? matchPlay.remoteAim, shown.visible, let origin = start.balls.first(where: { $0.id == 0 }) {
             beginCueStrikeAnim(origin: matchRenderBall(origin), angle: shown.angle, side: shown.side, top: shown.top,
@@ -2016,6 +2045,7 @@ extension TrainingController {
         // The host confirmed the end of this shot: hand the (identical) rest state back to the snapshot path.
         if let latest = matchPlay.snapshots.last, latest.shotID == matchPlay.predictorShot, !latest.isMoving, !world.moving {
             finishGuestRecord(world)   // 0.44-mm: verified end of shot → score it for the guest's highlight reel
+            lockstepMarkHeard(world)
             matchPlay.predictor = nil; return false
         }
         if let latest = matchPlay.snapshots.last, latest.shotID > matchPlay.predictorShot { matchPlay.predictor = nil; return false }
@@ -2059,6 +2089,18 @@ extension TrainingController {
         matchPlay.guestBalls = world.ballStates
         wakeRendering()
         return true
+    }
+    /// 0.59 (owner, video bản 202: the four impacts of the guest's own stroke played a second time ~5 s later, after the turn
+    /// changed — waveforms 99–100 % identical). The predictor played them live, but on a normal end of the shot nothing was
+    /// marked heard and the snapshot clock was left behind, so the host's event list for the same shot was queued again and
+    /// played as the clock caught up. Everything up to the predictor's end is now heard, and the clock jumps there.
+    private func lockstepMarkHeard(_ world: BLWorld) {
+        let shot = matchPlay.predictorShot, now = world.elapsed
+        matchPlay.audioShotID = shot
+        if matchPlay.predictorEvents > 0 { matchPlay.playedEvents.formUnion(0..<matchPlay.predictorEvents) }
+        for snapshot in matchPlay.snapshots where snapshot.shotID == shot { for event in snapshot.events { matchPlay.playedEvents.insert(event.index) } }
+        matchPlay.audioEvents.removeAll()
+        matchPlay.guestClock = max(matchPlay.guestClock, now)
     }
     private func lockstepPaused() -> Bool {
         (matchPlay.snapshots.last?.isPaused ?? false) || !matchPlay.session.isConnected
