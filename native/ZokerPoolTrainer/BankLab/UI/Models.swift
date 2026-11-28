@@ -88,7 +88,7 @@ final class DrillsController:UITableViewController {
         tableView.backgroundColor=UIColor(red:0.07,green:0.07,blue:0.08,alpha:1)
         navigationController?.navigationBar.barStyle = .black
         tableView.rowHeight=UITableView.automaticDimension;tableView.estimatedRowHeight=90
-        navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Xong",style:.done,target:self,action:#selector(close))
+        navigationItem.rightBarButtonItem=UIBarButtonItem(title:L10n.tr("Xong"),style:.done,target:self,action:#selector(close))
     }
     override func viewWillAppear(_ animated:Bool){super.viewWillAppear(animated);tableView.reloadData()}
     @objc private func close(){dismiss(animated:true)}

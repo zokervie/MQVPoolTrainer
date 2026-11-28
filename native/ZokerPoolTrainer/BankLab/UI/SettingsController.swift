@@ -14,8 +14,8 @@ final class SettingsController:UIViewController,UIDocumentPickerDelegate {
     override func viewDidLoad(){
         super.viewDidLoad();title="Hiệu chỉnh bàn";view.backgroundColor = .ink
         navigationController?.navigationBar.barStyle = .black
-        navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Lưu",style:.done,target:self,action:#selector(save))
-        navigationItem.leftBarButtonItem=UIBarButtonItem(title:"Hủy",style:.plain,target:self,action:#selector(cancel))
+        navigationItem.rightBarButtonItem=UIBarButtonItem(title:L10n.tr("Lưu"),style:.done,target:self,action:#selector(save))
+        navigationItem.leftBarButtonItem=UIBarButtonItem(title:L10n.tr("Hủy"),style:.plain,target:self,action:#selector(cancel))
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
         MenuSkin.frame(view,content:scroll,tone:MenuSkin.tones[3])   // 0.41: wood frame
         body.axis = .vertical;body.spacing=18;body.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(body)
@@ -240,7 +240,7 @@ final class CustomizeController:UIViewController {
     override func viewDidLoad(){
         super.viewDidLoad();title="Tuỳ chỉnh";view.backgroundColor = .ink
         navigationController?.navigationBar.barStyle = .black
-        navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Xong",style:.done,target:self,action:#selector(done))
+        navigationItem.rightBarButtonItem=UIBarButtonItem(title:L10n.tr("Xong"),style:.done,target:self,action:#selector(done))
         let scroll=UIScrollView();scroll.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(scroll)
         MenuSkin.frame(view,content:scroll,tone:MenuSkin.tones[0])   // 0.41: wood frame, tone per tab
         body.axis = .vertical;body.spacing=14;body.translatesAutoresizingMaskIntoConstraints=false;scroll.addSubview(body)

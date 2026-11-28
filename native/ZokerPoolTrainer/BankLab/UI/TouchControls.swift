@@ -134,7 +134,9 @@ final class SpinPad:UIControl {
         }
         ctx.strokePath()
         if detailed {
-            for (title,x,y) in [("CU-LÊ",0.0,-0.91),("TRÔ",0.0,0.91),("T",-0.9,0.0),("P",0.9,0.0)] {
+            // ZB-045: drawn straight into the image, so no UILabel swizzle — translate here; T/P are the Vietnamese initials of left/right.
+            let vi=L10n.code=="vi"
+            for (title,x,y) in [(L10n.tr("CU-LÊ"),0.0,-0.91),(L10n.tr("TRÔ"),0.0,0.91),(vi ? "T":"L",-0.9,0.0),(vi ? "P":"R",0.9,0.0)] {
                 label(title,CGPoint(x:c.x+CGFloat(x)*r,y:c.y+CGFloat(y)*r),8,.darkGray)
             }
             label("25",CGPoint(x:c.x+r*0.25,y:c.y-r*0.10),7,.darkGray)

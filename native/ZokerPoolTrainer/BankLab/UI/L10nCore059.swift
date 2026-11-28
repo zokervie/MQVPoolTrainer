@@ -89,6 +89,10 @@ enum L10nCore {
         }
         if core == core.uppercased(), core != core.lowercased(), let t = c.upper[core] { return t.uppercased() }
         guard depth < 4, vietnameseCount(core) > 0 else { return nil }
+        // 0.59 (ZB-045, Đêm thử 27/11), before the templates ("Cắt {}" would take the whole row): a known text followed by a letter-free tail the screen appended
+        // ("Cắt phải 30° vào lỗ góc   ☆☆☆☆☆") — translate the text, keep the tail. Two or more spaces, or a star run.
+        if let r = core.range(of: "(\\s{2,}|\\s+(?=[★☆]))[^\\p{L}]*$", options: .regularExpression), r.lowerBound > core.startIndex,
+           let t = whole(String(core[..<r.lowerBound]), c, depth: depth + 1) { return t + String(core[r]) }
         let ns = core as NSString, range = NSRange(location: 0, length: ns.length)
         for (r, out) in c.templates {
             guard let m = r.firstMatch(in: core, range: range) else { continue }

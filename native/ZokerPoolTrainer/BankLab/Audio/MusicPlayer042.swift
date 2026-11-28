@@ -157,7 +157,7 @@ final class MusicController: UITableViewController, UIDocumentPickerDelegate {
     private let music = MusicPlayer042.shared
     override func viewDidLoad() {
         super.viewDidLoad(); title = "Nhạc của tôi"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Thêm bài", style: .plain, target: self, action: #selector(add))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title:L10n.tr("Thêm bài"), style: .plain, target: self, action: #selector(add))
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "c")
         music.onChange = { [weak self] in self?.tableView.reloadData() }

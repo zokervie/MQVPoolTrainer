@@ -174,7 +174,7 @@ final class EquipmentLibraryController:UIViewController,UITableViewDataSource,UI
     override var supportedInterfaceOrientations:UIInterfaceOrientationMask{.landscape}
     override func viewDidLoad(){
         super.viewDidLoad();overrideUserInterfaceStyle = .dark;title="Thư viện bàn & bao cơ";view.backgroundColor = .ink
-        navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Xong",style:.done,target:self,action:#selector(close))
+        navigationItem.rightBarButtonItem=UIBarButtonItem(title:L10n.tr("Xong"),style:.done,target:self,action:#selector(close))
         tabs.selectedSegmentTintColor = .mint
         tabs.setTitleTextAttributes([.foregroundColor:UIColor.white],for:.normal)
         tabs.setTitleTextAttributes([.foregroundColor:UIColor.ink],for:.selected)

@@ -1,4 +1,7 @@
 {
+"{} · chạm để mang vào bao {} (ngăn {})": "{} · tap to put it in the {} case ({} slot)",
+"Bao {} · chọn cơ để đưa vào đúng ngăn Đánh / Jump / Phá.": "{} case · pick a cue for its Shot / Jump / Break slot.",
+"Bao {}": "{} case",
 " (ngăn ": " (slot ",
 " · chạm để mang vào bao ": " · tap to put it in the case ",
 " · chậm": " · slow",

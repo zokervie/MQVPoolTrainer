@@ -134,8 +134,8 @@ final class ChaptersController: UITableViewController {
         navigationController?.navigationBar.barStyle = .black
         tableView.rowHeight = UITableView.automaticDimension; tableView.estimatedRowHeight = 70
         tableView.accessibilityIdentifier = "Chapters"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Xong", style: .done, target: self, action: #selector(close))
-        let book = UIBarButtonItem(title: "Sổ mẹo", style: .plain, target: self, action: #selector(openTipBook))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title:L10n.tr("Xong"), style: .done, target: self, action: #selector(close))
+        let book = UIBarButtonItem(title:L10n.tr("Sổ mẹo"), style: .plain, target: self, action: #selector(openTipBook))
         book.accessibilityIdentifier = "TipBook"
         let achievements = UIBarButtonItem(title: L10n.tr("Thành tích"), style: .plain, target: self, action: #selector(openAchievements)); achievements.accessibilityIdentifier = "AchievementsOpen"   // 0.58 T2
         navigationItem.leftBarButtonItems = [book, achievements]
