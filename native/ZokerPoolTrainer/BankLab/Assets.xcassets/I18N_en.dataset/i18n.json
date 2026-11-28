@@ -1,4 +1,11 @@
 {
+"Gửi nhật ký Wi-Fi (chẩn đoán lỗi)": "Send Wi-Fi log (diagnostics)",
+"Chưa ghi được nhật ký": "Could not write the log",
+"Khởi động #/#": "Warm-up #/#",
+"Khởi động %d/%d": "Warm-up %d/%d",
+"Cú khởi động trước vòng tính điểm (thang bài)": "Warm-up shots before the scored round (ladders)",
+"2 cú": "2 shots",
+"5 cú": "5 shots",
 " được bi cái trong tay": " has ball in hand",
 " được chọn nhận bàn hoặc trả lượt": " chooses: play on or pass it back",
 "Lượt đối thủ": "Opponent's turn",

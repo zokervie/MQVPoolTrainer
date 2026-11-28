@@ -232,6 +232,9 @@ enum LANPairQA {
     }
     /// 0.59 A1/A2: every foul card / turn pill shown on this device ("foul:…" / "turn:…"), for the pair report.
     static var notices: [String] = []
+    /// 0.59 ZB-037: the guest's own stroke reached by a moving snapshot before the host's shotStart (Wi-Fi channel order);
+    /// `ownMovedWithoutCue` = such a shot where the balls rolled without this device's cue striking first (the owner's bug).
+    static var ownViaSnapshot = 0, ownMovedWithoutCue = 0
     static func notice(_ text: String) { guard active, notices.count < 40 else { return }; notices.append(text) }
     static func noteStatus(_ text: String) {
         guard active else { return }
@@ -242,6 +245,6 @@ enum LANPairQA {
     static func report() -> [String: Any] {
         ["shots": shots, "soundsPlayed": soundsPlayed, "soundRepeats": soundRepeats, "ownStrikes": ownStrikes,
          "strikeAngleErrorMaxDeg": strikeAngleErrorMaxDeg, "breakCueOnNormalTurn": breakCueOnNormalTurn,
-         "statusContradictions": statusContradictions, "rewinds": rewinds, "notices": notices]
+         "statusContradictions": statusContradictions, "rewinds": rewinds, "notices": notices, "ownViaSnapshot": ownViaSnapshot, "ownMovedWithoutCue": ownMovedWithoutCue]
     }
 }

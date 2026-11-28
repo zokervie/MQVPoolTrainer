@@ -59,6 +59,9 @@ static inline int BLTierOpen(int32_t tier, int32_t starsOfPreviousTier) {
     return tier <= 1 || starsOfPreviousTier >= BL_TIER_OPEN_STARS;
 }
 static inline int BLWarmupDone(int32_t madeInBigRing) { return madeInBigRing >= BL_WARMUP_MADE; }
+/* 0.59 ZB-042 (owner 28/11): the warm-up is a choice in Tuỳ chỉnh — 0 (default: the scored round starts at once), 2 or 5. */
+static inline int32_t BLWarmupNeeded(int32_t chosen) { return chosen <= 0 ? 0 : (chosen >= BL_WARMUP_MADE ? BL_WARMUP_MADE : chosen); }
+static inline int BLWarmupDoneOf(int32_t madeInBigRing, int32_t chosen) { return madeInBigRing >= BLWarmupNeeded(chosen); }
 /* Take-backs granted for a chapter; -1 = unlimited. */
 static inline int32_t BLChapterUndoBudget(int32_t chapter) {
     if (chapter <= 1) return -1;

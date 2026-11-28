@@ -270,7 +270,7 @@ enum LANLog {
     static var echo = ProcessInfo.processInfo.arguments.contains("--lan-log")
     static func log(_ tag: String, _ message: @autoclosure () -> String) {
         let line = String(format: "%.3f [%@] ", ProcessInfo.processInfo.systemUptime, tag) + message()
-        lock.lock(); ring.append(line); if ring.count > 600 { ring.removeFirst(ring.count - 600) }; lock.unlock()
+        lock.lock(); ring.append(line); if ring.count > 4000 { ring.removeFirst(ring.count - 4000) }; lock.unlock()   // 0.59 ZB-037: 4000 lines = a whole match
         logger.notice("\(line, privacy: .public)")
         if echo { print("LANLOG " + line) }
     }

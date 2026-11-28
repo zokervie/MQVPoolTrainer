@@ -37,8 +37,8 @@ extension TrainingController {
         guard let spec = d.spec, spec.tier > 0 else { return }
         let ladder = Mastery.ladderName(of: d.id), warm = PlayerStore.shared.warmMade(ladder)
         if spec.tier == 1 && !Mastery.warmDone(warm) {
-            scoreLabel.text = String(format: L10n.tr("Khởi động %d/5"), min(5, warm))
-            notifyStatus(String(format: L10n.tr("Khởi động %d/5"), min(5, warm)) + " · " + ladderRequirement(spec))
+            scoreLabel.text = String(format: L10n.tr("Khởi động %d/%d"), min(Mastery.warmNeeded, warm), Mastery.warmNeeded)
+            notifyStatus(String(format: L10n.tr("Khởi động %d/%d"), min(Mastery.warmNeeded, warm), Mastery.warmNeeded) + " · " + ladderRequirement(spec))
         } else {
             scoreLabel.text = L10n.tr("Lượt 5 cú") + " · 0 / 5"
             notifyStatus(ladderRequirement(spec))
@@ -60,15 +60,15 @@ extension TrainingController {
                 else { if self.shotBack.isEmpty { self.undo() } else { self.stepShot(-1) } }
             }
         }
-        // warm-up: shots made in the big ring count up to 5, nothing is scored yet
+        // warm-up (ZB-042: 0 by default, 2 or 5 from Tuỳ chỉnh): shots made in the big ring, nothing is scored yet
         if tier == 1 && !Mastery.warmDone(store.warmMade(ladder)) {
             if passed { store.addWarm(ladder, made: 1) }
             let made = store.warmMade(ladder)
             if Mastery.warmDone(made) {
                 statusLabel.text = L10n.tr("Khởi động xong") + " · " + L10n.tr("bắt đầu lượt chấm"); scoreLabel.text = L10n.tr("Lượt 5 cú") + " · 0 / 5"
             } else {
-                statusLabel.text = String(format: L10n.tr("Khởi động %d/5"), made) + " · " + (passed ? L10n.tr("ĐẠT") : L10n.tr("Chưa đạt")) + missLine
-                scoreLabel.text = String(format: L10n.tr("Khởi động %d/5"), made)
+                statusLabel.text = String(format: L10n.tr("Khởi động %d/%d"), made, Mastery.warmNeeded) + " · " + (passed ? L10n.tr("ĐẠT") : L10n.tr("Chưa đạt")) + missLine
+                scoreLabel.text = String(format: L10n.tr("Khởi động %d/%d"), made, Mastery.warmNeeded)
             }
             notifyStatus(statusLabel.text ?? ""); lessonScores = []; lessonPasses = 0; rerack(0); return
         }

@@ -308,6 +308,8 @@ final class CustomizeController:UIViewController {
         toggle("Luật phá 3 bi (giải đấu)",Prefs.threeBallBreak,false)   // 0.49c G8: off = a break that pots a ball keeps the turn
         toggle("Thẻ báo lỗi dưới bảng điểm: lỗi gì và ai được gì",Prefs.matchFoulCard,true)   // 0.59 A1
         toggle("Báo đổi lượt (viên nhỏ dưới bảng điểm)",Prefs.matchTurnPill,true)   // 0.59 A2
+        let warmChoices=[0,2,5]   // 0.59 ZB-042 (owner 28/11): khởi động là lựa chọn, mặc định không
+        segmented("Cú khởi động trước vòng tính điểm (thang bài)",["Không","2 cú","5 cú"],warmChoices.firstIndex(of:UserDefaults.standard.integer(forKey:Prefs.ringWarmup)) ?? 0){UserDefaults.standard.set(warmChoices[$0],forKey:Prefs.ringWarmup)}
         toggle("Intro thương hiệu khi mở app (lần đầu 6 s, sau đó 1,5 s; chạm để bỏ qua)",Prefs.introEnabled,true)
         toggle("Hướng dẫn cú đầu tiên khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)",Prefs.tutorialEnabled,true)
         toggle("Gợi ý theo ngữ cảnh (mỗi gợi ý một lần, tự tắt sau 6 giây)",Prefs.tutorialHints,true)   // 0.44.1 M4

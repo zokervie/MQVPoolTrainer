@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 APP="${1:-build/Simulator/Build/Products/Debug-iphonesimulator/ZokerPoolTrainer.app}"
 BUNDLE=com.zokervie.billiards
 ROOM=QAPAZR22; SHOTS="${ZOKER_QA_SHOTS:-6}"; SECONDS_MAX="${ZOKER_QA_SECONDS:-240}"   # online alphabet has no I, O, 0, 1
-RELAY_PORT=8787; RELAY="ws://127.0.0.1:$RELAY_PORT"
+RELAY_PORT="${ZOKER_QA_RELAY_PORT:-8797}"; RELAY="ws://127.0.0.1:$RELAY_PORT"
 [ -d "$APP" ] || { echo "BLOCKED: no app at $APP"; exit 2; }
 mkdir -p build/lan-pair
 
@@ -34,6 +34,10 @@ for d in $HOST $GUEST; do
   rm -rf "$(xcrun simctl get_app_container "$d" $BUNDLE data)/Documents/perf-qa"
 done
 ENVS=(SIMCTL_CHILD_ZOKER_QA_RELAY=$RELAY SIMCTL_CHILD_ZOKER_QA_ROOM=$ROOM SIMCTL_CHILD_ZOKER_QA_SHOTS=$SHOTS SIMCTL_CHILD_ZOKER_QA_SECONDS=$SECONDS_MAX)
+# 0.59 ZB-037: shape the relay like Wi-Fi (MultipeerConnectivity: reliable shotStart may arrive after unreliable moving snapshots).
+# ZOKER_QA_SHOTSTART_DELAY_MS=150 ZOKER_QA_DROP_PCT=10 Tools/run_lan_pair_qa.sh   (ZOKER_QA_EXTRA="--own-cue-fix-off-qa" = the "before" run)
+[ -n "${ZOKER_QA_SHOTSTART_DELAY_MS:-}" ] && ENVS+=(SIMCTL_CHILD_ZOKER_QA_SHOTSTART_DELAY_MS=$ZOKER_QA_SHOTSTART_DELAY_MS)
+[ -n "${ZOKER_QA_DROP_PCT:-}" ] && ENVS+=(SIMCTL_CHILD_ZOKER_QA_DROP_PCT=$ZOKER_QA_DROP_PCT)
 env "${ENVS[@]}" xcrun simctl launch --terminate-running-process --console-pty "$HOST" $BUNDLE --lan-host-qa --visual-qa ${ZOKER_QA_EXTRA:-} > build/lan-pair/host.log 2>&1 &
 sleep 2
 env "${ENVS[@]}" xcrun simctl launch --terminate-running-process --console-pty "$GUEST" $BUNDLE --lan-join-qa --visual-qa ${ZOKER_QA_EXTRA:-} > build/lan-pair/guest.log 2>&1 &
@@ -79,6 +83,8 @@ checks = [
 mirror = {'turn:Lượt của bạn': 'turn:Lượt đối thủ', 'turn:Lượt đối thủ': 'turn:Lượt của bạn'}
 hn, gn = h.get('notices', []), g.get('notices', [])
 paired = [(a, b) for a, b in zip(hn, gn) if a.startswith('turn:') and b.startswith('turn:')]
+checks.append(('ZB-037 own strokes where the balls rolled before the cue (%d; reached by snapshot first: %d)' % (g.get('ownMovedWithoutCue', 0), g.get('ownViaSnapshot', 0)),
+               g.get('ownMovedWithoutCue', 0) == 0))
 checks.append(('A2 turn notices host %d / guest %d, mirrored' % (len(hn), len(gn)),
                len(hn) >= 1 and abs(len(hn) - len(gn)) <= 1 and all(mirror.get(a) == b for a, b in paired)))
 bad = [n for n, ok in checks if not ok]

@@ -1400,7 +1400,8 @@ final class InteractionTests: XCTestCase {
     }
     /// 0.54 M2: a ring: warm-up shots first (not scored, "Khởi động n/5" until 5 are made), then a scored round of 5 → the result card with 0…3 stars.
     func testRingWarmupThenScoredRound() {
-        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--ring-pass-qa"]; app.launch()
+        // 0.59 ZB-042: the warm-up is off by default; this test chooses 5 (UserDefaults argument domain) to keep checking it
+        let app = XCUIApplication(); app.launchArguments = ["--keep-lobby-qa", "--fresh-player-qa", "--auto-shot-qa", "--ring-pass-qa", "-ringWarmup059", "5"]; app.launch()
         XCTAssertTrue(app.buttons["LobbyDrills"].waitForExistence(timeout: 60)); app.buttons["LobbyDrills"].tap()
         let ladder = app.cells["ChapterLadder-force-near"]
         XCTAssertTrue(ladder.waitForExistence(timeout: 10 * slow)); ladder.tap()

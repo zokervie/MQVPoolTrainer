@@ -828,6 +828,9 @@ extension TrainingController {
             }
         }
         sheet.addAction(UIAlertAction(title: matchPlay.showNumbers ? "Ẩn nút số băng" : "Hiện nút số băng", style: .default) { [weak self] _ in self?.matchToggleNumbers() })
+        if matchPlay.session.role != .none {   // 0.59 ZB-037: the Wi-Fi trace, shared as a text file (Tin nhắn, AirDrop, Lưu vào Tệp)
+            sheet.addAction(UIAlertAction(title: "Gửi nhật ký Wi-Fi (chẩn đoán lỗi)", style: .default) { [weak self] _ in self?.shareWifiLog() })
+        }
         if matchPlay.session.role != .none {
             sheet.addAction(UIAlertAction(title: "Nối lại phòng \(matchPlay.session.roomCode)", style: .default) { [weak self] _ in self?.matchPlay.session.reconnect() })
         }
@@ -962,6 +965,7 @@ extension TrainingController {
         let shot = LANShot(angle: angle, speed: speed, side: side, top: top,
                            elevation: max(table.cueElevation, strokeClearance),
                            cueType: engine.settings["cueType"]?.intValue ?? 0)
+        LANLog.log("trace", "own stroke submitted · speed \(String(format: "%.2f", speed)) · expects rev \(matchPlay.session.latestSnapshot?.revision ?? 0)")
         submitMatchAction(.strike, shot: shot)
         return true
     }
@@ -1350,6 +1354,19 @@ extension TrainingController {
                let origin = matchPlay.guestBalls.first(where: { $0.id == 0 }) {
                 beginCueStrikeAnim(origin: origin, angle: shown.angle, side: shown.side, top: shown.top, elevation: shown.elevation,
                                    cueType: shown.cueType, fromPull: shown.pull, lead: 0.1)
+            }
+            // 0.59 ZB-037 (owner, Wi-Fi, IPA 205: "bi chưa đánh đã lăn", mostly on the guest). On Wi-Fi the moving snapshots go
+            // unreliable and the shotStart reliable — separate MultipeerConnectivity channels, so the first moving snapshot of
+            // the guest's OWN stroke can arrive before the shotStart. Lockstep then never starts and this snapshot path only
+            // struck a cue for the host's shots: the guest's balls rolled with its cue still drawn back. Strike the own cue here too.
+            if newShot, snapshot.isMoving, !lockstepOwnsShot(snapshot.shotID), snapshot.currentPlayer == matchPlay.session.localPlayer {
+                LANPairQA.ownViaSnapshot += 1
+                LANLog.log("trace", "own shot \(snapshot.shotID) reached by snapshot rev \(snapshot.revision) at \(String(format: "%.3f", snapshot.elapsed)) s before shotStart")
+                if !QA.has("--own-cue-fix-off-qa"), let origin = matchPlay.guestBalls.first(where: { $0.id == 0 }) {
+                    beginCueStrikeAnim(origin: origin, angle: angle, side: side, top: top, elevation: table.cueElevation,
+                                       cueType: engine.settings["cueType"]?.intValue ?? 0, fromPull: pull, lead: 0.1)
+                    if LANPairQA.active { LANPairQA.strike(animAngle: Self.strikeAnim?.angle ?? angle + Double.pi, shotAngle: angle, own: true) }
+                } else { LANPairQA.ownMovedWithoutCue += 1 }
             }
             if newShot, snapshot.isMoving, snapshot.currentPlayer != matchPlay.session.localPlayer,
                let info = state["lastShot"] as? [String: NSNumber], let speed = info["speed"]?.doubleValue {
@@ -2038,6 +2055,7 @@ extension TrainingController {
         matchPlay.session.publishShotStart(start)
     }
     func beginLockstep(_ start: LANShotStart) {
+        LANLog.log("trace", "shotStart \(start.shotID) arrived · last guest shot \(matchPlay.lastGuestShot)\(start.shotID > matchPlay.lastGuestShot ? "" : " · TOO LATE (snapshot path already playing)")")
         guard matchPlay.active, matchPlay.session.role == .guest, start.shotID > matchPlay.lastGuestShot,
               UserDefaults.standard.object(forKey: "lockstep044") as? Bool ?? true else { return }
         let world = BLWorld()
@@ -2168,5 +2186,28 @@ extension TrainingController {
         let me = matchPlay.session.role == .none ? 0 : matchPlay.session.localPlayer
         let kind: MatchTally.Kind = matchPlay.computerLevel.map { .machine(level: $0) } ?? (matchPlay.session.transport == .internet ? .online : .people)
         PlayerStore.shared.recordMatch(kind, won: winner == me)
+    }
+}
+
+extension TrainingController {
+    /// 0.59 ZB-037 (owner 28/11: "Thêm bộ giải quyết lỗi wifi"): the last ~4000 network lines of this device (LANLog ring:
+    /// hello, commands, shotStart, own strokes, snapshots that reached an own stroke first, send delays) with the build,
+    /// role and link, written to a text file and handed to the share sheet. Nothing leaves the device unless the player sends it.
+    func shareWifiLog() {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let s = matchPlay.session
+        var lines = ["Zokervie Wi-Fi log",
+                     "build \(info["CFBundleShortVersionString"] ?? "?") (\(info["CFBundleVersion"] ?? "?"))",
+                     "role \(s.role == .host ? "host" : (s.role == .guest ? "guest" : "-")) | link \(s.transport == .nearby ? "nearby" : (s.transport == .internet ? "online" : "gamecenter")) | connected \(s.isConnected)",
+                     "own strokes reached by snapshot before shotStart \(LANPairQA.ownViaSnapshot) | slow sends \(s.sendSlowCount)", ""]
+        lines += LANLog.lines
+        let stamp = Int(Date().timeIntervalSince1970)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("zoker-wifi-\(stamp).txt")
+        do { try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8) }
+        catch { notifyStatus("Chưa ghi được nhật ký"); return }
+        let share = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        share.popoverPresentationController?.sourceView = matchPlay.banner
+        share.popoverPresentationController?.sourceRect = matchPlay.banner.bounds
+        present(share, animated: true)
     }
 }

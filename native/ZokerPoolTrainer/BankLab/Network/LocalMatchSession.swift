@@ -550,6 +550,10 @@ final class LocalMatchSession: NSObject {
     /// 0.58c: the main thread only builds the (cheap) envelope and queues it. JSON encoding and the transport send run on
     /// `sendQueue` (weak Wi-Fi can block `MCSession.send`). Unreliable snapshots that a newer one has overtaken in the
     /// queue are dropped before they are encoded. Returns true = queued.
+    /// QA only (ZOKER_QA_SHOTSTART_DELAY_MS / ZOKER_QA_DROP_PCT, set by Tools/run_lan_pair_qa.sh): shape the relay like Wi-Fi.
+    static let qaShotStartDelay = (Double(ProcessInfo.processInfo.environment["ZOKER_QA_SHOTSTART_DELAY_MS"] ?? "") ?? 0) / 1000
+    static let qaDropPercent = Double(ProcessInfo.processInfo.environment["ZOKER_QA_DROP_PCT"] ?? "") ?? 0
+    static let qaShape = qaShotStartDelay > 0 || qaDropPercent > 0
     @discardableResult private func send(kind: LANEnvelope.Kind, snapshot: LANSnapshot? = nil,
                                          command: LANCommand? = nil, message: String? = nil,
                                          events: [LANEvent]? = nil, shotID: Int? = nil, aim: LANAim? = nil,
@@ -560,7 +564,10 @@ final class LocalMatchSession: NSObject {
         var packet = LANEnvelope(roomCode: roomCode, matchID: matchID, sequence: sequence, kind: kind)
         packet.snapshot = snapshot; packet.command = command; packet.message = message
         packet.events = events; packet.shotID = shotID; packet.aim = aim; packet.shotStart = shotStart
-        let lossy = unreliable && transport == .nearby
+        // 0.59 ZB-037 QA (LANPair over the relay): imitate the Wi-Fi link, where MultipeerConnectivity carries reliable and
+        // unreliable packets on separate channels — a moving (unreliable) snapshot can overtake the reliable shotStart.
+        let shaped = transport == .internet && Self.qaShape
+        let lossy = unreliable && (transport == .nearby || shaped)
         if lossy { packet.unreliable = true }
         if kind == .hello { packet.role = role == .host ? "host" : "guest"; packet.game = game }
         let isSnapshot = kind == .snapshot
@@ -585,7 +592,9 @@ final class LocalMatchSession: NSObject {
                     try match.sendData(toAllPlayers: data, with: .reliable)
                 case .internet:
                     guard let relayLink = relayLink else { return }
-                    DispatchQueue.main.async { relayLink.send(data) }   // RelayLink state lives on main; this call does not block
+                    if shaped && lossy && isSnapshot && Double.random(in: 0..<100) < Self.qaDropPercent { LANLog.log("qa", "drop snapshot seq \(sequence)"); return }
+                    let hold = shaped && kind == .shotStart ? Self.qaShotStartDelay : 0
+                    DispatchQueue.main.asyncAfter(deadline: .now() + hold) { relayLink.send(data) }   // RelayLink state lives on main; this call does not block
                 case .nearby:
                     guard let mcSession = mcSession, !peers.isEmpty else { return }
                     try mcSession.send(data, toPeers: peers, with: lossy ? .unreliable : .reliable)
@@ -638,6 +647,7 @@ final class LocalMatchSession: NSObject {
             }
             let wasReady = remoteReady
             remoteReady = true; hasEverConnected = true
+            if !linkUp { LANLog.log("link", "hello arrived but link not up (relay open \(relay?.isOpen == true) peer \(relayPeerPresent))") }
             LANLog.log("link", "hello from \(packet.role ?? "?") · wasReady \(wasReady) · isConnected \(isConnected)")
             if !wasReady && transport == .nearby { lobby.linkUp(now: ProcessInfo.processInfo.systemUptime); onLobbyChanged?() }
             if role == .host {
@@ -747,6 +757,7 @@ extension LocalMatchSession {
     fileprivate func handleRelay(_ event: RelayLink.Event) {
         switch event {
         case .peer(let present):
+            LANLog.log("relay", "peer present \(present) · role \(role) · open \(relay?.isOpen == true)")   // 0.59 ZB-037 log kit
             relayFailures = 0
             relayPeerPresent = present
             if present {
@@ -765,6 +776,7 @@ extension LocalMatchSession {
         case .data(let data):
             receive(data, from: nil)
         case .closed(let code):
+            LANLog.log("relay", "closed \(code) · role \(role)")
             relayPeerPresent = false; remoteReady = false; snapshotReady = false
             awaitingCommandID = nil; awaitingRevision = nil
             relay = nil

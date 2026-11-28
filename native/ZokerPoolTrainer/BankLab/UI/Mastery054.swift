@@ -36,7 +36,9 @@ enum Mastery {
         let stars = c.drills.filter { tier($0) > 0 }.map { Int32(s.ladderStars($0)) }
         return Int(BLChapterPercent(stars, Int32(stars.count)))
     }
-    static func warmDone(_ made: Int) -> Bool { BLWarmupDone(Int32(made)) != 0 }
+    /// 0.59 ZB-042: warm-up shots chosen in Tuỳ chỉnh (0 default, 2 or 5).
+    static var warmNeeded: Int { Int(BLWarmupNeeded(Int32(UserDefaults.standard.integer(forKey: Prefs.ringWarmup)))) }
+    static func warmDone(_ made: Int) -> Bool { BLWarmupDoneOf(Int32(made), Int32(warmNeeded)) != 0 }
     static func titleIndex(_ percent: Int) -> Int { Int(BLTitleIndex(Int32(percent))) }
     /// "còn N % nữa lên <bậc sau>"; nil at the top title.
     static func nextTitle(_ percent: Int) -> (name: String, remaining: Int)? {

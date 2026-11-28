@@ -16,6 +16,7 @@ enum Prefs {
     static let tutorialHints = "tutorialHints0441"
     static let matchFoulCard = "matchFoulCard059"   // 0.59 A1: thẻ phạm lỗi dưới bảng điểm
     static let matchTurnPill = "matchTurnPill059"   // 0.59 A2: viên báo đổi lượt
+    static let ringWarmup = "ringWarmup059"   // 0.59 ZB-042: cú khởi động trước vòng tính điểm (0 mặc định, 2, 5)
     static func tutorialHintSeen(_ id: String) -> String { "tutorialHint0441." + id }
     static let recentPlay = "recentPlay046"
     /// 0.46 M2: Phòng thí nghiệm (Tuỳ chỉnh → Máy). Off by default: engineer tools hidden from every menu.

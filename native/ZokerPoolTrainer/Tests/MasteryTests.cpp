@@ -26,6 +26,9 @@ int main() {
     // rings and warm-up
     check(BLTierOpen(1, 0) && !BLTierOpen(2, 2) && BLTierOpen(2, 3) && BLTierOpen(3, 3) && BLTierOpen(0, 0), "next ring opens at 3 stars");
     check(!BLWarmupDone(4) && BLWarmupDone(5), "warm-up: 5 made in the big ring");
+    check(BLWarmupDoneOf(0, 0) && BLWarmupNeeded(-3) == 0, "ZB-042: no warm-up by default, the scored round starts at once");
+    check(!BLWarmupDoneOf(1, 2) && BLWarmupDoneOf(2, 2), "ZB-042: 2-shot warm-up");
+    check(!BLWarmupDoneOf(4, 5) && BLWarmupDoneOf(5, 5) && BLWarmupNeeded(9) == 5, "ZB-042: 5-shot warm-up, clamped at 5");
     // take-backs
     check(BLChapterUndoBudget(1) == -1 && BLChapterUndoBudget(2) == 100 && BLChapterUndoBudget(3) == 70 && BLChapterUndoBudget(4) == 50 &&
           BLChapterUndoBudget(5) == 30 && BLChapterUndoBudget(9) == 30, "take-back budgets by chapter");
