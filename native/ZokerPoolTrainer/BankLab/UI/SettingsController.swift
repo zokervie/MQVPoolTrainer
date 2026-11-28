@@ -306,6 +306,8 @@ final class CustomizeController:UIViewController {
         target.addArrangedSubview(UIButton.lab("Pháp lý · giấy phép"){[weak self] in guard let self=self else{return};let nav=UINavigationController(rootViewController:LegalController());nav.overrideUserInterfaceStyle = .dark;self.present(nav,animated:true)})   // 0.49c G2
         toggle("Hiện đường bi của lần thử trước khi thử lại thế bí",Prefs.puzzleGhostPath,true)   // 0.51 N4
         toggle("Luật phá 3 bi (giải đấu)",Prefs.threeBallBreak,false)   // 0.49c G8: off = a break that pots a ball keeps the turn
+        toggle("Thẻ báo lỗi dưới bảng điểm: lỗi gì và ai được gì",Prefs.matchFoulCard,true)   // 0.59 A1
+        toggle("Báo đổi lượt (viên nhỏ dưới bảng điểm)",Prefs.matchTurnPill,true)   // 0.59 A2
         toggle("Intro thương hiệu khi mở app (lần đầu 6 s, sau đó 1,5 s; chạm để bỏ qua)",Prefs.introEnabled,true)
         toggle("Hướng dẫn cú đầu tiên khi mở app lần đầu (xem lại: Menu → Hướng dẫn chơi)",Prefs.tutorialEnabled,true)
         toggle("Gợi ý theo ngữ cảnh (mỗi gợi ý một lần, tự tắt sau 6 giây)",Prefs.tutorialHints,true)   // 0.44.1 M4

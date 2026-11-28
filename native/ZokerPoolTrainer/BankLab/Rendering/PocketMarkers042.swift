@@ -21,13 +21,15 @@ extension TableScene {
         for (k, p) in Self.pocketPoints(width: width, length: length).enumerated() {
             if mode == 2 && k != chosen { continue }
             if mode == 1 {
-                // 0.53 B3: a soft white mist around the mouth (alpha ~0.25), never covering the mouth itself.
-                let tube = SCNTube(innerRadius: 0.07, outerRadius: 0.15, height: 0.002)
-                let m = SCNMaterial(); m.lightingModel = .constant; m.diffuse.contents = UIColor(white: 1, alpha: 0.25)
-                m.isDoubleSided = true; m.readsFromDepthBuffer = false; m.writesToDepthBuffer = false
-                tube.materials = [m]
-                let node = SCNNode(geometry: tube); node.position = SCNVector3(Float(p.x), 0.03, Float(p.y)); node.renderingOrder = 3000
-                node.castsShadow = false; root.addChildNode(node)
+                // 0.59 A4 (owner 28/11): the pocket lights from inside its mouth (amber glow, gently pulsing) instead of a
+                // wide white mist around it — the mist covered balls near the pocket and read as "tap anywhere here".
+                let disc = SCNCylinder(radius: 0.055, height: 0.002)
+                let m = SCNMaterial(); m.lightingModel = .constant; m.diffuse.contents = UIColor(red: 1.0, green: 0.78, blue: 0.32, alpha: 1)
+                m.readsFromDepthBuffer = false; m.writesToDepthBuffer = false; m.blendMode = .add
+                disc.materials = [m]
+                let node = SCNNode(geometry: disc); node.position = SCNVector3(Float(p.x), 0.012, Float(p.y)); node.renderingOrder = 3000
+                node.castsShadow = false; node.opacity = 0.55; root.addChildNode(node)
+                node.runAction(.repeatForever(.sequence([.fadeOpacity(to: 0.85, duration: 0.7), .fadeOpacity(to: 0.40, duration: 0.7)])))
             } else {
                 // after the call: one thin white arrow bobbing gently (about 2 cm, 1.2 s) pointing down at the pocket
                 let white = SCNMaterial(); white.lightingModel = .constant; white.diffuse.contents = UIColor.white
@@ -44,5 +46,17 @@ extension TableScene {
                 root.addChildNode(arrow)
             }
         }
+    }
+    /// 0.59 A4: the ball chosen for the call — a thin amber ring on the cloth around it.
+    func showCallBallRing(x: Double, y: Double, visible: Bool) {
+        let name = "call-ball-ring"
+        scene.rootNode.childNode(withName: name, recursively: false)?.removeFromParentNode()
+        guard visible else { return }
+        let torus = SCNTorus(ringRadius: 0.042, pipeRadius: 0.004)
+        let m = SCNMaterial(); m.lightingModel = .constant; m.diffuse.contents = UIColor(red: 1.0, green: 0.78, blue: 0.32, alpha: 1)
+        m.readsFromDepthBuffer = false; m.writesToDepthBuffer = false
+        torus.materials = [m]
+        let node = SCNNode(geometry: torus); node.name = name; node.position = SCNVector3(Float(x), 0.004, Float(y))
+        node.renderingOrder = 3002; node.castsShadow = false; scene.rootNode.addChildNode(node)
     }
 }

@@ -1299,6 +1299,9 @@ final class InteractionTests: XCTestCase {
             let (app, scene) = launch(["--match-foul-qa=\(rule)"])
             wait(scene, timeout: 60 * slow) { self.field(scene, "placeOn") == 1 }
             XCTAssertEqual(field(scene, "placeOn"), 1, "\(rule): ball in hand → Place ball enabled")
+            // 0.59 A1: the foul card under the scoreboard (what + who gets ball in hand)
+            XCTAssertEqual(text(scene, "notice"), "foul", "\(rule): foul card shown: \(scene.value as? String ?? "")")
+            XCTAssertTrue(app.otherElements["MatchNotice"].exists || field(scene, "notices") >= 1, "\(rule): the card is on screen")
             app.terminate()
         }
     }
@@ -1351,13 +1354,15 @@ final class InteractionTests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["PowerBar"].isHittable, "no power bar in a drill")
         XCTAssertFalse(app.buttons["PowerBarSwitch"].isHittable, "no switch either")
     }
-    /// 0.53 B3: the call needs one tap: ball 1 is called by default (10-ball), the camera stays low, and a tap on a pocket completes it.
+    /// 0.53 B3: the call needs one tap: ball 1 is called by default (10-ball), and a tap on a pocket completes it.
+    /// 0.59 A4 (owner 28/11): the pick happens on the top view and the camera returns afterwards; a chip confirms "Bi 1 → lỗ 4".
     func testCallNeedsOnlyOneTapOnAPocket() {
         let (_, scene) = launch(["--call-qa", "--call-tap-pocket-qa"])
         wait(scene, timeout: 60 * slow) { self.field(scene, "calledPocket") == 3 }
         XCTAssertEqual(field(scene, "calledBall"), 1, "the default called ball is the lowest ball on the table")
         XCTAssertEqual(field(scene, "calledPocket"), 3, "one tap on the right side pocket")
-        XCTAssertNotEqual(field(scene, "mode"), 1, "no forced top view")
+        XCTAssertNotEqual(field(scene, "mode"), 1, "after the call the camera is back at the aim view")
+        XCTAssertTrue(text(scene, "callChip").contains("→"), "the confirmation chip: \(text(scene, "callChip"))")
     }
     /// 0.54 M1/M3/M4/M6: chapter 1 shows nine ladders, the title for the saved progress (70 % → "Triển Vọng", from Mastery.h), the "∞" take-back line,
     /// locked rings beyond a ring with fewer than 3 stars, the intro text; "Chơi lại chương" (two confirmations) clears it.

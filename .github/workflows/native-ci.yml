@@ -7,6 +7,9 @@ on:
   push:
     branches: ['feature/zoker-native', 'ci/native-**', 'ci/fast-**', 'feature/native-0.18-integrated-play']
     # ci/fast-**: làn nhanh 0.59 — chỉ cổng Linux + IPA ứng viên (~25 phút), bỏ nghiệm thu đầy đủ và UI test. Dùng cho bản thử; bản nghiệm thu vẫn đi ci/native-**.
+    # 0.59 (rà soát máy thử 28/11, anh duyệt): một lần đẩy chỉ đổi tài liệu (Docs/, *.md) không chạy CI — trước đây mỗi lần như vậy tốn ~2 giờ máy Mac.
+    # Đẩy có cả mã và tài liệu vẫn chạy đủ (paths-ignore chỉ bỏ qua khi MỌI tệp thay đổi đều khớp).
+    paths-ignore: ['native/ZokerPoolTrainer/Docs/**', '**/*.md']
   workflow_dispatch:
     inputs:
       runner:

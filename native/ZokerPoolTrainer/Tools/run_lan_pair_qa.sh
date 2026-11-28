@@ -74,6 +74,13 @@ checks = [
     ('ZB-010/011 status contradictions %s' % g['statusContradictions'], not g['statusContradictions']),
     ('ZB-005 picture clock rewinds (%d)' % g['rewinds'], g['rewinds'] == 0),
 ]
+# 0.59 A1/A2 (owner 28/11): the turn pill / foul card show on both devices and say the same thing from each side
+# ("Lượt của bạn" on one = "Lượt đối thủ" on the other), in step. One notice may be in flight when the run stops.
+mirror = {'turn:Lượt của bạn': 'turn:Lượt đối thủ', 'turn:Lượt đối thủ': 'turn:Lượt của bạn'}
+hn, gn = h.get('notices', []), g.get('notices', [])
+paired = [(a, b) for a, b in zip(hn, gn) if a.startswith('turn:') and b.startswith('turn:')]
+checks.append(('A2 turn notices host %d / guest %d, mirrored' % (len(hn), len(gn)),
+               len(hn) >= 1 and abs(len(hn) - len(gn)) <= 1 and all(mirror.get(a) == b for a, b in paired)))
 bad = [n for n, ok in checks if not ok]
 for n, ok in checks: print(('PASS ' if ok else 'FAIL ') + n)
 print('REPORT lan pair: lockstep shots %s, fallbacks %s' % (g.get('lockstepShots'), g.get('fallbacks')))

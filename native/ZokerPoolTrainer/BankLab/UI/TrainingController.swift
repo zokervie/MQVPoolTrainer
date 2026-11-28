@@ -163,6 +163,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
     var videoExport:ReplayVideoExport?
     var consistencyKey="",consistencyStops:[SIMD2<Double>]=[]
     func applyHUDFade(){
+        guard !MatchNoticeUI.focus else { return }   // 0.59 A4: the HUD stays stepped back while a pocket is being called
         let a:CGFloat=hudFaded ? 0.22:CGFloat(Tuning.hudAlpha)
         UIView.animate(withDuration:hudFaded ? 0.18:0.25,delay:0,options:[.beginFromCurrentState,.allowUserInteraction]){
             for v in self.cueIcons{v.alpha=a}
@@ -448,6 +449,8 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     self.updateControls();self.syncMatchControls()
                     DispatchQueue.main.asyncAfter(deadline:.now()+1){
                         self.matchPlay.state["ballInHand"]=NSNumber(value:true);self.matchPlay.state["currentPlayer"]=NSNumber(value:0);self.matchPlay.state["headStringOnly"]=NSNumber(value:false)
+                        // 0.59 A1: the foul is ruled like a real shot (shot count +1, reason) so the foul card shows
+                        self.matchPlay.state["shotCount"]=NSNumber(value:self.matchInt("shotCount")+1);self.matchPlay.state["reason"]="scratch"
                         self.matchPlay.computerLevel=nil;self.matchPlay.computerThinking=false
                         self.syncMatchControls()}}   // only the match sync (as after the computer's shot): the button must follow it
             }
@@ -467,6 +470,7 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
                     self.startMatch(rule:"tenBall",network:false)
                     self.matchPlay.state["breakShot"]=NSNumber(value:false);self.matchPlay.state["requiresCall"]=NSNumber(value:true);self.syncMatchControls();self.updateControls()
+                    if args.contains("--call-pick-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){self.beginMatchCallPick()}}   // 0.59 A4: stay in the picker (screenshots)
                     if args.contains("--call-tap-pocket-qa"){DispatchQueue.main.asyncAfter(deadline:.now()+2){
                         self.beginMatchCallPick();let w=(self.engine.settings["tableWidth"]?.doubleValue ?? 1.27)/2
                         _=self.handleMatchCallTap(SIMD2<Double>(w,0.0))}}}

@@ -16,6 +16,9 @@ python3 Tools/i18n/sweep_literals.py > build/lan-checks/l10n-literals.json
 python3 Tools/i18n/check_unswizzled.py BankLab   # ZB-045: literals the swizzle never sees
 xcrun swiftc -warnings-as-errors BankLab/UI/L10nCore059.swift BankLab/UI/L10nTable059.swift Tests/L10nSweepTests.swift -o build/lan-checks/L10nSweepTests
 build/lan-checks/L10nSweepTests BankLab/Assets.xcassets/I18N_en.dataset/i18n.json build/lan-checks/l10n-literals.json Tools/i18n/sweep_allow.txt
+# 0.59 A1/A2 (owner 28/11): foul card + turn pill decision.
+xcrun swiftc -warnings-as-errors BankLab/UI/MatchNotice059.swift Tests/MatchNoticeTests.swift -o build/lan-checks/MatchNoticeTests
+build/lan-checks/MatchNoticeTests
 # 0.45 M5: player progress file (player.json, .bak recovery, legacy stars → stable drill ids) and the launch flow.
 xcrun swiftc -warnings-as-errors -import-objc-header BankLab/UI/DailyLoop.h BankLab/UI/PlayerStore047.swift BankLab/UI/Achievements058.swift BankLab/UI/ResultNext058c.swift BankLab/UI/DrillIDs047.swift Tests/PlayerStoreTests.swift -o build/lan-checks/PlayerStoreTests
 build/lan-checks/PlayerStoreTests

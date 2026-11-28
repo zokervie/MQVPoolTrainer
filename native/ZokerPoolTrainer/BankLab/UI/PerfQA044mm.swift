@@ -230,6 +230,9 @@ enum LANPairQA {
         if let last = lastClock[shot], time < last - 0.15 { rewinds += 1 }
         lastClock[shot] = max(lastClock[shot] ?? time, time)
     }
+    /// 0.59 A1/A2: every foul card / turn pill shown on this device ("foul:…" / "turn:…"), for the pair report.
+    static var notices: [String] = []
+    static func notice(_ text: String) { guard active, notices.count < 40 else { return }; notices.append(text) }
     static func noteStatus(_ text: String) {
         guard active else { return }
         let bad = (text.contains("Lượt của bạn") && text.contains("Hết lượt") && !text.contains("Cú của")) ||
@@ -239,6 +242,6 @@ enum LANPairQA {
     static func report() -> [String: Any] {
         ["shots": shots, "soundsPlayed": soundsPlayed, "soundRepeats": soundRepeats, "ownStrikes": ownStrikes,
          "strikeAngleErrorMaxDeg": strikeAngleErrorMaxDeg, "breakCueOnNormalTurn": breakCueOnNormalTurn,
-         "statusContradictions": statusContradictions, "rewinds": rewinds]
+         "statusContradictions": statusContradictions, "rewinds": rewinds, "notices": notices]
     }
 }
