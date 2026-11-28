@@ -1,0 +1,89 @@
+{
+  "source_sha": "d334fa89d2a53e2f7ef2dc7227f0e3816317da3a",
+  "created_utc": "20261128T092737Z",
+  "platform": "macOS-15.7.9-x86_64-i386-64bit",
+  "mode": "native",
+  "status": "PASSED_SIMULATOR_UNSIGNED",
+  "working_tree_modified": [
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ios-marketing-1024-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-20-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-20-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-29-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-29-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-40-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-40-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-76-1.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-76-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-ipad-83.5-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-20-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-20-3.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-29-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-29-3.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-40-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-40-3.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-60-2.png",
+    "native/ZokerPoolTrainer/BankLab/Assets.xcassets/AppIcon.appiconset/Icon-iphone-60-3.png"
+  ],
+  "tracked_patch_sha256": "4c08b417f1854b1b5b5eee78a1482ba3592c4244514219bab4634a00be471903",
+  "physical_device": "NOT_RUN",
+  "signing": "UNSIGNED_ONLY",
+  "stages": [
+    {
+      "name": "assets",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261128T092737Z/assets.log"
+    },
+    {
+      "name": "portable-regressions",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261128T092737Z/portable-regressions.log"
+    },
+    {
+      "name": "replay-recording",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261128T092737Z/replay-recording.log"
+    },
+    {
+      "name": "lan-wire-protocol",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261128T092737Z/lan-wire-protocol.log"
+    },
+    {
+      "name": "simulator-build",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261128T092737Z/simulator-build.log"
+    },
+    {
+      "name": "screenshots-and-runtime-probes",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261128T092737Z/screenshots-and-runtime-probes.log"
+    },
+    {
+      "name": "table-glare",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261128T092737Z/table-glare.log"
+    },
+    {
+      "name": "unsigned-iphone-build",
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "build/acceptance/20261128T092737Z/unsigned-iphone-build.log"
+    }
+  ],
+  "artifacts": [
+    {
+      "file": "ZokerPoolTrainer-1.0-Build212.ipa",
+      "sha256": "f53b784b688ce31b9b7f01d3d19085f277b302cd34584f17a4fa4e2a8ea9be26",
+      "bytes": 83035693,
+      "version": "1.0",
+      "build": "212"
+    }
+  ]
+}
