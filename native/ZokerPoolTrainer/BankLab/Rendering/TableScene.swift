@@ -1975,6 +1975,7 @@ final class TableScene {
             // Pitch mặc định 0,325 rad cho đúng vị trí cũ; kéo ngón dọc để hạ sát mặt bàn hoặc nâng cao.
             let radiusAim:Float = 0.4854*zoom
             var pitch=min(max(aimPitch,TableScene.aimPitchRange.lowerBound),TableScene.aimPitchRange.upperBound)
+            let requestedPitch=pitch   // ZB-039: what the player asked for, before rail / cue guards lift it
             // Không để mắt camera chui vào băng/khung gỗ khi bi cái sát băng: nếu mắt nằm ngoài mặt nỉ
             // (|x|>0,635 hoặc |z|>1,27) thì nâng tối thiểu lên trên mặt gỗ (0,040 m) + 3 cm.
             let horizontal=radiusAim*cos(pitch)
@@ -1996,6 +1997,12 @@ final class TableScene {
             // 0.29 (owner): zoom slides the eye along ONE fixed axis through the cue ball, and the cue ball stays at
             // the centre of the screen at every zoom (was: look 0.75 m past it, so it drifted when zooming).
             target=SIMD3<Float>(Float(c.x),Float(radius),Float(c.y))
+            // 0.59 ZB-039: forced up by the rail or a raised cue → the view tilts back up (object ball in view, cue ball low on screen).
+            let tilt=Float(AimRailSight.viewTilt(forced:Double(pitch-requestedPitch),halfFov:Double(fov/2)))
+            if tilt>0 && !QA.has("--rail-sight-off-qa"){
+                let down=pitch-tilt
+                target=eye+(d*cos(down)+SIMD3<Float>(0,-sin(down),0))*radiusAim
+            }
         }else{
             // 0.29: watching the opponent orbits a FIXED pivot (table centre), not a moving shot frame.
             let bounds=spectatorPivot ? SIMD4<Float>(-0.78,0.78,-1.43,1.43):(focusBounds ?? SIMD4<Float>(-0.78,0.78,-1.43,1.43))

@@ -98,6 +98,16 @@ enum AimRailSight {
     /// down to 0.02 rad, i.e. level with (or under) a raised cue, so the cue ran through the lens. The eye stays at least
     /// `cueGap` above the cue line: pitch ≥ cue elevation + 0.12 rad (≈ 7°). Never lowers a high camera; capped at `maxPitch`.
     static let cueGap = 0.12
+
+    /// 0.59 ZB-039 (owner, ảnh 28/11: cue ball frozen on the rail, the lowest aim view only looked down at the cue ball
+    /// and the object ball was out of sight). When the rail or a raised cue forces the eye up by `forced` rad, the view
+    /// tilts back UP by that much (the eye stays where the guards put it), so the table ahead and the object ball come
+    /// into view while the cue ball and tip stay on screen: the tilt is capped at 70 % of half the vertical field of view.
+    /// 0 when nothing is forced (the cue ball stays centred, 0.29 rule).
+    static func viewTilt(forced: Double, halfFov: Double) -> Double {
+        guard forced > 0.03 else { return 0 }
+        return min(forced - 0.03, 0.7 * halfFov)
+    }
     /// A steep cue (jump/massé, ≥ 30°) rises far above the eye within the camera distance, so it never crosses the lens.
     static func cueClearPitch(cueElevationDegrees: Double, pitch: Double, maxPitch: Double = 1.2) -> Double {
         guard cueElevationDegrees < 30 else { return pitch }

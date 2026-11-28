@@ -68,6 +68,13 @@ import Foundation
         check(abs(S.cueClearPitch(cueElevationDegrees: 10, pitch: 0.02) - (10 * .pi / 180 + S.cueGap)) < 1e-9, "10° cue: eye ≥ 10° + gap")
         check(S.cueClearPitch(cueElevationDegrees: 10, pitch: 0.325) == 0.325, "default pitch already clears a 10° cue → unchanged")
         check(S.cueClearPitch(cueElevationDegrees: 60, pitch: 0.3) == 0.3, "massé cue rises above the eye → unchanged")
+        // ZB-039: the view tilts up only when the eye was forced up, never so far that the cue ball leaves the screen
+        let half = 19 * Double.pi / 180   // aim camera 38° field of view
+        check(S.viewTilt(forced: 0, halfFov: half) == 0 && S.viewTilt(forced: 0.02, halfFov: half) == 0, "nothing forced: the cue ball stays centred")
+        check(S.viewTilt(forced: 0.15, halfFov: half) > 0.1 && S.viewTilt(forced: 0.15, halfFov: half) < S.viewTilt(forced: 0.2, halfFov: half), "more forced, more tilt")
+        check(abs(S.viewTilt(forced: 2, halfFov: half) - 0.7 * half) < 1e-12, "capped: the cue ball stays inside the lower third")
+        let frozenCue = S.cueClearPitch(cueElevationDegrees: 15, pitch: 0.02)   // owner photo: ↑15° cue on the rail, eye dragged down
+        check(S.viewTilt(forced: frozenCue - 0.02, halfFov: half) > 0.2, "frozen cue ball, 15° cue, eye pulled low: tilts up ≥ 11°")
         check(S.obstacle(x: 0, z: 0) == 0 && S.obstacle(x: 0, z: 1.30) > 0.036 && S.obstacle(x: 0, z: 1.50) == 0, "rail height: cloth 0, rail 36–40 mm, floor 0")
         print(String(format: "REPORT AimRailSight: low eye 10 cm from rail %.2f rad (%.0f°), 4 cm %.2f rad (%.0f°), frozen %.2f rad (%.0f°), default %.3f rad (%.0f°)", tenCm, tenCm * 57.3, fourCm, fourCm * 57.3, frozen, frozen * 57.3, base, base * 57.3))
         print("PASS MatchCameraPolicy: \(checks) checks (Wi-Fi own-stroke hold, spectator timing, aim camera once per turn)")
