@@ -853,7 +853,7 @@ final class TableScene {
     private func pocket(_ x:Float,_ z:Float){
         let segments=96
         let aperture:Float = z==0 ? 0.066:0.074
-        var vertices:[SCNVector3]=[],normals:[SCNVector3]=[],uv:[CGPoint]=[],indices:[Int32]=[]
+        var vertices:[SCNVector3]=[],normals:[SCNVector3]=[],uv:[CGPoint]=[],indices:[Int32]=[],shade:[SIMD4<Float>]=[]
         let outward=simd_normalize(SIMD2(x,z))
         // Height of the back casting blends into the rail; the entry lip stays flush with felt.
         func lipHeight(_ c:Float,_ s:Float)->Float{
@@ -878,6 +878,8 @@ final class TableScene {
                 vertices.append(SCNVector3(x+c*ring.radius,height,z+s*ring.radius))
                 normals.append(SCNVector3(-c,0.10,-s))
                 uv.append(CGPoint(x:CGFloat(i)/24,y:CGFloat(level)*0.6))
+                // ZB-054: darkness by depth only (same all around the mouth) — lip 0.62, floor 0.12
+                let k:Float=[0.62,0.46,0.30,0.18,0.12][min(level,4)];shade.append(SIMD4(k,k,k,1))
             }
             if i<segments{for level in 0..<(profile.count-1){
                 let a=Int32(i*profile.count+level),b=a+Int32(profile.count)
@@ -885,11 +887,20 @@ final class TableScene {
             }}
         }
         let leather=premiumMaterial("PocketLeather");leather.isDoubleSided=true
+        // 0.59 ZB-054 (owner, ảnh 28/11: "miệng lỗ bị chia làm 2 màu không đều nhau, thiếu logic"). The room light and the
+        // rail's shadow lit one half of the cup and left the other black, with a hard seam across the mouth. A pocket throat
+        // is in the rail's shade all round: the leather is drawn unlit and only gets darker with depth (vertex shade).
+        let litCup=QA.has("--pocket-lit-qa")   // QA: the "before" photo
+        if !litCup { leather.lightingModel = .constant }
         leather.normal.contents=materialMap("PC_PocketLeather_normal"){self.clothNormal()};leather.normal.intensity=0.20
         leather.normal.wrapS = .repeat;leather.normal.wrapT = .repeat
-        let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv)],elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
-        g.materials=[leather];scene.rootNode.addChildNode(SCNNode(geometry:g))
-        let floor=SCNCylinder(radius:CGFloat(min(0.090,wall)),height:0.002);floor.materials=[leather]
+        let shadeData=shade.withUnsafeBufferPointer{Data(buffer:$0)}
+        if litCup { shade=shade.map{_ in SIMD4<Float>(1,1,1,1)} }
+        let shadeSource=SCNGeometrySource(data:shadeData,semantic:.color,vectorCount:shade.count,usesFloatComponents:true,componentsPerVector:4,bytesPerComponent:4,dataOffset:0,dataStride:16)
+        let g=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices),SCNGeometrySource(normals:normals),SCNGeometrySource(textureCoordinates:uv),shadeSource],elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
+        g.materials=[leather];let cup=SCNNode(geometry:g);cup.name="pocket-cup";cup.castsShadow=false;scene.rootNode.addChildNode(cup)
+        let floorLeather=leather.copy() as! SCNMaterial;if !litCup{floorLeather.multiply.contents=UIColor(white:0.12,alpha:1)}
+        let floor=SCNCylinder(radius:CGFloat(min(0.090,wall)),height:0.002);floor.materials=[floorLeather]
         let floorNode=SCNNode(geometry:floor);floorNode.name="pocket-floor";floorNode.position=SCNVector3(x,Self.pocketFloor-0.001,z)
         scene.rootNode.addChildNode(floorNode)
         // A narrow, connected satin casting follows the same lip instead of separate square caps.

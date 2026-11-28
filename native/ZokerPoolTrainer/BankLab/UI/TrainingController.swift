@@ -462,6 +462,13 @@ final class TrainingController:UIViewController,UIGestureRecognizerDelegate {
                     self.engine.loadLayout(layout.map{$0.dictionary}); self.angle = -Double.pi/2; self.aimCameraYaw=0
                     self.table.cameraMode=2; self.table.aimPitch=Float(v[1]); self.refresh(); self.updateControls(); self.wakeRendering()}
             }
+            // 0.59 ZB-054: --pocket-view-qa — cue ball 20 cm from the foot-right corner pocket, aiming at it (photo of the cup)
+            if args.contains("--pocket-view-qa") {
+                DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self, !self.balls.isEmpty else{return}
+                    var layout=self.balls; layout[0].x=0.49; layout[0].y=1.125
+                    self.engine.loadLayout(layout.map{$0.dictionary}); self.angle = atan2(1.27-1.125, 0.635-0.49); self.aimCameraYaw=0
+                    self.table.cameraMode=2; self.table.aimPitch=0.55; self.refresh(); self.updateControls(); self.wakeRendering()}
+            }
             if args.contains("--training-drill-qa") {   // 0.53 C1: open a catalogue drill that has a mission ring
                 DispatchQueue.main.asyncAfter(deadline:.now()+1.5){[weak self] in guard let self=self else{return}
                     if let i=Drill.all.firstIndex(where:{$0.goal != nil && !($0.goal!.potOnly)}){self.loadDrill(i);self.syncPowerBar();self.applyCoachVisibility()}}
